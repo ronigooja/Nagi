@@ -2,6 +2,10 @@
 
 This document defines the implemented Nagi commands and their JSON interface. `--json` may appear anywhere in the argument list. Without it, Nagi prints text intended for terminal reading. Scripts and applications should use `--json` rather than parse the text presentation.
 
+## Terminal dashboard
+
+`nagi tui` opens the interactive dashboard on a terminal. It requires terminal stdin and stdout, and exits with status `2` if either is redirected or if `--json` is supplied. It shows engine, profile, runtime mode, DNS, system proxy, and TUN state, proxy groups and nodes, saved subscription names, recent logs, loading and error states. A value is `unknown` or `unavailable` when it cannot be verified. See the [terminal dashboard guide](../guides/terminal-dashboard.md) for keys and task flow. TUI actions use the same command behavior as their noninteractive equivalents. The command produces no JSON success envelope; the other commands and their JSON contracts are unchanged.
+
 ## Help and syntax
 
 Run `nagi`, `nagi help`, `nagi -h`, or `nagi --help` for top-level help. Use `nagi help profile use` or `nagi profile use --help` for a command's syntax, description, and example. `-h` is also accepted for command help. Help topics contain command names, without positional argument values.

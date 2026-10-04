@@ -4,7 +4,7 @@ This document records capabilities sought for making Nagi a complete daily-use p
 
 ## TUI
 
-The terminal user interface is a core user-facing feature. It should provide:
+The terminal dashboard is implemented through `nagi tui`; the [guide](../guides/terminal-dashboard.md) defines keys and current behavior. The following is the target scope:
 
 - current engine status, selected profile, proxy mode, and DNS status;
 - proxy group and node browsing;

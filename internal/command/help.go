@@ -15,6 +15,7 @@ type commandSpec struct {
 
 // Keep command syntax and help in one place. Group entries have maxArgs -1.
 var commandSpecs = []commandSpec{
+	{"tui", "tui", "Open the terminal dashboard", "Requires an interactive terminal. Browse proxy groups and nodes, search, test latency, select nodes, update or apply subscriptions, inspect logs, and control runtime settings. Press q to exit. --json is unavailable for this command.", "nagi tui", "", 0, 0},
 	{"start", "start", "Start mihomo", "Starts mihomo with the selected profile; creates the default profile if needed.", "nagi start", "", 0, 0},
 	{"stop", "stop", "Stop mihomo", "Stops a running mihomo process.", "nagi stop", "", 0, 0},
 	{"restart", "restart", "Restart mihomo", "Restarts mihomo with the selected profile.", "nagi restart", "", 0, 0},

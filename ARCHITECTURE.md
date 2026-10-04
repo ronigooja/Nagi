@@ -24,7 +24,7 @@ The mihomo source belongs in a separate repository. Nagi records the exact sourc
 
 ## Modules and dependencies
 
-The executable entry point is `cmd/nagi`. `internal/command` handles help, checks invocation syntax before reading runtime configuration, and assembles calls; `internal/output` owns the CLI response envelope and terminal formatting of feature results. Feature code is split by responsibility:
+The executable entry point is `cmd/nagi`. `internal/command` handles help, checks invocation syntax before reading runtime configuration, and assembles calls; `internal/output` owns the CLI response envelope and terminal formatting of feature results. `internal/tui` renders the interactive dashboard; its command adapter invokes the same feature operations as the CLI. Feature code is split by responsibility:
 
 | Package | Responsibility |
 | --- | --- |
@@ -38,6 +38,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/diagnostic` | Read-only inspection of paths, executable, selected profile, PID, and control API. |
 | `internal/service` | Per-user launchd and systemd service installation. |
 | `internal/traffic` | OS proxy settings, restore journal, and engine exit watcher. |
+| `internal/tui` | Terminal dashboard state, rendering, and key handling. |
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
