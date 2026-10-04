@@ -22,6 +22,7 @@ Without `MIHOMO_DIR`, the build script fetches the repository and exact commit i
 - [CLI reference](docs/reference/cli.md): commands, output, and exit codes.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Development](docs/development/build-and-test.md): locked builds and tests.
+- [Feature roadmap](docs/development/roadmap.md): planned user-facing capabilities.
 - [CLI usability rules](docs/development/cli-usability.md): command help, human output, actionable errors, and compatibility checks.
 - [Release process](docs/development/release.md): version rules, release checks, and release note requirements.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
