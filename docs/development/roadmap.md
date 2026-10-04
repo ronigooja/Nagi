@@ -27,12 +27,9 @@ The existing CLI remains the interface for scripts, automation, and the macOS ap
 
 ## Profiles and local configuration
 
-- Import, export, switch, and remove profiles.
-- Validate configurations before activation.
-- Provide explicit backup and restore commands.
-- Keep subscription-provided configuration separate from user-owned settings.
-- Persist custom rules, DNS settings, ports, and other local overrides.
-- Show differences between configuration versions.
+The CLI now supports source profile import, export, switch, remove, validation, backup, restore, line differences, and separate local YAML overrides. See the [CLI reference](../reference/cli.md#local-profile-files-and-overrides) for the implemented contract.
+
+- Add richer structural differences and conflict warnings for configuration versions.
 
 ## Proxy groups and nodes
 

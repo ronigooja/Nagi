@@ -98,6 +98,45 @@ func (s *Store) Show(name string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+// Backup reads the most recent replacement copy of a profile.
+func (s *Store) Backup(name string) ([]byte, error) {
+	path, err := s.path(name)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Lstat(path + ".bak")
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("backup is not a regular file")
+	}
+	return os.ReadFile(path + ".bak")
+}
+
+// SaveBackup explicitly snapshots the current profile without changing it.
+func (s *Store) SaveBackup(name string) error {
+	data, err := s.Show(name)
+	if err != nil {
+		return err
+	}
+	path, _ := s.path(name)
+	return writeReplace(path+".bak", data)
+}
+
+// RestoreBackup validates the backup and activates it through the normal write path.
+func (s *Store) RestoreBackup(ctx context.Context, name string) error {
+	data, err := s.Backup(name)
+	if err != nil {
+		return err
+	}
+	if err := s.Write(ctx, name, data); err != nil {
+		path, _ := s.path(name)
+		return errors.Join(err, writeReplace(path+".bak", data))
+	}
+	return nil
+}
+
 // Remove deletes an unselected profile. Its existing .bak file, if any, is
 // retained as a recovery copy.
 func (s *Store) Remove(name string) error {

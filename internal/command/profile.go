@@ -86,7 +86,16 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		}
 		return nil
 	}
+	var store *profile.Store
 	reload := func(ctx context.Context) error {
+		current, err := profile.NewStore(paths.ConfigDir, nil, nil).Current()
+		if err != nil {
+			return err
+		}
+		path, err := materializeProfile(store, paths.ConfigDir, current)
+		if err != nil {
+			return err
+		}
 		status, err := manager.Status(ctx)
 		if err != nil {
 			return err
@@ -94,14 +103,52 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if !status.Running {
 			return nil
 		}
-		current, err := profile.NewStore(paths.ConfigDir, nil, nil).Current()
-		if err != nil {
-			return err
-		}
-		path := filepath.Join(paths.ConfigDir, "profiles", current+".yaml")
 		return client.Put(ctx, "/configs?force=true", map[string]any{"path": path}, nil)
 	}
-	return profile.NewStore(paths.ConfigDir, validate, reload)
+	store = profile.NewStore(paths.ConfigDir, validate, reload)
+	return store
+}
+
+func materializeProfile(store *profile.Store, configDir, name string) (string, error) {
+	path := filepath.Join(configDir, "profiles", name+".yaml")
+	if _, err := store.Override(name); errors.Is(err, os.ErrNotExist) {
+		return path, nil
+	} else if err != nil {
+		return "", err
+	}
+	data, err := store.Effective(name)
+	if err != nil {
+		return "", err
+	}
+	if err := store.Validate(data); err != nil {
+		return "", err
+	}
+	// Keep the generated file beside the source so mihomo resolves relative
+	// providers and other paths from the same configuration directory.
+	path = filepath.Join(configDir, "profiles", ".effective-"+name+".yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return "", err
+	}
+	file, err := os.CreateTemp(filepath.Dir(path), ".nagi-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(file.Name())
+	if err := file.Chmod(0600); err != nil {
+		file.Close()
+		return "", err
+	}
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		return "", err
+	}
+	if err := os.Rename(file.Name(), path); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 var mixedPortPattern = regexp.MustCompile(`(?m)^mixed-port:\s*([0-9]+)\s*$`)

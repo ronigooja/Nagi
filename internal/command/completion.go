@@ -68,8 +68,11 @@ func bashCompletion(roots []string, children map[string][]string) string {
 	b.WriteString(`' -- "$cur") ); return 0
   fi
   root="${semantic[0]}"
-  if [[ "$root" == profile && "${semantic[1]}" == import && ${#semantic[@]} -eq 3 ]]; then
+  if [[ "$root" == profile && ( "${semantic[1]}" == import || "${semantic[1]}" == export ) && ${#semantic[@]} -eq 3 || "$root" == profile && "${semantic[1]}" == override && "${semantic[2]}" == set && ${#semantic[@]} -eq 4 ]]; then
     while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0
+  fi
+  if [[ "$root" == profile && "${semantic[1]}" == override && ${#semantic[@]} -eq 2 ]]; then
+    COMPREPLY=( $(compgen -W 'set show clear' -- "$cur") ); return 0
   fi
   if [[ ${#semantic[@]} -eq 1 ]]; then
     case "$root" in
@@ -85,7 +88,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
 
 func zshCompletion(roots []string, children map[string][]string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "#compdef nagi\n_nagi() {\n  local -a semantic\n  local word i\n  semantic=()\n  for ((i=2; i<CURRENT; i++)); do\n    word=${words[i]}\n    [[ $word == --json || $word == --help || $word == -h ]] && continue\n    semantic+=(\"$word\")\n  done\n  if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi\n  if (( ${#semantic} == 0 )); then compadd -- %s; return; fi\n  if [[ ${semantic[1]} == profile && ${semantic[2]} == import && ${#semantic} == 3 ]]; then _files; return; fi\n  if (( ${#semantic} == 1 )); then case ${semantic[1]} in\n", shellWords(roots))
+	fmt.Fprintf(&b, "#compdef nagi\n_nagi() {\n  local -a semantic\n  local word i\n  semantic=()\n  for ((i=2; i<CURRENT; i++)); do\n    word=${words[i]}\n    [[ $word == --json || $word == --help || $word == -h ]] && continue\n    semantic+=(\"$word\")\n  done\n  if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi\n  if (( ${#semantic} == 0 )); then compadd -- %s; return; fi\n  if [[ ${semantic[1]} == profile && ( ${semantic[2]} == import || ${semantic[2]} == export ) && ${#semantic} == 3 || ${semantic[1]} == profile && ${semantic[2]} == override && ${semantic[3]} == set && ${#semantic} == 4 ]]; then _files; return; fi\n  if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${#semantic} == 2 ]]; then compadd -- set show clear; return; fi\n  if (( ${#semantic} == 1 )); then case ${semantic[1]} in\n", shellWords(roots))
 	for _, root := range roots {
 		if len(children[root]) > 0 {
 			fmt.Fprintf(&b, "    %s) compadd -- %s ;;\n", root, shellWords(children[root]))
@@ -124,6 +127,9 @@ end
 	}
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = mode' -a 'rule global direct'\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = import' -F\n")
+	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = export' -F\n")
+	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test \"$s[1]\" = profile; and test \"$s[2]\" = override; and test \"$s[3]\" = set' -F\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and test \"$s[2]\" = override' -a 'set show clear'\n")
 	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
 	return b.String()
 }

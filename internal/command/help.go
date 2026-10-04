@@ -23,10 +23,18 @@ var commandSpecs = []commandSpec{
 	{"config", "config <validate|show>", "Inspect the selected configuration", "Validate or print the selected profile.", "nagi config validate", "", 0, -1},
 	{"config validate", "config validate", "Validate the selected profile", "Runs mihomo -t against the selected profile; requires a mihomo executable.", "nagi config validate", "", 0, 0},
 	{"config show", "config show", "Print the selected profile", "Prints the selected profile YAML.", "nagi config show", "", 0, 0},
-	{"profile", "profile <list|use NAME|import NAME FILE|remove NAME>", "Manage local profiles", "Profile names use letters, digits, _ or -, up to 128 characters.", "nagi profile list", "", 0, -1},
+	{"profile", "profile <list|use|import|export|backup|restore|diff|override|remove>", "Manage local profiles", "Profile names use letters, digits, _ or -, up to 128 characters.", "nagi profile list", "", 0, -1},
 	{"profile list", "profile list", "List local profiles", "Lists available profiles and marks the current selection.", "nagi profile list", "", 0, 0},
 	{"profile use", "profile use NAME", "Select a profile", "Validates and activates an existing profile; reloads a running engine.", "nagi profile use work", "Run `nagi profile list` to find a profile name.", 1, 1},
 	{"profile import", "profile import NAME FILE", "Import a profile", "Validates and saves a local YAML file, up to 8 MiB. Use profile use to select it.", "nagi profile import work ./work.yaml", "Run `nagi profile list` to see existing names.", 2, 2},
+	{"profile export", "profile export NAME FILE", "Export a profile", "Writes the source YAML to a new file with private permissions; refuses to overwrite an existing file.", "nagi profile export work ./work.yaml", "", 2, 2},
+	{"profile backup", "profile backup NAME", "Back up a profile", "Copies the source YAML to profiles/NAME.yaml.bak.", "nagi profile backup work", "", 1, 1},
+	{"profile restore", "profile restore NAME", "Restore a profile backup", "Validates and writes profiles/NAME.yaml.bak; reloads if selected and running.", "nagi profile restore work", "", 1, 1},
+	{"profile diff", "profile diff NAME [OTHER|backup]", "Compare profile versions", "Shows changed lines against another profile or the latest backup (default).", "nagi profile diff work backup", "", 1, 2},
+	{"profile override", "profile override <set NAME FILE|show NAME|clear NAME>", "Manage local overrides", "Stores a YAML mapping separately and applies its keys over the source profile.", "nagi profile override set work ./local.yaml", "", 0, -1},
+	{"profile override set", "profile override set NAME FILE", "Save local override", "Validates and saves a YAML mapping, up to 8 MiB; reloads the selected running profile.", "nagi profile override set work ./local.yaml", "", 2, 2},
+	{"profile override show", "profile override show NAME", "Show local override", "Prints user-owned override YAML.", "nagi profile override show work", "", 1, 1},
+	{"profile override clear", "profile override clear NAME", "Clear local override", "Removes the user-owned override and reloads the selected running profile.", "nagi profile override clear work", "", 1, 1},
 	{"profile remove", "profile remove NAME", "Remove a profile", "Removes an unselected local profile and keeps its backup file.", "nagi profile remove old", "Run `nagi profile list` to see profile names.", 1, 1},
 	{"subscription", "subscription <list|add NAME URL|update NAME|apply NAME|remove NAME>", "Manage subscriptions", "Stores URLs separately from cached downloads and active profiles.", "nagi subscription list", "", 0, -1},
 	{"subscription list", "subscription list", "List subscriptions", "Lists saved names and refresh times without showing URLs.", "nagi subscription list", "", 0, 0},
@@ -124,6 +132,17 @@ func validateInvocation(args []string) error {
 			return syntaxError("unknown subcommand", root)
 		}
 		consumed = 2
+	}
+	if spec.maxArgs == -1 && consumed == 2 {
+		if len(args) == 2 {
+			return syntaxError("missing subcommand", spec)
+		}
+		parent := spec
+		spec = findSpec(args[0] + " " + args[1] + " " + args[2])
+		if spec == nil {
+			return syntaxError("unknown subcommand", parent)
+		}
+		consumed = 3
 	}
 	n := len(args) - consumed
 	if n < spec.minArgs {

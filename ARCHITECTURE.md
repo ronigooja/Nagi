@@ -31,7 +31,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/runtime`, `internal/platform` | Per-user paths, directory permissions, and OS process operations. |
 | `internal/engine` | Validate, start, stop, restart, and inspect mihomo and its logs. |
 | `internal/control` | mihomo REST requests through its Unix Socket. |
-| `internal/profile` | Profile files, current selection, secure replacement, and rollback. |
+| `internal/profile` | Source profiles, local overrides, current selection, secure replacement, and rollback. |
 | `internal/subscription` | Subscription records, fetching, and cache. |
 | `internal/proxy` | Group, node, and connection operations through `control`. |
 | `internal/diagnostic` | Read-only inspection of paths, executable, selected profile, PID, and control API. |

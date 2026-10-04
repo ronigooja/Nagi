@@ -157,6 +157,17 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		if manager != nil {
 			return manager, nil
 		}
+		if command == "start" || command == "restart" || command == "config" {
+			store := newProfileStore(paths, binary, client, nil)
+			if _, overrideErr := store.Override(profileName); overrideErr == nil {
+				configPath, err = materializeProfile(store, paths.ConfigDir, profileName)
+				if err != nil {
+					return nil, err
+				}
+			} else if !errors.Is(overrideErr, os.ErrNotExist) {
+				return nil, overrideErr
+			}
+		}
 		manager, err = engine.New(engine.Options{Binary: binary, ConfigPath: configPath, Paths: paths})
 		return manager, err
 	}
@@ -174,14 +185,14 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	}
 	switch command {
 	case "start":
-		m, err := getManager()
-		if err != nil {
-			return nil, err
-		}
 		if err := arity(args, 1); err != nil {
 			return nil, err
 		}
-		if err := ensureDefaultProfile(configPath, profileName); err != nil {
+		if err := ensureDefaultProfile(filepath.Join(paths.ConfigDir, "profiles", profileName+".yaml"), profileName); err != nil {
+			return nil, err
+		}
+		m, err := getManager()
+		if err != nil {
 			return nil, err
 		}
 		return startAndVerify(ctx, m, client, configPath, profileName)
@@ -195,14 +206,14 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		return m.Stop(ctx)
 	case "restart":
-		m, err := getManager()
-		if err != nil {
-			return nil, err
-		}
 		if err := arity(args, 1); err != nil {
 			return nil, err
 		}
-		if err := ensureDefaultProfile(configPath, profileName); err != nil {
+		if err := ensureDefaultProfile(filepath.Join(paths.ConfigDir, "profiles", profileName+".yaml"), profileName); err != nil {
+			return nil, err
+		}
+		m, err := getManager()
+		if err != nil {
 			return nil, err
 		}
 		if _, err := m.Stop(ctx); err != nil && !errors.Is(err, engine.ErrNotRunning) {
@@ -382,7 +393,7 @@ func usage(message string) error { return fail("usage", errors.New(message)) }
 
 func profileCommand(ctx context.Context, args []string, store *profile.Store) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("profile list|use <name>|import <name> <file>|remove <name>")
+		return nil, usage("profile list|use NAME|import NAME FILE|export NAME FILE|backup NAME|restore NAME|diff NAME [OTHER|backup]|remove NAME")
 	}
 	switch args[1] {
 	case "list":
@@ -423,6 +434,104 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 			return nil, fail("profile_error", err)
 		}
 		return map[string]any{"name": args[2], "imported": true}, nil
+	case "export":
+		if len(args) != 4 {
+			return nil, usage("profile export NAME FILE")
+		}
+		data, err := store.Show(args[2])
+		if err != nil {
+			return nil, fail("profile_error", err)
+		}
+		file, err := os.OpenFile(args[3], os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			return nil, fail("profile_error", err)
+		}
+		_, writeErr := file.Write(data)
+		closeErr := file.Close()
+		if err := errors.Join(writeErr, closeErr); err != nil {
+			_ = os.Remove(args[3])
+			return nil, fail("profile_error", err)
+		}
+		return map[string]any{"name": args[2], "exported": true, "file": args[3]}, nil
+	case "backup":
+		if len(args) != 3 {
+			return nil, usage("profile backup NAME")
+		}
+		if err := store.SaveBackup(args[2]); err != nil {
+			return nil, fail("profile_error", err)
+		}
+		return map[string]any{"name": args[2], "backed_up": true}, nil
+	case "restore":
+		if len(args) != 3 {
+			return nil, usage("profile restore NAME")
+		}
+		if err := store.RestoreBackup(ctx, args[2]); err != nil {
+			return nil, fail("profile_error", err)
+		}
+		return map[string]any{"name": args[2], "restored": true}, nil
+	case "diff":
+		if len(args) < 3 || len(args) > 4 {
+			return nil, usage("profile diff NAME [OTHER|backup]")
+		}
+		before, err := store.Show(args[2])
+		if err != nil {
+			return nil, fail("profile_error", err)
+		}
+		other := "backup"
+		if len(args) == 4 {
+			other = args[3]
+		}
+		var after []byte
+		if other == "backup" {
+			after, err = store.Backup(args[2])
+		} else {
+			after, err = store.Show(other)
+		}
+		if err != nil {
+			return nil, fail("profile_error", err)
+		}
+		return map[string]any{"name": args[2], "other": other, "diff": profileDiff(before, after), "changed": string(before) != string(after)}, nil
+	case "override":
+		if len(args) < 4 {
+			return nil, usage("profile override set NAME FILE|show NAME|clear NAME")
+		}
+		switch args[2] {
+		case "set":
+			if len(args) != 5 {
+				return nil, usage("profile override set NAME FILE")
+			}
+			file, err := os.Open(args[4])
+			if err != nil {
+				return nil, err
+			}
+			defer file.Close()
+			data, err := io.ReadAll(io.LimitReader(file, 8<<20+1))
+			if err != nil {
+				return nil, err
+			}
+			if err := store.SetOverride(ctx, args[3], data); err != nil {
+				return nil, fail("profile_error", err)
+			}
+			return map[string]any{"name": args[3], "override_saved": true}, nil
+		case "show":
+			if len(args) != 4 {
+				return nil, usage("profile override show NAME")
+			}
+			data, err := store.Override(args[3])
+			if err != nil {
+				return nil, fail("profile_error", err)
+			}
+			return map[string]any{"name": args[3], "yaml": string(data)}, nil
+		case "clear":
+			if len(args) != 4 {
+				return nil, usage("profile override clear NAME")
+			}
+			if err := store.ClearOverride(ctx, args[3]); err != nil {
+				return nil, fail("profile_error", err)
+			}
+			return map[string]any{"name": args[3], "override_cleared": true}, nil
+		}
+		return nil, usage("profile override set NAME FILE|show NAME|clear NAME")
 	case "remove":
 		if err := arity(args, 3); err != nil {
 			return nil, usage("profile remove NAME (run `nagi profile remove --help` for details)")
@@ -432,7 +541,7 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 		}
 		return map[string]any{"name": args[2], "removed": true, "kind": "profile"}, nil
 	default:
-		return nil, usage("profile list|use <name>|import <name> <file>|remove <name>")
+		return nil, usage("profile list|use NAME|import NAME FILE|export NAME FILE|backup NAME|restore NAME|diff NAME [OTHER|backup]|remove NAME")
 	}
 }
 

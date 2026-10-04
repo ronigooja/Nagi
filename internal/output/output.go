@@ -241,6 +241,21 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	}
 	if name, ok := v["name"].(string); ok {
 		switch {
+		case v["exported"] == true:
+			return line(w, fmt.Sprintf("Exported profile %s to %v.", name, v["file"]))
+		case v["backed_up"] == true:
+			return line(w, "Backed up profile "+name+".")
+		case v["restored"] == true:
+			return line(w, "Restored profile "+name+" from its backup. If selected and running, mihomo was reloaded.")
+		case v["override_saved"] == true:
+			return line(w, "Saved local override for profile "+name+".")
+		case v["override_cleared"] == true:
+			return line(w, "Cleared local override for profile "+name+".")
+		case v["changed"] != nil:
+			if v["changed"] == false {
+				return line(w, "No differences.")
+			}
+			return line(w, v["diff"].(string))
 		case v["imported"] == true:
 			return line(w, fmt.Sprintf("Imported profile %s. Run `nagi profile use %s` to select it.", name, name))
 		case v["removed"] == true:

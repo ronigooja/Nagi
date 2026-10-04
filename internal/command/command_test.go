@@ -90,7 +90,7 @@ func TestCompletionIsRuntimeIndependent(t *testing.T) {
 		}
 	}
 	bash, _ := completion("bash")
-	if !strings.Contains(bash, "list use import remove") || !strings.Contains(bash, "compgen -f") {
+	if !strings.Contains(bash, "list use import export backup restore diff override remove") || !strings.Contains(bash, "compgen -f") {
 		t.Fatalf("bash completion missing profile/file completion: %s", bash)
 	}
 	fish, _ := completion("fish")
@@ -115,7 +115,7 @@ COMP_WORDS=(nagi profile import ` + filepath.Join(root, "file") + `); COMP_CWORD
 		t.Fatalf("bash completion failed: %v\n%s", err, out)
 	}
 	text := string(out)
-	if !strings.Contains(text, "SUB:list use import remove") || !strings.Contains(text, "FILE:"+file) || strings.Contains(text, "NAME:"+file) {
+	if !strings.Contains(text, "SUB:list use import export backup restore diff override remove") || !strings.Contains(text, "FILE:"+file) || strings.Contains(text, "NAME:"+file) {
 		t.Fatalf("unexpected completion output: %s", text)
 	}
 }

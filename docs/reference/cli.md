@@ -21,6 +21,13 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `profile list` | List profile names and the current selection. |
 | `profile use NAME` | Validate and activate an existing profile, reloading a running mihomo instance. |
 | `profile import NAME FILE` | Validate and atomically write a profile from a local YAML file (maximum 8 MiB). |
+| `profile export NAME FILE` | Write source YAML to a new private file; existing destinations are refused. |
+| `profile backup NAME` | Copy source YAML to `profiles/NAME.yaml.bak`. |
+| `profile restore NAME` | Validate and restore the latest backup; reload if selected and running. |
+| `profile diff NAME [OTHER\|backup]` | Show changed source lines against another profile or the backup (default). |
+| `profile override set NAME FILE` | Save a separate local YAML mapping (maximum 8 MiB) and apply it to this profile. |
+| `profile override show NAME` | Print the local override YAML. |
+| `profile override clear NAME` | Remove the local override and reload if selected and running. |
 | `profile remove NAME` | Delete an unselected regular profile file, retaining any existing `.bak` file. |
 | `subscription list` | List names and refresh times without URLs. |
 | `subscription add NAME URL` | Save an HTTP or HTTPS subscription URL. |
@@ -52,6 +59,12 @@ A completed diagnostic report exits with status `0`, even when `healthy` is fals
 
 `profile remove NAME` refuses to delete the selected profile, a nonregular file, or any profile when the current selection cannot be read. Select another profile first with `profile use NAME`. Missing profiles fail with `profile_error`. Removal does not delete a subscription with the same name or its cache. Existing `NAME.yaml.bak` files remain available for manual recovery; they are not listed as profiles.
 
+## Local profile files and overrides
+
+`profile export` reads the source profile, including any secrets it contains. It creates `FILE` with mode `0600` and never overwrites an existing path. `profile backup` explicitly refreshes the single `.bak` recovery copy. `profile restore` validates that copy before replacing the source profile; a successful restore swaps the source and backup contents. If validation or a running engine reload fails, the source and original backup remain available. `profile diff` compares source YAML lines and returns `name`, `other`, `changed` (boolean), and `diff` (string) in JSON. It does not parse or redact secrets.
+
+Overrides live in `config/overrides/NAME.yaml`, separate from `config/profiles/NAME.yaml` and subscription cache. The override must be a YAML mapping; its keys replace corresponding source keys, and nested mappings merge recursively. Lists, including `rules` and DNS server lists, are replaced as a whole. `profile override set` validates the merged configuration with mihomo and reloads it when selected and running. The merged file is generated as `config/profiles/.effective-NAME.yaml` for mihomo, keeping relative file paths anchored in the profiles directory; `profile export`, `config show`, and backups continue to use the source YAML. `profile override clear` restores the source configuration. Removing a profile retains its override file, so clear it explicitly before reusing the name if needed. Overrides can contain credentials and are stored with private permissions.
+
 ## Proxy latency, connections, and mode
 
 `proxy delay NODE [URL] [TIMEOUT_MS]` defaults to `https://www.gstatic.com/generate_204` and `5000` milliseconds. Supply a URL before a custom timeout. The URL must be absolute HTTP or HTTPS without user information; the timeout must be an integer from `1` through `30000`. Invalid arguments fail before contacting the engine. The CLI allows up to 31 seconds for the control request, so the maximum measurement timeout is not cut short by the ordinary ten-second API timeout. `NODE` is a mihomo proxy name, including built-ins such as `DIRECT`; names with spaces must be quoted. The pinned mihomo implementation sends an HTTP HEAD request and records the latency in the proxy's delay history. This measures request latency, not bandwidth.
@@ -71,7 +84,7 @@ Replace `Node A` and `CONNECTION_ID` with names and IDs from your engine. Connec
 
 ## Shell completion
 
-`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell values, and local files for profile import. Profile names, proxy names, and connection IDs are not queried dynamically.
+`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell values, and local files for profile import, export, and override set. Profile names, proxy names, and connection IDs are not queried dynamically.
 
 Load the script in the corresponding shell:
 
@@ -117,6 +130,13 @@ Additional success payloads are defined below; all appear in `data`:
 | Command | Fields |
 | --- | --- |
 | `doctor` | `healthy` (boolean), `checks` (array of `name`, `status`, and `message` strings), as defined above. |
+| `profile export NAME FILE` | `name`, `file` (strings), `exported: true`. |
+| `profile backup NAME` | `name` (string), `backed_up: true`. |
+| `profile restore NAME` | `name` (string), `restored: true`. |
+| `profile diff NAME [OTHER\|backup]` | `name`, `other`, `diff` (strings), `changed` (boolean). |
+| `profile override set NAME FILE` | `name` (string), `override_saved: true`. |
+| `profile override show NAME` | `name`, `yaml` (strings). |
+| `profile override clear NAME` | `name` (string), `override_cleared: true`. |
 | `profile remove NAME` | `name` (string), `removed: true`, `kind: "profile"`. |
 | `proxy delay` | `proxy` and `url` (strings), `timeout_ms` and `delay_ms` (integer milliseconds). |
 | `connections close ID` | `id` (string), `closed: true` (request accepted, including an already absent connection). |
