@@ -114,6 +114,9 @@ Implemented checks, redaction, and kill-switch capability boundaries are documen
 
 ## CLI and integration contract
 
+Implemented CLI envelope, generated shell completion, local-name candidates, and error handling are specified in the [CLI reference](../reference/cli.md) and [CLI usability rules](cli-usability.md).
+
+
 - Expose core operations through CLI commands as well as the TUI.
 - Keep the `--json` interface stable for scripts and the macOS app.
 - Provide shell completion for supported commands and local resources.

@@ -408,3 +408,32 @@ func TestDiagnosticsUsage(t *testing.T) {
 		}
 	}
 }
+
+func TestLocalCompletionCandidatesAreJSONAndPrivate(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
+	dir := filepath.Join(root, "config", "nagi")
+	if e := os.MkdirAll(filepath.Join(dir, "profiles"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(dir, "profiles", "work.yaml"), []byte("mode: rule\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(dir, "subscriptions.yaml"), []byte(`{"subscriptions":[{"name":"private","url":"https://secret.example/token"}]}`), 0600); e != nil {
+		t.Fatal(e)
+	}
+	for _, item := range []struct{ kind, want string }{{"profile", "work"}, {"subscription", "private"}} {
+		var out, errs bytes.Buffer
+		if code := Run([]string{"--json", "completion", "candidates", item.kind}, &out, &errs, "test", "commit"); code != 0 || !strings.Contains(out.String(), item.want) || strings.Contains(out.String(), "secret.example") {
+			t.Fatalf("%s: %d %s %s", item.kind, code, out.String(), errs.String())
+		}
+		out.Reset()
+		errs.Reset()
+		if code := Run([]string{"completion", "candidates", item.kind}, &out, &errs, "test", "commit"); code != 0 || strings.TrimSpace(out.String()) != item.want {
+			t.Fatalf("text %s: %d %q", item.kind, code, out.String())
+		}
+	}
+}

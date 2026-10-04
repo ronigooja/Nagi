@@ -133,7 +133,7 @@ Replace `Node A`, `Proxy Group`, and `CONNECTION_ID` with names and IDs from you
 
 ## Shell completion
 
-`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell and DNS policy values, DNS query record types, and local files for profile import, export, and override set. At completion time, proxy group names for `show`, `select`, and `delays`, and node names for `delay` or a chosen group in `select`, are queried from the running engine. An unreachable engine yields no dynamic candidates. `completion candidates groups|nodes [GROUP]` exposes the live names as newline-separated text or a JSON string array; connection IDs are not completed.
+`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell and DNS policy values, DNS query record types, and local files for profile import, export, and override set. At completion time, proxy group and node names are queried from the running engine; an unreachable engine yields no dynamic proxy candidates. Profile and subscription names are queried from local stores without exposing URLs. `completion candidates groups|nodes [GROUP]|profile|subscription` returns newline-separated text or a JSON string array; connection IDs are not completed.
 
 Load the script in the corresponding shell:
 
@@ -172,7 +172,7 @@ To inspect mihomo's own diagnostics locally, use `mihomo -t -f FILE -d DIRECTORY
 
 ## JSON and exit codes
 
-JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `not_running`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `proxy_selection_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app.
+JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `not_running`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `proxy_selection_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
 
 Additional success payloads are defined below; all appear in `data`:
 
@@ -212,6 +212,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `config reload` | `profile`, `reloaded: true`. |
 | `logs follow` | A stream of success envelopes, each with `line` (string), when `--json` is used. |
 | `completion SHELL` | A string containing the completion script. |
+| `completion candidates RESOURCE` | An array of profile or subscription name strings. |
 
 `NAGI_MIHOMO_BIN` overrides the default mihomo executable path, which is a file named `mihomo` beside the Nagi executable. Nagi uses XDG directories on Linux and `~/Library/Application Support/Nagi` on macOS; see the [runtime design](../design/runtime.md).
 

@@ -116,11 +116,11 @@ var commandSpecs = []commandSpec{
 	{"service uninstall", "service uninstall", "Remove the user service", "Removes the per-user launchd Agent or systemd service.", "nagi service uninstall", "", 0, 0},
 	{"service status", "service status", "Show service status", "Reports definition, enabled, and active states.", "nagi service status", "", 0, 0},
 	{"version", "version", "Show version information", "Shows Nagi and mihomo versions, pinned commit, OS, and architecture.", "nagi --json version", "", 0, 0},
-	{"completion", "completion <bash|zsh|fish|candidates groups|nodes [GROUP]>", "Generate shell completion", "Prints a shell completion script or live proxy name candidates.", "nagi completion bash", "", 0, -1},
+	{"completion", "completion <bash|zsh|fish|candidates RESOURCE>", "Generate shell completion", "Prints a shell script or local/live completion candidates.", "nagi completion bash", "", 0, -1},
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
-	{"completion candidates", "completion candidates groups|nodes [GROUP]", "List live completion candidates", "Lists current proxy groups or nodes; requires a reachable engine.", "nagi completion candidates nodes 'Proxy Group'", "", 1, 2},
+	{"completion candidates", "completion candidates profile|subscription|groups|nodes [GROUP]", "List completion candidates", "Lists local names or live proxy names; subscription URLs are excluded.", "nagi completion candidates profile", "", 1, 2},
 }
 
 func findSpec(path string) *commandSpec {
@@ -211,6 +211,9 @@ func validateInvocation(args []string) error {
 	}
 	if n > spec.maxArgs {
 		return syntaxError("too many arguments", spec)
+	}
+	if spec.path == "completion candidates" && args[2] != "profile" && args[2] != "subscription" {
+		return syntaxError("RESOURCE must be profile or subscription", spec)
 	}
 	if spec.path == "logs" && n == 1 {
 		if args[1] == "follow" {

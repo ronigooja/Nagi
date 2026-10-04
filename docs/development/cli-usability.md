@@ -30,3 +30,7 @@ This document defines development and review rules for Nagi's command-line inter
 For affected behavior, verify help, missing and invalid arguments, normal and empty output, and actionable failures. Test help with unavailable or invalid runtime configuration. Check JSON success and failure compatibility independently of text formatting. When validation changes, verify that diagnostics do not reveal sensitive configuration values.
 
 Update the CLI reference and affected guides in the same change. Test representative user journeys rather than only matching renderer internals. Use isolated runtime directories for checks that change profiles, subscriptions, or process state; see [Build and test](build-and-test.md).
+
+## Integration maintenance
+
+When adding a CLI command, update its `commandSpec` for help, argument count, and completion discovery; add value checks before runtime resolution. Preserve the `ok` envelope and existing JSON field names. Add human formatting separately from JSON. If the command accepts a local profile or subscription name, extend the generated shell completion only after a read-only local candidate source exists. Do not put credentials, subscription URLs, or engine validation output in errors; the output layer also redacts URL-shaped text as a final boundary. Verify help with invalid runtime configuration, text and JSON success, JSON error code and exit status, and generated Bash/Zsh/Fish scripts.

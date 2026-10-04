@@ -148,6 +148,28 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	command := args[0]
 	if command == "completion" {
 		if len(args) >= 2 && args[1] == "candidates" {
+			if len(args) == 3 && (args[2] == "profile" || args[2] == "subscription") {
+				paths, e := nagiruntime.Resolve()
+				if e != nil {
+					return nil, e
+				}
+				switch args[2] {
+				case "profile":
+					names, e := profile.NewStore(paths.ConfigDir, nil, nil).List()
+					return output.Candidates(names), e
+				case "subscription":
+					entries, e := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), nil).List()
+					if e != nil {
+						return nil, e
+					}
+					names := make(output.Candidates, 0, len(entries))
+					for _, entry := range entries {
+						names = append(names, entry.Name)
+					}
+					return names, nil
+				}
+			}
+
 			paths, err := nagiruntime.Resolve()
 			if err != nil {
 				return nil, err

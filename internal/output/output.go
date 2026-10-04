@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/ronigooja/Nagi/internal/diagnostic"
@@ -14,6 +15,14 @@ import (
 	"github.com/ronigooja/Nagi/internal/subscription"
 	"github.com/ronigooja/Nagi/internal/traffic"
 )
+
+type Candidates []string
+
+var urlPattern = regexp.MustCompile(`(?i)[a-z][a-z0-9+.-]*://[^\s<>"']+`)
+
+func RedactError(message string) string {
+	return urlPattern.ReplaceAllString(message, "[redacted URL]")
+}
 
 type Failure struct {
 	Code    string `json:"code"`
@@ -33,6 +42,13 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 	switch v := data.(type) {
 	case string:
 		return line(w, v)
+	case Candidates:
+		for _, candidate := range v {
+			if err := line(w, candidate); err != nil {
+				return err
+			}
+		}
+		return nil
 	case engine.Status:
 		return writeLifecycle(w, v)
 	case diagnostic.FullReport:
@@ -612,6 +628,7 @@ func writeRaw(w io.Writer, value string) error {
 }
 
 func WriteError(w io.Writer, jsonMode bool, code, message string) {
+	message = RedactError(message)
 	if jsonMode {
 		_ = json.NewEncoder(w).Encode(Envelope{OK: false, Error: &Failure{Code: code, Message: message}})
 		return

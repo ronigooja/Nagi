@@ -136,3 +136,13 @@ func TestWritePropagatesWriterFailure(t *testing.T) {
 		t.Fatal("missing JSON writer error")
 	}
 }
+
+func TestErrorRedactsURLsInBothModes(t *testing.T) {
+	for _, jsonMode := range []bool{false, true} {
+		var out bytes.Buffer
+		WriteError(&out, jsonMode, "subscription_error", "fetch https://user:password@example.com/secret?token=abc failed")
+		if strings.Contains(out.String(), "password") || strings.Contains(out.String(), "token=abc") || !strings.Contains(out.String(), "[redacted URL]") {
+			t.Fatalf("mode=%v: %s", jsonMode, out.String())
+		}
+	}
+}

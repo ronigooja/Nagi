@@ -68,6 +68,17 @@ func bashCompletion(roots []string, children map[string][]string) string {
 	b.WriteString(`' -- "$cur") ); return 0
   fi
   root="${semantic[0]}"
+  if [[ ${#semantic[@]} -eq 2 && "$root" == completion && "${semantic[1]}" == candidates ]]; then
+    COMPREPLY=( $(compgen -W 'profile subscription groups nodes' -- "$cur") ); return 0
+  fi
+  if [[ ${#semantic[@]} -eq 2 ]]; then
+    if [[ "$root" == profile && ( "${semantic[1]}" == use || "${semantic[1]}" == remove ) ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates profile 2>/dev/null); return 0
+    fi
+    if [[ "$root" == subscription && ( "${semantic[1]}" == update || "${semantic[1]}" == apply || "${semantic[1]}" == remove ) ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates subscription 2>/dev/null); return 0
+    fi
+  fi
   if [[ "$root" == profile && ( "${semantic[1]}" == import || "${semantic[1]}" == export ) && ${#semantic[@]} -eq 3 || "$root" == profile && "${semantic[1]}" == override && "${semantic[2]}" == set && ${#semantic[@]} -eq 4 ]]; then
     while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0
   fi
@@ -124,6 +135,11 @@ _nagi() {
   done
   if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi
   if (( ${#semantic} == 0 )); then compadd -- %s; return; fi
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription groups nodes; return; fi
+  if (( ${#semantic} == 2 )); then
+    if [[ ${semantic[1]} == profile && ( ${semantic[2]} == use || ${semantic[2]} == remove ) ]]; then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
+    if [[ ${semantic[1]} == subscription && ( ${semantic[2]} == update || ${semantic[2]} == apply || ${semantic[2]} == remove ) ]]; then compadd -- ${(f)"$(nagi completion candidates subscription 2>/dev/null)"}; return; fi
+  fi
   if [[ ${semantic[1]} == profile && ( ${semantic[2]} == import || ${semantic[2]} == export ) && ${#semantic} == 3 || ${semantic[1]} == profile && ${semantic[2]} == override && ${semantic[3]} == set && ${#semantic} == 4 ]]; then _files; return; fi
   if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${#semantic} == 2 ]]; then compadd -- set show clear; return; fi
   if [[ ${semantic[1]} == dns && ${#semantic} == 2 ]]; then case ${semantic[2]} in exception) compadd -- add remove; return ;; tun) compadd -- on off; return ;; set) compadd -- direct proxy; return ;; esac; fi
@@ -179,6 +195,9 @@ end
 		fmt.Fprintf(&b, "complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = %s' -a '%s'\n", root, shellWords(values))
 	}
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = mode' -a 'rule global direct'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription groups nodes'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and contains -- $s[2] use remove' -a '(nagi completion candidates profile 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = subscription; and contains -- $s[2] update apply remove' -a '(nagi completion candidates subscription 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = import' -F\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = export' -F\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test \"$s[1]\" = profile; and test \"$s[2]\" = override; and test \"$s[3]\" = set' -F\n")
