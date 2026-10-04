@@ -106,7 +106,9 @@ func fishCompletion(roots []string, children map[string][]string) string {
         set -a out $word
     end
   end
-  printf '%s\n' $out
+  if test (count $out) -gt 0
+    printf '%s\n' $out
+  end
 end
 `)
 	for _, root := range roots {
@@ -117,10 +119,10 @@ end
 		if len(values) == 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; test \"$s[1]\" = %s' -a '%s'\n", root, shellWords(values))
+		fmt.Fprintf(&b, "complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = %s' -a '%s'\n", root, shellWords(values))
 	}
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; test \"$s[1]\" = mode' -a 'rule global direct'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; test \"$s[1]\" = profile; test \"$s[2]\" = import' -F\n")
-	b.WriteString("complete -c nagi -f -a '--json --help -h'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = mode' -a 'rule global direct'\n")
+	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = import' -F\n")
+	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
 	return b.String()
 }
