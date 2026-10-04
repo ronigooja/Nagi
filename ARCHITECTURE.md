@@ -1,82 +1,82 @@
-# Nagi 架构实施方案
+# Nagi Architecture Implementation Plan
 
-## 1. 目标与边界
+## 1. Goals and Scope
 
-Nagi 是以 CLI 为核心的 mihomo 管理工具：
+Nagi is a mihomo management tool centered on a CLI:
 
-- CLI 支持 macOS 和 Linux，并提供完整功能。
-- SwiftUI 仅支持 macOS，只负责常用操作和状态展示。
-- mihomo 使用 https://github.com/MetaCubeX/mihomo.git 的 Meta 分支作为上游。
-- mihomo 的定制修改维护在 /root/mihomo，不复制到 Nagi 仓库。
-- SwiftUI 不直接访问 mihomo API、配置文件或 Unix Socket，统一调用 Nagi CLI。
+- The CLI supports macOS and Linux and provides the complete feature set.
+- SwiftUI supports macOS only and handles common operations and status display.
+- mihomo uses the `Meta` branch of https://github.com/MetaCubeX/mihomo.git as its upstream.
+- Custom mihomo changes are maintained in `/root/mihomo` and are not copied into the Nagi repository.
+- SwiftUI does not access the mihomo API, configuration files, or Unix Socket directly; it always invokes the Nagi CLI.
 
-系统关系：
+System relationship:
 
     SwiftUI macOS
           │ Process + JSON
           ▼
-    Nagi CLI（macOS / Linux）
+    Nagi CLI (macOS / Linux)
           │
-          ├── mihomo 进程生命周期管理
-          ├── mihomo REST API 客户端
-          ├── 配置、Profile、订阅和状态管理
-          └── launchd / systemd 集成
+          ├── mihomo process lifecycle management
+          ├── mihomo REST API client
+          ├── configuration, Profile, subscription, and status management
+          └── launchd / systemd integration
                 │ Unix Domain Socket
                 ▼
-          mihomo Meta（定制分支）
+          mihomo Meta (custom branch)
 
-Nagi 不重新实现代理核心能力。代理协议、DNS、规则、连接处理等功能仍由 mihomo 提供；Nagi 负责启动、配置、订阅、节点选择和用户界面。
+Nagi does not reimplement proxy-core capabilities. mihomo continues to provide proxy protocols, DNS, rules, and connection handling; Nagi manages startup, configuration, subscriptions, node selection, and the user interface.
 
-## 2. 仓库边界
+## 2. Repository Boundaries
 
-### /root/mihomo
+### `/root/mihomo`
 
-mihomo fork 负责：
+The mihomo fork is responsible for:
 
-- 跟踪官方 Meta 分支；
-- 保存 mihomo 核心定制；
-- 编译 mihomo 可执行文件；
-- 记录定制行为和 mihomo 专用配置。
+- Tracking the official `Meta` branch;
+- Keeping mihomo core customizations;
+- Building the mihomo executable;
+- Recording customization behavior and mihomo-specific configuration.
 
-建议分支：
+Suggested branches:
 
-    upstream/Meta       官方上游分支
-    nagi/meta           Nagi 使用的定制分支
-    fork                自己的远程仓库
+    upstream/Meta       Official upstream branch
+    nagi/meta            Custom branch used by Nagi
+    fork                 Personal remote repository
 
-CLI、SwiftUI、launchd、systemd 逻辑不加入 mihomo。只有必须修改 mihomo 核心行为的内容才进入该仓库。
+CLI, SwiftUI, launchd, and systemd logic does not belong in mihomo. Only changes that must alter mihomo core behavior enter that repository.
 
-### /root/Nagi
+### `/root/Nagi`
 
-Nagi 产品仓库负责：
+The Nagi product repository is responsible for:
 
-- Nagi CLI；
-- mihomo 进程管理；
-- mihomo REST API 调用；
-- Profile、订阅和节点管理；
-- macOS SwiftUI 应用；
-- launchd、systemd 和发行包；
-- 产品级测试和发布流程。
+- The Nagi CLI;
+- mihomo process management;
+- mihomo REST API calls;
+- Profile, subscription, and node management;
+- The macOS SwiftUI application;
+- launchd, systemd, and distribution packages;
+- Product-level testing and release workflows.
 
-Nagi 通过 engine.lock 固定 mihomo 的仓库、分支和 commit。
+Nagi pins the mihomo repository, branch, and commit through `engine.lock`.
 
-## 3. 推荐目录
+## 3. Recommended Directory Layout
 
     Nagi/
-    ├── cmd/nagi/main.go             # 程序入口
+    ├── cmd/nagi/main.go             # Program entry point
     ├── internal/
-    │   ├── app/                     # 依赖组装、启动和关闭
-    │   ├── command/                 # CLI 命令、参数解析和输出
-    │   ├── control/                 # REST API / Unix Socket 客户端
-    │   ├── engine/                  # 进程、PID、日志和退出状态
-    │   ├── profile/                 # Profile 与 YAML 配置
-    │   ├── subscription/            # 订阅增删改、刷新和缓存
-    │   ├── proxy/                   # 代理组、节点、连接和选择状态
-    │   ├── runtime/                 # socket、PID、锁和运行目录
-    │   ├── output/                  # 人类可读和 JSON 输出
+    │   ├── app/                     # Dependency assembly, startup, and shutdown
+    │   ├── command/                 # CLI commands, argument parsing, and output
+    │   ├── control/                 # REST API / Unix Socket client
+    │   ├── engine/                  # Process, PID, logs, and exit status
+    │   ├── profile/                 # Profiles and YAML configuration
+    │   ├── subscription/            # Subscription CRUD, refresh, and cache
+    │   ├── proxy/                   # Proxy groups, nodes, connections, and selection state
+    │   ├── runtime/                 # Socket, PID, lock, and runtime directory
+    │   ├── output/                  # Human-readable and JSON output
     │   ├── schema/                  # CLI JSON schema
-    │   └── platform/                # macOS / Linux 差异
-    ├── macos/NagiApp/               # SwiftUI 工程
+    │   └── platform/                # macOS / Linux differences
+    ├── macos/NagiApp/               # SwiftUI project
     ├── packaging/launchd/
     ├── packaging/systemd/
     ├── scripts/
@@ -85,63 +85,63 @@ Nagi 通过 engine.lock 固定 mihomo 的仓库、分支和 commit。
     ├── Makefile
     └── go.mod
 
-command 只负责参数、业务调用和输出；业务逻辑放在 profile、subscription、proxy、engine 等功能包中。control 和 engine 必须分开：前者调用已运行的 mihomo，后者负责启动、停止和监控进程。
+`command` handles only arguments, business calls, and output; business logic belongs in feature packages such as `profile`, `subscription`, `proxy`, and `engine`. `control` and `engine` must remain separate: the former calls a running mihomo instance, while the latter starts, stops, and monitors the process.
 
-## 4. mihomo 上游与定制同步
+## 4. mihomo Upstream and Customization Synchronization
 
-在 /root/mihomo 中建立上游远程：
+Add an upstream remote in `/root/mihomo`:
 
     cd /root/mihomo
     git remote rename origin fork
     git remote add upstream https://github.com/MetaCubeX/mihomo.git
     git fetch upstream Meta
 
-定制分支基于上游 Meta：
+Base the customization branch on upstream `Meta`:
 
     git switch -c nagi/meta upstream/Meta
 
-如果当前分支已经包含定制提交，应保留这些提交并整理为 nagi/meta。每项定制保持独立提交，例如：
+If the current branch already contains customization commits, preserve them and organize them on `nagi/meta`. Keep each customization in an independent commit, for example:
 
     fix: preserve proxy destination hostname
     feat: add preserve-proxy-hostname option
 
-同步上游：
+Synchronize upstream:
 
     git fetch upstream Meta
     git switch nagi/meta
     git rebase upstream/Meta
 
-定制分为三类：
+Classify customizations into three categories:
 
-1. 可以普遍改善 mihomo 的修复，优先提交到上游；
-2. Nagi 必需但不适合上游的 mihomo 行为，保留在 nagi/meta；
-3. CLI、SwiftUI、订阅菜单、服务管理和发布逻辑，放在 Nagi。
+1. Fixes that generally improve mihomo should be submitted upstream when possible;
+2. mihomo behavior required by Nagi but unsuitable for upstream stays on `nagi/meta`;
+3. CLI, SwiftUI, subscription menus, service management, and release logic belong in Nagi.
 
-每次修改 mihomo 的定制行为，都更新 mihomo 仓库中的 docs/customizations.md。Nagi 不重复维护 mihomo 定制说明。
+Whenever mihomo customization behavior changes, update `docs/customizations.md` in the mihomo repository. Nagi does not duplicate mihomo customization documentation.
 
-## 5. 版本锁定与构建
+## 5. Version Pinning and Builds
 
-根目录 engine.lock 记录精确依赖：
+The root-level `engine.lock` records the exact dependency:
 
     repository: https://github.com/your-org/mihomo.git
     ref: nagi/meta
     commit: 0000000000000000000000000000000000000000
 
-开发时允许使用本地 checkout：
+A local checkout may be used during development:
 
     MIHOMO_DIR=/root/mihomo make build
 
-CI 和发布构建按以下顺序查找 mihomo：
+CI and release builds locate mihomo in this order:
 
-1. MIHOMO_DIR；
-2. 按 engine.lock 下载并 checkout 精确 commit；
-3. 无法得到精确 commit 时失败。
+1. `MIHOMO_DIR`;
+2. Download and check out the exact commit from `engine.lock`;
+3. Fail if the exact commit cannot be obtained.
 
-nagi version 应显示 Nagi 版本、mihomo 版本、mihomo commit、操作系统和架构。
+`nagi version` should display the Nagi version, mihomo version, mihomo commit, operating system, and architecture.
 
-## 6. CLI 设计
+## 6. CLI Design
 
-CLI 是完整功能入口：
+The CLI is the complete feature entry point:
 
     nagi start
     nagi stop
@@ -169,13 +169,13 @@ CLI 是完整功能入口：
     nagi service uninstall
     nagi version
 
-每个命令支持人类可读输出和机器输出：
+Every command supports human-readable and machine-readable output:
 
     nagi status
     nagi --json status
     nagi --json proxy groups
 
-JSON 输出是 SwiftUI 的稳定接口。成功响应示例：
+JSON output is the stable interface for SwiftUI. Example success response:
 
     {
       "ok": true,
@@ -186,24 +186,24 @@ JSON 输出是 SwiftUI 的稳定接口。成功响应示例：
       }
     }
 
-错误响应使用非零退出码，并输出稳定的 code 和 message。SwiftUI 只依赖 JSON，不解析表格、日志文字或 YAML。
+Errors use a non-zero exit code and emit stable `code` and `message` fields. SwiftUI depends only on JSON; it does not parse tables, log text, or YAML.
 
-## 7. mihomo 进程和控制接口
+## 7. mihomo Process and Control Interface
 
-Nagi 启动 mihomo 时优先使用 Unix Domain Socket：
+Nagi prefers a Unix Domain Socket when starting mihomo:
 
     macOS: ~/Library/Application Support/Nagi/runtime/mihomo.sock
     Linux: $XDG_RUNTIME_DIR/nagi/mihomo.sock
 
-默认不开放 TCP 控制端口。用户明确需要远程管理时，才允许配置 external-controller。
+A TCP control port is not exposed by default. Configure `external-controller` only when the user explicitly needs remote management.
 
-engine 负责创建运行目录、校验配置、启动子进程、保存 PID、收集日志、检查存活、停止重启和避免重复启动。control 负责 version、configs、proxies、connections、订阅刷新、配置重载、超时和错误转换。
+`engine` creates the runtime directory, validates configuration, starts the child process, saves the PID, collects logs, checks liveness, stops and restarts the process, and prevents duplicate starts. `control` handles `version`, `configs`, `proxies`, `connections`, subscription refresh, configuration reload, timeouts, and error conversion.
 
-第一版不实现无限自动重启。异常退出后显示明确状态和最近日志，避免配置错误导致重启循环。
+The first version does not implement unlimited automatic restarts. After an unexpected exit, it displays a clear status and recent logs to avoid restart loops caused by invalid configuration.
 
-## 8. 配置、Profile 与运行数据
+## 8. Configuration, Profiles, and Runtime Data
 
-配置、缓存和运行状态分离：
+Configuration, cache, and runtime state are separated:
 
     Application Support/Nagi/
     ├── config/
@@ -217,96 +217,96 @@ engine 负责创建运行目录、校验配置、启动子进程、保存 PID、
     ├── cache/subscriptions/
     └── state/selected-nodes.json
 
-Linux 使用 XDG_CONFIG_HOME、XDG_DATA_HOME、XDG_STATE_HOME 和 XDG_RUNTIME_DIR 下的 nagi 目录。macOS 使用 ~/Library/Application Support/Nagi。
+Linux uses the `nagi` directory under `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_RUNTIME_DIR`. macOS uses `~/Library/Application Support/Nagi`.
 
-所有写配置操作：
+Every configuration write:
 
-1. 读取并校验旧配置；
-2. 写入临时文件；
-3. 原子替换目标文件；
-4. 保留最近一次备份；
-5. 请求 mihomo 校验或重载。
+1. Reads and validates the old configuration;
+2. Writes a temporary file;
+3. Atomically replaces the target file;
+4. Keeps the most recent backup;
+5. Asks mihomo to validate or reload the configuration.
 
-SwiftUI 不直接写配置文件。
+SwiftUI does not write configuration files directly.
 
-## 9. SwiftUI 范围
+## 9. SwiftUI Scope
 
-SwiftUI 只提供：
+SwiftUI provides only:
 
-- 当前运行状态；
-- 启动、停止、重启；
-- 当前 Profile；
-- 代理组和节点切换；
-- 订阅刷新；
-- 简单连接列表；
-- 最近日志；
-- 基础设置。
+- Current runtime status;
+- Start, stop, and restart;
+- Current Profile;
+- Proxy-group and node switching;
+- Subscription refresh;
+- A simple connection list;
+- Recent logs;
+- Basic settings.
 
-完整 YAML 编辑、规则集转换、高级 DNS、批量订阅、调试诊断和脚本化操作保留在 CLI。
+Full YAML editing, rule-set conversion, advanced DNS, batch subscriptions, debugging and diagnostics, and scripting remain in the CLI.
 
-SwiftUI 通过 Process 调用：
+SwiftUI invokes:
 
     nagi --json status
     nagi --json proxy groups
     nagi --json subscription update <name>
 
-第一版使用短命令轮询状态。需要实时更新时增加 nagi events --json，由 CLI 通过 stdout 输出事件。
+The first version polls status with short-lived commands. For real-time updates, add `nagi events --json`, with the CLI emitting events through stdout.
 
-## 10. 后台服务
+## 10. Background Services
 
-macOS 使用用户级 launchd Agent；Linux 使用 systemd --user Service。服务文件由 CLI 生成：
+macOS uses a per-user launchd Agent; Linux uses a `systemd --user` Service. The CLI generates service files:
 
     nagi service install
     nagi service uninstall
 
-SwiftUI 不直接操作 launchd 或 systemd，只调用 nagi start、nagi stop、nagi status。
+SwiftUI does not operate launchd or systemd directly; it only calls `nagi start`, `nagi stop`, and `nagi status`.
 
-## 11. 安全要求
+## 11. Security Requirements
 
-- 默认只使用 Unix Socket，不监听公网地址；
-- Socket 文件权限限制为当前用户；
-- 控制接口 Secret 不写入日志；
-- 订阅 URL 不输出到普通日志；
-- 配置写入使用临时文件和原子替换；
-- 校验 Profile、路径和外部命令参数；
-- SwiftUI 只执行固定的 Nagi CLI 路径，不拼接未经校验的 shell 命令。
+- Use only a Unix Socket by default; do not listen on public addresses;
+- Restrict Socket file permissions to the current user;
+- Do not write control-interface secrets to logs;
+- Do not output subscription URLs to ordinary logs;
+- Use temporary files and atomic replacement for configuration writes;
+- Validate Profiles, paths, and external command arguments;
+- SwiftUI executes only a fixed Nagi CLI path and never constructs unvalidated shell commands.
 
-## 12. 测试边界
+## 12. Testing Boundaries
 
-Nagi 单元测试覆盖路径解析、engine 状态、Profile 原子写入、订阅合并、JSON schema、错误码和 CLI 参数。
+Nagi unit tests cover path resolution, engine state, atomic Profile writes, subscription merging, JSON schema, error codes, and CLI arguments.
 
-mihomo 集成测试覆盖最小配置启动、Unix Socket、version/configs/proxies、节点切换、配置重载和异常退出。
+mihomo integration tests cover startup with a minimal configuration, Unix Socket, `version`/`configs`/`proxies`, node switching, configuration reload, and unexpected exits.
 
-SwiftUI 验证 CLI 不存在、mihomo 未运行、JSON schema 兼容、启停、节点切换和订阅刷新。
+SwiftUI validation covers a missing CLI, a stopped mihomo instance, JSON schema compatibility, start and stop, node switching, and subscription refresh.
 
-## 13. 实施阶段
+## 13. Implementation Phases
 
-### 阶段一：CLI 骨架
+### Phase 1: CLI Skeleton
 
-初始化 Go module；实现路径和运行目录；加入 engine.lock；实现 version、status、start、stop；编译并启动 /root/mihomo。
+Initialize the Go module; implement paths and runtime directories; add `engine.lock`; implement `version`, `status`, `start`, and `stop`; compile and start `/root/mihomo`.
 
-### 阶段二：mihomo 控制层
+### Phase 2: mihomo Control Layer
 
-实现 Unix Socket HTTP Client；接入 version、configs、proxies、connections；统一错误码和 JSON 输出；增加配置校验和安全写入。
+Implement a Unix Socket HTTP client; connect `version`, `configs`, `proxies`, and `connections`; standardize error codes and JSON output; add configuration validation and secure writes.
 
-### 阶段三：完整 CLI
+### Phase 3: Complete CLI
 
-实现 Profile、订阅、代理组、节点、连接、日志、诊断和 launchd/systemd 服务安装。
+Implement Profiles, subscriptions, proxy groups, nodes, connections, logs, diagnostics, and launchd/systemd service installation.
 
-### 阶段四：SwiftUI
+### Phase 4: SwiftUI
 
-创建 macOS App；实现 NagiCLIClient；实现 Dashboard、Proxies、Subscriptions、Settings；增加状态轮询和错误处理。
+Create the macOS app; implement `NagiCLIClient`; implement Dashboard, Proxies, Subscriptions, and Settings; add status polling and error handling.
 
-### 阶段五：发布
+### Phase 5: Release
 
-构建 macOS universal binary、Linux amd64/arm64；关联 mihomo 版本；完成 macOS 签名、公证、服务文件打包和 CI 锁定构建。
+Build macOS universal binaries and Linux amd64/arm64 binaries; associate the mihomo version; complete macOS signing and notarization, service-file packaging, and locked CI builds.
 
-## 14. 长期约束
+## 14. Long-Term Constraints
 
-1. CLI 是完整功能的唯一入口；
-2. SwiftUI 只能调用 CLI，不复制业务逻辑；
-3. Nagi 不直接修改 mihomo 源码；
-4. mihomo 核心定制只存在于 /root/mihomo；
-5. Nagi 不依赖未锁定的 mihomo commit；
-6. 默认使用 Unix Socket，不默认开放 TCP 控制端口；
-7. 命令行和图形界面使用同一套业务实现。
+1. The CLI is the sole complete-feature entry point;
+2. SwiftUI may call only the CLI and must not duplicate business logic;
+3. Nagi does not modify mihomo source code directly;
+4. mihomo core customizations exist only in `/root/mihomo`;
+5. Nagi does not depend on an unpinned mihomo commit;
+6. Use Unix Socket by default and do not expose a TCP control port by default;
+7. The CLI and graphical interface use the same business implementation.
