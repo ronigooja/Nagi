@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -32,12 +33,16 @@ var commandSpecs = []commandSpec{
 	{"subscription update", "subscription update NAME", "Download a subscription", "Downloads at most 8 MiB into the local cache; does not activate it.", "nagi subscription update work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
 	{"subscription apply", "subscription apply NAME", "Apply a cached subscription", "Validates cached mihomo YAML, imports it as a profile, and selects it.", "nagi subscription apply work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
 	{"subscription remove", "subscription remove NAME", "Remove a subscription", "Removes the saved subscription and its cache.", "nagi subscription remove work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
-	{"proxy", "proxy <groups|show GROUP|select GROUP NODE>", "Inspect and select proxies", "Reads proxy groups and selections from a running mihomo process.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|show GROUP|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]>", "Inspect and select proxies", "Reads proxy groups and selections from a running mihomo process and measures node delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups and their current selections.", "nagi proxy groups", "", 0, 0},
 	{"proxy show", "proxy show GROUP", "Show a proxy group", "Shows one group and its available nodes.", "nagi proxy show 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 1},
 	{"proxy select", "proxy select GROUP NODE", "Select a proxy node", "Selects a node in a group on the running engine.", "nagi proxy select 'Proxy Group' 'Node A'", "Run `nagi proxy groups` and `nagi proxy show GROUP` to find names.", 2, 2},
-	{"connections", "connections list", "Inspect connections", "Reads a snapshot of active connections from a running engine.", "nagi connections list", "", 0, -1},
+	{"proxy delay", "proxy delay NODE [URL] [TIMEOUT_MS]", "Measure proxy delay", "Measures an HTTP(S) URL through a proxy node. URL defaults to https://www.gstatic.com/generate_204 and timeout to 5000 ms.", "nagi proxy delay NodeA", "Run `nagi proxy groups` to find a node name.", 1, 3},
+	{"connections", "connections <list|close ID|close-all>", "Inspect connections", "Reads or closes active connections from a running engine.", "nagi connections list", "", 0, -1},
 	{"connections list", "connections list", "List active connections", "Shows a snapshot of active connections.", "nagi connections list", "", 0, 0},
+	{"connections close", "connections close ID", "Close a connection", "Closes one connection by its mihomo ID.", "nagi connections close 42", "Run `nagi connections list` to find IDs.", 1, 1},
+	{"connections close-all", "connections close-all", "Close all connections", "Closes all active connections.", "nagi connections close-all", "", 0, 0},
+	{"mode", "mode [rule|global|direct]", "Read or set runtime mode", "Reads mihomo mode or updates it at runtime; profile files are not edited.", "nagi mode rule", "", 0, 1},
 	{"service", "service <install|uninstall>", "Manage the user service", "Installs or removes the per-user launchd Agent or systemd service.", "nagi service install", "", 0, -1},
 	{"service install", "service install", "Install the user service", "Installs a per-user launchd Agent or systemd service.", "nagi service install", "", 0, 0},
 	{"service uninstall", "service uninstall", "Remove the user service", "Removes the per-user launchd Agent or systemd service.", "nagi service uninstall", "", 0, 0},
@@ -126,6 +131,27 @@ func validateInvocation(args []string) error {
 		count, err := strconv.Atoi(args[1])
 		if err != nil || count < 1 || count > 10000 {
 			return syntaxError("lines must be an integer from 1 to 10000", spec)
+		}
+	}
+	if spec.path == "proxy delay" {
+		target := "https://www.gstatic.com/generate_204"
+		if n >= 2 {
+			target = args[3]
+		}
+		u, err := url.Parse(target)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+			return syntaxError("URL must be an absolute HTTP(S) URL without userinfo", spec)
+		}
+		if n == 3 {
+			timeout, err := strconv.Atoi(args[4])
+			if err != nil || timeout < 1 || timeout > 30000 {
+				return syntaxError("timeout must be an integer from 1 to 30000 milliseconds", spec)
+			}
+		}
+	}
+	if spec.path == "mode" && n == 1 {
+		if args[1] != "rule" && args[1] != "global" && args[1] != "direct" {
+			return syntaxError("mode must be rule, global, or direct", spec)
 		}
 	}
 	return nil

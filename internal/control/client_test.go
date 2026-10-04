@@ -42,3 +42,32 @@ func TestUnixSocketAndError(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestPatchAndDeleteMethods(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mihomo.sock")
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch && r.URL.Path == "/configs" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method == http.MethodDelete && r.URL.Path == "/connections/abc" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	client := New(path)
+	if err := client.Patch(context.Background(), "/configs", map[string]string{"mode": "rule"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Delete(context.Background(), "/connections/abc", nil); err != nil {
+		t.Fatal(err)
+	}
+}

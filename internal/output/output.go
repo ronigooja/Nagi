@@ -51,6 +51,8 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return nil
 	case proxy.Group:
 		return writeGroup(w, v)
+	case proxy.DelayResult:
+		return line(w, fmt.Sprintf("Proxy %s delay: %d ms (URL: %s, timeout: %d ms)", v.Proxy, v.DelayMS, v.URL, v.TimeoutMS))
 	case subscription.RefreshResult:
 		return line(w, fmt.Sprintf("Downloaded subscription %s (%d bytes). Run `nagi subscription apply %s` to select its profile.", v.Name, v.Bytes, v.Name))
 	case service.Result:
@@ -202,7 +204,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			if destination == "" {
 				destination = "Destination unavailable"
 			}
-			if err := line(w, fmt.Sprintf("%s  Upload: %d B  Download: %d B", destination, connection.Upload, connection.Download)); err != nil {
+			if err := line(w, fmt.Sprintf("%s  ID: %s  Upload: %d B  Download: %d B", destination, connection.ID, connection.Upload, connection.Download)); err != nil {
 				return err
 			}
 		}
@@ -256,6 +258,18 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if node, ok := v["node"].(string); ok {
 			return line(w, fmt.Sprintf("Selected %s in proxy group %s.", node, group))
 		}
+	}
+	if mode, ok := v["mode"].(string); ok {
+		if v["changed"] == true {
+			return line(w, "Set mihomo mode to "+mode+".")
+		}
+		return line(w, "Mihomo mode: "+mode)
+	}
+	if closed, ok := v["closed"].(bool); ok && closed {
+		if id, ok := v["id"].(string); ok {
+			return line(w, "Closed connection "+id+".")
+		}
+		return line(w, "Closed all connections.")
 	}
 	if _, ok := v["nagi"].(string); ok {
 		for _, field := range []struct{ key, label string }{{"nagi", "Nagi"}, {"mihomo", "Mihomo"}, {"mihomo_commit", "Mihomo commit"}, {"os", "OS"}, {"arch", "Architecture"}} {

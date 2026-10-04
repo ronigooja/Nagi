@@ -225,3 +225,25 @@ func TestUsageErrorDoesNotEchoSubscriptionURL(t *testing.T) {
 		t.Fatalf("unexpected error: %s", stderr.String())
 	}
 }
+
+func TestProxyDelayValidationPrecedesRuntime(t *testing.T) {
+	root := t.TempDir()
+	bad := filepath.Join(root, "config-file")
+	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", bad)
+	for _, args := range [][]string{
+		{"proxy", "delay", "Node", "ftp://example.test"},
+		{"proxy", "delay", "Node", "https://user:pass@example.test"},
+		{"proxy", "delay", "Node", "https://example.test", "30001"},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := Run(args, &stdout, &stderr, "test", "commit"); code != 2 {
+			t.Fatalf("args=%q exit=%d stderr=%s", args, code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "Usage: nagi proxy delay NODE") {
+			t.Fatalf("args=%q stderr=%s", args, stderr.String())
+		}
+	}
+}

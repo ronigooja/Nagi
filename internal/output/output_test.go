@@ -43,7 +43,7 @@ func TestHumanSuccessShapes(t *testing.T) {
 		{"proxy show", proxy.Group{Name: "Main", Now: "A", All: []string{"A", "B"}}, []string{"Main -> A", "* A", "  B"}, nil},
 		{"proxy show empty", proxy.Group{Name: "Main"}, []string{"No nodes available"}, nil},
 		{"proxy select", map[string]any{"group": "Main", "node": "A"}, []string{"Selected A in proxy group Main"}, nil},
-		{"connections", map[string]any{"connections": []proxy.Connection{{ID: "1", Metadata: map[string]any{"host": "example.org", "destinationPort": "443"}, Upload: 12, Download: 34}, {ID: "2", Metadata: map[string]any{"destinationIP": "203.0.113.1", "destinationPort": 80}}}}, []string{"example.org:443", "Upload: 12 B", "Download: 34 B", "203.0.113.1:80"}, nil},
+		{"connections", map[string]any{"connections": []proxy.Connection{{ID: "1", Metadata: map[string]any{"host": "example.org", "destinationPort": "443"}, Upload: 12, Download: 34}, {ID: "2", Metadata: map[string]any{"destinationIP": "203.0.113.1", "destinationPort": 80}}}}, []string{"example.org:443", "ID: 1", "Upload: 12 B", "Download: 34 B", "ID: 2", "203.0.113.1:80"}, nil},
 		{"connections empty", map[string]any{"connections": []proxy.Connection{}}, []string{"No active connections"}, nil},
 		{"service", service.Result{Manager: "systemd", Path: "/tmp/nagi.service"}, []string{"Service manager: systemd", "Service file: /tmp/nagi.service"}, nil},
 		{"version", map[string]any{"nagi": "1.0", "mihomo": "2.0", "mihomo_commit": "abc", "os": "linux", "arch": "arm64"}, []string{"Nagi: 1.0", "Mihomo: 2.0", "Mihomo commit: abc", "OS: linux", "Architecture: arm64"}, nil},

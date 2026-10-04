@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-type fakeClient struct{ path, selected string }
+type fakeClient struct{ path, selected, method, bodyPath string }
 
 func (f *fakeClient) Get(_ context.Context, path string, out any) error {
 	f.path = path
@@ -23,6 +23,15 @@ func (f *fakeClient) Put(_ context.Context, path string, body any, _ any) error 
 	return nil
 }
 
+func (f *fakeClient) Delete(_ context.Context, path string, _ any) error {
+	f.method, f.path = "DELETE", path
+	return nil
+}
+func (f *fakeClient) Patch(_ context.Context, path string, _ any, _ any) error {
+	f.method, f.path = "PATCH", path
+	return nil
+}
+
 func TestSelectChecksMembership(t *testing.T) {
 	f := &fakeClient{}
 	s := NewService(f)
@@ -34,5 +43,30 @@ func TestSelectChecksMembership(t *testing.T) {
 	}
 	if f.path != "/proxies/Group%20A" || f.selected != "Node B" {
 		t.Fatalf("path=%q selected=%q", f.path, f.selected)
+	}
+}
+
+func TestDelayEscapesQueryAndCloseMode(t *testing.T) {
+	f := &fakeClient{}
+	s := NewService(f)
+	result, err := s.Delay(context.Background(), "Node/A", "https://example.test/a?x=1", 30000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Proxy != "Node/A" || result.TimeoutMS != 30000 || f.path != "/proxies/Node%2FA/delay?timeout=30000&url=https%3A%2F%2Fexample.test%2Fa%3Fx%3D1" {
+		t.Fatalf("result=%+v path=%q", result, f.path)
+	}
+	if err := s.Close(context.Background(), "id/1"); err != nil {
+		t.Fatal(err)
+	}
+	if f.method != "DELETE" || f.path != "/connections/id%2F1" {
+		t.Fatalf("method=%q path=%q", f.method, f.path)
+	}
+	mode := "global"
+	if _, err := s.Mode(context.Background(), &mode); err != nil {
+		t.Fatal(err)
+	}
+	if f.method != "PATCH" || f.path != "/configs" {
+		t.Fatalf("method=%q path=%q", f.method, f.path)
 	}
 }

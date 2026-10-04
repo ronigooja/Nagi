@@ -3,13 +3,21 @@ package proxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 )
 
 type Client interface {
 	Get(context.Context, string, any) error
 	Put(context.Context, string, any, any) error
+}
+
+type extendedClient interface {
+	Client
+	Delete(context.Context, string, any) error
+	Patch(context.Context, string, any, any) error
 }
 
 type Service struct{ Client Client }
@@ -30,6 +38,34 @@ type Connection struct {
 	Chains   []string       `json:"chains,omitempty"`
 	Upload   int64          `json:"upload"`
 	Download int64          `json:"download"`
+}
+
+type DelayResult struct {
+	Proxy     string `json:"proxy"`
+	URL       string `json:"url"`
+	TimeoutMS int    `json:"timeout_ms"`
+	DelayMS   int    `json:"delay_ms"`
+}
+
+func (s *Service) Delay(ctx context.Context, name, target string, timeoutMS int) (DelayResult, error) {
+	var result DelayResult
+	if s == nil || s.Client == nil {
+		return result, errors.New("proxy control client unavailable")
+	}
+	if name == "" {
+		return result, errors.New("proxy node required")
+	}
+	u := url.Values{}
+	u.Set("url", target)
+	u.Set("timeout", strconv.Itoa(timeoutMS))
+	var response struct {
+		Delay int `json:"delay"`
+	}
+	if err := s.Client.Get(ctx, "/proxies/"+url.PathEscape(name)+"/delay?"+u.Encode(), &response); err != nil {
+		return result, err
+	}
+	result = DelayResult{Proxy: name, URL: target, TimeoutMS: timeoutMS, DelayMS: response.Delay}
+	return result, nil
 }
 
 func (s *Service) Groups(ctx context.Context) ([]Group, error) {
@@ -106,4 +142,45 @@ func (s *Service) Connections(ctx context.Context) ([]Connection, error) {
 		return []Connection{}, nil
 	}
 	return response.Connections, nil
+}
+
+func (s *Service) Close(ctx context.Context, id string) error {
+	c, ok := s.Client.(interface {
+		Delete(context.Context, string, any) error
+	})
+	if !ok {
+		return errors.New("mihomo control client does not support deleting connections")
+	}
+	path := "/connections"
+	if id != "" {
+		path += "/" + url.PathEscape(id)
+	}
+	return c.Delete(ctx, path, nil)
+}
+
+func (s *Service) Mode(ctx context.Context, mode *string) (map[string]any, error) {
+	if s == nil || s.Client == nil {
+		return nil, errors.New("proxy control client unavailable")
+	}
+	if mode == nil {
+		var cfg map[string]any
+		if err := s.Client.Get(ctx, "/configs", &cfg); err != nil {
+			return nil, err
+		}
+		value, _ := cfg["mode"].(string)
+		return map[string]any{"mode": value}, nil
+	}
+	if _, ok := map[string]bool{"rule": true, "global": true, "direct": true}[*mode]; !ok {
+		return nil, fmt.Errorf("invalid mode %q", *mode)
+	}
+	c, ok := s.Client.(interface {
+		Patch(context.Context, string, any, any) error
+	})
+	if !ok {
+		return nil, errors.New("mihomo control client does not support configuration updates")
+	}
+	if err := c.Patch(ctx, "/configs", map[string]string{"mode": *mode}, nil); err != nil {
+		return nil, err
+	}
+	return map[string]any{"mode": *mode, "changed": true}, nil
 }

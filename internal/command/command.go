@@ -118,7 +118,11 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	if command == "doctor" {
 		return diagnostic.Run(ctx, paths, binary), nil
 	}
-	client := control.New(paths.SocketPath)
+	controlTimeout := 10 * time.Second
+	if len(args) >= 2 && command == "proxy" && args[1] == "delay" {
+		controlTimeout = 31 * time.Second
+	}
+	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
 	proxies := proxy.NewService(client)
 	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || (command == "subscription" && len(args) > 1 && args[1] == "apply")
@@ -300,11 +304,43 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	case "proxy":
 		return proxyCommand(ctx, args, proxies)
 	case "connections":
-		if len(args) != 2 || args[1] != "list" {
-			return nil, usage("connections list")
+		if len(args) < 2 {
+			return nil, usage("connections list|close ID|close-all")
 		}
-		connections, err := proxies.Connections(ctx)
-		return map[string]any{"connections": connections}, err
+		switch args[1] {
+		case "list":
+			if len(args) != 2 {
+				return nil, usage("connections list")
+			}
+			connections, err := proxies.Connections(ctx)
+			return map[string]any{"connections": connections}, err
+		case "close":
+			if len(args) != 3 {
+				return nil, usage("connections close ID")
+			}
+			if err := proxies.Close(ctx, args[2]); err != nil {
+				return nil, err
+			}
+			return map[string]any{"id": args[2], "closed": true}, nil
+		case "close-all":
+			if len(args) != 2 {
+				return nil, usage("connections close-all")
+			}
+			if err := proxies.Close(ctx, ""); err != nil {
+				return nil, err
+			}
+			return map[string]any{"closed": true}, nil
+		default:
+			return nil, usage("connections list|close ID|close-all")
+		}
+	case "mode":
+		if len(args) == 1 {
+			return proxies.Mode(ctx, nil)
+		}
+		if len(args) != 2 {
+			return nil, usage("mode [rule|global|direct]")
+		}
+		return proxies.Mode(ctx, &args[1])
 	case "service":
 		if len(args) != 2 {
 			return nil, usage("service install|uninstall")
@@ -459,7 +495,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 
 func proxyCommand(ctx context.Context, args []string, service *proxy.Service) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("proxy groups|show <group>|select <group> <node>")
+		return nil, usage("proxy groups|show <group>|select <group> <node>|delay NODE [URL] [TIMEOUT_MS]")
 	}
 	switch args[1] {
 	case "groups":
@@ -481,7 +517,17 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service) (a
 			return nil, fail("proxy_selection_error", err)
 		}
 		return map[string]any{"group": args[2], "node": args[3]}, nil
+	case "delay":
+		target := "https://www.gstatic.com/generate_204"
+		timeoutMS := 5000
+		if len(args) >= 4 {
+			target = args[3]
+		}
+		if len(args) == 5 {
+			timeoutMS, _ = strconv.Atoi(args[4])
+		}
+		return service.Delay(ctx, args[2], target, timeoutMS)
 	default:
-		return nil, usage("proxy groups|show <group>|select <group> <node>")
+		return nil, usage("proxy groups|show <group>|select <group> <node>|delay NODE [URL] [TIMEOUT_MS]")
 	}
 }

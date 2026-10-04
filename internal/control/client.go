@@ -26,10 +26,14 @@ type APIError struct {
 func (e *APIError) Error() string { return fmt.Sprintf("mihomo API %d: %s", e.Status, e.Message) }
 
 func New(socketPath string) *Client {
+	return NewWithTimeout(socketPath, 10*time.Second)
+}
+
+func NewWithTimeout(socketPath string, timeout time.Duration) *Client {
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{Timeout: 3 * time.Second}).DialContext(ctx, "unix", socketPath)
 	}}
-	return &Client{http: &http.Client{Transport: transport, Timeout: 10 * time.Second}}
+	return &Client{http: &http.Client{Transport: transport, Timeout: timeout}}
 }
 
 func (c *Client) Get(ctx context.Context, path string, out any) error {
@@ -38,6 +42,14 @@ func (c *Client) Get(ctx context.Context, path string, out any) error {
 
 func (c *Client) Put(ctx context.Context, path string, body any, out any) error {
 	return c.request(ctx, http.MethodPut, path, body, out)
+}
+
+func (c *Client) Patch(ctx context.Context, path string, body any, out any) error {
+	return c.request(ctx, http.MethodPatch, path, body, out)
+}
+
+func (c *Client) Delete(ctx context.Context, path string, out any) error {
+	return c.request(ctx, http.MethodDelete, path, nil, out)
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body, out any) error {
