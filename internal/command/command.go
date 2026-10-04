@@ -91,10 +91,6 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	if len(args) == 0 {
 		return nil, fail("usage", errors.New("command required: start, stop, restart, status, logs, config, profile, subscription, proxy, connections, service, version"))
 	}
-	paths, err := nagiruntime.Resolve()
-	if err != nil {
-		return nil, err
-	}
 	binary := os.Getenv("NAGI_MIHOMO_BIN")
 	if binary == "" {
 		exe, err := os.Executable()
@@ -103,22 +99,8 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		binary = filepath.Join(filepath.Dir(exe), "mihomo")
 	}
-	profileName, err := profile.NewStore(paths.ConfigDir, nil, nil).Current()
-	if err != nil {
-		return nil, err
-	}
-	configPath := filepath.Join(paths.ConfigDir, "profiles", profileName+".yaml")
-	manager, err := engine.New(engine.Options{Binary: binary, ConfigPath: configPath, Paths: paths})
-	if err != nil {
-		return nil, err
-	}
-	client := control.New(paths.SocketPath)
-	profiles := newProfileStore(paths, binary, client, manager)
-	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
-	proxies := proxy.NewService(client)
 	command := args[0]
-	switch command {
-	case "version":
+	if command == "version" {
 		if err := arity(args, 1); err != nil {
 			return nil, err
 		}
@@ -127,45 +109,113 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			mihomoVersion = strings.TrimSpace(string(out))
 		}
 		return map[string]any{"nagi": version, "mihomo": mihomoVersion, "mihomo_commit": commit, "os": runtime.GOOS, "arch": runtime.GOARCH}, nil
-	case "start":
-		if err := arity(args, 1); err != nil {
-			return nil, err
+	}
+	paths, err := nagiruntime.Resolve()
+	if err != nil {
+		return nil, err
+	}
+	client := control.New(paths.SocketPath)
+	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
+	proxies := proxy.NewService(client)
+	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || (command == "subscription" && len(args) > 1 && args[1] == "apply")
+	readsProfile := needsProfile || command == "status"
+	var profileName string
+	var profileErr error
+	if readsProfile {
+		profileName, profileErr = profile.NewStore(paths.ConfigDir, nil, nil).Current()
+		if profileErr != nil && command != "status" && command != "profile" && !(command == "subscription" && len(args) > 1 && args[1] == "apply") {
+			return nil, profileErr
 		}
-		if err := ensureDefaultProfile(configPath, profileName); err != nil {
-			return nil, err
+		if profileName == "" {
+			profileName = "default"
 		}
-		return startAndVerify(ctx, manager, client, configPath, profileName)
-	case "stop":
-		if err := arity(args, 1); err != nil {
-			return nil, err
+	}
+	if profileName == "" {
+		profileName = "default"
+	}
+	configPath := filepath.Join(paths.ConfigDir, "profiles", profileName+".yaml")
+	var manager *engine.Manager
+	getManager := func() (*engine.Manager, error) {
+		if manager != nil {
+			return manager, nil
 		}
-		return manager.Stop(ctx)
-	case "restart":
-		if err := arity(args, 1); err != nil {
-			return nil, err
+		manager, err = engine.New(engine.Options{Binary: binary, ConfigPath: configPath, Paths: paths})
+		return manager, err
+	}
+	var profiles *profile.Store
+	getProfiles := func() (*profile.Store, error) {
+		if profiles != nil {
+			return profiles, nil
 		}
-		if err := ensureDefaultProfile(configPath, profileName); err != nil {
-			return nil, err
-		}
-		if _, err := manager.Stop(ctx); err != nil && !errors.Is(err, engine.ErrNotRunning) {
-			return nil, err
-		}
-		return startAndVerify(ctx, manager, client, configPath, profileName)
-	case "status":
-		if err := arity(args, 1); err != nil {
-			return nil, err
-		}
-		status, err := manager.Status(ctx)
+		m, err := getManager()
 		if err != nil {
 			return nil, err
 		}
-		data := map[string]any{"running": status.Running, "profile": profileName, "socket_path": status.SocketPath, "log_path": status.LogPath}
+		profiles = newProfileStore(paths, binary, client, m)
+		return profiles, nil
+	}
+	switch command {
+	case "start":
+		m, err := getManager()
+		if err != nil {
+			return nil, err
+		}
+		if err := arity(args, 1); err != nil {
+			return nil, err
+		}
+		if err := ensureDefaultProfile(configPath, profileName); err != nil {
+			return nil, err
+		}
+		return startAndVerify(ctx, m, client, configPath, profileName)
+	case "stop":
+		m, err := getManager()
+		if err != nil {
+			return nil, err
+		}
+		if err := arity(args, 1); err != nil {
+			return nil, err
+		}
+		return m.Stop(ctx)
+	case "restart":
+		m, err := getManager()
+		if err != nil {
+			return nil, err
+		}
+		if err := arity(args, 1); err != nil {
+			return nil, err
+		}
+		if err := ensureDefaultProfile(configPath, profileName); err != nil {
+			return nil, err
+		}
+		if _, err := m.Stop(ctx); err != nil && !errors.Is(err, engine.ErrNotRunning) {
+			return nil, err
+		}
+		return startAndVerify(ctx, m, client, configPath, profileName)
+	case "status":
+		m, err := getManager()
+		if err != nil {
+			return nil, err
+		}
+		if err := arity(args, 1); err != nil {
+			return nil, err
+		}
+		status, err := m.Status(ctx)
+		if err != nil {
+			return nil, err
+		}
+		data := map[string]any{"running": status.Running, "socket_path": status.SocketPath, "log_path": status.LogPath}
+		if profileErr == nil {
+			data["profile"] = profileName
+		}
 		if status.PID != 0 {
 			data["pid"] = status.PID
 		}
 		if status.StalePID != 0 {
 			data["stale_pid"] = status.StalePID
 			data["unexpected_exit"] = true
+		}
+		if profileErr != nil {
+			data["profile_error"] = profileErr.Error()
 		}
 		if status.Running {
 			var v struct {
@@ -181,6 +231,10 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		return data, nil
 	case "logs":
+		m, err := getManager()
+		if err != nil {
+			return nil, err
+		}
 		if len(args) > 2 {
 			return nil, usage("logs [lines]")
 		}
@@ -192,19 +246,27 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 				return nil, usage("logs [lines: 1..10000]")
 			}
 		}
-		lines, err := manager.Logs(count)
+		lines, err := m.Logs(count)
 		return map[string]any{"lines": lines}, err
 	case "config":
+		m, err := getManager()
+		if err != nil {
+			return nil, err
+		}
 		if len(args) != 2 {
 			return nil, usage("config validate|show")
 		}
 		switch args[1] {
 		case "validate":
-			if err := manager.Validate(ctx); err != nil {
+			if err := m.Validate(ctx); err != nil {
 				return nil, fail("invalid_config", fmt.Errorf("configuration validation failed; run `nagi config show` to inspect the selected profile and check the mihomo executable: %w", err))
 			}
 			return map[string]any{"valid": true, "profile": profileName}, nil
 		case "show":
+			profiles, err := getProfiles()
+			if err != nil {
+				return nil, err
+			}
 			data, err := profiles.Show(profileName)
 			if err != nil {
 				return nil, err
@@ -213,9 +275,24 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		return nil, usage("config validate|show")
 	case "profile":
-		return profileCommand(ctx, args, profiles)
+		if len(args) > 1 && args[1] == "list" {
+			store := profile.NewStore(paths.ConfigDir, nil, nil)
+			return profileCommandWithCurrentError(ctx, args, store, profileErr)
+		}
+		store, err := getProfiles()
+		if err != nil {
+			return nil, err
+		}
+		return profileCommand(ctx, args, store)
 	case "subscription":
-		return subscriptionCommand(ctx, args, subs, profiles)
+		if len(args) > 1 && args[1] == "apply" {
+			store, err := getProfiles()
+			if err != nil {
+				return nil, err
+			}
+			return subscriptionCommand(ctx, args, subs, store)
+		}
+		return subscriptionCommand(ctx, args, subs, nil)
 	case "proxy":
 		return proxyCommand(ctx, args, proxies)
 	case "connections":
@@ -299,6 +376,28 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 	default:
 		return nil, usage("profile list|use <name>|import <name> <file>")
 	}
+}
+
+func profileCommandWithCurrentError(ctx context.Context, args []string, store *profile.Store, currentErr error) (any, error) {
+	if len(args) == 2 && args[1] == "list" {
+		list, err := store.List()
+		if err != nil {
+			return nil, err
+		}
+		data := map[string]any{"profiles": list}
+		if currentErr != nil {
+			data["current_error"] = currentErr.Error()
+		} else {
+			current, err := store.Current()
+			if err != nil {
+				data["current_error"] = err.Error()
+			} else {
+				data["current"] = current
+			}
+		}
+		return data, nil
+	}
+	return profileCommand(ctx, args, store)
 }
 
 func subscriptionCommand(ctx context.Context, args []string, store *subscription.Store, profiles *profile.Store) (any, error) {

@@ -136,6 +136,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				return err
 			}
 		}
+		if currentErr, ok := v["current_error"].(string); ok && currentErr != "" {
+			return line(w, "Warning: selected profile is unavailable: "+currentErr)
+		}
 		return nil
 	}
 	if groups, ok := v["groups"].([]proxy.Group); ok {
@@ -196,6 +199,11 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		}
 		if err := printField(w, "Profile", v, "profile"); err != nil {
 			return err
+		}
+		if profileErr, ok := v["profile_error"].(string); ok && profileErr != "" {
+			if err := line(w, "Warning: selected profile is unavailable: "+profileErr); err != nil {
+				return err
+			}
 		}
 		for _, field := range []struct{ key, label string }{{"pid", "PID"}, {"stale_pid", "Previous PID"}, {"version", "Mihomo version"}, {"mixed_port", "Mixed port"}, {"socket_path", "Socket"}, {"log_path", "Log"}} {
 			if err := printField(w, field.label, v, field.key); err != nil {
