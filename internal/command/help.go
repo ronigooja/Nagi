@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -20,6 +21,11 @@ var commandSpecs = []commandSpec{
 	{"stop", "stop", "Stop mihomo", "Stops a running mihomo process.", "nagi stop", "", 0, 0},
 	{"restart", "restart", "Restart mihomo", "Restarts mihomo with the selected profile.", "nagi restart", "", 0, 0},
 	{"status", "status", "Show process status", "Shows running state, selected profile, PID, and runtime paths.", "nagi status", "", 0, 0},
+	{"diagnostics", "diagnostics [export FILE]", "Run security diagnostics", "Checks executable, profile, listeners, DNS, proxy control API, permissions, and controller exposure. Output is redacted.", "nagi --json diagnostics", "", 0, 2},
+	{"kill-switch", "kill-switch <status|enable|disable>", "Manage direct-traffic protection", "Reports firewall support. Enabling is refused unless Nagi has a safe managed firewall transaction for this host.", "nagi kill-switch status", "", 0, -1},
+	{"kill-switch status", "kill-switch status", "Show kill-switch status", "Reports supported firewall backend and managed state.", "nagi kill-switch status", "", 0, 0},
+	{"kill-switch enable", "kill-switch enable", "Enable kill switch", "Blocks direct traffic only through a safe managed firewall backend; unsupported hosts return an actionable error.", "nagi kill-switch enable", "", 0, 0},
+	{"kill-switch disable", "kill-switch disable", "Disable kill switch", "Removes Nagi's managed firewall transaction when one exists.", "nagi kill-switch disable", "", 0, 0},
 	{"doctor", "doctor", "Inspect the local installation", "Checks local paths, mihomo executable, selected profile, process marker, and Unix Socket API without changing files. Exit status is zero for a completed report; inspect healthy and checks for problems.", "nagi --json doctor", "", 0, 0},
 	{"logs", "logs [lines]", "Show or follow logs", "Shows recent lines or follows newly appended log lines until interrupted.", "nagi logs follow", "", 0, 1},
 	{"logs follow", "logs follow", "Follow mihomo logs", "Streams newly appended log lines until interrupted.", "nagi logs follow", "", 0, 0},
@@ -252,6 +258,11 @@ func validateInvocation(args []string) error {
 	}
 	if spec.path == "lan enable" && n == 1 && net.ParseIP(args[2]) == nil {
 		return syntaxError("ADDRESS must be an IPv4 or IPv6 address", spec)
+	}
+	if spec.path == "diagnostics" && n == 2 {
+		if args[1] != "export" || !filepath.IsAbs(args[2]) {
+			return syntaxError("export requires an absolute output path", spec)
+		}
 	}
 	if spec.path == "mode" && n == 1 {
 		if args[1] != "rule" && args[1] != "global" && args[1] != "direct" && args[1] != "saved" {

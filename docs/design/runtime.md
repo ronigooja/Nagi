@@ -33,3 +33,8 @@ System proxy settings affect applications that honor the OS HTTP and HTTPS proxy
 ## Startup, stale state, and recheck
 
 Lifecycle operations use the runtime lock and PID marker to distinguish a live process from stale state. `status` reports stale PID and unexpected exit without claiming the engine is usable. `recover` and `startup check` remove stale PID/socket markers only after confirming the PID is no longer alive; they never signal a live process. `startup check` then probes `/version` when the engine is running, allowing callers to recheck after network changes or sleep/wake without an implicit restart. Login autostart is delegated to a per-user launchd Agent on macOS or systemd unit on Linux. The manager's enabled and active state is reported separately from the mihomo process state.
+## Diagnostics and security
+
+`diagnostics` performs read-only checks against local paths, executable resolution, profile readability, PID liveness, Unix Socket `/version`, mihomo `/configs`, listener reachability, DNS enablement, listener/controller exposure, and owner-only permissions. It does not read profile contents into the report. `diagnostics export` serializes the same redacted report to an owner-only file. The report separates process existence, API reachability, configured listener, and proxy path checks.
+
+Kill-switch operations are fail-closed. Nagi detects supported Linux nftables/iptables or macOS pf tooling but refuses to mutate firewall rules unless a safe managed transaction is available. An unsupported or unmanaged host receives an actionable error; no partial firewall state is claimed. Traffic protection therefore remains a separately administered firewall responsibility until a platform-specific transactional backend is installed.

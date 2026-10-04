@@ -212,6 +212,36 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	if command == "doctor" {
 		return diagnostic.Run(ctx, paths, binary), nil
 	}
+	if command == "diagnostics" {
+		report := diagnostic.RunFull(ctx, paths, binary)
+		if len(args) == 1 {
+			return report, nil
+		}
+		if len(args) == 3 && args[1] == "export" {
+			if err := diagnostic.Export(args[2], report); err != nil {
+				return nil, fail("diagnostic_error", err)
+			}
+			return map[string]any{"exported": true, "path": args[2], "redacted": true}, nil
+		}
+		return nil, usage("diagnostics [export ABSOLUTE_FILE]")
+	}
+	if command == "kill-switch" {
+		switch args[1] {
+		case "status":
+			return diagnostic.KillSwitchStatus(paths.StateDir), nil
+		case "enable":
+			if err := diagnostic.EnableKillSwitch(ctx, paths.StateDir); err != nil {
+				return nil, fail("kill_switch_error", err)
+			}
+			return map[string]any{"enabled": true}, nil
+		case "disable":
+			if err := diagnostic.DisableKillSwitch(ctx, paths.StateDir); err != nil {
+				return nil, fail("kill_switch_error", err)
+			}
+			return map[string]any{"enabled": false}, nil
+		}
+		return nil, usage("kill-switch status|enable|disable")
+	}
 	controlTimeout := 10 * time.Second
 	if len(args) >= 2 && command == "proxy" && (args[1] == "delay" || args[1] == "delays") {
 		controlTimeout = 31 * time.Second

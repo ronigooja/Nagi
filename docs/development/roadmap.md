@@ -101,6 +101,9 @@ Implemented lifecycle, startup, and stale-state behavior is documented in the [C
 
 ## Diagnostics and security
 
+Implemented checks, redaction, and kill-switch capability boundaries are documented in the [CLI reference](../reference/cli.md#diagnostics-and-security) and [diagnostics guide](../guides/diagnostics.md).
+
+
 - Check the mihomo executable, configuration, ports, Unix Socket, DNS, and proxy connectivity.
 - Distinguish a live process from a reachable control API and a working proxy path.
 - Export a redacted diagnostic report.

@@ -267,3 +267,18 @@ JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolea
 `start` is duplicate-safe: a live PID returns `already_running`; a stale PID is reported as an unexpected exit and can be repaired with `recover` or `startup check` before starting again. The lifecycle lock serializes concurrent start, stop, restart, and recovery calls. `stop` remains explicit and returns `not_running` when there is no live process. Login service support is platform-specific: macOS uses a per-user launchd Agent and Linux uses a per-user systemd unit. Missing service-manager sessions return an actionable manager error.
 
 The service manager starts Nagi at login, but Nagi does not automatically restart a crashed mihomo process. `startup check` is intended for launch agents, resume hooks, or an operator after network and sleep/wake changes; it reports whether the control API is reachable and cleans stale state. Applications should inspect `running`, `control_api`, and `recovered` fields instead of assuming that an active service means an active proxy.
+## Diagnostics and security
+
+| Command | Result or effect |
+| --- | --- |
+| `diagnostics` | Run a redacted report covering paths, executable, selected profile readability, process and Unix Socket API state, listener ports, DNS, proxy listener exposure, controller exposure, and permission checks. |
+| `diagnostics export ABSOLUTE_FILE` | Write the same redacted report to an owner-only JSON file. Profile contents, subscription URLs, credentials, and command output are never included. |
+| `kill-switch status` | Report whether a supported firewall backend is detected. |
+| `kill-switch enable` | Attempt to enable a managed direct-traffic block. Nagi refuses when it cannot prove a safe managed firewall transaction. |
+| `kill-switch disable` | Remove Nagi's managed kill-switch transaction when one exists. |
+
+`doctor` remains the compatibility diagnostic with its documented eight checks. `diagnostics` adds security and connectivity checks and distinguishes a live PID, reachable Unix Socket API, configured listener, reachable listener, DNS enabled state, and controller exposure. A configured proxy or live control API does not prove that a request can traverse a proxy; use `proxy delay` for an explicit path test.
+
+The diagnostic export is redacted by construction and written mode `0600`. It reports paths and actionable messages but never copies profile YAML or subscription metadata. Socket and configuration directory permissions are checked for group/other access. A non-loopback external controller or LAN listener produces a warning or error with a corrective action.
+
+Kill-switch support is deliberately fail-closed: when no supported backend or safe transaction is available, `enable` returns `kill_switch_error` without changing firewall state. The current implementation detects Linux nftables/iptables and macOS pf backends but refuses unmanaged rule changes; use an administrator-managed firewall policy and verify it independently. This avoids claiming protection that Nagi cannot safely restore after a crash or network change.

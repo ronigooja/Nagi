@@ -35,6 +35,22 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return line(w, v)
 	case engine.Status:
 		return writeLifecycle(w, v)
+	case diagnostic.FullReport:
+		if v.Healthy {
+			if err := line(w, "Diagnostics: healthy"); err != nil {
+				return err
+			}
+		} else {
+			if err := line(w, "Diagnostics: needs attention"); err != nil {
+				return err
+			}
+		}
+		for _, check := range v.Checks {
+			if err := line(w, fmt.Sprintf("[%s] %s: %s", strings.ToUpper(check.Status), check.Name, check.Message)); err != nil {
+				return err
+			}
+		}
+		return nil
 	case diagnostic.Report:
 		if v.Healthy {
 			if err := line(w, "Nagi doctor: healthy"); err != nil {

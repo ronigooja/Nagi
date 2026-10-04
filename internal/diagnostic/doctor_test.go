@@ -154,3 +154,27 @@ func TestReachableUnixAPI(t *testing.T) {
 		t.Fatal(report)
 	}
 }
+
+func TestFullReportRedactsProfileAndChecksSecurity(t *testing.T) {
+	root := t.TempDir()
+	p := paths(root)
+	for _, dir := range []string{p.ConfigDir, p.DataDir, p.StateDir, p.RuntimeDir, filepath.Join(p.ConfigDir, "profiles")} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(p.ConfigDir, "profiles", "default.yaml"), []byte("mixed-port: 17890\nsecret: value\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	report := RunFull(context.Background(), p, filepath.Join(root, "missing"))
+	data, err := RedactedJSON(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "secret") || strings.Contains(string(data), "value") {
+		t.Fatalf("secret leaked: %s", data)
+	}
+	if len(report.Checks) < 8 {
+		t.Fatalf("checks=%d", len(report.Checks))
+	}
+}

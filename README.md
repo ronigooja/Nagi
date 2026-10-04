@@ -22,6 +22,7 @@ Without `MIHOMO_DIR`, the build script fetches the repository and exact commit i
 - [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
 - [Traffic access](docs/guides/traffic-access.md): system proxy, TUN, listener ports, and LAN access.
 - [Startup and recovery](docs/guides/startup.md): login service, stale state, and rechecks.
+- [Diagnostics](docs/guides/diagnostics.md): redacted health and security checks.
 - [CLI reference](docs/reference/cli.md): commands, output, and exit codes.
 - [Terminal dashboard](docs/guides/terminal-dashboard.md): interactive keys and workflows.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
