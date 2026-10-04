@@ -11,6 +11,12 @@ type fakeClient struct{ path, selected, method, bodyPath string }
 
 func (f *fakeClient) Get(_ context.Context, path string, out any) error {
 	f.path = path
+	if path == "/configs" {
+		return json.Unmarshal([]byte(`{"mode":"global"}`), out)
+	}
+	if len(path) > 6 && path[len(path)-6:] == "/delay" {
+		return json.Unmarshal([]byte(`{"delay":123}`), out)
+	}
 	data := []byte(`{"name":"Group A","type":"Selector","all":["Node A","Node B"],"now":"Node A"}`)
 	return json.Unmarshal(data, out)
 }
@@ -58,6 +64,9 @@ func TestDelayEscapesQueryAndCloseMode(t *testing.T) {
 	}
 	if err := s.Close(context.Background(), "id/1"); err != nil {
 		t.Fatal(err)
+	}
+	if err := s.Close(context.Background(), " "); err == nil || f.path == "/connections" {
+		t.Fatalf("empty ID close: err=%v path=%q", err, f.path)
 	}
 	if f.method != "DELETE" || f.path != "/connections/id%2F1" {
 		t.Fatalf("method=%q path=%q", f.method, f.path)

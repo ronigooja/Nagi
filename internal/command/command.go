@@ -326,7 +326,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			if len(args) != 2 {
 				return nil, usage("connections close-all")
 			}
-			if err := proxies.Close(ctx, ""); err != nil {
+			if err := proxies.CloseAll(ctx); err != nil {
 				return nil, err
 			}
 			return map[string]any{"closed": true}, nil

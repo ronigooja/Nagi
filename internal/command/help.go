@@ -154,6 +154,9 @@ func validateInvocation(args []string) error {
 			return syntaxError("mode must be rule, global, or direct", spec)
 		}
 	}
+	if spec.path == "connections close" && strings.TrimSpace(args[2]) == "" {
+		return syntaxError("connection ID required", spec)
+	}
 	return nil
 }
 

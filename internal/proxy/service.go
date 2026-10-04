@@ -7,17 +7,12 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 type Client interface {
 	Get(context.Context, string, any) error
 	Put(context.Context, string, any, any) error
-}
-
-type extendedClient interface {
-	Client
-	Delete(context.Context, string, any) error
-	Patch(context.Context, string, any, any) error
 }
 
 type Service struct{ Client Client }
@@ -52,8 +47,15 @@ func (s *Service) Delay(ctx context.Context, name, target string, timeoutMS int)
 	if s == nil || s.Client == nil {
 		return result, errors.New("proxy control client unavailable")
 	}
-	if name == "" {
+	if strings.TrimSpace(name) == "" {
 		return result, errors.New("proxy node required")
+	}
+	parsed, err := url.Parse(target)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+		return result, errors.New("URL must be an absolute HTTP(S) URL without userinfo")
+	}
+	if timeoutMS < 1 || timeoutMS > 30000 {
+		return result, errors.New("timeout must be an integer from 1 to 30000 milliseconds")
 	}
 	u := url.Values{}
 	u.Set("url", target)
@@ -145,17 +147,33 @@ func (s *Service) Connections(ctx context.Context) ([]Connection, error) {
 }
 
 func (s *Service) Close(ctx context.Context, id string) error {
+	if s == nil || s.Client == nil {
+		return errors.New("proxy control client unavailable")
+	}
+	if strings.TrimSpace(id) == "" {
+		return errors.New("connection ID required")
+	}
 	c, ok := s.Client.(interface {
 		Delete(context.Context, string, any) error
 	})
 	if !ok {
 		return errors.New("mihomo control client does not support deleting connections")
 	}
-	path := "/connections"
-	if id != "" {
-		path += "/" + url.PathEscape(id)
-	}
+	path := "/connections/" + url.PathEscape(id)
 	return c.Delete(ctx, path, nil)
+}
+
+func (s *Service) CloseAll(ctx context.Context) error {
+	if s == nil || s.Client == nil {
+		return errors.New("proxy control client unavailable")
+	}
+	c, ok := s.Client.(interface {
+		Delete(context.Context, string, any) error
+	})
+	if !ok {
+		return errors.New("mihomo control client does not support deleting connections")
+	}
+	return c.Delete(ctx, "/connections", nil)
 }
 
 func (s *Service) Mode(ctx context.Context, mode *string) (map[string]any, error) {
@@ -168,6 +186,9 @@ func (s *Service) Mode(ctx context.Context, mode *string) (map[string]any, error
 			return nil, err
 		}
 		value, _ := cfg["mode"].(string)
+		if value != "rule" && value != "global" && value != "direct" {
+			return nil, errors.New("mihomo returned an invalid mode")
+		}
 		return map[string]any{"mode": value}, nil
 	}
 	if _, ok := map[string]bool{"rule": true, "global": true, "direct": true}[*mode]; !ok {

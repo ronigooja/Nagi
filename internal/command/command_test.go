@@ -247,3 +247,19 @@ func TestProxyDelayValidationPrecedesRuntime(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectionsCloseRejectsEmptyIDBeforeRuntime(t *testing.T) {
+	root := t.TempDir()
+	bad := filepath.Join(root, "config-file")
+	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", bad)
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"connections", "close", ""}, &stdout, &stderr, "test", "commit"); code != 2 {
+		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "connection ID required") {
+		t.Fatalf("stderr=%s", stderr.String())
+	}
+}
