@@ -25,6 +25,17 @@ type Entry struct {
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
 
+func (e Entry) MarshalJSON() ([]byte, error) {
+	view := struct {
+		Name      string     `json:"name"`
+		UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	}{Name: e.Name}
+	if !e.UpdatedAt.IsZero() {
+		view.UpdatedAt = &e.UpdatedAt
+	}
+	return json.Marshal(view)
+}
+
 type RefreshResult struct {
 	Name      string    `json:"name"`
 	Bytes     int       `json:"bytes"`

@@ -3,7 +3,7 @@ import Foundation
 /// The GUI's only interface to Nagi. No shell, configuration file, socket, or mihomo API is used.
 struct NagiCLIClient {
     static let executable = URL(fileURLWithPath: "/usr/local/bin/nagi")
-    private let timeout: TimeInterval = 15
+    private let timeout: TimeInterval = 45
 
     func run(_ arguments: [String]) async throws -> JSONValue {
         guard FileManager.default.isExecutableFile(atPath: Self.executable.path) else {
@@ -59,7 +59,8 @@ struct NagiCLIClient {
         if timedOut { throw CLIError.timeout }
 
         let (stdoutData, stderrData) = output.snapshot()
-        guard let response = try? JSONDecoder().decode(CLIEnvelope.self, from: stdoutData) else {
+        let responseData = stdoutData.isEmpty ? stderrData : stdoutData
+        guard let response = try? JSONDecoder().decode(CLIEnvelope.self, from: responseData) else {
             let diagnostic = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
             throw CLIError.invalidJSON(diagnostic?.isEmpty == false ? diagnostic! : "The CLI returned an invalid JSON response.")
         }
@@ -102,7 +103,7 @@ enum CLIError: LocalizedError {
         switch self {
         case .missingCLI(let path): return "Nagi CLI is missing at \(path). Install the CLI there to use the app."
         case .launch(let reason): return "Could not start Nagi CLI: \(reason)"
-        case .timeout: return "Nagi CLI did not respond within 15 seconds."
+        case .timeout: return "Nagi CLI did not respond within 45 seconds."
         case .invalidJSON(let reason): return "Nagi CLI response error: \(reason)"
         case .command(let code, let message): return "\(message) (\(code))"
         }
