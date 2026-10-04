@@ -55,10 +55,11 @@ var commandSpecs = []commandSpec{
 	{"dns tun off", "dns tun off", "Disable TUN DNS interception", "Disables TUN in the selected profile override.", "nagi dns tun off", "", 0, 0},
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
-	{"proxy", "proxy <groups|show GROUP|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]>", "Inspect and select proxies", "Reads proxy groups and selections from a running mihomo process and measures node delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Reads proxy groups and selections from a running mihomo process and measures node delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups and their current selections.", "nagi proxy groups", "", 0, 0},
 	{"proxy show", "proxy show GROUP", "Show a proxy group", "Shows one group and its available nodes.", "nagi proxy show 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 1},
-	{"proxy select", "proxy select GROUP NODE", "Select a proxy node", "Selects a node in a group on the running engine.", "nagi proxy select 'Proxy Group' 'Node A'", "Run `nagi proxy groups` and `nagi proxy show GROUP` to find names.", 2, 2},
+	{"proxy search", "proxy search QUERY", "Search nodes", "Lists case-insensitive node-name matches by group.", "nagi proxy search Hong", "Run `nagi proxy groups` to inspect all nodes.", 1, 1},
+	{"proxy select", "proxy select GROUP NODE", "Select a proxy node", "Selects a node in a group and saves the choice for the selected profile.", "nagi proxy select 'Proxy Group' 'Node A'", "Run `nagi proxy groups` and `nagi proxy show GROUP` to find names.", 2, 2},
 	{"proxy delay", "proxy delay NODE [URL] [TIMEOUT_MS]", "Measure proxy delay", "Measures an HTTP(S) URL through a proxy node. URL defaults to https://www.gstatic.com/generate_204 and timeout to 5000 ms.", "nagi proxy delay NodeA", "Run `nagi proxy groups` to find a node name.", 1, 3},
 	{"rules", "rules <list|providers|custom|conflicts|connection ID|add NAME TYPE PAYLOAD TARGET|remove NAME|enable NAME|disable NAME|import-local NAME BEHAVIOR FILE TARGET|import-remote NAME BEHAVIOR URL TARGET>", "Manage routing rules", "Custom rules are stored outside profiles and apply before profile rules.", "nagi rules list", "", 0, -1},
 	{"rules list", "rules list", "List active rules", "Shows mihomo's ordered active rules, including disabled state and hit counts.", "nagi rules list", "", 0, 0},
@@ -72,6 +73,8 @@ var commandSpecs = []commandSpec{
 	{"rules disable", "rules disable NAME", "Disable a custom rule", "Disables a named custom rule or imported set.", "nagi rules disable work", "Run `nagi rules custom` to find names.", 1, 1},
 	{"rules import-local", "rules import-local NAME BEHAVIOR FILE TARGET", "Import a local rule set", "Imports YAML payload/list (or domain/ipcidr text) as a persistent inline provider. BEHAVIOR is classical, domain, or ipcidr.", "nagi rules import-local ads domain ./ads.yaml REJECT", "", 4, 4},
 	{"rules import-remote", "rules import-remote NAME BEHAVIOR URL TARGET", "Import a remote rule set", "Downloads up to 8 MiB over HTTP(S), stores a snapshot as a persistent inline provider, and applies it before profile rules.", "nagi rules import-remote ads domain https://example.com/ads.yaml REJECT", "", 4, 4},
+	{"proxy delays", "proxy delays GROUP [URL] [TIMEOUT_MS]", "Measure group node delays", "Measures all nodes in a group and sorts successful results by ascending latency. Uses the same URL and timeout defaults as proxy delay.", "nagi proxy delays 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 3},
+	{"proxy restore", "proxy restore", "Restore saved proxy choices", "Restores available saved choices for the selected profile and reports missing groups or nodes.", "nagi proxy restore", "Run `nagi proxy groups` to see live selections.", 0, 0},
 	{"connections", "connections <list|close ID|close-all>", "Inspect connections", "Reads or closes active connections from a running engine.", "nagi connections list", "", 0, -1},
 	{"connections list", "connections list", "List active connections", "Shows a snapshot of active connections.", "nagi connections list", "", 0, 0},
 	{"connections close", "connections close ID", "Close a connection", "Closes one connection by its mihomo ID.", "nagi connections close 42", "Run `nagi connections list` to find IDs.", 1, 1},
@@ -81,10 +84,11 @@ var commandSpecs = []commandSpec{
 	{"service install", "service install", "Install the user service", "Installs a per-user launchd Agent or systemd service.", "nagi service install", "", 0, 0},
 	{"service uninstall", "service uninstall", "Remove the user service", "Removes the per-user launchd Agent or systemd service.", "nagi service uninstall", "", 0, 0},
 	{"version", "version", "Show version information", "Shows Nagi and mihomo versions, pinned commit, OS, and architecture.", "nagi --json version", "", 0, 0},
-	{"completion", "completion <bash|zsh|fish>", "Generate shell completion", "Prints a static completion script for the selected shell.", "nagi completion bash", "", 0, -1},
+	{"completion", "completion <bash|zsh|fish|candidates groups|nodes [GROUP]>", "Generate shell completion", "Prints a shell completion script or live proxy name candidates.", "nagi completion bash", "", 0, -1},
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
+	{"completion candidates", "completion candidates groups|nodes [GROUP]", "List live completion candidates", "Lists current proxy groups or nodes; requires a reachable engine.", "nagi completion candidates nodes 'Proxy Group'", "", 1, 2},
 }
 
 func findSpec(path string) *commandSpec {
@@ -182,9 +186,9 @@ func validateInvocation(args []string) error {
 			return syntaxError("lines must be an integer from 1 to 10000", spec)
 		}
 	}
-	if spec.path == "proxy delay" {
+	if spec.path == "proxy delay" || spec.path == "proxy delays" {
 		if strings.TrimSpace(args[2]) == "" {
-			return syntaxError("proxy node required", spec)
+			return syntaxError("proxy node or group required", spec)
 		}
 		target := "https://www.gstatic.com/generate_204"
 		if n >= 2 {

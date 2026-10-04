@@ -103,6 +103,45 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	}
 	command := args[0]
 	if command == "completion" {
+		if len(args) >= 2 && args[1] == "candidates" {
+			paths, err := nagiruntime.Resolve()
+			if err != nil {
+				return nil, err
+			}
+			service := proxy.NewService(control.New(paths.SocketPath))
+			groups, err := service.Groups(ctx)
+			if err != nil {
+				return nil, err
+			}
+			names := []string{}
+			if len(args) == 3 && args[2] == "groups" {
+				for _, g := range groups {
+					names = append(names, g.Name)
+				}
+				return proxy.Candidates(names), nil
+			}
+			if len(args) == 4 && args[2] == "nodes" {
+				for _, g := range groups {
+					if g.Name == args[3] {
+						return proxy.Candidates(g.All), nil
+					}
+				}
+				return proxy.Candidates(names), nil
+			}
+			if len(args) == 3 && args[2] == "nodes" {
+				seen := map[string]bool{}
+				for _, g := range groups {
+					for _, n := range g.All {
+						if !seen[n] {
+							names = append(names, n)
+							seen[n] = true
+						}
+					}
+				}
+				return proxy.Candidates(names), nil
+			}
+			return nil, usage("completion candidates groups|nodes [GROUP]")
+		}
 		if len(args) != 2 {
 			return nil, usage("completion bash|zsh|fish")
 		}
@@ -130,7 +169,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		return diagnostic.Run(ctx, paths, binary), nil
 	}
 	controlTimeout := 10 * time.Second
-	if len(args) >= 2 && command == "proxy" && args[1] == "delay" {
+	if len(args) >= 2 && command == "proxy" && (args[1] == "delay" || args[1] == "delays") {
 		controlTimeout = 31 * time.Second
 	}
 	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
@@ -196,7 +235,11 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		if err != nil {
 			return nil, err
 		}
-		return startAndVerify(ctx, m, client, configPath, profileName)
+		result, err := startAndVerify(ctx, m, client, configPath, profileName)
+		if err == nil {
+			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies)
+		}
+		return result, err
 	case "stop":
 		m, err := getManager()
 		if err != nil {
@@ -220,7 +263,11 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		if _, err := m.Stop(ctx); err != nil && !errors.Is(err, engine.ErrNotRunning) {
 			return nil, err
 		}
-		return startAndVerify(ctx, m, client, configPath, profileName)
+		result, err := startAndVerify(ctx, m, client, configPath, profileName)
+		if err == nil {
+			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies)
+		}
+		return result, err
 	case "status":
 		m, err := getManager()
 		if err != nil {
@@ -330,7 +377,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
-		return proxyCommand(ctx, args, proxies)
+		return proxyCommand(ctx, args, proxies, proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}, paths.ConfigDir)
 	case "rules":
 		return rulesCommand(ctx, args, paths.ConfigDir, binary, client, proxies)
 	case "connections":
@@ -660,9 +707,9 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 	}
 }
 
-func proxyCommand(ctx context.Context, args []string, service *proxy.Service) (any, error) {
+func proxyCommand(ctx context.Context, args []string, service *proxy.Service, selections proxy.SelectionStore, configDir string) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("proxy groups|show <group>|select <group> <node>|delay NODE [URL] [TIMEOUT_MS]")
+		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
 	}
 	switch args[1] {
 	case "groups":
@@ -680,10 +727,42 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service) (a
 		if err := arity(args, 4); err != nil {
 			return nil, err
 		}
+		current, err := profile.NewStore(configDir, nil, nil).Current()
+		if err != nil {
+			return nil, fail("proxy_selection_error", fmt.Errorf("cannot read selected profile to save choice: %w", err))
+		}
 		if err := service.Select(ctx, args[2], args[3]); err != nil {
 			return nil, fail("proxy_selection_error", err)
 		}
+		if err := selections.Save(current, args[2], args[3]); err != nil {
+			return nil, fail("proxy_selection_error", fmt.Errorf("selected node in running engine, but could not save choice: %w", err))
+		}
 		return map[string]any{"group": args[2], "node": args[3]}, nil
+	case "restore":
+		if err := arity(args, 2); err != nil {
+			return nil, err
+		}
+		current, err := profile.NewStore(configDir, nil, nil).Current()
+		if err != nil {
+			return nil, fail("proxy_selection_error", err)
+		}
+		return selections.Restore(ctx, current, service)
+	case "search":
+		if err := arity(args, 3); err != nil {
+			return nil, err
+		}
+		groups, err := service.Search(ctx, args[2])
+		return map[string]any{"query": args[2], "groups": groups}, err
+	case "delays":
+		target := "https://www.gstatic.com/generate_204"
+		timeoutMS := 5000
+		if len(args) >= 4 {
+			target = args[3]
+		}
+		if len(args) == 5 {
+			timeoutMS, _ = strconv.Atoi(args[4])
+		}
+		return service.Delays(ctx, args[2], target, timeoutMS)
 	case "delay":
 		target := "https://www.gstatic.com/generate_204"
 		timeoutMS := 5000
@@ -695,6 +774,6 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service) (a
 		}
 		return service.Delay(ctx, args[2], target, timeoutMS)
 	default:
-		return nil, usage("proxy groups|show <group>|select <group> <node>|delay NODE [URL] [TIMEOUT_MS]")
+		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
 	}
 }

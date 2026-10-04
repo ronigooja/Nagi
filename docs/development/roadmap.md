@@ -35,6 +35,8 @@ The CLI now supports source profile import, export, switch, remove, validation, 
 
 ## Proxy groups and nodes
 
+The CLI implements the items below as defined in the [CLI reference](../reference/cli.md); TUI browsing remains in the TUI proposal.
+
 - List groups, nodes, and the current selection.
 - Search nodes and provide dynamic completion.
 - Test multiple nodes and sort results by latency.

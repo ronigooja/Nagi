@@ -44,10 +44,13 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `subscription preview NAME` | Compare cached nodes with profile `NAME` without changing either. |
 | `subscription apply NAME` | Convert and validate the cache, retain local settings and available group selections from profile `NAME`, then activate it. |
 | `subscription remove NAME` | Remove a saved subscription and its cache. |
-| `proxy groups`, `proxy show GROUP` | Read mihomo proxy groups through its Unix Socket API. |
-| `proxy select GROUP NODE` | Select a node in a group. |
+| `proxy groups`, `proxy show GROUP` | Read mihomo proxy groups, nodes, current selection, and selection availability through its Unix Socket API. |
+| `proxy search QUERY` | Find nodes by case-insensitive name substring and list matching groups. |
+| `proxy select GROUP NODE` | Select a node in a group and save the choice for the selected profile. |
 | `proxy delay NODE [URL] [TIMEOUT_MS]` | Measure a proxy's HTTP request latency through mihomo. |
-| `connections list` | Return a snapshot of active connections. |
+| `proxy delays GROUP [URL] [TIMEOUT_MS]` | Test all nodes in a group and sort successful measurements by latency. |
+| `proxy restore` | Replay saved choices for the selected profile where the group and node still exist; report missing choices. |
+| `connections list` | Return a snapshot of active connections, including mihomo's selected proxy chains when supplied. |
 | `connections close ID` | Request closure of a connection by its ID. |
 | `connections close-all` | Request closure of all current connections. |
 | `mode [rule\|global\|direct]` | Read or change the running engine's routing mode. |
@@ -95,8 +98,15 @@ New default profiles enable mihomo DNS, IPv6, and fake IP mode. They listen only
 
 `proxy delay NODE [URL] [TIMEOUT_MS]` defaults to `https://www.gstatic.com/generate_204` and `5000` milliseconds. Supply a URL before a custom timeout. The URL must be absolute HTTP or HTTPS without user information; the timeout must be an integer from `1` through `30000`. Invalid arguments fail before contacting the engine. The CLI allows up to 31 seconds for the control request, so the maximum measurement timeout is not cut short by the ordinary ten-second API timeout. `NODE` is a mihomo proxy name, including built-ins such as `DIRECT`; names with spaces must be quoted. The pinned mihomo implementation sends an HTTP HEAD request and records the latency in the proxy's delay history. This measures request latency, not bandwidth.
 
+`proxy delays GROUP [URL] [TIMEOUT_MS]` uses the same URL and timeout rules. It measures group entries with at most eight concurrent requests and returns one result for each node. Successful measurements sort by ascending `delay_ms`, then name; failed measurements follow with `error: "latency test failed"`. An empty group returns an empty `results` array. `proxy search QUERY` matches node names without case sensitivity and returns groups containing matches. `proxy groups` and `proxy show GROUP` add `selected_status`: `available`, `unavailable` (mihomo reports the group not alive), `removed` (the selected name is absent), or `none`. Selecting a missing node fails with `proxy_selection_error` and suggests `proxy show`.
+
+Successful `proxy select` requests save the group and node under the selected profile in `proxy-selections.json` in the configuration directory, with mode `0600`. If saving fails, the error states that the live engine was already changed. On start, restart, and profile reload, Nagi attempts to replay saved choices that still exist. Restore failure does not undo a successful start or reload. Run `proxy restore` to see accepted choices and choices whose group or node is unavailable or removed. Nagi does not delete unavailable saved choices automatically; a later configuration may restore them.
+
 ```sh
 nagi proxy delay 'Node A'
+nagi proxy search Hong
+nagi proxy delays 'Proxy Group'
+nagi proxy restore
 nagi proxy delay 'Node A' https://example.com/ 8000
 nagi connections list
 nagi connections close CONNECTION_ID
@@ -104,13 +114,13 @@ nagi mode global
 nagi mode
 ```
 
-Replace `Node A` and `CONNECTION_ID` with names and IDs from your engine. Connection lists show IDs in text and JSON. Closing an ID that has already disappeared succeeds because mihomo treats it as an idempotent request. `close-all` is explicit, noninteractive, and affects all connections present when mihomo processes the request. Applications may immediately establish new connections. No closed-connection count is returned.
+Replace `Node A`, `Proxy Group`, and `CONNECTION_ID` with names and IDs from your engine. Connection lists show IDs and any selected proxy chain in text and JSON. Closing an ID that has already disappeared succeeds because mihomo treats it as an idempotent request. `close-all` is explicit, noninteractive, and affects all connections present when mihomo processes the request. Applications may immediately establish new connections. No closed-connection count is returned.
 
 `mode` without an argument reads the running mode. With `rule`, `global`, or `direct`, it changes only the running engine through `PATCH /configs`. It does not edit profile YAML; restarting or reloading a profile reapplies the mode in that configuration. All commands in this section require a reachable mihomo Unix Socket API.
 
 ## Shell completion
 
-`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell and DNS policy values, DNS query record types, and local files for profile import, export, and override set. Profile names, proxy names, and connection IDs are not queried dynamically.
+`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell and DNS policy values, DNS query record types, and local files for profile import, export, and override set. At completion time, proxy group names for `show`, `select`, and `delays`, and node names for `delay` or a chosen group in `select`, are queried from the running engine. An unreachable engine yields no dynamic candidates. `completion candidates groups|nodes [GROUP]` exposes the live names as newline-separated text or a JSON string array; connection IDs are not completed.
 
 Load the script in the corresponding shell:
 
@@ -176,6 +186,9 @@ Additional success payloads are defined below; all appear in `data`:
 | `subscription preview NAME` | `name`, `format`, sorted `added`, `removed`, and `changed` node-name arrays. |
 | `subscription apply NAME` | `name`, `profile`, `applied: true`, `preview`, `selections_restored` (accepted live selection restore requests). |
 | `proxy delay` | `proxy` and `url` (strings), `timeout_ms` and `delay_ms` (integer milliseconds). |
+| `proxy delays` | `group`, `url`, `timeout_ms`, `results` array of `proxy`, optional `delay_ms` or `error`. |
+| `proxy search` | `query`, `groups` array with the same group fields as `proxy groups`. |
+| `proxy restore` | `restored` and `unavailable` string arrays of `GROUP -> NODE`. |
 | `connections close ID` | `id` (string), `closed: true` (request accepted, including an already absent connection). |
 | `connections close-all` | `closed: true` (request accepted; no count). |
 | `mode` | `mode` (string: `rule`, `global`, or `direct`). |

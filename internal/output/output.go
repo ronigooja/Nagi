@@ -71,6 +71,48 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return writeGroup(w, v)
 	case proxy.DelayResult:
 		return line(w, fmt.Sprintf("Proxy %s delay: %d ms (URL: %s, timeout: %d ms)", v.Proxy, v.DelayMS, v.URL, v.TimeoutMS))
+	case proxy.BatchDelayResult:
+		if err := line(w, "Proxy group "+v.Group+" latency:"); err != nil {
+			return err
+		}
+		if len(v.Results) == 0 {
+			return line(w, "No nodes in this group.")
+		}
+		for _, item := range v.Results {
+			value := "latency unavailable"
+			if item.DelayMS != nil {
+				value = fmt.Sprintf("%d ms", *item.DelayMS)
+			}
+			if item.Error != "" {
+				value = item.Error
+			}
+			if err := line(w, item.Proxy+": "+value); err != nil {
+				return err
+			}
+		}
+		return nil
+	case proxy.RestoreResult:
+		if len(v.Restored) == 0 && len(v.Unavailable) == 0 {
+			return line(w, "No saved proxy selections for this profile.")
+		}
+		for _, item := range v.Restored {
+			if err := line(w, "Restored: "+item); err != nil {
+				return err
+			}
+		}
+		for _, item := range v.Unavailable {
+			if err := line(w, "Unavailable or removed: "+item); err != nil {
+				return err
+			}
+		}
+		return nil
+	case proxy.Candidates:
+		for _, name := range v {
+			if err := line(w, name); err != nil {
+				return err
+			}
+		}
+		return nil
 	case subscription.RefreshResult:
 		if err := line(w, fmt.Sprintf("Downloaded subscription %s (%d bytes).", v.Name, v.Bytes)); err != nil {
 			return err
@@ -140,6 +182,9 @@ func writeGroup(w io.Writer, g proxy.Group) error {
 	}
 	if g.Now != "" {
 		heading += " -> " + g.Now
+	}
+	if g.SelectedStatus == "unavailable" || g.SelectedStatus == "removed" {
+		heading += " (" + g.SelectedStatus + ")"
 	}
 	if err := line(w, heading); err != nil {
 		return err
@@ -221,6 +266,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	}
 	if groups, ok := v["groups"].([]proxy.Group); ok {
 		if len(groups) == 0 {
+			if _, searched := v["query"]; searched {
+				return line(w, "No matching nodes found.")
+			}
 			return line(w, "No proxy groups configured. Check the selected profile with `nagi config show`.")
 		}
 		for i, group := range groups {
@@ -267,7 +315,11 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			if destination == "" {
 				destination = "Destination unavailable"
 			}
-			if err := line(w, fmt.Sprintf("%s  ID: %s  Upload: %d B  Download: %d B", destination, connection.ID, connection.Upload, connection.Download)); err != nil {
+			label := fmt.Sprintf("%s  ID: %s  Upload: %d B  Download: %d B", destination, connection.ID, connection.Upload, connection.Download)
+			if len(connection.Chains) > 0 {
+				label += "  Chain: " + strings.Join(connection.Chains, " -> ")
+			}
+			if err := line(w, label); err != nil {
 				return err
 			}
 		}

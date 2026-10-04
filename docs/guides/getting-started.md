@@ -7,7 +7,7 @@ Run `nagi --help` to discover commands, or `nagi help profile import` for a comm
 1. Build Nagi and the pinned mihomo commit as described in [Build and test](../development/build-and-test.md).
 2. Run `./bin/nagi start`. On first use, Nagi creates a minimal `default` profile with a local mixed proxy port at `17890`. This profile has no proxy nodes and sends traffic directly; import your own configuration or apply a subscription to use proxy nodes. Starting Nagi does not configure your applications or system proxy settings.
 3. Run `./bin/nagi status` to check the PID and mihomo version. Run `./bin/nagi logs` if startup fails.
-4. Run `./bin/nagi proxy groups` to list configured groups, and `./bin/nagi proxy select GROUP NODE` to change a selection.
+4. Run `./bin/nagi proxy groups` to list configured groups, `./bin/nagi proxy search QUERY` to find nodes, and `./bin/nagi proxy select GROUP NODE` to change a selection. Use `./bin/nagi proxy delays GROUP` to compare node latency. Selections are saved for the selected profile and restored when possible after restarting or reloading.
 5. Run `./bin/nagi stop` when finished.
 
 For an installation or startup problem, run `nagi doctor`. It reports checks and next steps without changing files or starting mihomo. A stopped engine can produce warnings; check the report rather than using the command's exit status as a health check. The [CLI reference](../reference/cli.md#diagnostics) defines the diagnostic results.
@@ -38,7 +38,7 @@ To route a corporate suffix to a local resolver, run `nagi dns exception add cor
 
 ## Daily operation
 
-Use `nagi proxy delay 'Node A'` to check the latency of a proxy, replacing `Node A` with a name from your configuration. Use `nagi connections list` to find connection IDs, then `nagi connections close CONNECTION_ID` to disconnect one or `nagi connections close-all` to disconnect all current connections. Applications can reconnect automatically.
+Use `nagi proxy delay 'Node A'` to check the latency of a proxy, replacing `Node A` with a name from your configuration. Run `nagi proxy restore` to inspect which saved choices remain available. Use `nagi connections list` to see connection IDs and selected proxy chains, then `nagi connections close CONNECTION_ID` to disconnect one or `nagi connections close-all` to disconnect all current connections. Applications can reconnect automatically.
 
 Run `nagi mode` to inspect the routing mode, or `nagi mode rule`, `nagi mode global`, or `nagi mode direct` to change it for the running engine. Restarting or reloading restores the mode from the selected profile.
 

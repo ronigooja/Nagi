@@ -15,6 +15,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/rules"
+	"github.com/ronigooja/Nagi/internal/proxy"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 )
 
@@ -104,7 +105,11 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if !status.Running {
 			return nil
 		}
-		return client.Put(ctx, "/configs?force=true", map[string]any{"path": path}, nil)
+		if err := client.Put(ctx, "/configs?force=true", map[string]any{"path": path}, nil); err != nil {
+			return err
+		}
+		_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, current, proxy.NewService(client))
+		return nil
 	}
 	store = profile.NewStore(paths.ConfigDir, validate, reload)
 	return store

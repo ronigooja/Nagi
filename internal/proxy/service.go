@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Client interface {
@@ -16,15 +17,17 @@ type Client interface {
 }
 
 type Service struct{ Client Client }
+type Candidates []string
 
 func NewService(client Client) *Service { return &Service{Client: client} }
 
 type Group struct {
-	Name  string   `json:"name"`
-	Type  string   `json:"type"`
-	Now   string   `json:"now,omitempty"`
-	All   []string `json:"all,omitempty"`
-	Alive bool     `json:"alive"`
+	Name           string   `json:"name"`
+	Type           string   `json:"type"`
+	Now            string   `json:"now,omitempty"`
+	All            []string `json:"all,omitempty"`
+	Alive          bool     `json:"alive"`
+	SelectedStatus string   `json:"selected_status,omitempty"`
 }
 
 type Connection struct {
@@ -42,6 +45,89 @@ type DelayResult struct {
 	URL       string `json:"url"`
 	TimeoutMS int    `json:"timeout_ms"`
 	DelayMS   int    `json:"delay_ms"`
+}
+
+type BatchDelayItem struct {
+	Proxy   string `json:"proxy"`
+	DelayMS *int   `json:"delay_ms,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+type BatchDelayResult struct {
+	Group     string           `json:"group"`
+	URL       string           `json:"url"`
+	TimeoutMS int              `json:"timeout_ms"`
+	Results   []BatchDelayItem `json:"results"`
+}
+
+func (s *Service) Delays(ctx context.Context, group, target string, timeoutMS int) (BatchDelayResult, error) {
+	result := BatchDelayResult{Group: group, URL: target, TimeoutMS: timeoutMS, Results: []BatchDelayItem{}}
+	g, err := s.Show(ctx, group)
+	if err != nil {
+		return result, err
+	}
+	if len(g.All) == 0 {
+		return result, nil
+	}
+	result.Results = make([]BatchDelayItem, len(g.All))
+	semaphore := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	for i, name := range g.All {
+		wg.Add(1)
+		go func(i int, name string) {
+			defer wg.Done()
+			select {
+			case semaphore <- struct{}{}:
+			case <-ctx.Done():
+				result.Results[i] = BatchDelayItem{Proxy: name, Error: "request canceled"}
+				return
+			}
+			defer func() { <-semaphore }()
+			delay, err := s.Delay(ctx, name, target, timeoutMS)
+			item := BatchDelayItem{Proxy: name}
+			if err != nil {
+				item.Error = "latency test failed"
+			} else {
+				item.DelayMS = &delay.DelayMS
+			}
+			result.Results[i] = item
+		}(i, name)
+	}
+	wg.Wait()
+	sort.SliceStable(result.Results, func(i, j int) bool {
+		a, b := result.Results[i], result.Results[j]
+		if a.Error != "" {
+			return false
+		}
+		if b.Error != "" {
+			return true
+		}
+		if *a.DelayMS != *b.DelayMS {
+			return *a.DelayMS < *b.DelayMS
+		}
+		return a.Proxy < b.Proxy
+	})
+	return result, nil
+}
+
+func (s *Service) Search(ctx context.Context, query string) ([]Group, error) {
+	groups, err := s.Groups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	found := make([]Group, 0)
+	for _, g := range groups {
+		nodes := make([]string, 0)
+		for _, name := range g.All {
+			if strings.Contains(strings.ToLower(name), strings.ToLower(query)) {
+				nodes = append(nodes, name)
+			}
+		}
+		if len(nodes) > 0 {
+			g.All = nodes
+			found = append(found, g)
+		}
+	}
+	return found, nil
 }
 
 func (s *Service) Delay(ctx context.Context, name, target string, timeoutMS int) (DelayResult, error) {
@@ -88,6 +174,7 @@ func (s *Service) Groups(ctx context.Context) ([]Group, error) {
 			continue
 		}
 		group.Name = name
+		group.SelectedStatus = selectedStatus(group)
 		groups = append(groups, group)
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
@@ -108,7 +195,23 @@ func (s *Service) Show(ctx context.Context, group string) (Group, error) {
 	if result.Name == "" {
 		result.Name = group
 	}
+	result.SelectedStatus = selectedStatus(result)
 	return result, nil
+}
+
+func selectedStatus(g Group) string {
+	if g.Now == "" {
+		return "none"
+	}
+	for _, node := range g.All {
+		if node == g.Now {
+			if !g.Alive {
+				return "unavailable"
+			}
+			return "available"
+		}
+	}
+	return "removed"
 }
 
 func (s *Service) Select(ctx context.Context, group, node string) error {
@@ -127,7 +230,7 @@ func (s *Service) Select(ctx context.Context, group, node string) error {
 		}
 	}
 	if !found {
-		return errors.New("node is not in proxy group")
+		return errors.New("node is unavailable or was removed from the proxy group; run `nagi proxy show GROUP` to see current nodes")
 	}
 	return s.Client.Put(ctx, "/proxies/"+url.PathEscape(group), map[string]string{"name": node}, nil)
 }

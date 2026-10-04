@@ -86,6 +86,18 @@ func bashCompletion(roots []string, children map[string][]string) string {
   if [[ "$root" == dns && "${semantic[1]}" == query && ${#semantic[@]} -eq 3 ]]; then
     COMPREPLY=( $(compgen -W 'A AAAA' -- "$cur") ); return 0
   fi
+  if [[ "$root" == proxy ]]; then
+    local kind="" group=""
+    if [[ ${#semantic[@]} -eq 2 ]]; then
+      case "${semantic[1]}" in show|select|delays) kind=groups ;; delay) kind=nodes ;; esac
+    elif [[ ${#semantic[@]} -eq 3 && "${semantic[1]}" == select ]]; then
+      kind=nodes; group="${semantic[2]}"
+    fi
+    if [[ -n "$kind" ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates "$kind" ${group:+"$group"} 2>/dev/null)
+      return 0
+    fi
+  fi
   if [[ ${#semantic[@]} -eq 1 ]]; then
     case "$root" in
 `)
@@ -100,7 +112,36 @@ func bashCompletion(roots []string, children map[string][]string) string {
 
 func zshCompletion(roots []string, children map[string][]string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "#compdef nagi\n_nagi() {\n  local -a semantic\n  local word i\n  semantic=()\n  for ((i=2; i<CURRENT; i++)); do\n    word=${words[i]}\n    [[ $word == --json || $word == --help || $word == -h ]] && continue\n    semantic+=(\"$word\")\n  done\n  if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi\n  if (( ${#semantic} == 0 )); then compadd -- %s; return; fi\n  if [[ ${semantic[1]} == profile && ( ${semantic[2]} == import || ${semantic[2]} == export ) && ${#semantic} == 3 || ${semantic[1]} == profile && ${semantic[2]} == override && ${semantic[3]} == set && ${#semantic} == 4 ]]; then _files; return; fi\n  if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${#semantic} == 2 ]]; then compadd -- set show clear; return; fi\n  if [[ ${semantic[1]} == dns && ${#semantic} == 2 ]]; then case ${semantic[2]} in exception) compadd -- add remove; return ;; tun) compadd -- on off; return ;; set) compadd -- direct proxy; return ;; esac; fi\n  if [[ ${semantic[1]} == dns && ${semantic[2]} == query && ${#semantic} == 3 ]]; then compadd -- A AAAA; return; fi\n  if (( ${#semantic} == 1 )); then case ${semantic[1]} in\n", shellWords(roots))
+	fmt.Fprintf(&b, `#compdef nagi
+_nagi() {
+  local -a semantic
+  local word i
+  semantic=()
+  for ((i=2; i<CURRENT; i++)); do
+    word=${words[i]}
+    [[ $word == --json || $word == --help || $word == -h ]] && continue
+    semantic+=("$word")
+  done
+  if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi
+  if (( ${#semantic} == 0 )); then compadd -- %s; return; fi
+  if [[ ${semantic[1]} == profile && ( ${semantic[2]} == import || ${semantic[2]} == export ) && ${#semantic} == 3 || ${semantic[1]} == profile && ${semantic[2]} == override && ${semantic[3]} == set && ${#semantic} == 4 ]]; then _files; return; fi
+  if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${#semantic} == 2 ]]; then compadd -- set show clear; return; fi
+  if [[ ${semantic[1]} == dns && ${#semantic} == 2 ]]; then case ${semantic[2]} in exception) compadd -- add remove; return ;; tun) compadd -- on off; return ;; set) compadd -- direct proxy; return ;; esac; fi
+  if [[ ${semantic[1]} == dns && ${semantic[2]} == query && ${#semantic} == 3 ]]; then compadd -- A AAAA; return; fi
+  if [[ ${semantic[1]} == proxy ]]; then
+    local kind="" group=""
+    if (( ${#semantic} == 2 )); then
+      case ${semantic[2]} in show|select|delays) kind=groups ;; delay) kind=nodes ;; esac
+    elif (( ${#semantic} == 3 )) && [[ ${semantic[2]} == select ]]; then kind=nodes; group=${semantic[3]}; fi
+    if [[ -n $kind ]]; then
+      local -a candidates
+      candidates=("${(@f)$(nagi completion candidates "$kind" ${group:+"$group"} 2>/dev/null)}")
+      (( ${#candidates} )) && compadd -- "${candidates[@]}"
+      return
+    fi
+  fi
+  if (( ${#semantic} == 1 )); then case ${semantic[1]} in
+`, shellWords(roots))
 	for _, root := range roots {
 		if len(children[root]) > 0 {
 			fmt.Fprintf(&b, "    %s) compadd -- %s ;;\n", root, shellWords(children[root]))
@@ -146,6 +187,9 @@ end
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = tun' -a 'on off'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = set' -a 'direct proxy'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = dns; and test \"$s[2]\" = query' -a 'A AAAA'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and contains -- \"$s[2]\" show select delays' -a '(nagi completion candidates groups 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = delay' -a '(nagi completion candidates nodes 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = select' -a '(set -l s (__nagi_semantic); nagi completion candidates nodes \"$s[3]\" 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
 	return b.String()
 }
