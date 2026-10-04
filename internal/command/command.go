@@ -101,6 +101,16 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		binary = filepath.Join(filepath.Dir(exe), "mihomo")
 	}
 	command := args[0]
+	if command == "completion" {
+		if len(args) != 2 {
+			return nil, usage("completion bash|zsh|fish")
+		}
+		script, ok := completion(args[1])
+		if !ok {
+			return nil, usage("completion bash|zsh|fish")
+		}
+		return script, nil
+	}
 	if command == "version" {
 		if err := arity(args, 1); err != nil {
 			return nil, err
@@ -372,7 +382,7 @@ func usage(message string) error { return fail("usage", errors.New(message)) }
 
 func profileCommand(ctx context.Context, args []string, store *profile.Store) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("profile list|use <name>|import <name> <file>")
+		return nil, usage("profile list|use <name>|import <name> <file>|remove <name>")
 	}
 	switch args[1] {
 	case "list":
@@ -413,8 +423,16 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 			return nil, fail("profile_error", err)
 		}
 		return map[string]any{"name": args[2], "imported": true}, nil
+	case "remove":
+		if err := arity(args, 3); err != nil {
+			return nil, usage("profile remove NAME (run `nagi profile remove --help` for details)")
+		}
+		if err := store.Remove(args[2]); err != nil {
+			return nil, fail("profile_error", err)
+		}
+		return map[string]any{"name": args[2], "removed": true, "kind": "profile"}, nil
 	default:
-		return nil, usage("profile list|use <name>|import <name> <file>")
+		return nil, usage("profile list|use <name>|import <name> <file>|remove <name>")
 	}
 }
 

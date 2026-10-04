@@ -23,10 +23,11 @@ var commandSpecs = []commandSpec{
 	{"config", "config <validate|show>", "Inspect the selected configuration", "Validate or print the selected profile.", "nagi config validate", "", 0, -1},
 	{"config validate", "config validate", "Validate the selected profile", "Runs mihomo -t against the selected profile; requires a mihomo executable.", "nagi config validate", "", 0, 0},
 	{"config show", "config show", "Print the selected profile", "Prints the selected profile YAML.", "nagi config show", "", 0, 0},
-	{"profile", "profile <list|use NAME|import NAME FILE>", "Manage local profiles", "Profile names use letters, digits, _ or -, up to 128 characters.", "nagi profile list", "", 0, -1},
+	{"profile", "profile <list|use NAME|import NAME FILE|remove NAME>", "Manage local profiles", "Profile names use letters, digits, _ or -, up to 128 characters.", "nagi profile list", "", 0, -1},
 	{"profile list", "profile list", "List local profiles", "Lists available profiles and marks the current selection.", "nagi profile list", "", 0, 0},
 	{"profile use", "profile use NAME", "Select a profile", "Validates and activates an existing profile; reloads a running engine.", "nagi profile use work", "Run `nagi profile list` to find a profile name.", 1, 1},
 	{"profile import", "profile import NAME FILE", "Import a profile", "Validates and saves a local YAML file, up to 8 MiB. Use profile use to select it.", "nagi profile import work ./work.yaml", "Run `nagi profile list` to see existing names.", 2, 2},
+	{"profile remove", "profile remove NAME", "Remove a profile", "Removes an unselected local profile and keeps its backup file.", "nagi profile remove old", "Run `nagi profile list` to see profile names.", 1, 1},
 	{"subscription", "subscription <list|add NAME URL|update NAME|apply NAME|remove NAME>", "Manage subscriptions", "Stores URLs separately from cached downloads and active profiles.", "nagi subscription list", "", 0, -1},
 	{"subscription list", "subscription list", "List subscriptions", "Lists saved names and refresh times without showing URLs.", "nagi subscription list", "", 0, 0},
 	{"subscription add", "subscription add NAME URL", "Save a subscription URL", "Saves an HTTP or HTTPS URL; does not download or activate it. Names use letters, digits, _ or -, up to 128 characters.", "nagi subscription add work https://example.com/subscription", "", 2, 2},
@@ -47,6 +48,10 @@ var commandSpecs = []commandSpec{
 	{"service install", "service install", "Install the user service", "Installs a per-user launchd Agent or systemd service.", "nagi service install", "", 0, 0},
 	{"service uninstall", "service uninstall", "Remove the user service", "Removes the per-user launchd Agent or systemd service.", "nagi service uninstall", "", 0, 0},
 	{"version", "version", "Show version information", "Shows Nagi and mihomo versions, pinned commit, OS, and architecture.", "nagi --json version", "", 0, 0},
+	{"completion", "completion <bash|zsh|fish>", "Generate shell completion", "Prints a static completion script for the selected shell.", "nagi completion bash", "", 0, -1},
+	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
+	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
+	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
 }
 
 func findSpec(path string) *commandSpec {

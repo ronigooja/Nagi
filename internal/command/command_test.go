@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,6 +70,94 @@ func TestNoArgsPrintsHelp(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Commands:") {
 		t.Fatalf("unexpected output: %s", stdout.String())
+	}
+}
+
+func TestCompletionIsRuntimeIndependent(t *testing.T) {
+	root := t.TempDir()
+	bad := filepath.Join(root, "config-file")
+	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", bad)
+	for _, shell := range []string{"bash", "zsh", "fish"} {
+		var stdout, stderr bytes.Buffer
+		if code := Run([]string{"--json", "completion", shell}, &stdout, &stderr, "test", "commit"); code != 0 {
+			t.Fatalf("shell=%s exit=%d stderr=%s", shell, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), `"ok":true`) || !strings.Contains(stdout.String(), "nagi") {
+			t.Fatalf("shell=%s response=%s", shell, stdout.String())
+		}
+	}
+	bash, _ := completion("bash")
+	if !strings.Contains(bash, "list use import remove") || !strings.Contains(bash, "compgen -f") {
+		t.Fatalf("bash completion missing profile/file completion: %s", bash)
+	}
+	fish, _ := completion("fish")
+	if !strings.Contains(fish, "rule global direct") {
+		t.Fatalf("fish completion missing mode values: %s", fish)
+	}
+}
+
+func TestBashCompletionPositionsAndSpaces(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "file with space.yaml")
+	if err := os.WriteFile(file, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	script, _ := completion("bash")
+	probe := script + "\n" + `COMP_WORDS=(nagi --json profile); COMP_CWORD=3; _nagi_complete; printf 'SUB:%s\n' "${COMPREPLY[*]}"
+COMP_WORDS=(nagi profile import work ` + filepath.Join(root, "file") + `); COMP_CWORD=4; _nagi_complete; printf 'FILE:%s\n' "${COMPREPLY[*]}"
+COMP_WORDS=(nagi profile import ` + filepath.Join(root, "file") + `); COMP_CWORD=3; _nagi_complete; printf 'NAME:%s\n' "${COMPREPLY[*]}"
+`
+	out, err := exec.Command("bash", "-c", probe).CombinedOutput()
+	if err != nil {
+		t.Fatalf("bash completion failed: %v\n%s", err, out)
+	}
+	text := string(out)
+	if !strings.Contains(text, "SUB:list use import remove") || !strings.Contains(text, "FILE:"+file) || strings.Contains(text, "NAME:"+file) {
+		t.Fatalf("unexpected completion output: %s", text)
+	}
+}
+
+func TestProfileRemoveCLI(t *testing.T) {
+	root := t.TempDir()
+	configHome := filepath.Join(root, "config")
+	configDir := filepath.Join(configHome, "nagi")
+	if err := os.MkdirAll(filepath.Join(configDir, "profiles"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "profiles", "old.yaml"), []byte("mode: rule\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "profiles", "default.yaml"), []byte("mode: rule\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "settings.yaml"), []byte("profile: default\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
+	t.Setenv("NAGI_MIHOMO_BIN", filepath.Join(root, "missing-mihomo"))
+	for _, name := range []string{"bad/name", "missing"} {
+		var invalidOut, invalidErr bytes.Buffer
+		if code := Run([]string{"--json", "profile", "remove", name}, &invalidOut, &invalidErr, "test", "commit"); code != 1 || !strings.Contains(invalidErr.String(), "profile_error") {
+			t.Fatalf("invalid/absent remove name=%s exit=%d stderr=%s", name, code, invalidErr.String())
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"--json", "profile", "remove", "old"}, &stdout, &stderr, "test", "commit"); code != 0 {
+		t.Fatalf("remove exit=%d stderr=%s", code, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "profiles", "old.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("profile still exists, err=%v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"--json", "profile", "remove", "default"}, &stdout, &stderr, "test", "commit"); code != 1 || !strings.Contains(stderr.String(), "profile_error") {
+		t.Fatalf("selected remove exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
 }
 

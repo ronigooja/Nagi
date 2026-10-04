@@ -244,6 +244,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		case v["imported"] == true:
 			return line(w, fmt.Sprintf("Imported profile %s. Run `nagi profile use %s` to select it.", name, name))
 		case v["removed"] == true:
+			if kind, _ := v["kind"].(string); kind == "profile" {
+				return line(w, "Removed profile "+name+". Any existing backup was retained.")
+			}
 			return line(w, "Removed subscription "+name+" and its cache.")
 		case v["applied"] == true:
 			return line(w, fmt.Sprintf("Applied subscription %s as selected profile %v. If mihomo was running, its configuration was reloaded.", name, v["profile"]))
