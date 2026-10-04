@@ -18,6 +18,8 @@ type Store struct {
 	Reload   func(context.Context) error
 }
 
+var ErrInvalidSelectedProfile = errors.New("invalid selected profile")
+
 func NewStore(configDir string, validate func([]byte) error, reload func(context.Context) error) *Store {
 	return &Store{Dir: configDir, Validate: validate, Reload: reload}
 }
@@ -75,7 +77,7 @@ func (s *Store) Current() (string, error) {
 			if validName(name) {
 				return name, nil
 			}
-			return "", errors.New("invalid selected profile")
+			return "", ErrInvalidSelectedProfile
 		}
 	}
 	return "default", nil
@@ -104,9 +106,6 @@ func (s *Store) Use(ctx context.Context, name string) error {
 	if err = s.validate(data); err != nil {
 		return err
 	}
-	if _, err = s.Current(); err != nil {
-		return err
-	}
 	settings := filepath.Join(s.Dir, "settings.yaml")
 	old, oldErr := os.ReadFile(settings)
 	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
@@ -129,20 +128,23 @@ func (s *Store) Write(ctx context.Context, name string, data []byte) error {
 		return err
 	}
 	old, oldErr := s.Show(name)
-	if oldErr == nil {
-		if err := s.validate(old); err != nil {
-			return fmt.Errorf("existing profile invalid: %w", err)
-		}
-	} else if !errors.Is(oldErr, fs.ErrNotExist) {
+	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
 		return oldErr
 	}
 	if err := s.validate(data); err != nil {
 		return err
 	}
+	current, err := s.Current()
+	if err != nil {
+		if errors.Is(err, ErrInvalidSelectedProfile) {
+			return fmt.Errorf("%w; use `nagi profile use NAME` or `nagi subscription apply NAME` to repair the selection", err)
+		}
+		return err
+	}
 	if err := atomicWrite(path, data); err != nil {
 		return err
 	}
-	if s.Reload != nil {
+	if s.Reload != nil && current == name {
 		if err := s.Reload(ctx); err != nil {
 			return errors.Join(err, restore(path, old, errors.Is(oldErr, fs.ErrNotExist)))
 		}
@@ -158,15 +160,11 @@ func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
 		return err
 	}
 	current, err := s.Current()
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrInvalidSelectedProfile) {
 		return err
 	}
 	oldProfile, profileErr := s.Show(name)
-	if profileErr == nil {
-		if err := s.validate(oldProfile); err != nil {
-			return fmt.Errorf("existing profile invalid: %w", err)
-		}
-	} else if !errors.Is(profileErr, fs.ErrNotExist) {
+	if profileErr != nil && !errors.Is(profileErr, fs.ErrNotExist) {
 		return profileErr
 	}
 	if err := s.validate(data); err != nil {

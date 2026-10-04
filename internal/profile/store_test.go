@@ -146,3 +146,121 @@ func TestApplyCurrentProfileReloadFailureRestoresContent(t *testing.T) {
 		t.Fatalf("implicit default selection changed: %v", err)
 	}
 }
+
+func TestWriteRepairsInvalidProfileWithoutReloadingUnselectedProfile(t *testing.T) {
+	dir := t.TempDir()
+	validate := func(data []byte) error {
+		if string(data) == "invalid" {
+			return errors.New("invalid YAML")
+		}
+		return nil
+	}
+	s := NewStore(dir, validate, nil)
+	if err := s.Write(context.Background(), "other", []byte("first")); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "profiles", "other.yaml")
+	if err := os.WriteFile(path, []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s.Reload = func(context.Context) error { t.Fatal("unselected profile was reloaded"); return nil }
+	if err := s.Write(context.Background(), "other", []byte("repaired")); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.Show("other"); err != nil || string(got) != "repaired" {
+		t.Fatalf("profile = %q, %v", got, err)
+	}
+	if got, err := os.ReadFile(path + ".bak"); err != nil || string(got) != "invalid" {
+		t.Fatalf("backup = %q, %v", got, err)
+	}
+}
+
+func TestWriteFailedReloadRestoresInvalidOldProfile(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func(data []byte) error {
+		if string(data) == "invalid" {
+			return errors.New("invalid YAML")
+		}
+		return nil
+	}, nil)
+	path := filepath.Join(dir, "profiles", "default.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s.Reload = func(context.Context) error { return errors.New("reload failed") }
+	if err := s.Write(context.Background(), "default", []byte("repaired")); err == nil {
+		t.Fatal("expected reload failure")
+	}
+	if got, err := s.Show("default"); err != nil || string(got) != "invalid" {
+		t.Fatalf("profile after failure = %q, %v", got, err)
+	}
+}
+
+func TestUseRepairsInvalidSelectionAndRestoresItOnReloadFailure(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func([]byte) error { return nil }, nil)
+	ctx := context.Background()
+	if err := s.Write(ctx, "other", []byte("valid")); err != nil {
+		t.Fatal(err)
+	}
+	settings := filepath.Join(dir, "settings.yaml")
+	if err := os.WriteFile(settings, []byte("profile: ../broken\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s.Reload = func(context.Context) error { return errors.New("reload failed") }
+	if err := s.Use(ctx, "other"); err == nil {
+		t.Fatal("expected reload failure")
+	}
+	if got, err := os.ReadFile(settings); err != nil || string(got) != "profile: ../broken\n" {
+		t.Fatalf("selection after failure = %q, %v", got, err)
+	}
+	s.Reload = nil
+	if err := s.Use(ctx, "other"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.Current(); err != nil || got != "other" {
+		t.Fatalf("selection = %q, %v", got, err)
+	}
+}
+
+func TestApplyRepairsInvalidProfileAndSelection(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func(data []byte) error {
+		if string(data) == "invalid" {
+			return errors.New("invalid YAML")
+		}
+		return nil
+	}, nil)
+	ctx := context.Background()
+	path := filepath.Join(dir, "profiles", "other.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	settings := filepath.Join(dir, "settings.yaml")
+	if err := os.WriteFile(settings, []byte("profile: ../broken\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s.Reload = func(context.Context) error { return errors.New("reload failed") }
+	if err := s.Apply(ctx, "other", []byte("valid")); err == nil {
+		t.Fatal("expected reload failure")
+	}
+	if got, err := s.Show("other"); err != nil || string(got) != "invalid" {
+		t.Fatalf("profile after failure = %q, %v", got, err)
+	}
+	if got, err := os.ReadFile(settings); err != nil || string(got) != "profile: ../broken\n" {
+		t.Fatalf("selection after failure = %q, %v", got, err)
+	}
+	s.Reload = nil
+	if err := s.Apply(ctx, "other", []byte("valid")); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.Current(); err != nil || got != "other" {
+		t.Fatalf("selection = %q, %v", got, err)
+	}
+}

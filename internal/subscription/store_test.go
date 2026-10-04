@@ -55,6 +55,54 @@ func TestRefreshErrorDoesNotRevealURL(t *testing.T) {
 	}
 }
 
+func TestRefreshRestoresCacheWhenIndexWriteFails(t *testing.T) {
+	for _, existingCache := range []bool{false, true} {
+		name := "without previous cache"
+		if existingCache {
+			name = "with previous cache"
+		}
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte("new cache"))
+			}))
+			defer server.Close()
+			dir := t.TempDir()
+			s := NewStore(dir, filepath.Join(dir, "cache"), nil)
+			if err := s.Add("work", server.URL); err != nil {
+				t.Fatal(err)
+			}
+			cachePath := s.cachePath("work")
+			if existingCache {
+				if err := os.MkdirAll(s.CacheDir, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(cachePath, []byte("old cache"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// The index remains readable, but its backup cannot be replaced.
+			if err := os.Mkdir(s.indexPath()+".bak", 0700); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.Refresh(context.Background(), "work"); err == nil {
+				t.Fatal("expected index write failure")
+			}
+			got, err := os.ReadFile(cachePath)
+			if existingCache {
+				if err != nil || string(got) != "old cache" {
+					t.Fatalf("cache = %q, %v", got, err)
+				}
+			} else if !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("new cache remains: %q, %v", got, err)
+			}
+			entries, err := s.List()
+			if err != nil || len(entries) != 1 || !entries[0].UpdatedAt.IsZero() {
+				t.Fatalf("index changed: %+v, %v", entries, err)
+			}
+		})
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

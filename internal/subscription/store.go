@@ -214,12 +214,26 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 		if err := os.MkdirAll(s.CacheDir, 0700); err != nil {
 			return zero, err
 		}
-		if err := writeReplace(s.cachePath(name), data); err != nil {
+		cachePath := s.cachePath(name)
+		oldCache, oldErr := os.ReadFile(cachePath)
+		if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
+			return zero, oldErr
+		}
+		if err := writeReplace(cachePath, data); err != nil {
 			return zero, err
 		}
 		entries[i].UpdatedAt = time.Now().UTC()
 		if err := s.write(entries); err != nil {
-			return zero, err
+			var restoreErr error
+			if errors.Is(oldErr, fs.ErrNotExist) {
+				restoreErr = os.Remove(cachePath)
+				if errors.Is(restoreErr, fs.ErrNotExist) {
+					restoreErr = nil
+				}
+			} else {
+				restoreErr = writeReplace(cachePath, oldCache)
+			}
+			return zero, errors.Join(err, restoreErr)
 		}
 		return RefreshResult{Name: name, Bytes: len(data), UpdatedAt: entries[i].UpdatedAt}, nil
 	}
