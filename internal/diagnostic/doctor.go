@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -52,12 +53,10 @@ func Run(ctx context.Context, paths nagiruntime.Paths, binary string) Report {
 			add(item.name, "ok", fmt.Sprintf("%s is available.", item.path))
 		}
 	}
-	if info, err := os.Stat(binary); err != nil {
-		add("mihomo_executable", "error", fmt.Sprintf("Mihomo executable is unavailable at %s; install it or set NAGI_MIHOMO_BIN.", binary))
-	} else if !info.Mode().IsRegular() || info.Mode().Perm()&0111 == 0 {
-		add("mihomo_executable", "error", fmt.Sprintf("%s is not an executable file; set NAGI_MIHOMO_BIN to a usable mihomo binary.", binary))
+	if resolved, err := exec.LookPath(binary); err != nil {
+		add("mihomo_executable", "error", fmt.Sprintf("Mihomo executable %s is unavailable; install it or set NAGI_MIHOMO_BIN to a usable path or PATH command.", binary))
 	} else {
-		add("mihomo_executable", "ok", fmt.Sprintf("Mihomo executable is available at %s.", binary))
+		add("mihomo_executable", "ok", fmt.Sprintf("Mihomo executable is available at %s.", resolved))
 	}
 
 	store := profile.NewStore(paths.ConfigDir, nil, nil)
@@ -66,7 +65,11 @@ func Run(ctx context.Context, paths nagiruntime.Paths, binary string) Report {
 		add("selected_profile", "error", "Selected profile setting is unreadable or invalid; inspect settings.yaml and select a valid profile with `nagi profile use NAME`.")
 	} else if _, err = store.Show(name); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			add("selected_profile", "warning", fmt.Sprintf("Selected profile %s is missing; run `nagi start` to create the default profile or import a profile.", name))
+			if name == "default" {
+				add("selected_profile", "warning", "Default profile is missing; run `nagi start` to create it or import a profile.")
+			} else {
+				add("selected_profile", "error", fmt.Sprintf("Selected profile %s is missing; import it with `nagi profile import %s FILE` or select another with `nagi profile use NAME`.", name, name))
+			}
 		} else {
 			add("selected_profile", "error", fmt.Sprintf("Selected profile %s cannot be read; check its file and permissions.", name))
 		}

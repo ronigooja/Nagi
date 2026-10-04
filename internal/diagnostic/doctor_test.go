@@ -50,6 +50,41 @@ func TestFreshDoctorDoesNotCreateDirectories(t *testing.T) {
 	}
 }
 
+func TestMihomoCommandFoundOnPATH(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.Mkdir(binDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "mihomo"), []byte("stub"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	item := check(Run(context.Background(), paths(root), "mihomo"), "mihomo_executable")
+	if item.Status != "ok" || !strings.Contains(item.Message, filepath.Join(binDir, "mihomo")) {
+		t.Fatal(item)
+	}
+}
+
+func TestMissingSelectedProfileRequiresRepair(t *testing.T) {
+	root := t.TempDir()
+	p := paths(root)
+	if err := os.MkdirAll(p.ConfigDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p.ConfigDir, "settings.yaml"), []byte("profile: work\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	report := Run(context.Background(), p, filepath.Join(root, "missing"))
+	item := check(report, "selected_profile")
+	if item.Status != "error" || !strings.Contains(item.Message, "nagi profile import work FILE") || strings.Contains(item.Message, "nagi start") {
+		t.Fatal(item)
+	}
+	if report.Healthy {
+		t.Fatal(report)
+	}
+}
+
 func TestCorruptSelectionAndStalePID(t *testing.T) {
 	root := t.TempDir()
 	p := paths(root)
