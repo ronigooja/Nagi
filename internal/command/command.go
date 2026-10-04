@@ -327,10 +327,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		if err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		if err := profiles.Write(ctx, args[2], data); err != nil {
-			return nil, fail("subscription_error", err)
-		}
-		if err := profiles.Use(ctx, args[2]); err != nil {
+		if err := profiles.Apply(ctx, args[2], data); err != nil {
 			return nil, fail("subscription_error", err)
 		}
 		return map[string]any{"name": args[2], "profile": args[2], "applied": true}, nil

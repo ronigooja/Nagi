@@ -150,6 +150,56 @@ func (s *Store) Write(ctx context.Context, name string, data []byte) error {
 	return nil
 }
 
+// Apply writes and selects a profile, then reloads it once. Failed activation
+// restores both the profile file and the previous selection.
+func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
+	path, err := s.path(name)
+	if err != nil {
+		return err
+	}
+	current, err := s.Current()
+	if err != nil {
+		return err
+	}
+	oldProfile, profileErr := s.Show(name)
+	if profileErr == nil {
+		if err := s.validate(oldProfile); err != nil {
+			return fmt.Errorf("existing profile invalid: %w", err)
+		}
+	} else if !errors.Is(profileErr, fs.ErrNotExist) {
+		return profileErr
+	}
+	if err := s.validate(data); err != nil {
+		return err
+	}
+	settings := filepath.Join(s.Dir, "settings.yaml")
+	oldSettings, settingsErr := os.ReadFile(settings)
+	if settingsErr != nil && !errors.Is(settingsErr, fs.ErrNotExist) {
+		return settingsErr
+	}
+	if err := atomicWrite(path, data); err != nil {
+		return err
+	}
+	selectedChanged := current != name
+	rollbackProfile := func(cause error) error {
+		return errors.Join(cause, restore(path, oldProfile, errors.Is(profileErr, fs.ErrNotExist)))
+	}
+	if selectedChanged {
+		if err := atomicWrite(settings, []byte("profile: "+name+"\n")); err != nil {
+			return rollbackProfile(err)
+		}
+	}
+	if s.Reload != nil {
+		if err := s.Reload(ctx); err != nil {
+			if selectedChanged {
+				err = errors.Join(err, restore(settings, oldSettings, errors.Is(settingsErr, fs.ErrNotExist)))
+			}
+			return rollbackProfile(err)
+		}
+	}
+	return nil
+}
+
 func restore(path string, old []byte, absent bool) error {
 	if absent {
 		return os.Remove(path)

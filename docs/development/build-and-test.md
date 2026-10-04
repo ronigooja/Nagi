@@ -9,7 +9,18 @@ GO=/path/to/go MIHOMO_DIR=/path/to/mihomo make build
 GO=/path/to/go make test
 ```
 
-`make test` runs the Go unit tests. For runtime integration, start with `bin/nagi start`, inspect `bin/nagi --json status`, read `bin/nagi proxy groups`, then stop. Use an isolated XDG environment when running these commands in automated tests. The macOS app is under `macos/NagiApp` and is built with Swift Package Manager on macOS. Signing and notarization require an Apple developer identity and are not part of the local build script.
+`make test` runs the Go unit tests. To check runtime integration manually with the built mihomo executable, run these commands from the repository root in order:
+
+```sh
+./bin/nagi start
+./bin/nagi --json status
+./bin/nagi config validate
+./bin/nagi proxy groups
+./bin/nagi connections list
+./bin/nagi stop
+```
+
+`start` creates the default profile if none exists. Expect `status` to report a running process, `config validate` to report a valid profile, and the proxy and connection commands to succeed; an empty connection list is valid. On Linux, set `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_RUNTIME_DIR` to directories in a temporary test location before running the commands if you need to isolate them from a normal Nagi instance. `XDG_RUNTIME_DIR` must be an absolute path. On macOS, Nagi uses `~/Library/Application Support/Nagi` rather than XDG paths. This manual check is not part of CI. The macOS app is under `macos/NagiApp` and is built with Swift Package Manager on macOS. Signing and notarization require an Apple developer identity and are not part of the local build script.
 
 The CI workflow runs tests and a locked build on Linux and macOS. It does not sign or publish binaries.
 
