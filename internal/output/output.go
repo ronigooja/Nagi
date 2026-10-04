@@ -125,7 +125,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	if profiles, ok := v["profiles"].([]string); ok {
 		current, _ := v["current"].(string)
 		if len(profiles) == 0 {
-			return line(w, "No profiles found. Import one with `nagi profile import NAME FILE`.")
+			if err := line(w, "No profiles found. Import one with `nagi profile import NAME FILE`."); err != nil {
+				return err
+			}
 		}
 		for _, name := range profiles {
 			marker := "  "

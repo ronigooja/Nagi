@@ -80,7 +80,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 			if errors.As(err, &exitErr) {
 				// mihomo diagnostics can contain credentials from the YAML. The
 				// temporary file is removed before this error reaches the user.
-				return errors.New("profile validation failed; check the source YAML being imported/applied (or existing target profile when replacing); validate a local copy with mihomo -t -f FILE -d DIRECTORY")
+				return errors.New("profile validation failed; check the source YAML being imported/applied or the profile being selected; validate a local copy with mihomo -t -f FILE -d DIRECTORY")
 			}
 			return errors.New("could not run mihomo validation; check NAGI_MIHOMO_BIN and executable permissions, then retry")
 		}

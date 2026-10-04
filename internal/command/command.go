@@ -124,7 +124,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	if readsProfile {
 		profileName, profileErr = profile.NewStore(paths.ConfigDir, nil, nil).Current()
 		if profileErr != nil && command != "status" && command != "profile" && !(command == "subscription" && len(args) > 1 && args[1] == "apply") {
-			return nil, profileErr
+			return nil, fmt.Errorf("cannot read selected profile; run `nagi profile list`, then `nagi profile use NAME` to select a valid profile: %w", profileErr)
 		}
 		if profileName == "" {
 			profileName = "default"
