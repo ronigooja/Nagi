@@ -19,6 +19,7 @@ Without `MIHOMO_DIR`, the build script fetches the repository and exact commit i
 
 - [Architecture](ARCHITECTURE.md): system boundaries and module relationships.
 - [Getting started](docs/guides/getting-started.md): initial configuration and operation.
+- [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
 - [CLI reference](docs/reference/cli.md): commands, output, and exit codes.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Development](docs/development/build-and-test.md): locked builds and tests.

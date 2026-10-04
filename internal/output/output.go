@@ -9,6 +9,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/proxy"
+	"github.com/ronigooja/Nagi/internal/rules"
 	"github.com/ronigooja/Nagi/internal/service"
 	"github.com/ronigooja/Nagi/internal/subscription"
 )
@@ -45,6 +46,23 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		}
 		for _, check := range v.Checks {
 			if err := line(w, fmt.Sprintf("[%s] %s: %s", strings.ToUpper(check.Status), check.Name, check.Message)); err != nil {
+				return err
+			}
+		}
+		return nil
+	case rules.Report:
+		for i, lineText := range v.Order {
+			if err := line(w, fmt.Sprintf("%d. %s", i, lineText)); err != nil {
+				return err
+			}
+		}
+		if len(v.Order) == 0 {
+			if err := line(w, "No rules configured."); err != nil {
+				return err
+			}
+		}
+		for _, conflict := range v.Conflicts {
+			if err := line(w, fmt.Sprintf("Conflict: rule %d shadows rule %d (%s)", conflict.Earlier, conflict.Later, conflict.Reason)); err != nil {
 				return err
 			}
 		}
@@ -238,6 +256,51 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			}
 		}
 		return nil
+	}
+	if entries, ok := v["entries"].([]rules.Entry); ok {
+		if len(entries) == 0 {
+			return line(w, "No custom rules. Add one with `nagi rules add NAME TYPE PAYLOAD TARGET`.")
+		}
+		for _, entry := range entries {
+			state := "disabled"
+			if entry.Enabled {
+				state = "enabled"
+			}
+			if err := line(w, entry.Name+" ("+state+"): "+rules.Line(entry)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if active, ok := v["rules"].([]map[string]any); ok {
+		if len(active) == 0 {
+			return line(w, "No active rules reported by mihomo.")
+		}
+		for _, rule := range active {
+			if err := line(w, fmt.Sprintf("%v. %v %v -> %v", rule["index"], rule["type"], rule["payload"], rule["proxy"])); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if providers, ok := v["providers"].(map[string]any); ok {
+		if len(providers) == 0 {
+			return line(w, "No active rule providers.")
+		}
+		for name := range providers {
+			if err := line(w, name); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if id, ok := v["id"].(string); ok {
+		if rule, ok := v["rule"].(string); ok {
+			return line(w, fmt.Sprintf("Connection %s matched: %s %v", id, rule, v["rule_payload"]))
+		}
+	}
+	if name, ok := v["name"].(string); ok && v["saved"] == true {
+		return line(w, fmt.Sprintf("Rule %s: %v. Effective configuration was validated; running mihomo was reloaded if active.", name, v["action"]))
 	}
 	if running, ok := v["running"].(bool); ok {
 		state := "stopped"

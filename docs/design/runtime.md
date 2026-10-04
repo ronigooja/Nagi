@@ -17,3 +17,7 @@ Subscription URLs are stored in `subscriptions.yaml` with restricted permissions
 Service definitions are replaced through a temporary file. On installation failure, Nagi attempts to restore the prior file state and reports the outcome without claiming the service manager also rolled back. During uninstall, a failed stop/disable preserves the definition for recovery. A subsequent systemd reload failure is reported even if the definition has already been removed. See the [CLI reference](../reference/cli.md#recovery-and-service-failures) for operational behavior.
 
 The macOS app invokes a fixed `/usr/local/bin/nagi` path through `Process` with `--json`. It does not read runtime files or contact mihomo itself. The app polls status; it has no events stream.
+
+## Rules and subscription persistence
+
+Nagi stores user-owned rules in a separate mode `0600` `rules.yaml` file. The selected profile is parsed with this document's enabled rules prepended; imported sets become inline `nagi-*` rule providers. Profile overrides and custom rules are combined before mihomo validation. A failed effective configuration validation or runtime reload restores the prior rules file. Subscription refresh and apply write profile data independently and therefore retain this rules file. A later profile reload regenerates the effective temporary YAML from the source profile, profile override, and enabled custom rules.

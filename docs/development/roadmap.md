@@ -58,6 +58,9 @@ The CLI now creates default profiles with IPv4/IPv6 mihomo DNS and DoH. Selected
 
 ## Rules
 
+Implemented CLI commands and persistence behavior are in the [CLI reference](../reference/cli.md#rules) and [rules guide](../guides/rules.md).
+
+
 - View active rules and rule providers.
 - Add, remove, enable, and disable custom rules.
 - Import local and remote rule sets.

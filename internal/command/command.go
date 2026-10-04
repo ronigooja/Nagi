@@ -20,6 +20,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/output"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
+	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/service"
 	"github.com/ronigooja/Nagi/internal/subscription"
@@ -159,7 +160,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		if command == "start" || command == "restart" || command == "config" {
 			store := newProfileStore(paths, binary, client, nil)
-			if _, overrideErr := store.Override(profileName); overrideErr == nil {
+			if _, overrideErr := store.Override(profileName); overrideErr == nil || (errors.Is(overrideErr, os.ErrNotExist) && rules.Exists(paths.ConfigDir)) {
 				configPath, err = materializeProfile(store, paths.ConfigDir, profileName)
 				if err != nil {
 					return nil, err
@@ -330,6 +331,8 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
 		return proxyCommand(ctx, args, proxies)
+	case "rules":
+		return rulesCommand(ctx, args, paths.ConfigDir, binary, client, proxies)
 	case "connections":
 		if len(args) < 2 {
 			return nil, usage("connections list|close ID|close-all")

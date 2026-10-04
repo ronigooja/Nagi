@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ronigooja/Nagi/internal/rules"
 	"gopkg.in/yaml.v3"
 )
 
@@ -57,7 +58,7 @@ func (s *Store) Effective(name string) ([]byte, error) {
 	}
 	patch, err := s.Override(name)
 	if errors.Is(err, fs.ErrNotExist) {
-		return base, nil
+		return rules.Apply(base, s.Dir)
 	}
 	if err != nil {
 		return nil, err
@@ -73,7 +74,11 @@ func (s *Store) Effective(name string) ([]byte, error) {
 		return nil, errors.New("profile and override must be YAML mappings")
 	}
 	mergeMap(source, overlay)
-	return yaml.Marshal(source)
+	merged, err := yaml.Marshal(source)
+	if err != nil {
+		return nil, err
+	}
+	return rules.Apply(merged, s.Dir)
 }
 
 // SetOverride stores a user-owned YAML mapping separately from the source profile.

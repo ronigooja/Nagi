@@ -28,11 +28,13 @@ type Group struct {
 }
 
 type Connection struct {
-	ID       string         `json:"id"`
-	Metadata map[string]any `json:"metadata,omitempty"`
-	Chains   []string       `json:"chains,omitempty"`
-	Upload   int64          `json:"upload"`
-	Download int64          `json:"download"`
+	ID          string         `json:"id"`
+	Rule        string         `json:"rule,omitempty"`
+	RulePayload string         `json:"rulePayload,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	Chains      []string       `json:"chains,omitempty"`
+	Upload      int64          `json:"upload"`
+	Download    int64          `json:"download"`
 }
 
 type DelayResult struct {

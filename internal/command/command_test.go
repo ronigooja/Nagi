@@ -352,3 +352,18 @@ func TestConnectionsCloseRejectsEmptyIDBeforeRuntime(t *testing.T) {
 		t.Fatalf("stderr=%s", stderr.String())
 	}
 }
+
+func TestRulesHelpAndUsage(t *testing.T) {
+	for _, args := range [][]string{{"rules", "add"}, {"rules", "import-local"}, {"rules", "connection"}} {
+		var out, errs bytes.Buffer
+		if code := Run(append(args, "--help"), &out, &errs, "test", "commit"); code != 0 || !strings.Contains(out.String(), "Usage: nagi "+strings.Join(args, " ")) {
+			t.Fatalf("help %v: %d %s %s", args, code, out.String(), errs.String())
+		}
+	}
+	for _, args := range [][]string{{"--json", "rules", "add", "x"}, {"--json", "rules", "import-remote", "a", "bad", "https://example.com/set", "DIRECT"}, {"--json", "rules", "import-remote", "a", "domain", "file:///tmp/set", "DIRECT"}} {
+		var out, errs bytes.Buffer
+		if code := Run(args, &out, &errs, "test", "commit"); code != 2 || !strings.Contains(errs.String(), `"code":"usage"`) {
+			t.Fatalf("usage %v: %d %s", args, code, errs.String())
+		}
+	}
+}

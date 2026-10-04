@@ -33,7 +33,8 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/control` | mihomo REST requests through its Unix Socket. |
 | `internal/profile` | Source profiles, local overrides, current selection, secure replacement, and rollback. |
 | `internal/subscription` | Subscription records, fetching, and cache. |
-| `internal/proxy` | Group, node, and connection operations through `control`. |
+| `internal/proxy` | Group, node, connection, and matched-rule operations through `control`. |
+| `internal/rules` | Persistent custom rules, imported rule sets, effective overlays, and conflict reports. |
 | `internal/diagnostic` | Read-only inspection of paths, executable, selected profile, PID, and control API. |
 | `internal/service` | Per-user launchd and systemd service installation. |
 

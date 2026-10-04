@@ -14,6 +14,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/profile"
+	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 )
 
@@ -111,7 +112,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 
 func materializeProfile(store *profile.Store, configDir, name string) (string, error) {
 	path := filepath.Join(configDir, "profiles", name+".yaml")
-	if _, err := store.Override(name); errors.Is(err, os.ErrNotExist) {
+	if _, err := store.Override(name); errors.Is(err, os.ErrNotExist) && !rules.Exists(configDir) {
 		return path, nil
 	} else if err != nil {
 		return "", err
