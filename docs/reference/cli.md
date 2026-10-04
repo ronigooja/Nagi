@@ -251,3 +251,19 @@ JSON payloads contain `rules`, `providers`, `entries`, `order`/`conflicts`, or `
 `tun enable` needs OS permission to create a TUN device and install routes. macOS and Linux permission mechanisms differ; inspect `nagi logs` if the adapter does not start. The mihomo API may accept a TUN patch while logging an adapter creation error, so a reported `enabled` setting alone does not prove that interception works. Runtime TUN and LAN changes are reset when a profile is reloaded or mihomo restarts. Enabling LAN exposes configured proxy listeners at the selected address; use firewall rules and authentication appropriate to that network.
 
 JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolean), `backend`, and `http`, `https`, and `socks` objects with `enabled`, optional `host`, and optional `port`. `tun status|enable|disable` include `enabled` (boolean) and `settings` (mihomo TUN object). `lan status|enable|disable` include `enabled` and `bind_address`. `ports status` includes integer `http`, `https`, `socks`, and `mixed`, plus `bind_address` and `allow_lan`. The `http` and `https` values are the same because mihomo uses one HTTP proxy listener for both schemes. All use the usual success/error envelope and exit codes. `system_proxy_error` and `tun_error` indicate failed traffic operations.
+## Startup and background operation
+
+| Command | Result or effect |
+| --- | --- |
+| `service install` | Install and enable the per-user launchd/systemd service. |
+| `service uninstall` | Disable, stop, and remove the service definition. |
+| `service status` | Report definition path, manager, installed, enabled, and active state. |
+| `startup status` | Report service status together with mihomo process state. |
+| `startup enable` | Enable an installed login service without rewriting its definition. |
+| `startup disable` | Disable the login service while retaining its definition. |
+| `startup check` | Recheck PID/socket state and `/version`; remove stale runtime markers after an unexpected exit. It never silently starts mihomo. |
+| `recover` | Remove stale PID and socket markers after an unexpected exit. A live process is never touched. |
+
+`start` is duplicate-safe: a live PID returns `already_running`; a stale PID is reported as an unexpected exit and can be repaired with `recover` or `startup check` before starting again. The lifecycle lock serializes concurrent start, stop, restart, and recovery calls. `stop` remains explicit and returns `not_running` when there is no live process. Login service support is platform-specific: macOS uses a per-user launchd Agent and Linux uses a per-user systemd unit. Missing service-manager sessions return an actionable manager error.
+
+The service manager starts Nagi at login, but Nagi does not automatically restart a crashed mihomo process. `startup check` is intended for launch agents, resume hooks, or an operator after network and sleep/wake changes; it reports whether the control API is reachable and cleans stale state. Applications should inspect `running`, `control_api`, and `recovered` fields instead of assuming that an active service means an active proxy.

@@ -36,7 +36,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/proxy` | Group, node, connection, and matched-rule operations through `control`. |
 | `internal/rules` | Persistent custom rules, imported rule sets, effective overlays, and conflict reports. |
 | `internal/diagnostic` | Read-only inspection of paths, executable, selected profile, PID, and control API. |
-| `internal/service` | Per-user launchd and systemd service installation. |
+| `internal/service` | Per-user launchd and systemd service installation and status. |
 | `internal/traffic` | OS proxy settings, restore journal, and engine exit watcher. |
 | `internal/tui` | Terminal dashboard state, rendering, and key handling. |
 

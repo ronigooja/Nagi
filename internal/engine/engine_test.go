@@ -146,3 +146,34 @@ func TestStatusWithoutBinary(t *testing.T) {
 		t.Fatalf("stop: %v", err)
 	}
 }
+
+func TestRecoverRemovesStaleRuntimeState(t *testing.T) {
+	root := t.TempDir()
+	paths := nagiruntime.Paths{RuntimeDir: filepath.Join(root, "run"), SocketPath: filepath.Join(root, "run", "sock"), PIDPath: filepath.Join(root, "run", "pid"), LockPath: filepath.Join(root, "run", "lock"), LogPath: filepath.Join(root, "run", "log")}
+	if err := os.MkdirAll(paths.RuntimeDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.PIDPath, []byte("999999\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.SocketPath, []byte("stale"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	m, err := New(Options{Binary: "mihomo", ConfigPath: filepath.Join(t.TempDir(), "config.yaml"), Paths: paths})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := m.Recover(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.UnexpectedExit || status.StalePID != 999999 {
+		t.Fatalf("status=%+v", status)
+	}
+	if _, err = os.Stat(paths.PIDPath); !os.IsNotExist(err) {
+		t.Fatalf("pid remains: %v", err)
+	}
+	if _, err = os.Stat(paths.SocketPath); !os.IsNotExist(err) {
+		t.Fatalf("socket remains: %v", err)
+	}
+}

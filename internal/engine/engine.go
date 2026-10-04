@@ -415,3 +415,30 @@ func (m *Manager) binary() (string, error) {
 	}
 	return filepath.Abs(binary)
 }
+
+// Recover removes stale runtime markers after an unexpected process exit. It
+// refuses to touch a live process, preserving duplicate-start protection.
+func (m *Manager) Recover(ctx context.Context) (Status, error) {
+	var result Status
+	err := m.withLock(func() error {
+		status, err := m.Status(ctx)
+		if err != nil {
+			return err
+		}
+		if status.Running {
+			return ErrAlreadyRunning
+		}
+		if status.StalePID == 0 {
+			return ErrNotRunning
+		}
+		if err := os.Remove(m.options.Paths.PIDPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err := os.Remove(m.options.Paths.SocketPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		result = Status{SocketPath: m.options.Paths.SocketPath, LogPath: m.options.Paths.LogPath, UnexpectedExit: true, StalePID: status.StalePID}
+		return nil
+	})
+	return result, err
+}

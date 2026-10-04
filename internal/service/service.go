@@ -10,8 +10,11 @@ import (
 )
 
 type Result struct {
-	Path    string `json:"path"`
-	Manager string `json:"manager"`
+	Path      string `json:"path"`
+	Manager   string `json:"manager"`
+	Installed bool   `json:"installed"`
+	Enabled   bool   `json:"enabled"`
+	Active    bool   `json:"active"`
 }
 
 type runner func(string, ...string) error
@@ -31,13 +34,13 @@ func location() (Result, error) {
 	}
 	switch runtime.GOOS {
 	case "darwin":
-		return Result{filepath.Join(home, "Library", "LaunchAgents", "io.nagi.cli.plist"), "launchd"}, nil
+		return Result{Path: filepath.Join(home, "Library", "LaunchAgents", "io.nagi.cli.plist"), Manager: "launchd"}, nil
 	case "linux":
 		base := os.Getenv("XDG_CONFIG_HOME")
 		if base == "" {
 			base = filepath.Join(home, ".config")
 		}
-		return Result{filepath.Join(base, "systemd", "user", "nagi.service"), "systemd"}, nil
+		return Result{Path: filepath.Join(base, "systemd", "user", "nagi.service"), Manager: "systemd"}, nil
 	default:
 		return Result{}, fmt.Errorf("unsupported service platform: %s", runtime.GOOS)
 	}
@@ -170,4 +173,71 @@ func uninstall(result Result, uid int, command runner) (Result, error) {
 
 func xmlEscape(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;", "'", "&apos;").Replace(s)
+}
+
+// Status reports whether the per-user service definition is installed and whether
+// the platform manager currently considers it enabled and active.
+func Status() (Result, error) {
+	result, err := location()
+	if err != nil {
+		return result, err
+	}
+	result.Installed = false
+	if _, err := os.Stat(result.Path); err == nil {
+		result.Installed = true
+	} else if !os.IsNotExist(err) {
+		return result, err
+	}
+	switch result.Manager {
+	case "systemd":
+		result.Enabled = commandOK("systemctl", "--user", "is-enabled", "nagi.service")
+		result.Active = commandOK("systemctl", "--user", "is-active", "nagi.service")
+	case "launchd":
+		result.Active = commandOK("launchctl", "print", fmt.Sprintf("gui/%d/io.nagi.cli", os.Getuid()))
+		result.Enabled = result.Installed
+	}
+	return result, nil
+}
+
+func commandOK(name string, args ...string) bool { return exec.Command(name, args...).Run() == nil }
+
+func Enable() (Result, error) {
+	result, err := location()
+	if err != nil {
+		return result, err
+	}
+	if _, e := os.Stat(result.Path); e != nil {
+		return result, fmt.Errorf("service definition is not installed; run `nagi service install`: %w", e)
+	}
+	switch result.Manager {
+	case "systemd":
+		if err := run("systemctl", "--user", "daemon-reload"); err != nil {
+			return result, err
+		}
+		if err := run("systemctl", "--user", "enable", "--now", "nagi.service"); err != nil {
+			return result, fmt.Errorf("enable service: %w", err)
+		}
+	case "launchd":
+		if err := run("launchctl", "bootstrap", fmt.Sprintf("gui/%d", os.Getuid()), result.Path); err != nil {
+			return result, fmt.Errorf("enable service: %w", err)
+		}
+	}
+	return result, nil
+}
+func Disable() (Result, error) {
+	result, err := location()
+	if err != nil {
+		return result, err
+	}
+	switch result.Manager {
+	case "systemd":
+		if err := run("systemctl", "--user", "disable", "--now", "nagi.service"); err != nil {
+			return result, fmt.Errorf("disable service: %w", err)
+		}
+	case "launchd":
+		if err := run("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), result.Path); err != nil {
+			return result, fmt.Errorf("disable service: %w", err)
+		}
+	}
+	return result, nil
 }

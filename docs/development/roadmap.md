@@ -89,6 +89,9 @@ The CLI implements the runtime-control items below as defined in the [CLI refere
 
 ## Startup and background operation
 
+Implemented lifecycle, startup, and stale-state behavior is documented in the [CLI reference](../reference/cli.md#startup-and-background-operation) and [startup guide](../guides/startup.md).
+
+
 - Start, stop, and restart the engine.
 - Start automatically at login.
 - Show service status in addition to installing and uninstalling the service.

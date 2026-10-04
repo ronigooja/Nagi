@@ -673,9 +673,72 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		result["persistent"] = false
 		return result, nil
+	case "recover":
+		if err := arity(args, 1); err != nil {
+			return nil, err
+		}
+		m, e := getManager()
+		if e != nil {
+			return nil, e
+		}
+		status, e := m.Recover(ctx)
+		if e != nil {
+			if errors.Is(e, engine.ErrNotRunning) {
+				return map[string]any{"recovered": false, "reason": "no stale runtime state"}, nil
+			}
+			return nil, e
+		}
+		return map[string]any{"recovered": true, "stale_pid": status.StalePID, "socket_path": status.SocketPath}, nil
+	case "startup":
+		if args[1] == "status" {
+			svc, e := service.Status()
+			if e != nil {
+				return nil, e
+			}
+			m, e := getManager()
+			if e != nil {
+				return nil, e
+			}
+			st, e := m.Status(ctx)
+			if e != nil {
+				return nil, e
+			}
+			return map[string]any{"service": svc, "engine": st}, nil
+		}
+		if args[1] == "enable" {
+			return service.Enable()
+		}
+		if args[1] == "disable" {
+			return service.Disable()
+		}
+		if args[1] == "check" {
+			m, e := getManager()
+			if e != nil {
+				return nil, e
+			}
+			st, e := m.Status(ctx)
+			if e != nil {
+				return nil, e
+			}
+			if st.StalePID != 0 {
+				rec, e := m.Recover(ctx)
+				if e != nil {
+					return nil, e
+				}
+				return map[string]any{"checked": true, "recovered": true, "stale_pid": rec.StalePID}, nil
+			}
+			reachable := false
+			if st.Running {
+				var v any
+				reachable = client.Get(ctx, "/version", &v) == nil
+			}
+			return map[string]any{"checked": true, "running": st.Running, "control_api": reachable}, nil
+		}
+		return nil, usage("startup status|enable|disable|check")
 	case "service":
+
 		if len(args) != 2 {
-			return nil, usage("service install|uninstall")
+			return nil, usage("service install|uninstall|status")
 		}
 		switch args[1] {
 		case "install":
@@ -686,8 +749,10 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			return service.Install(exe)
 		case "uninstall":
 			return service.Uninstall()
+		case "status":
+			return service.Status()
 		default:
-			return nil, usage("service install|uninstall")
+			return nil, usage("service install|uninstall|status")
 		}
 	default:
 		return nil, usage("unknown command: " + command)
