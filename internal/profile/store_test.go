@@ -264,3 +264,78 @@ func TestApplyRepairsInvalidProfileAndSelection(t *testing.T) {
 		t.Fatalf("selection = %q, %v", got, err)
 	}
 }
+
+func TestRemoveProfilePreservesBackupAndOtherState(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func([]byte) error { return nil }, nil)
+	ctx := context.Background()
+	if err := s.Write(ctx, "default", []byte("active")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Write(ctx, "other", []byte("original")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Write(ctx, "other", []byte("replacement")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Remove("other"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Show("other"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("removed profile remains: %v", err)
+	}
+	backup := filepath.Join(dir, "profiles", "other.yaml.bak")
+	if got, err := os.ReadFile(backup); err != nil || string(got) != "original" {
+		t.Fatalf("backup = %q, %v", got, err)
+	}
+	if got, err := s.Show("default"); err != nil || string(got) != "active" {
+		t.Fatalf("active profile = %q, %v", got, err)
+	}
+	if got, err := s.Current(); err != nil || got != "default" {
+		t.Fatalf("selection = %q, %v", got, err)
+	}
+}
+
+func TestRemoveRefusesActiveInvalidSelectionAndNonregularTargets(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func([]byte) error { return nil }, nil)
+	ctx := context.Background()
+	if err := s.Write(ctx, "default", []byte("active")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Write(ctx, "other", []byte("other")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Remove("default"); err == nil {
+		t.Fatal("removed selected profile")
+	}
+	if got, err := s.Show("default"); err != nil || string(got) != "active" {
+		t.Fatalf("selected profile changed: %q, %v", got, err)
+	}
+	settings := filepath.Join(dir, "settings.yaml")
+	if err := os.WriteFile(settings, []byte("profile: ../broken\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Remove("other"); !errors.Is(err, ErrInvalidSelectedProfile) {
+		t.Fatalf("invalid selection error = %v", err)
+	}
+	if got, err := s.Show("other"); err != nil || string(got) != "other" {
+		t.Fatalf("profile changed: %q, %v", got, err)
+	}
+	if err := s.Remove("missing"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing profile error = %v", err)
+	}
+	if err := s.Remove("../bad"); err == nil {
+		t.Fatal("accepted invalid name")
+	}
+	path := filepath.Join(dir, "profiles", "link.yaml")
+	if err := os.Symlink(filepath.Join(dir, "profiles", "other.yaml"), path); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Remove("link"); err == nil {
+		t.Fatal("removed symlink profile")
+	}
+	if _, err := os.Lstat(path); err != nil {
+		t.Fatalf("symlink removed: %v", err)
+	}
+}

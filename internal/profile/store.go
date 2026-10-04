@@ -98,6 +98,30 @@ func (s *Store) Show(name string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+// Remove deletes an unselected profile. Its existing .bak file, if any, is
+// retained as a recovery copy.
+func (s *Store) Remove(name string) error {
+	path, err := s.path(name)
+	if err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("profile is not a regular file")
+	}
+	current, err := s.Current()
+	if err != nil {
+		return err
+	}
+	if current == name {
+		return errors.New("cannot remove the selected profile; select another profile first")
+	}
+	return os.Remove(path)
+}
+
 func (s *Store) Use(ctx context.Context, name string) error {
 	data, err := s.Show(name)
 	if err != nil {
