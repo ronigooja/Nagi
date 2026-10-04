@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,23 +25,40 @@ type Entry struct {
 	Name      string    `json:"name"`
 	URL       string    `json:"-"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	Upload    int64     `json:"upload,omitempty"`
+	Download  int64     `json:"download,omitempty"`
+	Total     int64     `json:"total,omitempty"`
 }
 
 func (e Entry) MarshalJSON() ([]byte, error) {
 	view := struct {
 		Name      string     `json:"name"`
 		UpdatedAt *time.Time `json:"updated_at,omitempty"`
+		ExpiresAt *time.Time `json:"expires_at,omitempty"`
+		Upload    int64      `json:"upload,omitempty"`
+		Download  int64      `json:"download,omitempty"`
+		Total     int64      `json:"total,omitempty"`
 	}{Name: e.Name}
 	if !e.UpdatedAt.IsZero() {
 		view.UpdatedAt = &e.UpdatedAt
 	}
+	if !e.ExpiresAt.IsZero() {
+		view.ExpiresAt = &e.ExpiresAt
+	}
+	view.Upload, view.Download, view.Total = e.Upload, e.Download, e.Total
 	return json.Marshal(view)
 }
 
 type RefreshResult struct {
-	Name      string    `json:"name"`
-	Bytes     int       `json:"bytes"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Name      string     `json:"name"`
+	Bytes     int        `json:"bytes"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	Preview   *Preview   `json:"preview,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Upload    int64      `json:"upload,omitempty"`
+	Download  int64      `json:"download,omitempty"`
+	Total     int64      `json:"total,omitempty"`
 }
 
 type Store struct {
@@ -87,6 +106,10 @@ func (s *Store) read() ([]Entry, error) {
 			Name      string    `json:"name"`
 			URL       string    `json:"url"`
 			UpdatedAt time.Time `json:"updated_at,omitempty"`
+			ExpiresAt time.Time `json:"expires_at,omitempty"`
+			Upload    int64     `json:"upload,omitempty"`
+			Download  int64     `json:"download,omitempty"`
+			Total     int64     `json:"total,omitempty"`
 		} `json:"subscriptions"`
 	}
 	if err := json.Unmarshal(data, &file); err != nil {
@@ -99,7 +122,7 @@ func (s *Store) read() ([]Entry, error) {
 			return nil, errors.New("invalid subscriptions index")
 		}
 		seen[e.Name] = true
-		result = append(result, Entry{Name: e.Name, URL: e.URL, UpdatedAt: e.UpdatedAt})
+		result = append(result, Entry{Name: e.Name, URL: e.URL, UpdatedAt: e.UpdatedAt, ExpiresAt: e.ExpiresAt, Upload: e.Upload, Download: e.Download, Total: e.Total})
 	}
 	return result, nil
 }
@@ -211,6 +234,16 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 		if len(data) == 0 || len(data) > maxSubscriptionSize {
 			return zero, errors.New("subscription content empty or too large")
 		}
+		incoming, format, err := Document(data)
+		if err != nil {
+			return zero, err
+		}
+		var previous map[string]any
+		if old, readErr := os.ReadFile(s.cachePath(name)); readErr == nil {
+			previous, _, _ = Document(old)
+		}
+		preview := Compare(name, format, incoming, previous)
+		entries[i].ExpiresAt, entries[i].Upload, entries[i].Download, entries[i].Total = parseUserInfo(resp.Header.Get("Subscription-Userinfo"))
 		if err := os.MkdirAll(s.CacheDir, 0700); err != nil {
 			return zero, err
 		}
@@ -235,7 +268,11 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 			}
 			return zero, errors.Join(err, restoreErr)
 		}
-		return RefreshResult{Name: name, Bytes: len(data), UpdatedAt: entries[i].UpdatedAt}, nil
+		result := RefreshResult{Name: name, Bytes: len(data), UpdatedAt: entries[i].UpdatedAt, Preview: &preview, Upload: entries[i].Upload, Download: entries[i].Download, Total: entries[i].Total}
+		if !entries[i].ExpiresAt.IsZero() {
+			result.ExpiresAt = &entries[i].ExpiresAt
+		}
+		return result, nil
 	}
 	return zero, errors.New("subscription not found")
 }
@@ -251,6 +288,34 @@ func sanitizeError(err error) error {
 	return errors.New("network error")
 }
 
+func parseUserInfo(header string) (time.Time, int64, int64, int64) {
+	var expiry time.Time
+	var upload, download, total int64
+	for _, field := range strings.Split(header, ";") {
+		key, value, ok := strings.Cut(strings.TrimSpace(field), "=")
+		if !ok {
+			continue
+		}
+		number, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+		if err != nil || number < 0 {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "expire":
+			if number > 0 {
+				expiry = time.Unix(number, 0).UTC()
+			}
+		case "upload":
+			upload = number
+		case "download":
+			download = number
+		case "total":
+			total = number
+		}
+	}
+	return expiry, upload, download, total
+}
+
 func (s *Store) write(entries []Entry) error {
 	// JSON is a valid YAML 1.2 document, allowing strict standard-library parsing.
 	file := struct {
@@ -258,6 +323,10 @@ func (s *Store) write(entries []Entry) error {
 			Name      string    `json:"name"`
 			URL       string    `json:"url"`
 			UpdatedAt time.Time `json:"updated_at,omitempty"`
+			ExpiresAt time.Time `json:"expires_at,omitempty"`
+			Upload    int64     `json:"upload,omitempty"`
+			Download  int64     `json:"download,omitempty"`
+			Total     int64     `json:"total,omitempty"`
 		} `json:"subscriptions"`
 	}{}
 	for _, e := range entries {
@@ -265,13 +334,21 @@ func (s *Store) write(entries []Entry) error {
 			Name      string    `json:"name"`
 			URL       string    `json:"url"`
 			UpdatedAt time.Time `json:"updated_at,omitempty"`
-		}{e.Name, e.URL, e.UpdatedAt})
+			ExpiresAt time.Time `json:"expires_at,omitempty"`
+			Upload    int64     `json:"upload,omitempty"`
+			Download  int64     `json:"download,omitempty"`
+			Total     int64     `json:"total,omitempty"`
+		}{e.Name, e.URL, e.UpdatedAt, e.ExpiresAt, e.Upload, e.Download, e.Total})
 	}
 	if file.Subscriptions == nil {
 		file.Subscriptions = make([]struct {
 			Name      string    `json:"name"`
 			URL       string    `json:"url"`
 			UpdatedAt time.Time `json:"updated_at,omitempty"`
+			ExpiresAt time.Time `json:"expires_at,omitempty"`
+			Upload    int64     `json:"upload,omitempty"`
+			Download  int64     `json:"download,omitempty"`
+			Total     int64     `json:"total,omitempty"`
 		}, 0)
 	}
 	data, err := json.MarshalIndent(file, "", "  ")

@@ -72,7 +72,17 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 	case proxy.DelayResult:
 		return line(w, fmt.Sprintf("Proxy %s delay: %d ms (URL: %s, timeout: %d ms)", v.Proxy, v.DelayMS, v.URL, v.TimeoutMS))
 	case subscription.RefreshResult:
-		return line(w, fmt.Sprintf("Downloaded subscription %s (%d bytes). Run `nagi subscription apply %s` to select its profile.", v.Name, v.Bytes, v.Name))
+		if err := line(w, fmt.Sprintf("Downloaded subscription %s (%d bytes).", v.Name, v.Bytes)); err != nil {
+			return err
+		}
+		if v.Preview != nil {
+			if err := writePreview(w, *v.Preview); err != nil {
+				return err
+			}
+		}
+		return line(w, fmt.Sprintf("Run `nagi subscription apply %s` to select its profile.", v.Name))
+	case subscription.Preview:
+		return writePreview(w, v)
 	case service.Result:
 		return line(w, fmt.Sprintf("Service manager: %s\nService file: %s", v.Manager, v.Path))
 	case map[string]any:
@@ -236,6 +246,12 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			} else {
 				label += "  Never updated"
 			}
+			if !entry.ExpiresAt.IsZero() {
+				label += "  Expires: " + entry.ExpiresAt.Format("2006-01-02 15:04:05 MST")
+			}
+			if entry.Total > 0 {
+				label += fmt.Sprintf("  Traffic: %d/%d bytes", entry.Upload+entry.Download, entry.Total)
+			}
 			if err := line(w, label); err != nil {
 				return err
 			}
@@ -392,6 +408,25 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(v)
+}
+
+func writePreview(w io.Writer, p subscription.Preview) error {
+	if err := line(w, "Subscription "+p.Name+" ("+p.Format+") node changes:"); err != nil {
+		return err
+	}
+	for _, item := range []struct {
+		label string
+		names []string
+	}{{"Added", p.Added}, {"Removed", p.Removed}, {"Changed", p.Changed}} {
+		value := "none"
+		if len(item.names) > 0 {
+			value = strings.Join(item.names, ", ")
+		}
+		if err := line(w, item.label+": "+value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func printField(w io.Writer, label string, fields map[string]any, key string) error {

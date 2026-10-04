@@ -16,13 +16,14 @@ Nagi stores a profile at the platform specific configuration path. Use `nagi con
 
 To keep local ports, DNS settings, or rules after replacing a subscription profile, put those values in a separate YAML mapping and run `nagi profile override set NAME FILE`. For example, a file containing `mixed-port: 17891` replaces that setting without editing the imported source. Use `nagi profile override show NAME` to inspect the local values and `nagi profile override clear NAME` to remove them. Back up a source profile with `nagi profile backup NAME`, compare it later with `nagi profile diff NAME`, and recover with `nagi profile restore NAME`. `nagi profile export NAME FILE` writes a copy to a new file. These files can contain credentials; keep them private.
 
-Use `nagi --json COMMAND` for scripts and the macOS app. Subscription URLs are stored locally and omitted from list output. `subscription update NAME` downloads content into Nagi's cache. If the content is a complete mihomo YAML configuration, run `subscription apply NAME` to validate and activate it. A refresh alone does not change the active profile.
+Use `nagi --json COMMAND` for scripts and the macOS app. Subscription URLs are stored locally and omitted from list output. `subscription update NAME` validates supported YAML or proxy URI content, caches it, and shows added, removed, and changed nodes. Run `subscription preview NAME` to compare the cache with the named profile before applying. `subscription apply NAME` converts and validates the cache, preserves local configuration from that profile, and activates it. A refresh alone does not change the active profile. The [CLI reference](../reference/cli.md) lists supported formats and the fields retained during application.
 
 For example, replace `work` with your chosen name and the example URL with your subscription URL:
 
 ```sh
 nagi subscription add work 'https://example.com/subscription.yaml'
 nagi subscription update work
+nagi subscription preview work
 nagi subscription apply work
 nagi status
 ```

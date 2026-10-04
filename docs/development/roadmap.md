@@ -1,6 +1,6 @@
 # Nagi Feature Roadmap
 
-This document records planned capabilities for making Nagi a complete daily-use proxy client. The items below are proposals and are not implemented capabilities unless they are also listed in the [CLI reference](../reference/cli.md) and verified in the current code.
+This document records capabilities sought for making Nagi a complete daily-use proxy client. Some subscription items are implemented; the [CLI reference](../reference/cli.md) is authoritative for current behavior. All other items remain proposals unless listed there and verified in the current code.
 
 ## TUI
 
@@ -17,6 +17,8 @@ The terminal user interface is a core user-facing feature. It should provide:
 The existing CLI remains the interface for scripts, automation, and the macOS app.
 
 ## Subscription management
+
+Implemented CLI behavior covers the actions below within the formats and preservation limits in the [CLI reference](../reference/cli.md). The TUI subscription actions remain part of the TUI proposal.
 
 - Add, remove, update, and apply subscriptions.
 - Support common subscription formats in addition to complete mihomo YAML.

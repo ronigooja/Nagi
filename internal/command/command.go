@@ -136,13 +136,13 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
 	proxies := proxy.NewService(client)
-	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "subscription" && len(args) > 1 && args[1] == "apply")
+	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
 	if readsProfile {
 		profileName, profileErr = profile.NewStore(paths.ConfigDir, nil, nil).Current()
-		if profileErr != nil && command != "status" && command != "profile" && !(command == "subscription" && len(args) > 1 && args[1] == "apply") {
+		if profileErr != nil && command != "status" && command != "profile" && !(command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview")) {
 			return nil, fmt.Errorf("cannot read selected profile; run `nagi profile list`, then `nagi profile use NAME` to select a valid profile: %w", profileErr)
 		}
 		if profileName == "" {
@@ -315,14 +315,14 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		return profileCommand(ctx, args, store)
 	case "subscription":
-		if len(args) > 1 && args[1] == "apply" {
+		if len(args) > 1 && (args[1] == "apply" || args[1] == "preview") {
 			store, err := getProfiles()
 			if err != nil {
 				return nil, err
 			}
-			return subscriptionCommand(ctx, args, subs, store)
+			return subscriptionCommand(ctx, args, subs, store, proxies)
 		}
-		return subscriptionCommand(ctx, args, subs, nil)
+		return subscriptionCommand(ctx, args, subs, nil, nil)
 	case "dns":
 		store, err := getProfiles()
 		if err != nil {
@@ -576,9 +576,9 @@ func profileCommandWithCurrentError(ctx context.Context, args []string, store *p
 	return profileCommand(ctx, args, store)
 }
 
-func subscriptionCommand(ctx context.Context, args []string, store *subscription.Store, profiles *profile.Store) (any, error) {
+func subscriptionCommand(ctx context.Context, args []string, store *subscription.Store, profiles *profile.Store, proxies *proxy.Service) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("subscription list|add <name> <url>|update <name>|apply <name>|remove <name>")
+		return nil, usage("subscription list|add <name> <url>|update <name>|preview <name>|apply <name>|remove <name>")
 	}
 	switch args[1] {
 	case "list":
@@ -612,7 +612,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 			return nil, fail("subscription_error", err)
 		}
 		return map[string]any{"name": args[2], "removed": true}, nil
-	case "apply":
+	case "preview", "apply":
 		if err := arity(args, 3); err != nil {
 			return nil, err
 		}
@@ -620,12 +620,43 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		if err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		if err := profiles.Apply(ctx, args[2], data); err != nil {
+		incoming, format, err := subscription.Document(data)
+		if err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		return map[string]any{"name": args[2], "profile": args[2], "applied": true}, nil
+		var existing map[string]any
+		if old, showErr := profiles.Show(args[2]); showErr == nil {
+			existing, _, err = subscription.Document(old)
+			if err != nil {
+				return nil, fail("subscription_error", errors.New("existing profile cannot be merged; inspect or remove it before applying"))
+			}
+		} else if !errors.Is(showErr, os.ErrNotExist) {
+			return nil, fail("subscription_error", showErr)
+		}
+		preview := subscription.Compare(args[2], format, incoming, existing)
+		if args[1] == "preview" {
+			return preview, nil
+		}
+		var selected []proxy.Group
+		if current, currentErr := profiles.Current(); currentErr == nil && current == args[2] && proxies != nil {
+			selected, _ = proxies.Groups(ctx)
+		}
+		merged, err := subscription.Encode(subscription.Merge(incoming, existing))
+		if err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		if err := profiles.Apply(ctx, args[2], merged); err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		restored := 0
+		for _, group := range selected {
+			if group.Now != "" && proxies.Select(ctx, group.Name, group.Now) == nil {
+				restored++
+			}
+		}
+		return map[string]any{"name": args[2], "profile": args[2], "applied": true, "preview": preview, "selections_restored": restored}, nil
 	default:
-		return nil, usage("subscription list|add <name> <url>|update <name>|apply <name>|remove <name>")
+		return nil, usage("subscription list|add <name> <url>|update <name>|preview <name>|apply <name>|remove <name>")
 	}
 }
 

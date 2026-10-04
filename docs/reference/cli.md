@@ -38,10 +38,11 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `dns query DOMAIN [A\|AAAA]` | Query the running mihomo resolver over its private control socket. |
 | `dns flush` | Clear the running mihomo DNS cache. |
 | `dns check` | Audit the selected configuration and try a mihomo DNS query. |
-| `subscription list` | List names and refresh times without URLs. |
+| `subscription list` | List names, refresh times, and available expiry and traffic metadata without URLs. |
 | `subscription add NAME URL` | Save an HTTP or HTTPS subscription URL. |
-| `subscription update NAME` | Fetch up to 8 MiB into Nagi's cache. |
-| `subscription apply NAME` | Validate cached YAML as a mihomo profile, import it as profile `NAME`, and activate it. |
+| `subscription update NAME` | Fetch and validate up to 8 MiB, cache it, and report node changes against the preceding cache. |
+| `subscription preview NAME` | Compare cached nodes with profile `NAME` without changing either. |
+| `subscription apply NAME` | Convert and validate the cache, retain local settings and available group selections from profile `NAME`, then activate it. |
 | `subscription remove NAME` | Remove a saved subscription and its cache. |
 | `proxy groups`, `proxy show GROUP` | Read mihomo proxy groups through its Unix Socket API. |
 | `proxy select GROUP NODE` | Select a node in a group. |
@@ -54,7 +55,11 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `version` | Report Nagi version, mihomo version and pinned commit, OS, and architecture. |
 | `completion bash\|zsh\|fish` | Print a shell completion script without reading runtime configuration. |
 
-Profile and subscription names consist of ASCII letters, digits, `_`, or `-` and have a maximum length of 128 characters. A profile file is named `profiles/NAME.yaml`. `subscription update` accepts HTTP 200 responses only. Nagi saves the response in its own cache. For subscriptions that contain a complete mihomo YAML configuration, `subscription apply` validates and activates it. Other subscription formats require conversion outside Nagi before importing a profile.
+Profile and subscription names consist of ASCII letters, digits, `_`, or `-` and have a maximum length of 128 characters. A profile file is named `profiles/NAME.yaml`. `subscription update` accepts HTTP 200 responses only. Nagi validates supported input before replacing the cache: mihomo YAML with `proxies` or `proxy-providers`, plain proxy URI lists, and base64 encoded URI lists. Supported URI schemes are Shadowsocks (`ss`), Trojan (`trojan`), and VMess (`vmess`). A YAML document with `proxies` but no groups gets a `Subscription` select group and `MATCH,Subscription` rule. URI lists get the same generated group and rule. Unsupported or malformed responses leave the previous cache and refresh metadata intact. URI conversion supports common fields; provider-specific plugins and advanced transport parameters may require a complete mihomo YAML subscription.
+
+`subscription update` reports added, removed, and changed nodes compared with the preceding cache; `subscription preview` compares the cache with the existing profile. A changed node keeps its name but has a different definition. Lists are sorted by name. `subscription apply` preserves the existing profile's rules, rule providers, DNS, hosts, TUN, listening ports, LAN access, mode, controller, IPv6, sniffer, and profile settings. It carries existing proxy-group node order forward for nodes that remain available, then appends new nodes. When applying to the selected profile with a reachable engine, Nagi also attempts to restore the live selection in each group when that node remains available; `selections_restored` counts accepted restore requests. A removed node cannot be retained. Existing profile content that cannot be parsed for merging must be repaired or removed before applying.
+
+The optional `Subscription-Userinfo` response header supplies `upload`, `download`, `total` (nonnegative bytes) and `expire` (Unix seconds). Available values appear in `subscription list` and the update result. The URL remains hidden from list output. A missing header clears previously stored traffic and expiry values on a successful update.
 
 ## Diagnostics
 
@@ -126,7 +131,7 @@ nagi completion fish | source
 
 Status output labels the running state, selected profile, and available process details. Profile lists mark the current selection; proxy output identifies the current node. Empty lists have an explanatory message. `logs` prints individual log lines, and `config show` prints YAML directly.
 
-Subscription feedback distinguishes saving a URL from downloading content and applying a profile. Downloading does not change the selected profile. Applying selects the profile and reloads a running engine; it does not start a stopped engine. Profile import validates and writes a file; use `profile use NAME` to select it. Replacing the currently selected profile also reloads a running engine; importing another profile does not reload it. Valid replacement content can repair an invalid existing profile.
+Subscription feedback distinguishes saving a URL from downloading content and applying a profile. Downloading does not change the selected profile. It prints node changes and the apply command. Preview prints node changes without applying. Applying selects the profile and reloads a running engine; it does not start a stopped engine. Profile import validates and writes a file; use `profile use NAME` to select it. Replacing the currently selected profile also reloads a running engine; importing another profile does not reload it. Valid replacement content can repair an invalid existing profile.
 
 ## Recovery and service failures
 
@@ -166,6 +171,10 @@ Additional success payloads are defined below; all appear in `data`:
 | `dns tun on/off` | `profile` (string), `tun_enabled` (boolean), `saved: true`. |
 | `dns query` | `domain`, `type` (strings), `response` (mihomo JSON object). |
 | `dns flush` | `flushed: true`. |
+| `subscription list` | `subscriptions` array: `name`, optional `updated_at` and `expires_at` (RFC 3339), optional nonzero `upload`, `download`, `total` (bytes). URLs are omitted. |
+| `subscription update NAME` | `name`, `bytes`, `updated_at`, `preview`, and optional `expires_at`, `upload`, `download`, `total`. |
+| `subscription preview NAME` | `name`, `format`, sorted `added`, `removed`, and `changed` node-name arrays. |
+| `subscription apply NAME` | `name`, `profile`, `applied: true`, `preview`, `selections_restored` (accepted live selection restore requests). |
 | `proxy delay` | `proxy` and `url` (strings), `timeout_ms` and `delay_ms` (integer milliseconds). |
 | `connections close ID` | `id` (string), `closed: true` (request accepted, including an already absent connection). |
 | `connections close-all` | `closed: true` (request accepted; no count). |
