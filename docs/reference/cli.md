@@ -29,6 +29,15 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `profile override show NAME` | Print the local override YAML. |
 | `profile override clear NAME` | Remove the local override and reload if selected and running. |
 | `profile remove NAME` | Delete an unselected regular profile file, retaining any existing `.bak` file. |
+| `dns status` | Show selected profile DNS policy, upstream hosts, IPv6, TUN configuration, and warnings. |
+| `dns set direct URL [URL...]` | Save one or more HTTPS DoH upstreams for direct connection. |
+| `dns set proxy NODE URL [URL...]` | Pin DoH upstreams to a named non-direct proxy node in the source profile. |
+| `dns exception add DOMAIN SERVER` | Route a domain suffix to an explicit DoH or plaintext IP DNS server. |
+| `dns exception remove DOMAIN` | Remove a local DNS exception. |
+| `dns tun on`, `dns tun off` | Save TUN DNS interception settings for the selected profile. |
+| `dns query DOMAIN [A\|AAAA]` | Query the running mihomo resolver over its private control socket. |
+| `dns flush` | Clear the running mihomo DNS cache. |
+| `dns check` | Audit the selected configuration and try a mihomo DNS query. |
 | `subscription list` | List names and refresh times without URLs. |
 | `subscription add NAME URL` | Save an HTTP or HTTPS subscription URL. |
 | `subscription update NAME` | Fetch up to 8 MiB into Nagi's cache. |
@@ -63,7 +72,19 @@ A completed diagnostic report exits with status `0`, even when `healthy` is fals
 
 `profile export` reads the source profile, including any secrets it contains. It creates `FILE` with mode `0600` and never overwrites an existing path. `profile backup` explicitly refreshes the single `.bak` recovery copy. `profile restore` validates that copy before replacing the source profile; a successful restore swaps the source and backup contents. If validation or a running engine reload fails, the source and original backup remain available. `profile diff` compares source YAML lines and returns `name`, `other`, `changed` (boolean), and `diff` (string) in JSON. It does not parse or redact secrets.
 
-Overrides live in `config/overrides/NAME.yaml`, separate from `config/profiles/NAME.yaml` and subscription cache. The override must be a YAML mapping; its keys replace corresponding source keys, and nested mappings merge recursively. Lists, including `rules` and DNS server lists, are replaced as a whole. `profile override set` validates the merged configuration with mihomo and reloads it when selected and running. The merged file is generated as `config/profiles/.effective-NAME.yaml` for mihomo, keeping relative file paths anchored in the profiles directory; `profile export`, `config show`, and backups continue to use the source YAML. `profile override clear` restores the source configuration. Removing a profile retains its override file, so clear it explicitly before reusing the name if needed. Overrides can contain credentials and are stored with private permissions.
+Overrides live in `config/overrides/NAME.yaml`, separate from `config/profiles/NAME.yaml` and subscription cache. The override must be a YAML mapping; its keys replace corresponding source keys, and nested mappings merge recursively except DNS `nameserver-policy` and `proxy-server-nameserver-policy`, which replace their source maps. Lists, including `rules` and DNS server lists, are replaced as a whole. `profile override set` validates the merged configuration with mihomo and reloads it when selected and running. The merged file is generated as `config/profiles/.effective-NAME.yaml` for mihomo, keeping relative file paths anchored in the profiles directory; `profile export`, `config show`, and backups continue to use the source YAML. `profile override clear` restores the source configuration. Removing a profile retains its override file, so clear it explicitly before reusing the name if needed. Overrides can contain credentials and are stored with private permissions.
+
+## DNS policy and leak checks
+
+New default profiles enable mihomo DNS, IPv6, and fake IP mode. They listen only on `127.0.0.1:1053` and use `https://1.1.1.1/dns-query` and `https://8.8.8.8/dns-query` as both primary and bootstrap DoH servers. Existing profiles are not rewritten. No system resolver or TUN routing is changed by creating a default profile, so applications that do not send traffic through mihomo can still use their own DNS.
+
+`dns set` writes DNS settings into the selected profile's separate local override, preserving them across source imports and subscription application. URLs must use HTTPS, include a path, and contain no credentials, query, or fragment. Multiple URLs are given to mihomo as primary upstreams. If all are unavailable, resolution fails; Nagi does not configure a plaintext or system DNS fallback. Direct mode connects to the DoH servers directly. Proxy mode appends mihomo's `#NODE` binding to each upstream and requires `NODE` to name a non-direct proxy in the source profile. If that node disappears, activation fails rather than silently using a network interface as fallback. Node provider entries are not accepted for this binding. Bootstrap and proxy-node hostname resolution still use the two fixed direct DoH servers, even in proxy mode. The DNS override enables both root and DNS IPv6 settings, clears source fallback and direct nameservers, and replaces source DNS server policies.
+
+`dns exception add` requires a prior `dns set` for that profile. `DOMAIN` is an ASCII domain suffix such as `lan` or `corp.example`; Nagi stores it as `+.lan` or `+.corp.example` in mihomo's `nameserver-policy`. `SERVER` can be an HTTPS DoH URL or an explicit `udp://IP:53` or `tcp://IP:53` server. A plaintext exception sends matching DNS questions to that server without encryption; `dns status` and `dns check` report it. `dns exception remove` removes that local mapping. Local DNS policies replace source DNS policies as a whole to avoid retaining an unnoticed plaintext source resolver.
+
+`dns tun on` configures mihomo TUN with `auto-route`, `strict-route`, interface auto-detection, and UDP/TCP port 53 hijack (`any:53` and `tcp://any:53`). It requires an encrypted primary and bootstrap DNS configuration. The engine and OS may require additional privileges or platform support to activate TUN; configuration validation alone does not establish that traffic is intercepted. `dns tun off` disables the selected profile's TUN override. These commands do not change the operating system's DNS server setting. On a platform or network where TUN cannot be activated, applications outside mihomo can still resolve through the system resolver.
+
+`dns query` supports `A` and `AAAA` only and returns mihomo's `/dns/query` response. `dns flush` calls `/cache/dns/flush`. Both require a running control API. `dns check` inspects the selected effective configuration and makes one `example.com` A query through mihomo; it reports `engine_query_ok` and a list of configuration `issues`. The result always sets `leak_protection_verified: false`: Nagi does not yet prove OS route ownership, capture every application path, or perform an external DNS leak test. `dns status` is configuration inspection, not proof of running TUN state. Neither command prints full DoH URL paths or credentials; inspect `profile override show NAME` for exact local settings.
 
 ## Proxy latency, connections, and mode
 
@@ -84,7 +105,7 @@ Replace `Node A` and `CONNECTION_ID` with names and IDs from your engine. Connec
 
 ## Shell completion
 
-`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell values, and local files for profile import, export, and override set. Profile names, proxy names, and connection IDs are not queried dynamically.
+`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell and DNS policy values, DNS query record types, and local files for profile import, export, and override set. Profile names, proxy names, and connection IDs are not queried dynamically.
 
 Load the script in the corresponding shell:
 
@@ -123,7 +144,7 @@ To inspect mihomo's own diagnostics locally, use `mihomo -t -f FILE -d DIRECTORY
 
 ## JSON and exit codes
 
-JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `not_running`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `proxy_selection_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app.
+JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `not_running`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `proxy_selection_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app.
 
 Additional success payloads are defined below; all appear in `data`:
 
@@ -138,6 +159,13 @@ Additional success payloads are defined below; all appear in `data`:
 | `profile override show NAME` | `name`, `yaml` (strings). |
 | `profile override clear NAME` | `name` (string), `override_cleared: true`. |
 | `profile remove NAME` | `name` (string), `removed: true`, `kind: "profile"`. |
+| `dns status` | `profile`, `policy` (strings), `enabled`, `ipv6`, `tun_enabled`, `leak_protection_verified` (booleans), `upstream_hosts`, `issues` (string arrays). |
+| `dns check` | DNS status fields plus `scope` (string), `engine_query_ok` (boolean). |
+| `dns set` | `profile`, `policy`, `proxy_node` (strings), `upstream_count` (integer), `saved: true`. |
+| `dns exception add/remove` | `profile`, `domain` (strings), `exception_changed: true`. |
+| `dns tun on/off` | `profile` (string), `tun_enabled` (boolean), `saved: true`. |
+| `dns query` | `domain`, `type` (strings), `response` (mihomo JSON object). |
+| `dns flush` | `flushed: true`. |
 | `proxy delay` | `proxy` and `url` (strings), `timeout_ms` and `delay_ms` (integer milliseconds). |
 | `connections close ID` | `id` (string), `closed: true` (request accepted, including an already absent connection). |
 | `connections close-all` | `closed: true` (request accepted; no count). |

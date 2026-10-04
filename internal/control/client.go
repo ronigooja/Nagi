@@ -44,6 +44,10 @@ func (c *Client) Put(ctx context.Context, path string, body any, out any) error 
 	return c.request(ctx, http.MethodPut, path, body, out)
 }
 
+func (c *Client) Post(ctx context.Context, path string, body any, out any) error {
+	return c.request(ctx, http.MethodPost, path, body, out)
+}
+
 func (c *Client) Patch(ctx context.Context, path string, body any, out any) error {
 	return c.request(ctx, http.MethodPatch, path, body, out)
 }

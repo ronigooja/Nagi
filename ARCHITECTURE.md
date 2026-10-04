@@ -39,6 +39,8 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
+DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception is a mihomo configuration option; Nagi does not itself manage operating-system DNS servers or verify system-wide route capture. See the [DNS reference](docs/reference/cli.md#dns-policy-and-leak-checks).
+
 ## Interfaces and data
 
 The CLI is the sole full-featured entry point. All commands accept `--json`; JSON envelopes and error codes form the app integration interface. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy latency tests, connection closure, and runtime mode changes. Runtime mode changes use the control API and do not modify stored profiles. The app polls status using short-lived commands. An event stream is not implemented.

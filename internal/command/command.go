@@ -90,7 +90,7 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 
 func execute(ctx context.Context, args []string, version, commit string) (any, error) {
 	if len(args) == 0 {
-		return nil, fail("usage", errors.New("command required: start, stop, restart, status, doctor, logs, config, profile, subscription, proxy, connections, service, version"))
+		return nil, fail("usage", errors.New("command required: start, stop, restart, status, doctor, logs, config, profile, subscription, dns, proxy, connections, service, version"))
 	}
 	binary := os.Getenv("NAGI_MIHOMO_BIN")
 	if binary == "" {
@@ -135,7 +135,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
 	proxies := proxy.NewService(client)
-	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || (command == "subscription" && len(args) > 1 && args[1] == "apply")
+	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "subscription" && len(args) > 1 && args[1] == "apply")
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -322,6 +322,12 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			return subscriptionCommand(ctx, args, subs, store)
 		}
 		return subscriptionCommand(ctx, args, subs, nil)
+	case "dns":
+		store, err := getProfiles()
+		if err != nil {
+			return nil, err
+		}
+		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
 		return proxyCommand(ctx, args, proxies)
 	case "connections":

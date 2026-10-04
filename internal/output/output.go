@@ -132,6 +132,35 @@ func writeGroup(w io.Writer, g proxy.Group) error {
 }
 
 func writeHumanMap(w io.Writer, v map[string]any) error {
+	if v["flushed"] == true {
+		return line(w, "Cleared mihomo DNS cache.")
+	}
+	if v["exception_changed"] == true {
+		return line(w, fmt.Sprintf("Updated DNS exception for %v.", v["domain"]))
+	}
+	if v["saved"] == true {
+		if enabled, ok := v["tun_enabled"].(bool); ok {
+			return line(w, fmt.Sprintf("Saved TUN DNS interception setting: %t.", enabled))
+		}
+		return line(w, fmt.Sprintf("Saved DNS policy for profile %v.", v["profile"]))
+	}
+	if domain, ok := v["domain"].(string); ok && v["response"] != nil {
+		return line(w, fmt.Sprintf("Mihomo DNS response for %s (%v): %v", domain, v["type"], v["response"]))
+	}
+	if _, ok := v["leak_protection_verified"].(bool); ok {
+		if err := line(w, fmt.Sprintf("DNS profile: %v | enabled: %v | IPv6: %v | DoH policy: %v | TUN: %v", v["profile"], v["enabled"], v["ipv6"], v["policy"], v["tun_enabled"])); err != nil {
+			return err
+		}
+		for _, issue := range v["issues"].([]string) {
+			if err := line(w, "Warning: "+issue); err != nil {
+				return err
+			}
+		}
+		if scope, ok := v["scope"].(string); ok {
+			return line(w, "Scope: "+scope)
+		}
+		return nil
+	}
 	if yaml, ok := v["yaml"].(string); ok {
 		return writeRaw(w, yaml)
 	}

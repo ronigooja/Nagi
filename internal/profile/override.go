@@ -34,6 +34,12 @@ func (s *Store) Override(name string) ([]byte, error) {
 
 func mergeMap(base, patch map[string]any) {
 	for key, value := range patch {
+		// DNS policy must replace the source policy so a plaintext source
+		// resolver cannot remain active after a protected DNS override.
+		if key == "nameserver-policy" || key == "proxy-server-nameserver-policy" {
+			base[key] = value
+			continue
+		}
 		if nested, ok := value.(map[string]any); ok {
 			if old, ok := base[key].(map[string]any); ok {
 				mergeMap(old, nested)

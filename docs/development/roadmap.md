@@ -51,17 +51,10 @@ The CLI now supports source profile import, export, switch, remove, validation, 
 
 ## DNS and leak prevention
 
-- Enable mihomo DNS by default.
-- Use DoH by default.
-- Allow custom DoH upstreams.
-- Support multiple upstreams and failure handling.
-- Make the DoH routing policy explicit: direct or through the proxy.
-- Do not silently fall back to plaintext system DNS.
-- Handle IPv4 and IPv6 consistently.
-- Intercept DNS through TUN or an equivalent supported mechanism.
-- Clear the DNS cache.
-- Provide DNS query diagnostics and leak checks.
-- Support explicit exceptions for LAN and corporate domains.
+The CLI now creates default profiles with IPv4/IPv6 mihomo DNS and DoH. Selected profiles can configure multiple custom DoH upstreams, direct or proxy-node routing, explicit domain exceptions, TUN DNS hijack, cache flushing, and mihomo DNS queries. Failure of all configured upstreams is reported by mihomo without a configured plaintext fallback. See the [DNS CLI reference](../reference/cli.md#dns-policy-and-leak-checks).
+
+- Verify TUN route ownership and system resolver behavior on supported macOS and Linux installations.
+- Add an external DNS leak test that distinguishes applications captured by TUN from those using another network path.
 
 ## Rules
 

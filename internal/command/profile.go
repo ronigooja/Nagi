@@ -17,7 +17,7 @@ import (
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 )
 
-const defaultProfile = "mixed-port: 17890\nallow-lan: false\nmode: rule\nlog-level: info\nproxies: []\nproxy-groups: []\nrules:\n  - MATCH,DIRECT\n"
+const defaultProfile = "mixed-port: 17890\nallow-lan: false\nipv6: true\nmode: rule\nlog-level: info\nproxies: []\nproxy-groups: []\nrules:\n  - MATCH,DIRECT\ndns:\n  enable: true\n  listen: 127.0.0.1:1053\n  ipv6: true\n  enhanced-mode: fake-ip\n  default-nameserver:\n    - https://1.1.1.1/dns-query\n    - https://8.8.8.8/dns-query\n  nameserver:\n    - https://1.1.1.1/dns-query\n    - https://8.8.8.8/dns-query\n  fallback: []\n  respect-rules: false\n"
 
 func ensureDefaultProfile(path, selected string) error {
 	if selected != "default" {
@@ -118,6 +118,13 @@ func materializeProfile(store *profile.Store, configDir, name string) (string, e
 	}
 	data, err := store.Effective(name)
 	if err != nil {
+		return "", err
+	}
+	if override, err := store.Override(name); err == nil {
+		if err := validateManagedDNSProxyTargets(override, data); err != nil {
+			return "", err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
 	if err := store.Validate(data); err != nil {

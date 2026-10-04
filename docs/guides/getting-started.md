@@ -29,6 +29,12 @@ nagi status
 
 If the engine is stopped after applying a subscription, run `nagi start` to use the selected profile.
 
+## DNS setup
+
+New default profiles use mihomo DNS with encrypted DoH upstreams, but do not change the operating system's resolver or route traffic through TUN. After importing a profile, set local DoH policy with `nagi dns set direct https://1.1.1.1/dns-query https://8.8.8.8/dns-query`. To send DoH through a proxy, use `nagi dns set proxy NODE URL [URL...]`, replacing `NODE` with a non-direct node name from that profile. The local policy survives a later source profile replacement. Run `nagi dns status` to inspect it.
+
+To route a corporate suffix to a local resolver, run `nagi dns exception add corp.example udp://10.0.0.53:53`, replacing the example domain and address. This intentionally sends that suffix's DNS queries without encryption. To ask mihomo to intercept DNS through TUN, run `nagi dns tun on`; this may require system privileges and working platform routes. `nagi dns check` reports configuration risks and tries a query through mihomo, while `nagi dns query example.com AAAA` tests one record type and `nagi dns flush` clears mihomo's cache. The [DNS reference](../reference/cli.md#dns-policy-and-leak-checks) explains the limits of leak checking and TUN activation.
+
 ## Daily operation
 
 Use `nagi proxy delay 'Node A'` to check the latency of a proxy, replacing `Node A` with a name from your configuration. Use `nagi connections list` to find connection IDs, then `nagi connections close CONNECTION_ID` to disconnect one or `nagi connections close-all` to disconnect all current connections. Applications can reconnect automatically.
