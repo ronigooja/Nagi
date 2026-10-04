@@ -24,7 +24,7 @@ The mihomo source belongs in a separate repository. Nagi records the exact sourc
 
 ## Modules and dependencies
 
-The executable entry point is `cmd/nagi`. `internal/command` parses arguments and assembles calls; `internal/output` owns the CLI response envelope. Feature code is split by responsibility:
+The executable entry point is `cmd/nagi`. `internal/command` handles help, checks invocation syntax before reading runtime configuration, and assembles calls; `internal/output` owns the CLI response envelope and terminal formatting of feature results. Feature code is split by responsibility:
 
 | Package | Responsibility |
 | --- | --- |

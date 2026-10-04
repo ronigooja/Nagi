@@ -51,6 +51,10 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if strings.TrimSpace(string(data)) == "" {
 			return errors.New("empty profile")
 		}
+		resolved, err := exec.LookPath(binary)
+		if err != nil {
+			return fmt.Errorf("mihomo executable unavailable; set NAGI_MIHOMO_BIN to a mihomo executable: %w", err)
+		}
 		if err := os.MkdirAll(filepath.Join(paths.ConfigDir, "profiles"), 0700); err != nil {
 			return err
 		}
@@ -70,9 +74,15 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if err := file.Close(); err != nil {
 			return err
 		}
-		cmd := exec.Command(binary, "-t", "-f", file.Name(), "-d", filepath.Dir(file.Name()))
+		cmd := exec.Command(resolved, "-t", "-f", file.Name(), "-d", filepath.Dir(file.Name()))
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("mihomo configuration validation failed: %w", err)
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				// mihomo diagnostics can contain credentials from the YAML. The
+				// temporary file is removed before this error reaches the user.
+				return errors.New("profile validation failed; check the source YAML being imported/applied (or existing target profile when replacing); validate a local copy with mihomo -t -f FILE -d DIRECTORY")
+			}
+			return errors.New("could not run mihomo validation; check NAGI_MIHOMO_BIN and executable permissions, then retry")
 		}
 		return nil
 	}

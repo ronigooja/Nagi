@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +41,21 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		} else {
 			filtered = append(filtered, arg)
 		}
+	}
+	if data, isHelp, err := requestedHelp(filtered); isHelp {
+		if err != nil {
+			output.WriteError(stderr, jsonMode, "usage", err.Error())
+			return 2
+		}
+		if err := output.Write(stdout, jsonMode, data); err != nil {
+			output.WriteError(stderr, jsonMode, "output_error", err.Error())
+			return 1
+		}
+		return 0
+	}
+	if err := validateInvocation(filtered); err != nil {
+		output.WriteError(stderr, jsonMode, "usage", err.Error())
+		return 2
 	}
 	data, err := execute(context.Background(), filtered, version, commit)
 	if err != nil {
@@ -170,7 +186,9 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		count := 100
 		if len(args) == 2 {
-			if _, err := fmt.Sscanf(args[1], "%d", &count); err != nil || count < 1 || count > 10000 {
+			var err error
+			count, err = strconv.Atoi(args[1])
+			if err != nil || count < 1 || count > 10000 {
 				return nil, usage("logs [lines: 1..10000]")
 			}
 		}
@@ -183,7 +201,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		switch args[1] {
 		case "validate":
 			if err := manager.Validate(ctx); err != nil {
-				return nil, fail("invalid_config", err)
+				return nil, fail("invalid_config", fmt.Errorf("configuration validation failed; run `nagi config show` to inspect the selected profile and check the mihomo executable: %w", err))
 			}
 			return map[string]any{"valid": true, "profile": profileName}, nil
 		case "show":
@@ -252,7 +270,7 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 		return map[string]any{"profiles": list, "current": current}, err
 	case "use":
 		if err := arity(args, 3); err != nil {
-			return nil, err
+			return nil, usage("profile use NAME (run `nagi profile use --help` for details)")
 		}
 		if err := store.Use(ctx, args[2]); err != nil {
 			return nil, fail("profile_error", err)
@@ -260,7 +278,7 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 		return map[string]any{"current": args[2]}, nil
 	case "import":
 		if err := arity(args, 4); err != nil {
-			return nil, err
+			return nil, usage("profile import NAME FILE (run `nagi profile import --help` for details)")
 		}
 		file, err := os.Open(args[3])
 		if err != nil {

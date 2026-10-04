@@ -2,8 +2,10 @@
 
 This guide starts and controls a local mihomo instance with Nagi.
 
+Run `nagi --help` to discover commands, or `nagi help profile import` for a command's syntax and example. See the [CLI reference](../reference/cli.md) for output modes and validation troubleshooting.
+
 1. Build Nagi and the pinned mihomo commit as described in [Build and test](../development/build-and-test.md).
-2. Run `./bin/nagi start`. On first use, Nagi creates a minimal `default` profile with a local mixed proxy port at `17890`.
+2. Run `./bin/nagi start`. On first use, Nagi creates a minimal `default` profile with a local mixed proxy port at `17890`. This profile has no proxy nodes and sends traffic directly; import your own configuration or apply a subscription to use proxy nodes. Starting Nagi does not configure your applications or system proxy settings.
 3. Run `./bin/nagi status` to check the PID and mihomo version. Run `./bin/nagi logs` if startup fails.
 4. Run `./bin/nagi proxy groups` to list configured groups, and `./bin/nagi proxy select GROUP NODE` to change a selection.
 5. Run `./bin/nagi stop` when finished.
@@ -11,3 +13,14 @@ This guide starts and controls a local mihomo instance with Nagi.
 Nagi stores a profile at the platform specific configuration path. Use `nagi config show` to inspect it and `nagi config validate` to check it. To add or replace a profile with validation and atomic replacement, use `nagi profile import NAME FILE`. Switch with `nagi profile list` and `nagi profile use NAME`. The complete command and path definitions are in the [CLI reference](../reference/cli.md) and [runtime design](../design/runtime.md).
 
 Use `nagi --json COMMAND` for scripts and the macOS app. Subscription URLs are stored locally and omitted from list output. `subscription update NAME` downloads content into Nagi's cache. If the content is a complete mihomo YAML configuration, run `subscription apply NAME` to validate and activate it. A refresh alone does not change the active profile.
+
+For example, replace `work` with your chosen name and the example URL with your subscription URL:
+
+```sh
+nagi subscription add work 'https://example.com/subscription.yaml'
+nagi subscription update work
+nagi subscription apply work
+nagi status
+```
+
+If the engine is stopped after applying a subscription, run `nagi start` to use the selected profile.

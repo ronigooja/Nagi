@@ -42,6 +42,7 @@ System architecture is documented in `ARCHITECTURE.md` and `docs/design/`. `AGEN
 - In this workspace, development tools are installed under `$HOME/environment`; check there for required toolchains before installing or downloading them.
 - Classify the content before choosing a destination; do not move documents merely because the implementation phase has changed.
 - When changing functionality, interfaces, configuration, or development workflows, check for the relevant authoritative document and update it once the behavior is settled.
+- When changing CLI behavior, follow the [CLI usability rules](docs/development/cli-usability.md) and update the [CLI reference](docs/reference/cli.md) for implemented behavior.
 - Do not describe a recommended architecture in `ARCHITECTURE.md`, an unimplemented design, or an alternative in a decision record as a current capability.
 - When it is unclear whether behavior is implemented, use the current code, tests, and reproducible command results as evidence. If it cannot be verified, mark the status explicitly instead of guessing.
 - After making changes, check new or modified relative links, commands, paths, field names, and examples. Run existing documentation checks, builds, or tests when applicable.

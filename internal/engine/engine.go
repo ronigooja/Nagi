@@ -85,7 +85,11 @@ func (m *Manager) Validate(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, binary, "-t", "-f", m.options.ConfigPath, "-d", filepath.Dir(m.options.ConfigPath))
 	// Validation output can contain configuration values. Return a fixed error instead.
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("mihomo configuration validation failed: %w", err)
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return fmt.Errorf("configuration validation failed; inspect the selected profile with `nagi config show`, fix it, and retry (validate a local copy with mihomo -t -f FILE -d DIRECTORY): %w", err)
+		}
+		return fmt.Errorf("unable to run mihomo for configuration validation; check NAGI_MIHOMO_BIN and executable permissions: %w", err)
 	}
 	return nil
 }
@@ -357,7 +361,7 @@ func (m *Manager) binary() (string, error) {
 	}
 	binary, err := exec.LookPath(m.options.Binary)
 	if err != nil {
-		return "", fmt.Errorf("find mihomo: %w", err)
+		return "", fmt.Errorf("find mihomo: %w; set NAGI_MIHOMO_BIN to a mihomo executable", err)
 	}
 	return filepath.Abs(binary)
 }
