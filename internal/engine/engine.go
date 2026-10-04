@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -32,6 +33,7 @@ type Options struct {
 }
 
 type Manager struct{ options Options }
+type FollowResult struct{ Manager *Manager }
 
 type Status struct {
 	Running    bool   `json:"running"`
@@ -278,6 +280,54 @@ func (m *Manager) Logs(lines int) ([]string, error) {
 		result[i] = ring[(count-n+i)%lines]
 	}
 	return result, nil
+}
+
+// Follow streams complete log lines until ctx is canceled. It starts at the
+// current end of the log, so callers receive only newly appended entries.
+func (m *Manager) Follow(ctx context.Context, emit func(string) error) error {
+	if emit == nil {
+		return errors.New("log callback is required")
+	}
+	file, err := os.OpenFile(m.options.Paths.LogPath, os.O_CREATE|os.O_RDONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if _, err := file.Seek(0, 2); err != nil {
+		return err
+	}
+	reader := bufio.NewReader(file)
+	for {
+		line, readErr := reader.ReadString('\n')
+		if readErr == nil {
+			if err := emit(strings.TrimSuffix(line, "\n")); err != nil {
+				return err
+			}
+			continue
+		}
+		if !errors.Is(readErr, io.EOF) {
+			return readErr
+		}
+		if len(line) > 0 {
+			if _, err := file.Seek(-int64(len(line)), io.SeekCurrent); err != nil {
+				return err
+			}
+			reader.Reset(file)
+		}
+		if info, err := file.Stat(); err == nil {
+			if offset, err := file.Seek(0, io.SeekCurrent); err == nil && info.Size() < offset {
+				if _, err := file.Seek(0, io.SeekStart); err != nil {
+					return err
+				}
+				reader.Reset(file)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 
 func (m *Manager) withLock(fn func() error) error {

@@ -78,6 +78,8 @@ Implemented CLI commands and persistence behavior are in the [CLI reference](../
 
 ## Runtime control
 
+The CLI implements the runtime-control items below as defined in the [CLI reference](../reference/cli.md). Interactive TUI controls remain part of the TUI proposal.
+
 - Switch between `rule`, `global`, and `direct` modes.
 - Distinguish temporary runtime changes from persistent settings.
 - List, inspect, and close active connections.

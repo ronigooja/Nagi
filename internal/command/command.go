@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
+	"github.com/ronigooja/Nagi/internal/runtimecontrol"
 	"github.com/ronigooja/Nagi/internal/service"
 	"github.com/ronigooja/Nagi/internal/subscription"
 	"github.com/ronigooja/Nagi/internal/traffic"
@@ -102,8 +104,30 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		}
 		return 1
 	}
+	if follow, ok := data.(engine.FollowResult); ok {
+		if jsonMode {
+			return runJSONFollow(stdout, stderr, follow)
+		}
+		if err := follow.Manager.Follow(context.Background(), func(line string) error { _, err := fmt.Fprintln(stdout, line); return err }); err != nil && !errors.Is(err, context.Canceled) {
+			output.WriteError(stderr, false, "output_error", err.Error())
+			return 1
+		}
+		return 0
+	}
 	if err := output.Write(stdout, jsonMode, data); err != nil {
 		output.WriteError(stderr, jsonMode, "output_error", err.Error())
+		return 1
+	}
+	return 0
+}
+
+func runJSONFollow(stdout, stderr io.Writer, follow engine.FollowResult) int {
+	encoder := json.NewEncoder(stdout)
+	err := follow.Manager.Follow(context.Background(), func(line string) error {
+		return encoder.Encode(output.Envelope{OK: true, Data: map[string]any{"line": line}})
+	})
+	if err != nil && !errors.Is(err, context.Canceled) {
+		output.WriteError(stderr, true, "output_error", err.Error())
 		return 1
 	}
 	return 0
@@ -196,7 +220,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	trafficManager := traffic.New(paths.StateDir)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
 	proxies := proxy.NewService(client)
-	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -348,6 +372,16 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		if err != nil {
 			return nil, err
 		}
+		if len(args) == 2 && args[1] == "follow" {
+			status, err := m.Status(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if !status.Running {
+				return nil, fail("not_running", errors.New("mihomo is not running; start it before following logs"))
+			}
+			return engine.FollowResult{Manager: m}, nil
+		}
 		if len(args) > 2 {
 			return nil, usage("logs [lines]")
 		}
@@ -385,8 +419,26 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 				return nil, err
 			}
 			return map[string]any{"profile": profileName, "yaml": string(data)}, nil
+		case "reload":
+			if err := arity(args, 2); err != nil {
+				return nil, err
+			}
+			if err := m.Validate(ctx); err != nil {
+				return nil, fail("invalid_config", err)
+			}
+			status, err := m.Status(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if !status.Running {
+				return nil, fail("not_running", errors.New("mihomo is not running; start it before reloading configuration"))
+			}
+			if err := client.Put(ctx, "/configs?force=true", map[string]any{"path": configPath}, nil); err != nil {
+				return nil, fail("mihomo_api_error", fmt.Errorf("configuration validated but reload failed; runtime state may still use the previous configuration: %w", err))
+			}
+			return map[string]any{"reloaded": true, "profile": profileName}, nil
 		}
-		return nil, usage("config validate|show")
+		return nil, usage("config validate|show|reload")
 	case "profile":
 		if len(args) > 1 && args[1] == "list" {
 			store := profile.NewStore(paths.ConfigDir, nil, nil)
@@ -418,9 +470,15 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		return rulesCommand(ctx, args, paths.ConfigDir, binary, client, proxies)
 	case "connections":
 		if len(args) < 2 {
-			return nil, usage("connections list|close ID|close-all")
+			return nil, usage("connections list|show ID|close ID|close-all")
 		}
 		switch args[1] {
+		case "show":
+			if len(args) != 3 {
+				return nil, usage("connections show ID")
+			}
+			connection, err := proxies.Connection(ctx, args[2])
+			return connection, err
 		case "list":
 			if len(args) != 2 {
 				return nil, usage("connections list")
@@ -444,7 +502,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			}
 			return map[string]any{"closed": true}, nil
 		default:
-			return nil, usage("connections list|close ID|close-all")
+			return nil, usage("connections list|show ID|close ID|close-all")
 		}
 	case "system-proxy":
 		if args[1] == "status" {
@@ -563,12 +621,58 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		return map[string]any{"enabled": enabled, "bind_address": cfg["bind-address"]}, nil
 	case "mode":
 		if len(args) == 1 {
-			return proxies.Mode(ctx, nil)
+			result, err := proxies.Mode(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+			result["persistent"] = false
+			return result, nil
 		}
-		if len(args) != 2 {
-			return nil, usage("mode [rule|global|direct]")
+		if args[1] == "saved" {
+			profiles, err := getProfiles()
+			if err != nil {
+				return nil, err
+			}
+			data, err := profiles.Show(profileName)
+			if err != nil {
+				return nil, err
+			}
+			mode, err := runtimecontrol.Mode(data)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"mode": mode, "persistent": true}, nil
 		}
-		return proxies.Mode(ctx, &args[1])
+		if args[1] == "save" {
+			profiles, err := getProfiles()
+			if err != nil {
+				return nil, err
+			}
+			if len(args) != 3 || !runtimecontrol.ValidMode(args[2]) {
+				return nil, usage("mode save MODE")
+			}
+			data, err := profiles.Show(profileName)
+			if err != nil {
+				return nil, err
+			}
+			updated, err := runtimecontrol.SetMode(data, args[2])
+			if err != nil {
+				return nil, err
+			}
+			if err := profiles.Write(ctx, profileName, updated); err != nil {
+				return nil, fail("invalid_config", fmt.Errorf("persistent mode was not saved: %w", err))
+			}
+			return map[string]any{"mode": args[2], "persistent": true, "changed": true}, nil
+		}
+		if len(args) != 2 || !runtimecontrol.ValidMode(args[1]) {
+			return nil, usage("mode [rule|global|direct|save MODE|saved]")
+		}
+		result, err := proxies.Mode(ctx, &args[1])
+		if err != nil {
+			return nil, err
+		}
+		result["persistent"] = false
+		return result, nil
 	case "service":
 		if len(args) != 2 {
 			return nil, usage("service install|uninstall")

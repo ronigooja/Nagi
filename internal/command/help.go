@@ -21,10 +21,12 @@ var commandSpecs = []commandSpec{
 	{"restart", "restart", "Restart mihomo", "Restarts mihomo with the selected profile.", "nagi restart", "", 0, 0},
 	{"status", "status", "Show process status", "Shows running state, selected profile, PID, and runtime paths.", "nagi status", "", 0, 0},
 	{"doctor", "doctor", "Inspect the local installation", "Checks local paths, mihomo executable, selected profile, process marker, and Unix Socket API without changing files. Exit status is zero for a completed report; inspect healthy and checks for problems.", "nagi --json doctor", "", 0, 0},
-	{"logs", "logs [lines]", "Show recent logs", "Shows the last 100 lines by default; lines must be an integer from 1 to 10000.", "nagi logs 50", "", 0, 1},
-	{"config", "config <validate|show>", "Inspect the selected configuration", "Validate or print the selected profile.", "nagi config validate", "", 0, -1},
+	{"logs", "logs [lines]", "Show or follow logs", "Shows recent lines or follows newly appended log lines until interrupted.", "nagi logs follow", "", 0, 1},
+	{"logs follow", "logs follow", "Follow mihomo logs", "Streams newly appended log lines until interrupted.", "nagi logs follow", "", 0, 0},
+	{"config", "config <validate|show>", "Inspect or reload configuration", "Validate, print, or safely reload the selected profile. Use `config reload` for a running engine.", "nagi config reload", "", 0, -1},
 	{"config validate", "config validate", "Validate the selected profile", "Runs mihomo -t against the selected profile; requires a mihomo executable.", "nagi config validate", "", 0, 0},
 	{"config show", "config show", "Print the selected profile", "Prints the selected profile YAML.", "nagi config show", "", 0, 0},
+	{"config reload", "config reload", "Safely reload configuration", "Validates the selected profile, then asks a running mihomo instance to reload it.", "nagi config reload", "Start mihomo before reloading.", 0, 0},
 	{"profile", "profile <list|use|import|export|backup|restore|diff|override|remove>", "Manage local profiles", "Profile names use letters, digits, _ or -, up to 128 characters.", "nagi profile list", "", 0, -1},
 	{"profile list", "profile list", "List local profiles", "Lists available profiles and marks the current selection.", "nagi profile list", "", 0, 0},
 	{"profile use", "profile use NAME", "Select a profile", "Validates and activates an existing profile; reloads a running engine.", "nagi profile use work", "Run `nagi profile list` to find a profile name.", 1, 1},
@@ -77,8 +79,9 @@ var commandSpecs = []commandSpec{
 	{"rules import-remote", "rules import-remote NAME BEHAVIOR URL TARGET", "Import a remote rule set", "Downloads up to 8 MiB over HTTP(S), stores a snapshot as a persistent inline provider, and applies it before profile rules.", "nagi rules import-remote ads domain https://example.com/ads.yaml REJECT", "", 4, 4},
 	{"proxy delays", "proxy delays GROUP [URL] [TIMEOUT_MS]", "Measure group node delays", "Measures all nodes in a group and sorts successful results by ascending latency. Uses the same URL and timeout defaults as proxy delay.", "nagi proxy delays 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 3},
 	{"proxy restore", "proxy restore", "Restore saved proxy choices", "Restores available saved choices for the selected profile and reports missing groups or nodes.", "nagi proxy restore", "Run `nagi proxy groups` to see live selections.", 0, 0},
-	{"connections", "connections <list|close ID|close-all>", "Inspect connections", "Reads or closes active connections from a running engine.", "nagi connections list", "", 0, -1},
+	{"connections", "connections <list|show ID|close ID|close-all>", "Inspect connections", "Reads or closes active connections from a running engine.", "nagi connections list", "", 0, -1},
 	{"connections list", "connections list", "List active connections", "Shows a snapshot of active connections.", "nagi connections list", "", 0, 0},
+	{"connections show", "connections show ID", "Inspect one connection", "Shows one active connection, metadata, counters, and proxy chain.", "nagi connections show 42", "Run `nagi connections list` to find IDs.", 1, 1},
 	{"connections close", "connections close ID", "Close a connection", "Closes one connection by its mihomo ID.", "nagi connections close 42", "Run `nagi connections list` to find IDs.", 1, 1},
 	{"connections close-all", "connections close-all", "Close all connections", "Closes all active connections.", "nagi connections close-all", "", 0, 0},
 	{"system-proxy", "system-proxy <status|enable|disable>", "Manage OS proxy settings", "Uses macOS networksetup or a GNOME gsettings session. Saved settings are restored on stop or engine exit.", "nagi system-proxy status", "", 0, -1},
@@ -95,7 +98,7 @@ var commandSpecs = []commandSpec{
 	{"lan status", "lan status", "Show LAN access", "Reports allow-lan and bind address.", "nagi lan status", "", 0, 0},
 	{"lan enable", "lan enable [ADDRESS]", "Enable LAN access", "Binds to all interfaces by default; ADDRESS must be a local IPv4 or IPv6 address.", "nagi lan enable 192.168.1.10", "", 0, 1},
 	{"lan disable", "lan disable", "Disable LAN access", "Restricts proxy listeners to loopback.", "nagi lan disable", "", 0, 0},
-	{"mode", "mode [rule|global|direct]", "Read or set runtime mode", "Reads mihomo mode or updates it at runtime; profile files are not edited.", "nagi mode rule", "", 0, 1},
+	{"mode", "mode [rule|global|direct|save MODE|saved]", "Read or set runtime mode", "Reads or changes temporary runtime mode, or explicitly persists a mode in the selected profile.", "nagi mode save global", "", 0, 2},
 	{"service", "service <install|uninstall>", "Manage the user service", "Installs or removes the per-user launchd Agent or systemd service.", "nagi service install", "", 0, -1},
 	{"service install", "service install", "Install the user service", "Installs a per-user launchd Agent or systemd service.", "nagi service install", "", 0, 0},
 	{"service uninstall", "service uninstall", "Remove the user service", "Removes the per-user launchd Agent or systemd service.", "nagi service uninstall", "", 0, 0},
@@ -197,6 +200,9 @@ func validateInvocation(args []string) error {
 		return syntaxError("too many arguments", spec)
 	}
 	if spec.path == "logs" && n == 1 {
+		if args[1] == "follow" {
+			return nil
+		}
 		count, err := strconv.Atoi(args[1])
 		if err != nil || count < 1 || count > 10000 {
 			return syntaxError("lines must be an integer from 1 to 10000", spec)
@@ -241,9 +247,12 @@ func validateInvocation(args []string) error {
 		return syntaxError("ADDRESS must be an IPv4 or IPv6 address", spec)
 	}
 	if spec.path == "mode" && n == 1 {
-		if args[1] != "rule" && args[1] != "global" && args[1] != "direct" {
+		if args[1] != "rule" && args[1] != "global" && args[1] != "direct" && args[1] != "saved" {
 			return syntaxError("mode must be rule, global, or direct", spec)
 		}
+	}
+	if spec.path == "mode" && n == 2 && (args[1] != "save" || args[2] != "rule" && args[2] != "global" && args[2] != "direct") {
+		return syntaxError("mode save requires rule, global, or direct", spec)
 	}
 	if spec.path == "connections close" && strings.TrimSpace(args[2]) == "" {
 		return syntaxError("connection ID required", spec)

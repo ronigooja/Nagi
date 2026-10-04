@@ -40,6 +40,26 @@ type Connection struct {
 	Download    int64          `json:"download"`
 }
 
+func (s *Service) Connection(ctx context.Context, id string) (Connection, error) {
+	var result Connection
+	if s == nil || s.Client == nil {
+		return result, errors.New("proxy control client unavailable")
+	}
+	if strings.TrimSpace(id) == "" {
+		return result, errors.New("connection ID required")
+	}
+	connections, err := s.Connections(ctx)
+	if err != nil {
+		return result, err
+	}
+	for _, connection := range connections {
+		if connection.ID == id {
+			return connection, nil
+		}
+	}
+	return result, errors.New("connection not found; run `nagi connections list` to see current IDs")
+}
+
 type DelayResult struct {
 	Proxy     string `json:"proxy"`
 	URL       string `json:"url"`

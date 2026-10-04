@@ -42,4 +42,6 @@ Use `nagi proxy delay 'Node A'` to check the latency of a proxy, replacing `Node
 
 Run `nagi mode` to inspect the routing mode, or `nagi mode rule`, `nagi mode global`, or `nagi mode direct` to change it for the running engine. Restarting or reloading restores the mode from the selected profile.
 
+Use `nagi mode save global` to persist a mode in the selected profile, or `nagi mode saved` to inspect the stored value. Use `nagi config reload` after a validated profile change when mihomo is already running. Follow new log lines with `nagi logs follow`; press Ctrl-C to stop. Inspect one connection with `nagi connections show CONNECTION_ID`, or close it with `nagi connections close CONNECTION_ID`.
+
 To remove an unused profile, select another profile first and run `nagi profile remove NAME`. Its existing backup and any subscription with the same name are retained. For command completion, load the script printed by `nagi completion bash`, `nagi completion zsh`, or `nagi completion fish` using the [shell instructions](../reference/cli.md#shell-completion).

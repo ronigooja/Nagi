@@ -79,3 +79,23 @@ func TestDelayEscapesQueryAndCloseMode(t *testing.T) {
 		t.Fatalf("method=%q path=%q", f.method, f.path)
 	}
 }
+
+type connectionClient struct{}
+
+func (connectionClient) Get(_ context.Context, path string, out any) error {
+	if path != "/connections" {
+		return errors.New("unexpected API path")
+	}
+	return json.Unmarshal([]byte(`{"connections":[{"id":"id/1","chains":["Group","Node"],"upload":5,"download":9}]}`), out)
+}
+func (connectionClient) Put(context.Context, string, any, any) error { return nil }
+func TestConnectionInspectByID(t *testing.T) {
+	service := NewService(connectionClient{})
+	connection, err := service.Connection(context.Background(), "id/1")
+	if err != nil || connection.ID != "id/1" || len(connection.Chains) != 2 {
+		t.Fatalf("connection=%+v err=%v", connection, err)
+	}
+	if _, err := service.Connection(context.Background(), "gone"); err == nil {
+		t.Fatal("missing connection accepted")
+	}
+}

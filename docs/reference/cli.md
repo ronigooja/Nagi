@@ -20,8 +20,10 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `status` | Report running state, selected profile, PID, paths, and available mihomo version and mixed port. |
 | `doctor` | Produce a read-only diagnostic report with checks and suggested next steps. |
 | `logs [lines]` | Return the last 100 lines by default, or 1 through 10000 lines. |
+| `logs follow` | Stream new log lines until interrupted. |
 | `config validate` | Check the selected profile with `mihomo -t`. |
 | `config show` | Return the selected profile YAML. |
+| `config reload` | Validate and safely reload the selected profile in a running mihomo instance. |
 | `profile list` | List profile names and the current selection. |
 | `profile use NAME` | Validate and activate an existing profile, reloading a running mihomo instance. |
 | `profile import NAME FILE` | Validate and atomically write a profile from a local YAML file (maximum 8 MiB). |
@@ -55,9 +57,10 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `proxy delays GROUP [URL] [TIMEOUT_MS]` | Test all nodes in a group and sort successful measurements by latency. |
 | `proxy restore` | Replay saved choices for the selected profile where the group and node still exist; report missing choices. |
 | `connections list` | Return a snapshot of active connections, including mihomo's selected proxy chains when supplied. |
+| `connections show ID` | Return one active connection by ID, including metadata and proxy chain. |
 | `connections close ID` | Request closure of a connection by its ID. |
 | `connections close-all` | Request closure of all current connections. |
-| `mode [rule\|global\|direct]` | Read or change the running engine's routing mode. |
+| `mode [rule\|global\|direct\|save MODE\|saved]` | Read or change temporary runtime mode, or explicitly persist/read the selected profile's mode. |
 | `service install`, `service uninstall` | Manage a per-user launchd Agent or systemd service. |
 | `version` | Report Nagi version, mihomo version and pinned commit, OS, and architecture. |
 | `completion bash\|zsh\|fish` | Print a shell completion script without reading runtime configuration. |
@@ -120,7 +123,13 @@ nagi mode
 
 Replace `Node A`, `Proxy Group`, and `CONNECTION_ID` with names and IDs from your engine. Connection lists show IDs and any selected proxy chain in text and JSON. Closing an ID that has already disappeared succeeds because mihomo treats it as an idempotent request. `close-all` is explicit, noninteractive, and affects all connections present when mihomo processes the request. Applications may immediately establish new connections. No closed-connection count is returned.
 
-`mode` without an argument reads the running mode. With `rule`, `global`, or `direct`, it changes only the running engine through `PATCH /configs`. It does not edit profile YAML; restarting or reloading a profile reapplies the mode in that configuration. All commands in this section require a reachable mihomo Unix Socket API.
+`mode` without an argument reads the running mode. With `rule`, `global`, or `direct`, it changes only the running engine through `PATCH /configs` and returns `persistent: false`; restarting or reloading a profile reapplies the mode in that configuration. `mode save MODE` edits the selected profile after validating the mode and writes it through the profile's atomic replacement and reload path; it returns `persistent: true`. `mode saved` reads the selected profile's stored mode without contacting mihomo and returns `persistent: true`. A persistent save while the engine is running reloads the profile; a failed reload rolls the profile file back. All temporary mode changes require a reachable mihomo Unix Socket API.
+
+`config reload` validates the selected profile first, requires a running engine, and sends mihomo `PUT /configs?force=true` with the selected profile path. Validation failure leaves the running engine untouched. If the API reload fails after validation, the command reports that runtime state may still use the previous configuration; Nagi does not claim a rollback of mihomo's internal state. A successful reload returns `reloaded: true` and the profile name.
+
+`connections show ID` finds one connection in a fresh `/connections` snapshot and reports the same `id`, `metadata`, `chains`, `upload`, and `download` fields as a list item. A missing ID fails with a suggestion to list current IDs. `connections list` remains a snapshot. `connections close ID` is idempotent when mihomo has already removed the connection; `connections close-all` affects connections present when mihomo processes the request. A closed connection can be recreated by applications.
+
+`logs follow` starts at the current end of the log and streams newly appended complete lines until interrupted. It does not replay existing lines. Text mode prints each new line; `--json` emits one success envelope per line with `data.line`. Terminal users should press Ctrl-C. Log file errors are reported without exposing configuration values.
 
 ## Shell completion
 
@@ -195,8 +204,13 @@ Additional success payloads are defined below; all appear in `data`:
 | `proxy restore` | `restored` and `unavailable` string arrays of `GROUP -> NODE`. |
 | `connections close ID` | `id` (string), `closed: true` (request accepted, including an already absent connection). |
 | `connections close-all` | `closed: true` (request accepted; no count). |
-| `mode` | `mode` (string: `rule`, `global`, or `direct`). |
-| `mode MODE` | `mode` (string), `changed: true` (update accepted). |
+| `connections show ID` | One connection object with `id`, `metadata`, `chains`, `upload`, and `download`. |
+| `mode` | `mode` (string: `rule`, `global`, or `direct`), `persistent: false`. |
+| `mode MODE` | `mode` (string), `changed: true`, `persistent: false` (temporary update accepted). |
+| `mode save MODE` | `mode`, `changed: true`, `persistent: true` (profile update and reload accepted). |
+| `mode saved` | `mode`, `persistent: true` (stored profile mode). |
+| `config reload` | `profile`, `reloaded: true`. |
+| `logs follow` | A stream of success envelopes, each with `line` (string), when `--json` is used. |
 | `completion SHELL` | A string containing the completion script. |
 
 `NAGI_MIHOMO_BIN` overrides the default mihomo executable path, which is a file named `mihomo` beside the Nagi executable. Nagi uses XDG directories on Linux and `~/Library/Application Support/Nagi` on macOS; see the [runtime design](../design/runtime.md).

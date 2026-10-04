@@ -70,6 +70,8 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return nil
 	case proxy.Group:
 		return writeGroup(w, v)
+	case proxy.Connection:
+		return writeConnection(w, v)
 	case proxy.DelayResult:
 		return line(w, fmt.Sprintf("Proxy %s delay: %d ms (URL: %s, timeout: %d ms)", v.Proxy, v.DelayMS, v.URL, v.TimeoutMS))
 	case proxy.BatchDelayResult:
@@ -482,10 +484,19 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		}
 	}
 	if mode, ok := v["mode"].(string); ok {
+		if v["persistent"] == true {
+			if v["changed"] == true {
+				return line(w, "Saved "+mode+" mode in the selected profile. If mihomo was running, its configuration was reloaded.")
+			}
+			return line(w, "Saved profile mode: "+mode)
+		}
 		if v["changed"] == true {
-			return line(w, "Set mihomo mode to "+mode+".")
+			return line(w, "Set temporary mihomo mode to "+mode+".")
 		}
 		return line(w, "Mihomo mode: "+mode)
+	}
+	if v["reloaded"] == true {
+		return line(w, fmt.Sprintf("Reloaded validated profile %v in the running mihomo instance.", v["profile"]))
 	}
 	if closed, ok := v["closed"].(bool); ok && closed {
 		if id, ok := v["id"].(string); ok {
@@ -523,6 +534,18 @@ func writePreview(w io.Writer, p subscription.Preview) error {
 		}
 	}
 	return nil
+}
+
+func writeConnection(w io.Writer, c proxy.Connection) error {
+	label := fmt.Sprintf("Connection %s", c.ID)
+	if destination := connectionDestination(c.Metadata); destination != "" {
+		label += " -> " + destination
+	}
+	if len(c.Chains) > 0 {
+		label += "\nProxy chain: " + strings.Join(c.Chains, " -> ")
+	}
+	label += fmt.Sprintf("\nUpload: %d B\nDownload: %d B", c.Upload, c.Download)
+	return line(w, label)
 }
 
 func printField(w io.Writer, label string, fields map[string]any, key string) error {
