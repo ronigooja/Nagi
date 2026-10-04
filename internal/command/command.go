@@ -197,7 +197,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	case "profile":
 		return profileCommand(ctx, args, profiles)
 	case "subscription":
-		return subscriptionCommand(ctx, args, subs)
+		return subscriptionCommand(ctx, args, subs, profiles)
 	case "proxy":
 		return proxyCommand(ctx, args, proxies)
 	case "connections":
@@ -283,9 +283,9 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 	}
 }
 
-func subscriptionCommand(ctx context.Context, args []string, store *subscription.Store) (any, error) {
+func subscriptionCommand(ctx context.Context, args []string, store *subscription.Store, profiles *profile.Store) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("subscription list|add <name> <url>|update <name>|remove <name>")
+		return nil, usage("subscription list|add <name> <url>|update <name>|apply <name>|remove <name>")
 	}
 	switch args[1] {
 	case "list":
@@ -319,8 +319,23 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 			return nil, fail("subscription_error", err)
 		}
 		return map[string]any{"name": args[2], "removed": true}, nil
+	case "apply":
+		if err := arity(args, 3); err != nil {
+			return nil, err
+		}
+		data, err := store.Cached(args[2])
+		if err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		if err := profiles.Write(ctx, args[2], data); err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		if err := profiles.Use(ctx, args[2]); err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		return map[string]any{"name": args[2], "profile": args[2], "applied": true}, nil
 	default:
-		return nil, usage("subscription list|add <name> <url>|update <name>|remove <name>")
+		return nil, usage("subscription list|add <name> <url>|update <name>|apply <name>|remove <name>")
 	}
 }
 
