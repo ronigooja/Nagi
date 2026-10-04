@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -27,10 +26,13 @@ type FullReport struct {
 	KillSwitch KillSwitchState `json:"kill_switch"`
 }
 type KillSwitchState struct {
-	Supported bool   `json:"supported"`
-	Enabled   bool   `json:"enabled"`
-	Backend   string `json:"backend,omitempty"`
-	Message   string `json:"message,omitempty"`
+	Supported        bool   `json:"supported"`
+	Enabled          bool   `json:"enabled"`
+	Backend          string `json:"backend,omitempty"`
+	Message          string `json:"message,omitempty"`
+	TargetUID        int    `json:"target_uid,omitempty"`
+	Interface        string `json:"interface,omitempty"`
+	AllowedEndpoints int    `json:"allowed_endpoints,omitempty"`
 }
 
 func RunFull(ctx context.Context, paths nagiruntime.Paths, binary string) FullReport {
@@ -154,33 +156,4 @@ func Export(path string, r FullReport) error {
 		return err
 	}
 	return f.Chmod(0600)
-}
-func KillSwitchStatus(stateDir string) KillSwitchState {
-	if runtime.GOOS == "linux" {
-		if _, e := exec.LookPath("nft"); e == nil {
-			return KillSwitchState{Supported: true, Backend: "nftables", Message: "Available; enable requires an explicit firewall transaction."}
-		}
-		if _, e := exec.LookPath("iptables"); e == nil {
-			return KillSwitchState{Supported: true, Backend: "iptables", Message: "Available; enable requires root and an explicit firewall transaction."}
-		}
-	}
-	if runtime.GOOS == "darwin" {
-		if _, e := exec.LookPath("pfctl"); e == nil {
-			return KillSwitchState{Supported: true, Backend: "pf", Message: "Available; enable requires root and a managed pf anchor."}
-		}
-	}
-	return KillSwitchState{Supported: false, Message: "No supported firewall backend is available; configure a firewall manually."}
-}
-func EnableKillSwitch(ctx context.Context, stateDir string) error {
-	state := KillSwitchStatus(stateDir)
-	if !state.Supported {
-		return errors.New(state.Message)
-	}
-	if os.Geteuid() != 0 {
-		return errors.New("kill switch requires root firewall privileges; run through a privileged service and inspect the resulting firewall rules")
-	}
-	return errors.New("kill switch backend is detected but no safe managed transaction is available on this host; refusing to change firewall rules")
-}
-func DisableKillSwitch(ctx context.Context, stateDir string) error {
-	return errors.New("no managed kill switch transaction exists; inspect and remove manually configured firewall rules")
 }

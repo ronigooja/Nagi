@@ -230,7 +230,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		case "status":
 			return diagnostic.KillSwitchStatus(paths.StateDir), nil
 		case "enable":
-			if err := diagnostic.EnableKillSwitch(ctx, paths.StateDir); err != nil {
+			if err := diagnostic.EnableKillSwitch(ctx, paths.StateDir, args[2], args[3:]); err != nil {
 				return nil, fail("kill_switch_error", err)
 			}
 			return map[string]any{"enabled": true}, nil
