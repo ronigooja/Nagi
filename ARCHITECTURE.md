@@ -34,13 +34,14 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/profile` | Profile files, current selection, secure replacement, and rollback. |
 | `internal/subscription` | Subscription records, fetching, and cache. |
 | `internal/proxy` | Group, node, and connection operations through `control`. |
+| `internal/diagnostic` | Read-only inspection of paths, executable, selected profile, PID, and control API. |
 | `internal/service` | Per-user launchd and systemd service installation. |
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
 ## Interfaces and data
 
-The CLI is the sole full-featured entry point. All commands accept `--json`; JSON envelopes and error codes form the app integration interface. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The app polls status using short-lived commands. An event stream is not implemented.
+The CLI is the sole full-featured entry point. All commands accept `--json`; JSON envelopes and error codes form the app integration interface. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy latency tests, connection closure, and runtime mode changes. Runtime mode changes use the control API and do not modify stored profiles. The app polls status using short-lived commands. An event stream is not implemented.
 
 Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). A downloaded complete mihomo YAML subscription can be explicitly applied as a profile. Nagi does not automatically convert other subscription formats.
 

@@ -97,7 +97,8 @@ func zshCompletion(roots []string, children map[string][]string) string {
 
 func fishCompletion(roots []string, children map[string][]string) string {
 	var b strings.Builder
-	b.WriteString(`function __nagi_semantic
+	b.WriteString(`complete -c nagi -f
+function __nagi_semantic
   set -l out
   for word in (commandline -opc)[2..-1]
     switch $word
