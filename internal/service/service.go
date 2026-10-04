@@ -14,6 +14,16 @@ type Result struct {
 	Manager string `json:"manager"`
 }
 
+type runner func(string, ...string) error
+
+func run(name string, args ...string) error {
+	out, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil && len(out) > 0 {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return err
+}
+
 func location() (Result, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -38,38 +48,86 @@ func Install(executable string) (Result, error) {
 	if err != nil {
 		return result, err
 	}
-	if !filepath.IsAbs(executable) {
-		return result, fmt.Errorf("CLI path must be absolute")
+	return install(result, executable, os.Getuid(), run)
+}
+
+func install(result Result, executable string, uid int, command runner) (Result, error) {
+	if !filepath.IsAbs(executable) || strings.ContainsAny(executable, "\n\r\x00") {
+		return result, fmt.Errorf("CLI path must be absolute and contain no control characters")
 	}
-	if err = os.MkdirAll(filepath.Dir(result.Path), 0700); err != nil {
+	content, err := definition(result.Manager, executable)
+	if err != nil {
 		return result, err
 	}
-	var content string
+	previous, readErr := os.ReadFile(result.Path)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		return result, fmt.Errorf("read existing service definition %s: %w", result.Path, readErr)
+	}
+	existed := readErr == nil
+	if err := os.MkdirAll(filepath.Dir(result.Path), 0700); err != nil {
+		return result, fmt.Errorf("create service directory: %w", err)
+	}
+	if err := replaceFile(result.Path, []byte(content)); err != nil {
+		return result, fmt.Errorf("write service definition %s: %w", result.Path, err)
+	}
+	var managerErr error
 	if result.Manager == "systemd" {
-		if strings.ContainsAny(executable, "\n\r\x00") {
-			return result, fmt.Errorf("invalid CLI path")
+		if err := command("systemctl", "--user", "daemon-reload"); err != nil {
+			managerErr = fmt.Errorf("systemctl --user daemon-reload: %w", err)
+		} else if err := command("systemctl", "--user", "enable", "--now", "nagi.service"); err != nil {
+			managerErr = fmt.Errorf("systemctl --user enable --now nagi.service: %w", err)
 		}
-		commandPath := strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "%", "%%").Replace(executable)
-		content = "[Unit]\nDescription=Nagi mihomo manager\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=\"" + commandPath + "\" start\nExecStop=\"" + commandPath + "\" stop\n\n[Install]\nWantedBy=default.target\n"
+	} else if err := command("launchctl", "bootstrap", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
+		managerErr = fmt.Errorf("launchctl bootstrap: %w", err)
+	}
+	if managerErr == nil {
+		return result, nil
+	}
+	var restoreErr error
+	state := "new service definition removed"
+	if existed {
+		restoreErr = replaceFile(result.Path, previous)
+		state = "previous service definition restored"
 	} else {
-		content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>io.nagi.cli</string><key>ProgramArguments</key><array><string>" + xmlEscape(executable) + "</string><string>start</string></array><key>RunAtLoad</key><true/></dict></plist>\n"
+		restoreErr = os.Remove(result.Path)
 	}
-	if err = os.WriteFile(result.Path, []byte(content), 0600); err != nil {
-		return result, err
+	if restoreErr != nil {
+		return result, fmt.Errorf("install failed: %w; restoring definition failed: %v; check %s and %s state manually", managerErr, restoreErr, result.Path, result.Manager)
 	}
-	if result.Manager == "systemd" {
-		if err = exec.Command("systemctl", "--user", "daemon-reload").Run(); err != nil {
-			return result, fmt.Errorf("systemctl daemon-reload: %w", err)
-		}
-		if err = exec.Command("systemctl", "--user", "enable", "--now", "nagi.service").Run(); err != nil {
-			return result, fmt.Errorf("systemctl enable: %w", err)
-		}
-	} else {
-		if err = exec.Command("launchctl", "bootstrap", "gui/"+fmt.Sprint(os.Getuid()), result.Path).Run(); err != nil {
-			return result, fmt.Errorf("launchctl bootstrap: %w", err)
-		}
+	return result, fmt.Errorf("install failed: %w; %s at %s; check %s state before retrying", managerErr, state, result.Path, result.Manager)
+}
+
+func definition(manager, executable string) (string, error) {
+	switch manager {
+	case "systemd":
+		// systemd expands dollar signs in ExecStart and ExecStop even within quotes.
+		path := strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "%", "%%", "$", "$$").Replace(executable)
+		return "[Unit]\nDescription=Nagi mihomo manager\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=\"" + path + "\" start\nExecStop=\"" + path + "\" stop\n\n[Install]\nWantedBy=default.target\n", nil
+	case "launchd":
+		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>io.nagi.cli</string><key>ProgramArguments</key><array><string>" + xmlEscape(executable) + "</string><string>start</string></array><key>RunAtLoad</key><true/></dict></plist>\n", nil
+	default:
+		return "", fmt.Errorf("unsupported service manager: %s", manager)
 	}
-	return result, nil
+}
+
+func replaceFile(path string, content []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".nagi-service-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 func Uninstall() (Result, error) {
@@ -77,21 +135,39 @@ func Uninstall() (Result, error) {
 	if err != nil {
 		return result, err
 	}
-	if result.Manager == "systemd" {
-		_ = exec.Command("systemctl", "--user", "disable", "--now", "nagi.service").Run()
-	} else {
-		_ = exec.Command("launchctl", "bootout", "gui/"+fmt.Sprint(os.Getuid()), result.Path).Run()
+	return uninstall(result, os.Getuid(), run)
+}
+
+func uninstall(result Result, uid int, command runner) (Result, error) {
+	if _, err := os.Stat(result.Path); err != nil {
+		if os.IsNotExist(err) {
+			return result, nil
+		}
+		return result, fmt.Errorf("inspect service definition %s: %w", result.Path, err)
 	}
-	if err = os.Remove(result.Path); err != nil && !os.IsNotExist(err) {
-		return result, err
+	switch result.Manager {
+	case "systemd":
+		if err := command("systemctl", "--user", "disable", "--now", "nagi.service"); err != nil {
+			return result, fmt.Errorf("systemctl --user disable --now nagi.service: %w; definition retained at %s; check systemctl --user status nagi.service and retry", err, result.Path)
+		}
+	case "launchd":
+		if err := command("launchctl", "bootout", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
+			return result, fmt.Errorf("launchctl bootout: %w; definition retained at %s; check launchctl print gui/%d/io.nagi.cli and retry", err, result.Path, uid)
+		}
+	default:
+		return result, fmt.Errorf("unsupported service manager: %s", result.Manager)
+	}
+	if err := os.Remove(result.Path); err != nil {
+		return result, fmt.Errorf("service stopped but removing definition %s failed: %w; remove the file and retry", result.Path, err)
 	}
 	if result.Manager == "systemd" {
-		_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
+		if err := command("systemctl", "--user", "daemon-reload"); err != nil {
+			return result, fmt.Errorf("service disabled and definition removed, but systemctl --user daemon-reload failed: %w; retry daemon-reload", err)
+		}
 	}
 	return result, nil
 }
 
 func xmlEscape(s string) string {
-	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;", "'", "&apos;")
-	return r.Replace(s)
+	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;", "'", "&apos;").Replace(s)
 }
