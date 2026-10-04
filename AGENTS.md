@@ -35,6 +35,9 @@ System architecture is documented in `ARCHITECTURE.md` and `docs/design/`. `AGEN
 
 ## Agent Workflow Rules
 
+- Documentation must be written in English.
+- During execution, the agent communicates with the user in English; progress reports and important information are communicated in Chinese.
+- Before modifying any file, explain the modification scope to the user in Chinese and request permission.
 - Before making changes, read this file, `README.md` (if present), and the architecture, design, and reference documents directly related to the task.
 - Classify the content before choosing a destination; do not move documents merely because the implementation phase has changed.
 - When changing functionality, interfaces, configuration, or development workflows, check for the relevant authoritative document and update it once the behavior is settled.
