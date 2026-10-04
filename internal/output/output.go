@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/service"
@@ -32,6 +33,22 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return line(w, v)
 	case engine.Status:
 		return writeLifecycle(w, v)
+	case diagnostic.Report:
+		if v.Healthy {
+			if err := line(w, "Nagi doctor: healthy"); err != nil {
+				return err
+			}
+		} else {
+			if err := line(w, "Nagi doctor: needs attention"); err != nil {
+				return err
+			}
+		}
+		for _, check := range v.Checks {
+			if err := line(w, fmt.Sprintf("[%s] %s: %s", strings.ToUpper(check.Status), check.Name, check.Message)); err != nil {
+				return err
+			}
+		}
+		return nil
 	case proxy.Group:
 		return writeGroup(w, v)
 	case subscription.RefreshResult:

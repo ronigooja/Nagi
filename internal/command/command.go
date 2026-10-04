@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
+	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/output"
 	"github.com/ronigooja/Nagi/internal/profile"
@@ -89,7 +90,7 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 
 func execute(ctx context.Context, args []string, version, commit string) (any, error) {
 	if len(args) == 0 {
-		return nil, fail("usage", errors.New("command required: start, stop, restart, status, logs, config, profile, subscription, proxy, connections, service, version"))
+		return nil, fail("usage", errors.New("command required: start, stop, restart, status, doctor, logs, config, profile, subscription, proxy, connections, service, version"))
 	}
 	binary := os.Getenv("NAGI_MIHOMO_BIN")
 	if binary == "" {
@@ -113,6 +114,9 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		return nil, err
+	}
+	if command == "doctor" {
+		return diagnostic.Run(ctx, paths, binary), nil
 	}
 	client := control.New(paths.SocketPath)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})

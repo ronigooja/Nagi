@@ -17,6 +17,7 @@ var commandSpecs = []commandSpec{
 	{"stop", "stop", "Stop mihomo", "Stops a running mihomo process.", "nagi stop", "", 0, 0},
 	{"restart", "restart", "Restart mihomo", "Restarts mihomo with the selected profile.", "nagi restart", "", 0, 0},
 	{"status", "status", "Show process status", "Shows running state, selected profile, PID, and runtime paths.", "nagi status", "", 0, 0},
+	{"doctor", "doctor", "Inspect the local installation", "Checks local paths, mihomo executable, selected profile, process marker, and Unix Socket API without changing files. Exit status is zero for a completed report; inspect healthy and checks for problems.", "nagi --json doctor", "", 0, 0},
 	{"logs", "logs [lines]", "Show recent logs", "Shows the last 100 lines by default; lines must be an integer from 1 to 10000.", "nagi logs 50", "", 0, 1},
 	{"config", "config <validate|show>", "Inspect the selected configuration", "Validate or print the selected profile.", "nagi config validate", "", 0, -1},
 	{"config validate", "config validate", "Validate the selected profile", "Runs mihomo -t against the selected profile; requires a mihomo executable.", "nagi config validate", "", 0, 0},
