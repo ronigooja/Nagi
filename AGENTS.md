@@ -45,7 +45,7 @@ System architecture is documented in `ARCHITECTURE.md` and `docs/design/`. `AGEN
 - When changing CLI behavior, follow the [CLI usability rules](docs/development/cli-usability.md) and update the [CLI reference](docs/reference/cli.md) for implemented behavior.
 - Do not describe a recommended architecture in `ARCHITECTURE.md`, an unimplemented design, or an alternative in a decision record as a current capability.
 - When it is unclear whether behavior is implemented, use the current code, tests, and reproducible command results as evidence. If it cannot be verified, mark the status explicitly instead of guessing.
-- After making changes, check new or modified relative links, commands, paths, field names, and examples. Run existing documentation checks, builds, or tests when applicable.
+- After making changes, check new or modified relative links, commands, paths, field names, and examples.
 - Agents may modify files only within the scope authorized by the user. Do not rewrite unrelated documentation or implementation as part of the task.
 
 ## Organization and References
