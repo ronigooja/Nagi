@@ -108,11 +108,17 @@ func (s *Store) Use(ctx context.Context, name string) error {
 		return err
 	}
 	settings := filepath.Join(s.Dir, "settings.yaml")
+	old, oldErr := os.ReadFile(settings)
+	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
+		return oldErr
+	}
 	if err = atomicWrite(settings, []byte("profile: "+name+"\n")); err != nil {
 		return err
 	}
 	if s.Reload != nil {
-		return s.Reload(ctx)
+		if err := s.Reload(ctx); err != nil {
+			return errors.Join(err, restore(settings, old, errors.Is(oldErr, fs.ErrNotExist)))
+		}
 	}
 	return nil
 }
@@ -122,12 +128,13 @@ func (s *Store) Write(ctx context.Context, name string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	if old, err := s.Show(name); err == nil {
+	old, oldErr := s.Show(name)
+	if oldErr == nil {
 		if err := s.validate(old); err != nil {
 			return fmt.Errorf("existing profile invalid: %w", err)
 		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return err
+	} else if !errors.Is(oldErr, fs.ErrNotExist) {
+		return oldErr
 	}
 	if err := s.validate(data); err != nil {
 		return err
@@ -136,9 +143,18 @@ func (s *Store) Write(ctx context.Context, name string, data []byte) error {
 		return err
 	}
 	if s.Reload != nil {
-		return s.Reload(ctx)
+		if err := s.Reload(ctx); err != nil {
+			return errors.Join(err, restore(path, old, errors.Is(oldErr, fs.ErrNotExist)))
+		}
 	}
 	return nil
+}
+
+func restore(path string, old []byte, absent bool) error {
+	if absent {
+		return os.Remove(path)
+	}
+	return writeReplace(path, old)
 }
 
 func (s *Store) validate(data []byte) error {

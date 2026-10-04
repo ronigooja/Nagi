@@ -37,3 +37,32 @@ func TestWritePreservesOldOnValidationFailureAndBacksUp(t *testing.T) {
 		t.Fatal("accepted traversal name")
 	}
 }
+
+func TestReloadFailureRollsBackFiles(t *testing.T) {
+	dir := t.TempDir()
+	validate := func([]byte) error { return nil }
+	s := NewStore(dir, validate, nil)
+	ctx := context.Background()
+	if err := s.Write(ctx, "default", []byte("old")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Write(ctx, "other", []byte("other")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Use(ctx, "default"); err != nil {
+		t.Fatal(err)
+	}
+	s.Reload = func(context.Context) error { return errors.New("reload failed") }
+	if err := s.Write(ctx, "default", []byte("new")); err == nil {
+		t.Fatal("expected reload error")
+	}
+	if got, err := s.Show("default"); err != nil || string(got) != "old" {
+		t.Fatalf("profile after reload error = %q, %v", got, err)
+	}
+	if err := s.Use(ctx, "other"); err == nil {
+		t.Fatal("expected reload error")
+	}
+	if selected, err := s.Current(); err != nil || selected != "default" {
+		t.Fatalf("selected after reload error = %q, %v", selected, err)
+	}
+}
