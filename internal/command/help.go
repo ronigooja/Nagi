@@ -134,6 +134,9 @@ func validateInvocation(args []string) error {
 		}
 	}
 	if spec.path == "proxy delay" {
+		if strings.TrimSpace(args[2]) == "" {
+			return syntaxError("proxy node required", spec)
+		}
 		target := "https://www.gstatic.com/generate_204"
 		if n >= 2 {
 			target = args[3]
