@@ -62,8 +62,14 @@ import AppKit
             loadingTimer = nil
             statusItem.menu = menu
         }
-        let color: NSColor = model.state == .running || model.busy ? .white : .secondaryLabelColor
-        let configuration = NSImage.SymbolConfiguration(paletteColors: [color])
+        let networkColor = NSColor.tertiaryLabelColor
+        let shieldColor: NSColor
+        if model.busy {
+            shieldColor = loadingFrame == 0 ? .white : .clear
+        } else {
+            shieldColor = model.state == .running ? .white : .tertiaryLabelColor
+        }
+        let configuration = NSImage.SymbolConfiguration(paletteColors: [networkColor, shieldColor])
         let baseIcon = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")?
             .withSymbolConfiguration(configuration)
         let icon: NSImage?
