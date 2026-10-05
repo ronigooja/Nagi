@@ -50,3 +50,17 @@ are implemented and tested.
 
 Network Extension support remains out of scope unless a future requirement
 needs App Store-style sandboxing or packet-tunnel APIs.
+
+## Implementation status
+
+The configuration policy currently accepts only a small literal subset:
+`mode: direct`, basic log/IPv6 settings, and selected TUN booleans and stack
+values. It rejects proxy nodes, providers, listeners, external controllers,
+file references, YAML aliases, unknown fields, and multiple YAML documents.
+On Linux, validated bytes can be copied into a private root-owned snapshot
+directory; root mihomo must never open the user's mutable profile path. macOS
+snapshot creation remains disabled until ACLs can be checked in addition to
+POSIX ownership and mode. This subset does not support subscription-backed
+proxy use. Helper installation and privileged engine activation remain
+disabled until the controller API is mediated and the complete
+configuration/runtime path can be validated safely.
