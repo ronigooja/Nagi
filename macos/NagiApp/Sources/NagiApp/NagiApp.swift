@@ -15,7 +15,8 @@ import AppKit
     private let menu = NSMenu()
     private var pulse: Timer?
     private var menuRefreshTask: Task<Void, Never>?
-    private var spinner: NSProgressIndicator?
+    private var loadingTimer: Timer?
+    private var loadingFrame = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -43,22 +44,31 @@ import AppKit
 
     private func renderStatus() {
         guard let button = statusItem?.button else { return }
-        if spinner == nil {
-            let indicator = NSProgressIndicator(frame: NSRect(x: 0, y: 0, width: 16, height: 16))
-            indicator.style = .spinning
-            indicator.controlSize = .small
-            indicator.isDisplayedWhenStopped = false
-            button.addSubview(indicator)
-            spinner = indicator
+        if model.busy {
+            menu.cancelTracking()
+            statusItem.menu = nil
+            if loadingTimer == nil {
+                loadingFrame = 0
+                loadingTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+                    guard let self else { return }
+                    self.loadingFrame = (self.loadingFrame + 1) % 8
+                    self.renderStatus()
+                }
+            }
+        } else {
+            loadingTimer?.invalidate()
+            loadingTimer = nil
+            statusItem.menu = menu
         }
-        spinner?.isHidden = !model.busy
-        if model.busy { spinner?.startAnimation(nil) } else { spinner?.stopAnimation(nil) }
-        let icon = NSImage(systemSymbolName: model.state == .running ? "point.3.connected.trianglepath.dotted" :
-                            model.state == .unavailable ? "exclamationmark.triangle" : "circle.dotted",
-                           accessibilityDescription: "Nagi")
+        let loadingSymbols = ["circle.dotted", "circle.lefthalf.filled", "circle.righthalf.filled", "circle.fill",
+                              "circle.righthalf.filled", "circle.lefthalf.filled", "circle.dotted", "circle.dotted"]
+        let iconName = model.busy ? loadingSymbols[loadingFrame] :
+            (model.state == .running ? "point.3.connected.trianglepath.dotted" :
+             model.state == .unavailable ? "exclamationmark.triangle" : "circle.dotted")
+        let icon = NSImage(systemSymbolName: iconName, accessibilityDescription: "Nagi")
             ?? NSImage(systemSymbolName: "network", accessibilityDescription: "Nagi")
         icon?.isTemplate = true
-        button.image = model.busy ? nil : icon
+        button.image = icon
         button.imagePosition = .imageLeading
         let title = model.statusTitle
         button.attributedTitle = NSAttributedString(string: icon == nil ? "N" : (title.isEmpty ? "" : "  " + title),
