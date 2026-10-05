@@ -149,7 +149,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	return result, err
 }
 
-func quit(ctx context.Context, args []string, version, commit string) (any, error) {
+func quit(ctx context.Context, args []string, version, commit string) (result any, err error) {
 	if len(args) != 1 {
 		return nil, usage("quit")
 	}
@@ -165,7 +165,10 @@ func quit(ctx context.Context, args []string, version, commit string) (any, erro
 	completed := false
 	defer func() {
 		if !completed {
-			_, _ = withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "stopped") })
+			_, rollbackErr := withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "stopped") })
+			if rollbackErr != nil {
+				err = fmt.Errorf("%w; could not clear pending quit state: %v; repair Nagi's state directory and retry `nagi quit`", err, rollbackErr)
+			}
 		}
 	}()
 	if err := pauseMonitor(); err != nil {
