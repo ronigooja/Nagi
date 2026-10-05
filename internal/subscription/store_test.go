@@ -12,7 +12,10 @@ import (
 )
 
 func TestRefreshCachesAndHidesURL(t *testing.T) {
+	var gotUserAgent, gotAccept string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUserAgent = r.Header.Get("User-Agent")
+		gotAccept = r.Header.Get("Accept")
 		w.Write([]byte("proxies: []\n"))
 	}))
 	defer server.Close()
@@ -29,6 +32,9 @@ func TestRefreshCachesAndHidesURL(t *testing.T) {
 	result, err := s.Refresh(context.Background(), "work")
 	if err != nil || result.Bytes == 0 {
 		t.Fatalf("refresh: %+v, %v", result, err)
+	}
+	if gotUserAgent != subscriptionUserAgent || !strings.Contains(gotAccept, "application/yaml") {
+		t.Fatalf("subscription negotiation headers: user-agent=%q accept=%q", gotUserAgent, gotAccept)
 	}
 	cache, err := s.Cached("work")
 	if err != nil || string(cache) != "proxies: []\n" {

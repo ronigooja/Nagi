@@ -67,6 +67,11 @@ type Store struct {
 	Client    *http.Client
 }
 
+// subscriptionHeaders identify Nagi as a mihomo/Clash Meta client. XBoard
+// uses the client hint to select its native YAML subscription format instead
+// of returning a generic V2Ray link list.
+const subscriptionUserAgent = "clash.meta"
+
 func NewStore(configDir, cacheDir string, client *http.Client) *Store {
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}
@@ -219,6 +224,8 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 		if err != nil {
 			return zero, errors.New("invalid subscription request")
 		}
+		req.Header.Set("User-Agent", subscriptionUserAgent)
+		req.Header.Set("Accept", "application/yaml, text/yaml, text/plain;q=0.9, */*;q=0.8")
 		resp, err := s.Client.Do(req)
 		if err != nil {
 			return zero, fmt.Errorf("subscription fetch failed: %w", sanitizeError(err))
