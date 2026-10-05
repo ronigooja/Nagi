@@ -54,5 +54,5 @@ if [[ -n "${TARGET_GOOS:-}" || -n "${TARGET_GOARCH:-}" ]]; then
     output_dir="$project_dir/dist/$TARGET_GOOS-$TARGET_GOARCH"
 fi
 mkdir -p "$output_dir"
-(cd "$engine_dir" && "$go_bin" build -o "$output_dir/mihomo" .)
+(cd "$engine_dir" && "$go_bin" build -tags with_gvisor -o "$output_dir/mihomo" .)
 (cd "$project_dir" && "$go_bin" build -ldflags "-X main.version=$nagi_version -X main.engineCommit=$commit" -o "$output_dir/nagi" ./cmd/nagi)

@@ -2,7 +2,7 @@
 
 This document describes development builds and verification for Nagi and the pinned mihomo source.
 
-Use Go 1.20 or newer. `engine.lock` records the mihomo repository, ref, and exact commit. `make build` invokes `scripts/build.sh` and creates `bin/mihomo` and `bin/nagi`. Set `MIHOMO_DIR` to a checkout at the exact locked commit for local builds. Otherwise the script clones or updates `.build/mihomo` and checks out that commit. A mismatch fails the build.
+Use Go 1.20 or newer. `engine.lock` records the mihomo repository, ref, and exact commit. `make build` invokes `scripts/build.sh` and creates `bin/mihomo` and `bin/nagi`. The mihomo build includes `with_gvisor`, which is required when a profile selects the gVisor TUN stack. Set `MIHOMO_DIR` to a checkout at the exact locked commit for local builds. Otherwise the script clones or updates `.build/mihomo` and checks out that commit. A mismatch fails the build.
 
 ```sh
 GO=/path/to/go MIHOMO_DIR=/path/to/mihomo make build
