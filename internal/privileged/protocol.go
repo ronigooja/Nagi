@@ -32,7 +32,7 @@ func SocketPath(uid int) string {
 
 func RuntimeRoot() string {
 	if runtime.GOOS == "darwin" {
-		return "/private/var/run/nagi"
+		return "/Library/Application Support/NagiPrivileged"
 	}
 	return "/run/nagi"
 }
