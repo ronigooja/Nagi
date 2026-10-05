@@ -30,7 +30,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `profile export NAME FILE` | Write source YAML to a new private file; existing destinations are refused. |
 | `profile backup NAME` | Copy source YAML to `profiles/NAME.yaml.bak`. |
 | `profile restore NAME` | Validate and restore the latest backup; reload if selected and running. |
-| `profile diff NAME [OTHER\|backup]` | Show changed source lines against another profile or the backup (default). |
+| `profile diff NAME [OTHER\|backup]` | Show changed source lines, structural YAML paths, and conflict warnings against another profile or the backup (default). |
 | `profile override set NAME FILE` | Save a separate local YAML mapping (maximum 8 MiB) and apply it to this profile. |
 | `profile override show NAME` | Print the local override YAML. |
 | `profile override clear NAME` | Remove the local override and reload if selected and running. |
@@ -85,7 +85,7 @@ A completed diagnostic report exits with status `0`, even when `healthy` is fals
 
 ## Local profile files and overrides
 
-`profile export` reads the source profile, including any secrets it contains. It creates `FILE` with mode `0600` and never overwrites an existing path. `profile backup` explicitly refreshes the single `.bak` recovery copy. `profile restore` validates that copy before replacing the source profile; a successful restore swaps the source and backup contents. If validation or a running engine reload fails, the source and original backup remain available. `profile diff` compares source YAML lines and returns `name`, `other`, `changed` (boolean), and `diff` (string) in JSON. It does not parse or redact secrets.
+`profile export` reads the source profile, including any secrets it contains. It creates `FILE` with mode `0600` and never overwrites an existing path. `profile backup` explicitly refreshes the single `.bak` recovery copy. `profile restore` validates that copy before replacing the source profile; a successful restore swaps the source and backup contents. If validation or a running engine reload fails, the source and original backup remain available. `profile diff` compares source YAML lines and parses both files for structural changes. JSON retains `name`, `other`, `changed` (boolean), and `diff` (string), and adds `changes` and `warnings`. `changes` contains YAML pointer paths with `added`, `removed`, `modified`, `type_change`, or `order_changed` kinds, plus applicable `before` and `after` values. Proxies and groups with unique names use their escaped names in paths; their order is reported separately. Warnings flag rule changes, DNS policy changes, removed proxies or groups, YAML type changes, and exposure setting changes. If either file cannot be parsed as YAML or a structural value cannot be represented in JSON, the line diff remains available, `changes` is empty, and `warnings` explains the failure. The line diff and structural values can contain credentials; do not publish their output without review.
 
 Overrides live in `config/overrides/NAME.yaml`, separate from `config/profiles/NAME.yaml` and subscription cache. The override must be a YAML mapping; its keys replace corresponding source keys, and nested mappings merge recursively except DNS `nameserver-policy` and `proxy-server-nameserver-policy`, which replace their source maps. Lists, including `rules` and DNS server lists, are replaced as a whole. `profile override set` validates the merged configuration with mihomo and reloads it when selected and running. The merged file is generated as `config/profiles/.effective-NAME.yaml` for mihomo, keeping relative file paths anchored in the profiles directory; `profile export`, `config show`, and backups continue to use the source YAML. `profile override clear` restores the source configuration. Removing a profile retains its override file, so clear it explicitly before reusing the name if needed. Overrides can contain credentials and are stored with private permissions.
 
@@ -182,7 +182,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `profile export NAME FILE` | `name`, `file` (strings), `exported: true`. |
 | `profile backup NAME` | `name` (string), `backed_up: true`. |
 | `profile restore NAME` | `name` (string), `restored: true`. |
-| `profile diff NAME [OTHER\|backup]` | `name`, `other`, `diff` (strings), `changed` (boolean). |
+| `profile diff NAME [OTHER\|backup]` | `name`, `other`, `diff` (strings), `changed` (boolean), `changes` (array of `path`, `kind`, optional `before` and `after`), `warnings` (string array). |
 | `profile override set NAME FILE` | `name` (string), `override_saved: true`. |
 | `profile override show NAME` | `name`, `yaml` (strings). |
 | `profile override clear NAME` | `name` (string), `override_cleared: true`. |
@@ -269,7 +269,7 @@ JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolea
 
 `start` is duplicate-safe: a live PID returns `already_running`; a stale PID is reported as an unexpected exit and can be repaired with `recover` or `startup check` before starting again. The lifecycle lock serializes concurrent start, stop, restart, and recovery calls. `stop` remains explicit and returns `not_running` when there is no live process. Login service support is platform-specific: macOS uses a per-user launchd Agent and Linux uses a per-user systemd unit. Missing service-manager sessions return an actionable manager error.
 
-The service manager starts Nagi at login, but Nagi does not automatically restart a crashed mihomo process. `startup check` is intended for launch agents, resume hooks, or an operator after network and sleep/wake changes; it reports whether the control API is reachable and cleans stale state. Applications should inspect `running`, `control_api`, and `recovered` fields instead of assuming that an active service means an active proxy.
+The installed login service runs a foreground Nagi monitor. It checks the process and control API every 30 seconds; after a crash it removes stale runtime markers and attempts to start mihomo again. Failed checks or starts use exponential delays up to five minutes. The systemd unit restarts the monitor after a monitor failure; launchd uses `KeepAlive`. Disabling or uninstalling the service stops the monitor and mihomo. While the service is enabled, an explicit `nagi stop` is temporary because the next check restarts mihomo. A live process with an unreachable control API is reported in service logs and is never killed automatically. The periodic check also runs after network changes and sleep/wake, but it does not prove routes or DNS interception were restored. `startup check` remains a manual, non-restarting check. Applications should inspect `running`, `control_api`, and `recovered` fields instead of assuming that an active service means an active proxy.
 
 ## Diagnostics and security
 

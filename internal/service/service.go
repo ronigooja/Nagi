@@ -103,11 +103,11 @@ func install(result Result, executable string, uid int, command runner) (Result,
 func definition(manager, executable string) (string, error) {
 	switch manager {
 	case "systemd":
-		// systemd expands dollar signs in ExecStart and ExecStop even within quotes.
+		// systemd expands dollar signs in ExecStart even within quotes.
 		path := strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "%", "%%", "$", "$$").Replace(executable)
-		return "[Unit]\nDescription=Nagi mihomo manager\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=\"" + path + "\" start\nExecStop=\"" + path + "\" stop\n\n[Install]\nWantedBy=default.target\n", nil
+		return "[Unit]\nDescription=Nagi mihomo manager\n\n[Service]\nType=simple\nExecStart=\"" + path + "\" __startup-watch\nRestart=on-failure\nRestartSec=10s\nTimeoutStopSec=20s\n\n[Install]\nWantedBy=default.target\n", nil
 	case "launchd":
-		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>io.nagi.cli</string><key>ProgramArguments</key><array><string>" + xmlEscape(executable) + "</string><string>start</string></array><key>RunAtLoad</key><true/></dict></plist>\n", nil
+		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>io.nagi.cli</string><key>ProgramArguments</key><array><string>" + xmlEscape(executable) + "</string><string>__startup-watch</string></array><key>RunAtLoad</key><true/><key>KeepAlive</key><true/></dict></plist>\n", nil
 	default:
 		return "", fmt.Errorf("unsupported service manager: %s", manager)
 	}

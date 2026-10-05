@@ -38,6 +38,9 @@ func (e *commandError) Error() string   { return e.err.Error() }
 func fail(code string, err error) error { return &commandError{code, err} }
 
 func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
+	if len(args) == 1 && args[0] == "__startup-watch" {
+		return runStartupWatch(stderr, version, commit)
+	}
 	if len(args) == 2 && args[0] == "__traffic-watch" {
 		pid, e := strconv.Atoi(args[1])
 		if e != nil || pid <= 0 {
@@ -929,7 +932,12 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 		if err != nil {
 			return nil, fail("profile_error", err)
 		}
-		return map[string]any{"name": args[2], "other": other, "diff": profileDiff(before, after), "changed": string(before) != string(after)}, nil
+		changes, warnings, parseErr := structuralDiff(before, after)
+		if parseErr != nil {
+			warnings = []string{parseErr.Error() + "; line diff remains available"}
+			changes = []StructuralChange{}
+		}
+		return map[string]any{"name": args[2], "other": other, "diff": profileDiff(before, after), "changed": string(before) != string(after), "changes": changes, "warnings": warnings}, nil
 	case "override":
 		if len(args) < 4 {
 			return nil, usage("profile override set NAME FILE|show NAME|clear NAME")

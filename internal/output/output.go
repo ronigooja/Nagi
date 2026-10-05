@@ -493,7 +493,17 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			if v["changed"] == false {
 				return line(w, "No differences.")
 			}
-			return line(w, v["diff"].(string))
+			if err := line(w, v["diff"].(string)); err != nil {
+				return err
+			}
+			if warnings, ok := v["warnings"].([]string); ok {
+				for _, warning := range warnings {
+					if err := line(w, "Warning: "+warning); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
 		case v["imported"] == true:
 			return line(w, fmt.Sprintf("Imported profile %s. Run `nagi profile use %s` to select it.", name, name))
 		case v["removed"] == true:

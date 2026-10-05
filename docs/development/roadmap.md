@@ -1,10 +1,10 @@
 # Nagi Feature Roadmap
 
-This document records capabilities sought for making Nagi a complete daily-use proxy client. Some subscription items are implemented; the [CLI reference](../reference/cli.md) is authoritative for current behavior. All other items remain proposals unless listed there and verified in the current code.
+This document audits the daily-use capability targets. The [CLI reference](../reference/cli.md) is authoritative for implemented commands and their limits. Items explicitly labeled remaining below are not implemented.
 
 ## TUI
 
-The terminal dashboard is implemented through `nagi tui`; the [guide](../guides/terminal-dashboard.md) defines keys and current behavior. The following is the target scope:
+The terminal dashboard is implemented through `nagi tui`; the [guide](../guides/terminal-dashboard.md) defines keys and current behavior. It covers:
 
 - current engine status, selected profile, proxy mode, and DNS status;
 - proxy group and node browsing;
@@ -18,7 +18,7 @@ The existing CLI remains the interface for scripts, automation, and the macOS ap
 
 ## Subscription management
 
-Implemented CLI behavior covers the actions below within the formats and preservation limits in the [CLI reference](../reference/cli.md). The TUI subscription actions remain part of the TUI proposal.
+Implemented CLI behavior covers the actions below within the formats and preservation limits in the [CLI reference](../reference/cli.md). The TUI can update and apply a selected subscription.
 
 - Add, remove, update, and apply subscriptions.
 - Support common subscription formats in addition to complete mihomo YAML.
@@ -29,13 +29,13 @@ Implemented CLI behavior covers the actions below within the formats and preserv
 
 ## Profiles and local configuration
 
-The CLI now supports source profile import, export, switch, remove, validation, backup, restore, line differences, and separate local YAML overrides. See the [CLI reference](../reference/cli.md#local-profile-files-and-overrides) for the implemented contract.
+The CLI supports source profile import, export, switch, remove, validation, backup, restore, line and structural differences with conflict warnings, and separate local YAML overrides. See the [CLI reference](../reference/cli.md#local-profile-files-and-overrides) for the implemented contract.
 
-- Add richer structural differences and conflict warnings for configuration versions.
+- Compare YAML paths, named proxies and groups, ordering, and important configuration hazards before applying another version.
 
 ## Proxy groups and nodes
 
-The CLI implements the items below as defined in the [CLI reference](../reference/cli.md); TUI browsing remains in the TUI proposal.
+The CLI implements the items below as defined in the [CLI reference](../reference/cli.md); the TUI also browses groups and nodes, searches and tests nodes, and selects them.
 
 - List groups, nodes, and the current selection.
 - Search nodes and provide dynamic completion.
@@ -48,7 +48,6 @@ The CLI implements the items below as defined in the [CLI reference](../referenc
 
 Implemented CLI commands and scope are in the [CLI reference](../reference/cli.md#traffic-access). The remaining platform and interception limits are documented there and in the [traffic access guide](../guides/traffic-access.md).
 
-
 - Enable, disable, and report the system proxy.
 - Enable, disable, and report TUN mode.
 - Show HTTP, HTTPS, and SOCKS port status.
@@ -60,13 +59,11 @@ Implemented CLI commands and scope are in the [CLI reference](../reference/cli.m
 
 The CLI now creates default profiles with IPv4/IPv6 mihomo DNS and DoH. Selected profiles can configure multiple custom DoH upstreams, direct or proxy-node routing, explicit domain exceptions, TUN DNS hijack, cache flushing, and mihomo DNS queries. Failure of all configured upstreams is reported by mihomo without a configured plaintext fallback. See the [DNS CLI reference](../reference/cli.md#dns-policy-and-leak-checks).
 
-- Verify TUN route ownership and system resolver behavior on supported macOS and Linux installations.
-- Add an external DNS leak test that distinguishes applications captured by TUN from those using another network path.
+Remaining: verify TUN route ownership and system resolver behavior on supported macOS and Linux installations, and add an external DNS leak test that distinguishes applications captured by TUN from those using another network path. The current `dns check` does not make either claim.
 
 ## Rules
 
 Implemented CLI commands and persistence behavior are in the [CLI reference](../reference/cli.md#rules) and [rules guide](../guides/rules.md).
-
 
 - View active rules and rule providers.
 - Add, remove, enable, and disable custom rules.
@@ -78,7 +75,7 @@ Implemented CLI commands and persistence behavior are in the [CLI reference](../
 
 ## Runtime control
 
-The CLI implements the runtime-control items below as defined in the [CLI reference](../reference/cli.md). Interactive TUI controls remain part of the TUI proposal.
+The CLI implements the runtime-control items below as defined in the [CLI reference](../reference/cli.md). The TUI also cycles the runtime mode.
 
 - Switch between `rule`, `global`, and `direct` modes.
 - Distinguish temporary runtime changes from persistent settings.
@@ -91,18 +88,19 @@ The CLI implements the runtime-control items below as defined in the [CLI refere
 
 Implemented lifecycle, startup, and stale-state behavior is documented in the [CLI reference](../reference/cli.md#startup-and-background-operation) and [startup guide](../guides/startup.md).
 
-
 - Start, stop, and restart the engine.
 - Start automatically at login.
 - Show service status in addition to installing and uninstalling the service.
-- Recover from unexpected engine exits.
-- Recheck or restore state after network changes, sleep, and wake.
 - Prevent duplicate starts and distinguish stale state from a live engine.
+
+- Recover after an unexpected engine exit while the login service is enabled.
+- Recheck process and control API state periodically, including after network changes, sleep, and wake.
+
+Remaining: the periodic check does not verify OS route ownership, resolver capture, or restored connectivity. A live process whose control API is unreachable needs manual inspection.
 
 ## Diagnostics and security
 
 Implemented checks, redaction, and kill-switch capability boundaries are documented in the [CLI reference](../reference/cli.md#diagnostics-and-security) and [diagnostics guide](../guides/diagnostics.md).
-
 
 - Check the mihomo executable, configuration, ports, Unix Socket, DNS, and proxy connectivity.
 - Distinguish a live process from a reachable control API and a working proxy path.
@@ -115,7 +113,6 @@ Implemented checks, redaction, and kill-switch capability boundaries are documen
 ## CLI and integration contract
 
 Implemented CLI envelope, generated shell completion, local-name candidates, and error handling are specified in the [CLI reference](../reference/cli.md) and [CLI usability rules](cli-usability.md).
-
 
 - Expose core operations through CLI commands as well as the TUI.
 - Keep the `--json` interface stable for scripts and the macOS app.

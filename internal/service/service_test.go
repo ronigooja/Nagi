@@ -18,7 +18,7 @@ func TestDefinitionEscapesPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`ExecStart="/tmp/a $$PATH%% \"name\"\\nagi" start`, `ExecStop="/tmp/a $$PATH%% \"name\"\\nagi" stop`} {
+	for _, want := range []string{`Type=simple`, `ExecStart="/tmp/a $$PATH%% \"name\"\\nagi" __startup-watch`, `Restart=on-failure`} {
 		if !strings.Contains(unit, want) {
 			t.Errorf("missing %q in %q", want, unit)
 		}
@@ -28,6 +28,9 @@ func TestDefinitionEscapesPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(plist, `/tmp/a &amp; &lt;b&gt; &quot;name&quot;`) {
+		t.Fatal(plist)
+	}
+	if !strings.Contains(plist, "<string>__startup-watch</string>") || !strings.Contains(plist, "<key>KeepAlive</key><true/>") {
 		t.Fatal(plist)
 	}
 }
