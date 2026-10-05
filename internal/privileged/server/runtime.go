@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/privileged"
@@ -227,6 +228,13 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
 	for {
+		// Mihomo creates this socket with broad default permissions. Its
+		// parent is root-only; narrow the socket before querying it.
+		if info, statErr := os.Lstat(controller); statErr == nil && info.Mode()&os.ModeSocket != 0 {
+			if owner, ok := info.Sys().(*syscall.Stat_t); ok && owner.Uid == 0 {
+				_ = os.Chmod(controller, 0600)
+			}
+		}
 		if _, err := QueryController(ctx, controller, ControllerVersion); err == nil {
 			return privileged.Response{OK: true, Running: true, PID: cmd.Process.Pid}, nil
 		}
