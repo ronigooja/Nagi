@@ -50,9 +50,11 @@ import AppKit
             if loadingTimer == nil {
                 loadingFrame = 0
                 loadingTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
-                    guard let self else { return }
-                    self.loadingFrame = (self.loadingFrame + 1) % 8
-                    self.renderStatus()
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.loadingFrame = (self.loadingFrame + 1) % 8
+                        self.renderStatus()
+                    }
                 }
             }
         } else {
