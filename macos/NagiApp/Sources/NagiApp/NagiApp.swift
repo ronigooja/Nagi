@@ -1,224 +1,205 @@
-import SwiftUI
+import AppKit
 
-@main struct NagiApp: App {
-    @StateObject private var model = AppModel()
+@MainActor @main enum NagiApp {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = MenuAppDelegate()
+        app.delegate = delegate
+        app.run()
+    }
+}
 
-    var body: some Scene {
-        WindowGroup("Nagi") {
-            ContentView(model: model)
-                .frame(minWidth: 760, minHeight: 520)
-                .task { await model.pollStatus() }
+@MainActor final class MenuAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private let model = AppModel()
+    private var statusItem: NSStatusItem!
+    private let menu = NSMenu()
+    private var pulse: Timer?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.menu = menu
+        menu.delegate = self
+        model.onChange = { [weak self] in self?.renderStatus() }
+        renderStatus()
+        pulse = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.model.ensureFreshTraffic(); self?.renderStatus() }
         }
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep(_:)),
+            name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(didWake(_:)),
+            name: NSWorkspace.didWakeNotification, object: nil)
+        model.launch()
     }
-}
 
-private enum Page: String, CaseIterable, Identifiable {
-    case dashboard = "Dashboard"
-    case proxies = "Proxies"
-    case subscriptions = "Subscriptions"
-    case settings = "Settings"
-    var id: String { rawValue }
-    var icon: String {
-        switch self {
-        case .dashboard: return "speedometer"
-        case .proxies: return "point.3.connected.trianglepath.dotted"
-        case .subscriptions: return "arrow.triangle.2.circlepath"
-        case .settings: return "gearshape"
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // The Quit menu owns termination, so the CLI can restore managed OS state first.
+        return .terminateNow
+    }
+
+    private func renderStatus() {
+        guard let button = statusItem?.button else { return }
+        let icon = NSImage(systemSymbolName: model.state == .running ? "point.3.connected.trianglepath.dotted" :
+                            model.state == .unavailable ? "exclamationmark.triangle" : "circle.dotted",
+                           accessibilityDescription: "Nagi")
+        icon?.isTemplate = true
+        button.image = icon
+        button.imagePosition = .imageLeading
+        let title = model.statusTitle
+        button.attributedTitle = NSAttributedString(string: title.isEmpty ? "" : "  " + title,
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)])
+        let state: String
+        switch model.state {
+        case .starting: state = "starting"
+        case .running: state = "running"
+        case .stopped: state = "stopped"
+        case .unavailable: state = "status unavailable"
         }
+        button.setAccessibilityLabel("Nagi \(state), \(model.accessibilityTraffic)")
     }
-}
 
-private struct ContentView: View {
-    @ObservedObject var model: AppModel
-    @State private var page: Page? = .dashboard
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        rebuildMenu()
+        Task { await model.refreshMenuData() }
+    }
 
-    var body: some View {
-        NavigationSplitView {
-            List(Page.allCases, selection: $page) { item in
-                Label(item.rawValue, systemImage: item.icon).tag(item)
-            }
-            .navigationTitle("Nagi")
-            .listStyle(.sidebar)
-        } detail: {
-            VStack(spacing: 0) {
-                if let error = model.errorMessage {
-                    HStack(alignment: .top) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                        Text(error).frame(maxWidth: .infinity, alignment: .leading)
-                        Button("Dismiss") { model.errorMessage = nil }
-                    }
-                    .padding(10)
-                    .background(.orange.opacity(0.18))
-                }
-                switch page ?? .dashboard {
-                case .dashboard: DashboardView(model: model)
-                case .proxies: ProxiesView(model: model)
-                case .subscriptions: SubscriptionsView(model: model)
-                case .settings: SettingsView(model: model)
-                }
-            }
-            .task(id: page) {
-                switch page ?? .dashboard {
-                case .dashboard: await model.refreshDashboard()
-                case .proxies: await model.refreshProxies()
-                case .subscriptions: await model.refreshSubscriptions()
-                case .settings: break
-                }
-            }
+    private func rebuildMenu() {
+        menu.removeAllItems()
+        let stateTitle: String
+        switch model.state {
+        case .starting: stateTitle = "Nagi · Starting…"
+        case .running: stateTitle = "Nagi · Running"
+        case .stopped: stateTitle = "Nagi · Stopped"
+        case .unavailable: stateTitle = "Nagi · Status unavailable"
         }
-    }
-}
-
-private struct DashboardView: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack {
-                    Text("Dashboard").font(.largeTitle.bold())
-                    Spacer()
-                    Button("Refresh") { Task { await model.refreshDashboard() } }
-                }
-                GroupBox("Runtime") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label(model.running ? "Running" : "Stopped", systemImage: model.running ? "checkmark.circle.fill" : "stop.circle")
-                            .foregroundColor(model.running ? .green : .secondary)
-                        if let pid = model.pid { LabeledContent("PID", value: String(pid)) }
-                        if let version = model.version { LabeledContent("mihomo", value: version) }
-                        if let port = model.mixedPort { LabeledContent("Mixed port", value: String(port)) }
-                        HStack {
-                            Button("Start") { Task { await model.start() } }.disabled(model.busy || model.running)
-                            Button("Stop") { Task { await model.stop() } }.disabled(model.busy || !model.running)
-                            Button("Restart") { Task { await model.restart() } }.disabled(model.busy || !model.running)
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
-                }
-                GroupBox("Profile") {
-                    HStack {
-                        Text(model.currentProfile ?? "No profile selected")
-                        Spacer()
-                        Menu("Switch profile") {
-                            ForEach(model.profiles, id: \.self) { profile in
-                                Button(profile) { Task { await model.useProfile(profile) } }
-                            }
-                        }.disabled(model.busy || model.profiles.isEmpty)
-                    }.padding(8)
-                }
-                GroupBox("Connections") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Active connections: \(model.connections.count)")
-                            Spacer()
-                            Button("Refresh") { Task { await model.refreshConnections() } }
-                        }
-                        ForEach(model.connections.prefix(20)) { connection in
-                            HStack {
-                                Text(connection.host).lineLimit(1)
-                                Spacer()
-                                Text(connection.network).foregroundStyle(.secondary)
-                            }
-                        }
-                    }.padding(8)
-                }
-                GroupBox("Recent logs") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if model.logs.isEmpty { Text("No logs available").foregroundStyle(.secondary) }
-                        ForEach(model.logs.suffix(50).indices, id: \.self) { index in
-                            Text(model.logs[index]).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
-                }
-            }.padding(24)
+        let status = NSMenuItem(title: stateTitle, action: nil, keyEquivalent: "")
+        status.isEnabled = false; menu.addItem(status)
+        if let error = model.quitErrorMessage {
+            let item = NSMenuItem(title: "⚠ \(error)", action: nil, keyEquivalent: "")
+            item.isEnabled = false; item.toolTip = error; menu.addItem(item)
         }
-    }
-}
-
-private struct ProxiesView: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Proxies").font(.largeTitle.bold())
-                Spacer()
-                Button("Refresh") { Task { await model.refreshProxies() } }
-            }
-            if model.groups.isEmpty { emptyState("No proxy groups", "Start mihomo and refresh to see proxy groups.") }
-            else {
-                List(model.groups) { group in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(group.name).font(.headline)
-                            Text("Current: \(group.selected)").foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Menu("Select node") {
-                            ForEach(group.nodes, id: \.self) { node in
-                                Button(node) { Task { await model.select(node, in: group.name) } }
-                            }
-                        }.disabled(model.busy || group.nodes.isEmpty)
-                    }.padding(.vertical, 5)
-                }
-            }
-        }.padding(24)
-    }
-}
-
-private struct SubscriptionsView: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Subscriptions").font(.largeTitle.bold())
-                Spacer()
-                Button("Refresh list") { Task { await model.refreshSubscriptions() } }
-            }
-            if model.subscriptions.isEmpty { emptyState("No subscriptions", "Add subscriptions with the Nagi CLI.") }
-            else {
-                List(model.subscriptions) { subscription in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(subscription.name).font(.headline)
-                            if let updated = subscription.updatedAt { Text("Updated: \(updated)").foregroundStyle(.secondary) }
-                        }
-                        Spacer()
-                        Button("Update") { Task { await model.update(subscription.name) } }.disabled(model.busy)
-                    }.padding(.vertical, 5)
-                }
-            }
-        }.padding(24)
-    }
-}
-
-private func emptyState(_ title: String, _ description: String) -> some View {
-    VStack(spacing: 8) {
-        Text(title).font(.title2)
-        Text(description).foregroundStyle(.secondary)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-}
-
-private struct SettingsView: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        Form {
-            Section("CLI") {
-                LabeledContent("Executable", value: NagiCLIClient.executable.path)
-                Text("The app invokes this executable with --json for all operations.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Status") {
-                Picker("Refresh interval", selection: $model.statusPollSeconds) {
-                    Text("2 seconds").tag(2)
-                    Text("5 seconds").tag(5)
-                    Text("10 seconds").tag(10)
-                }
-            }
+        if let error = model.errorMessage {
+            let item = NSMenuItem(title: "⚠ \(error)", action: nil, keyEquivalent: "")
+            item.isEnabled = false; item.toolTip = error; menu.addItem(item)
         }
-        .formStyle(.grouped)
-        .navigationTitle("Settings")
+        if let notice = model.notice {
+            let item = NSMenuItem(title: notice, action: nil, keyEquivalent: "")
+            item.isEnabled = false; menu.addItem(item)
+        }
+        if model.state != .running {
+            add("Retry Start", action: #selector(retryStart), enabled: !model.busy)
+        }
+        menu.addItem(.separator())
+        add("System Proxy", command: ["system-proxy", model.systemProxy == true ? "disable" : "enable"],
+            checked: model.systemProxy == true, enabled: model.state == .running && model.systemProxy != nil && !model.busy)
+        add("TUN", command: ["tun", model.tun == true ? "disable" : "enable"],
+            checked: model.tun == true, enabled: model.state == .running && model.tun != nil && !model.busy)
+        if model.tun == true && model.tunAdapter != "up" {
+            let warning = NSMenuItem(title: "TUN adapter: \(model.tunAdapter ?? "unknown") · Check logs in CLI", action: nil, keyEquivalent: "")
+            warning.isEnabled = false; menu.addItem(warning)
+        }
+        let modeMenu = NSMenu()
+        for value in ["rule", "global", "direct"] {
+            add(value.capitalized, command: ["mode", value], checked: model.mode == value,
+                enabled: model.state == .running && !model.busy, to: modeMenu)
+        }
+        addSubmenu("Mode", modeMenu, enabled: model.state == .running)
+
+        let groupsMenu = NSMenu()
+        if model.groups.isEmpty { disabled("No proxy groups", to: groupsMenu) }
+        for group in model.groups {
+            let choices = NSMenu()
+            if group.selectable {
+                for node in group.nodes {
+                    add(node, command: ["proxy", "select", group.name, node],
+                        checked: group.selected == node, enabled: !model.busy, to: choices)
+                }
+            } else { disabled("\(group.kind) · \(group.selected)", to: choices) }
+            addSubmenu(group.name, choices, enabled: group.selectable && !group.nodes.isEmpty, to: groupsMenu)
+        }
+        addSubmenu("Proxy Groups", groupsMenu, enabled: model.state == .running)
+        menu.addItem(.separator())
+
+        let profileMenu = NSMenu()
+        if model.profiles.isEmpty { disabled("No profiles", to: profileMenu) }
+        for name in model.profiles {
+            add(name, command: ["profile", "use", name], checked: model.profile == name,
+                enabled: !model.busy, to: profileMenu)
+        }
+        addSubmenu("Profiles", profileMenu, enabled: !model.profiles.isEmpty)
+
+        let subscriptionMenu = NSMenu()
+        if model.subscriptions.isEmpty { disabled("No subscriptions · Add one with the CLI", to: subscriptionMenu) }
+        for subscription in model.subscriptions {
+            let actions = NSMenu()
+            add("Update cached copy", command: ["subscription", "update", subscription.name],
+                enabled: !model.busy, to: actions)
+            add("Apply cached copy to profile", command: ["subscription", "apply", subscription.name],
+                enabled: !model.busy, to: actions)
+            if let updated = subscription.updatedAt { disabled("Last update: \(updated)", to: actions) }
+            addSubmenu(subscription.name, actions, to: subscriptionMenu)
+        }
+        addSubmenu("Subscriptions", subscriptionMenu, enabled: !model.subscriptions.isEmpty)
+        menu.addItem(.separator())
+
+        let displayMenu = NSMenu()
+        for option in TrafficDisplay.allCases {
+            let item = add(option.title, action: #selector(setDisplay(_:)), checked: model.display == option, to: displayMenu)
+            item.representedObject = option.rawValue
+        }
+        addSubmenu("Display", displayMenu)
+        let startupMenu = NSMenu()
+        add("Open app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
+        let startupCommand = model.serviceEnabled == true ? ["startup", "disable"] :
+            model.serviceInstalled == true ? ["startup", "enable"] : ["service", "install"]
+        add("Start Nagi at login", command: startupCommand,
+            checked: model.serviceEnabled == true, enabled: model.serviceEnabled != nil && !model.busy, to: startupMenu)
+        if model.serviceEnabled == nil { disabled("Service status unavailable", to: startupMenu) }
+        addSubmenu("Startup", startupMenu)
+        menu.addItem(.separator())
+        add("Help", action: #selector(openHelp))
+        add("About Nagi", action: #selector(showAbout))
+        add("Quit Nagi", action: #selector(quit), enabled: !model.busy)
     }
+
+    @discardableResult private func add(_ title: String, action: Selector, checked: Bool = false,
+                                        enabled: Bool = true, to target: NSMenu? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self; item.state = checked ? .on : .off; item.isEnabled = enabled
+        (target ?? menu).addItem(item)
+        return item
+    }
+    @discardableResult private func add(_ title: String, command: [String], checked: Bool = false,
+                                        enabled: Bool = true, to target: NSMenu? = nil) -> NSMenuItem {
+        let item = add(title, action: #selector(runCommand(_:)), checked: checked, enabled: enabled, to: target)
+        item.representedObject = command
+        return item
+    }
+    private func addSubmenu(_ title: String, _ submenu: NSMenu, enabled: Bool = true, to target: NSMenu? = nil) {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.submenu = submenu; item.isEnabled = enabled
+        (target ?? menu).addItem(item)
+    }
+    private func disabled(_ title: String, to target: NSMenu) {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false; target.addItem(item)
+    }
+    @objc private func runCommand(_ sender: NSMenuItem) {
+        guard let command = sender.representedObject as? [String] else { return }
+        let success = command.count >= 2 && command[0] == "subscription" && command[1] == "update"
+            ? "Cache updated. Apply the cached copy separately." : nil
+        model.perform(command, success: success)
+    }
+    @objc private func retryStart() { model.retryStart() }
+    @objc private func setDisplay(_ sender: NSMenuItem) {
+        if let value = sender.representedObject as? String, let display = TrafficDisplay(rawValue: value) { model.display = display }
+    }
+    @objc private func toggleAppLogin() { model.setAppLogin(!model.appLoginEnabled) }
+    @objc private func openHelp() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/ronigooja/Nagi#documentation")!)
+    }
+    @objc private func showAbout() { NSApp.orderFrontStandardAboutPanel(nil); NSApp.activate(ignoringOtherApps: true) }
+    @objc private func quit() { model.quit() }
+    @objc private func willSleep(_ notification: Notification) { model.pauseForSleep() }
+    @objc private func didWake(_ notification: Notification) { model.resumeAfterWake() }
 }

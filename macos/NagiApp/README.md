@@ -1,15 +1,18 @@
-# Nagi macOS app
+# Nagi macOS menu app
 
-This SwiftUI app provides runtime status, lifecycle controls, profile switching, proxy selection, subscription refresh, connections, recent logs, and app settings. It requires macOS 13 or later.
+The macOS 13+ app lives only in the menu bar. It opens no main window and has no Dock icon. The native menu shows engine status, system proxy and TUN controls, runtime mode, selectable proxy groups, profiles, subscriptions, display choices, startup choices, Help, About, and Quit. It starts Nagi on launch, accepts an already running engine, and keeps the menu available if startup fails so Retry Start can be used. Quit runs the CLI cleanup command before the app terminates; a failed cleanup leaves the menu open with the CLI error.
 
-Install the Nagi CLI as an executable at `/usr/local/bin/nagi` before opening the app. Install the matching pinned mihomo executable at `/usr/local/bin/mihomo`, or set `NAGI_MIHOMO_BIN` for the app process. The CLI path is fixed. The app invokes only `nagi --json` commands through `Process`; it does not access mihomo, its API or socket, or Nagi configuration files directly.
+Install the matching Nagi CLI as an executable at `/usr/local/bin/nagi`. Install the pinned mihomo executable beside the CLI, or provide `NAGI_MIHOMO_BIN` in the app's environment. The app invokes only `nagi --json` commands; it does not read Nagi configuration files or contact mihomo's socket or API. The [CLI reference](../../docs/reference/cli.md) defines commands and JSON fields.
 
-On macOS with Xcode command line tools installed, build with:
+The status item displays mihomo's upload and download rates once a second from `nagi --json traffic watch`. Upload and download is the default display; Download only and Icon only are alternatives. The numeric display uses a monospaced font. A dash means the engine is stopped, the stream is unavailable, or the last sample is stale; a valid zero appears as `0 B/s`. The app reconnects the stream after interruption while the engine is running. Display choice is the only app data stored in UserDefaults.
+
+Subscription Update downloads and validates a cache. Apply cached copy is a separate explicit action that activates it as a profile. Proxy selection is offered only for mihomo Selector groups. A TUN setting can be on while its adapter is absent or down; the menu shows that warning. Service login startup is managed through CLI service/startup commands. “Open app at login” uses macOS `SMAppService` and requires an installed app bundle.
+
+Build and package on macOS with Xcode command line tools:
 
 ```sh
-cd macos/NagiApp
-swift build -c release
-swift run NagiApp
+macos/NagiApp/package-app.sh
+open macos/NagiApp/dist/Nagi.app
 ```
 
-The app expects the CLI JSON envelope `{ "ok": true, "data": ... }` or `{ "ok": false, "error": { "code": "...", "message": "..." } }`. The Settings page controls only the app's status polling interval.
+The packaging script creates `dist/Nagi.app` with `LSUIElement` set to true. Run the script from the repository root or by absolute path. SwiftPM alone builds an executable, not an app bundle with the menu-only activation setting. Install the built app in Applications before enabling its login item. The app is not signed or notarized by this script, and the repository release script does not package it.

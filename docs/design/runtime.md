@@ -20,7 +20,7 @@ Subscription URLs are stored in `subscriptions.yaml` with restricted permissions
 
 Service definitions are replaced through a temporary file. On installation failure, Nagi attempts to restore the prior file state and reports the outcome without claiming the service manager also rolled back. During uninstall, a failed stop/disable preserves the definition for recovery. A subsequent systemd reload failure is reported even if the definition has already been removed. See the [CLI reference](../reference/cli.md#recovery-and-service-failures) for operational behavior.
 
-The macOS app invokes a fixed `/usr/local/bin/nagi` path through `Process` with `--json`. It does not read runtime files or contact mihomo itself. The app polls status; it has no events stream.
+The macOS menu bar app invokes a fixed `/usr/local/bin/nagi` path through `Process` with `--json`. It does not read runtime files or contact mihomo itself. On launch it calls `start`, accepting `already_running`, and on Quit it calls `quit` before terminating. Failed startup and cleanup remain visible in the menu. It polls status through short-lived commands and reads one-second mihomo traffic samples through `traffic watch` NDJSON. Stream interruption clears stale rates and triggers reconnection while the engine is running. The app stores only its traffic display choice in UserDefaults. The independent login service remains managed through CLI commands.
 
 ## Rules and subscription persistence
 

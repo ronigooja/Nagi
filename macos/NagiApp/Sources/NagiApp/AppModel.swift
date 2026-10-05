@@ -1,135 +1,238 @@
+import AppKit
 import Foundation
-import SwiftUI
+import ServiceManagement
 
-struct ProxyGroup: Identifiable {
+struct ProxyGroup {
     let name: String
+    let kind: String
     let selected: String
     let nodes: [String]
-    var id: String { name }
+    var selectable: Bool { kind.lowercased() == "selector" }
 }
-
-struct Subscription: Identifiable {
-    let name: String
-    let updatedAt: String?
-    var id: String { name }
-}
-
-struct Connection: Identifiable {
-    let id: String
-    let host: String
-    let network: String
-    let uploaded: Int?
-    let downloaded: Int?
-}
-
-@MainActor final class AppModel: ObservableObject {
-    @Published var running = false
-    @Published var pid: Int?
-    @Published var version: String?
-    @Published var mixedPort: Int?
-    @Published var profiles: [String] = []
-    @Published var currentProfile: String?
-    @Published var groups: [ProxyGroup] = []
-    @Published var subscriptions: [Subscription] = []
-    @Published var connections: [Connection] = []
-    @Published var logs: [String] = []
-    @Published var errorMessage: String?
-    @Published var busy = false
-    @Published var statusPollSeconds: Int = UserDefaults.standard.integer(forKey: "statusPollSeconds") == 0
-        ? 5 : UserDefaults.standard.integer(forKey: "statusPollSeconds") {
-        didSet { UserDefaults.standard.set(statusPollSeconds, forKey: "statusPollSeconds") }
-    }
-
-    private let cli = NagiCLIClient()
-
-    func pollStatus() async {
-        while !Task.isCancelled {
-            await refreshStatus()
-            try? await Task.sleep(nanoseconds: UInt64(max(2, statusPollSeconds)) * 1_000_000_000)
+struct Subscription { let name: String; let updatedAt: String? }
+enum TrafficDisplay: String, CaseIterable {
+    case both, download, icon
+    var title: String {
+        switch self {
+        case .both: return "Upload and download"
+        case .download: return "Download only"
+        case .icon: return "Icon only"
         }
     }
+}
+enum EngineState { case starting, running, stopped, unavailable }
 
-    func refreshStatus() async {
+@MainActor final class AppModel {
+    var onChange: (() -> Void)?
+    private let cli = NagiCLIClient()
+    private var refreshTask: Task<Void, Never>?
+    private var trafficTask: Task<Void, Never>?
+    private var trafficStream: TrafficStream?
+    private var trafficGeneration = 0
+    private var lastSample = Date.distantPast
+    private var streamStartedAt = Date.distantPast
+    private var sleeping = false
+    private var quitting = false
+    private(set) var busy = false { didSet { notify() } }
+    private(set) var state: EngineState = .starting { didSet { notify() } }
+    private(set) var errorMessage: String? { didSet { notify() } }
+    private(set) var quitErrorMessage: String? { didSet { notify() } }
+    private(set) var notice: String? { didSet { notify() } }
+    private(set) var profile: String?
+    private(set) var profiles: [String] = []
+    private(set) var groups: [ProxyGroup] = []
+    private(set) var subscriptions: [Subscription] = []
+    private(set) var mode: String?
+    private(set) var systemProxy: Bool?
+    private(set) var tun: Bool?
+    private(set) var tunAdapter: String?
+    private(set) var serviceEnabled: Bool?
+    private(set) var serviceInstalled: Bool?
+    private(set) var uploadBPS: Int64?
+    private(set) var downloadBPS: Int64?
+    var display: TrafficDisplay = TrafficDisplay(rawValue: UserDefaults.standard.string(forKey: "trafficDisplay") ?? "both") ?? .both {
+        didSet { UserDefaults.standard.set(display.rawValue, forKey: "trafficDisplay"); notify() }
+    }
+    var appLoginEnabled: Bool { SMAppService.mainApp.status == .enabled }
+    var statusTitle: String {
+        guard display != .icon else { return "" }
+        guard state == .running, Date().timeIntervalSince(lastSample) < 3.5,
+              let down = downloadBPS, let up = uploadBPS else {
+            return display == .both ? "↑ \(Self.placeholder)  ↓ \(Self.placeholder)" : "↓ \(Self.placeholder)"
+        }
+        return display == .both ? "↑ \(Self.rate(up))  ↓ \(Self.rate(down))" : "↓ \(Self.rate(down))"
+    }
+    var accessibilityTraffic: String {
+        guard state == .running, Date().timeIntervalSince(lastSample) < 3.5,
+              let up = uploadBPS, let down = downloadBPS else { return "traffic unavailable" }
+        return "upload \(Self.rate(up).trimmingCharacters(in: .whitespaces)), download \(Self.rate(down).trimmingCharacters(in: .whitespaces))"
+    }
+    private static let placeholder = String(repeating: " ", count: 9) + "—"
+    private static func rate(_ bytes: Int64) -> String {
+        let value = Double(max(0, bytes))
+        let unit: String
+        let scaled: Double
+        if value >= 1_000_000_000 { unit = "GB/s"; scaled = value / 1_000_000_000 }
+        else if value >= 1_000_000 { unit = "MB/s"; scaled = value / 1_000_000 }
+        else if value >= 1_000 { unit = "KB/s"; scaled = value / 1_000 }
+        else { unit = "B/s"; scaled = value }
+        let number = scaled < 10 && unit != "B/s" ? String(format: "%.1f", scaled) : String(format: "%.0f", scaled)
+        let label = "\(number) \(unit)"
+        return String(repeating: " ", count: max(0, 10 - label.count)) + label
+    }
+    private func notify() { onChange?() }
+
+    func launch() {
+        guard refreshTask == nil else { return }
+        busy = true
+        refreshTask = Task {
+            await startEngine()
+            busy = false
+            while !Task.isCancelled {
+                await refresh()
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
+        }
+    }
+    func retryStart() {
+        guard !busy else { return }
+        busy = true
+        Task { await startEngine(); await refresh(); busy = false }
+    }
+    private func startEngine() async {
+        state = .starting
+        do { _ = try await cli.run(["start"]); errorMessage = nil }
+        catch CLIError.command(let code, _) where code == "already_running" { errorMessage = nil }
+        catch { state = .unavailable; errorMessage = "Start failed: \(error.localizedDescription)" }
+    }
+    func refresh() async {
         do {
             let value = try await cli.run(["status"])
-            running = value["running"]?.bool ?? false
-            pid = value["pid"]?.integer
-            version = value["version"]?.string
-            mixedPort = value["mixed_port"]?.integer
+            state = value["running"]?.bool == true ? .running : .stopped
+            profile = value["profile"]?.string
+            if errorMessage?.hasPrefix("Status unavailable:") == true { errorMessage = nil }
+            if state == .running { if trafficTask == nil && !sleeping { startTraffic() } }
+            else { stopTraffic() }
         } catch {
-            running = false
-            errorMessage = error.localizedDescription
+            state = .unavailable; stopTraffic()
+            errorMessage = "Status unavailable: \(error.localizedDescription)"
         }
+        await refreshMenuData()
     }
-
-    func refreshDashboard() async {
-        await refreshStatus()
+    func refreshMenuData() async {
         do {
             let value = try await cli.run(["profile", "list"])
             profiles = value["profiles"]?.array.compactMap { $0.string ?? $0["name"]?.string } ?? []
-            currentProfile = value["current"]?.string
+            profile = value["current"]?.string ?? profile
         } catch { errorMessage = error.localizedDescription }
-        do {
-            let value = try await cli.run(["logs"])
-            logs = value["lines"]?.array.compactMap(\.string) ?? []
-        } catch { errorMessage = error.localizedDescription }
-        if running { await refreshConnections() } else { connections = [] }
-    }
-
-    func refreshProxies() async {
-        do {
-            let value = try await cli.run(["proxy", "groups"])
-            groups = value["groups"]?.array.compactMap { item in
-                guard let name = item["name"]?.string else { return nil }
-                return ProxyGroup(name: name, selected: item["now"]?.string ?? "", nodes: item["all"]?.array.compactMap(\.string) ?? [])
-            } ?? []
-            errorMessage = nil
-        } catch { errorMessage = error.localizedDescription }
-    }
-
-    func refreshSubscriptions() async {
         do {
             let value = try await cli.run(["subscription", "list"])
             subscriptions = value["subscriptions"]?.array.compactMap { item in
                 guard let name = item["name"]?.string else { return nil }
                 return Subscription(name: name, updatedAt: item["updated_at"]?.string)
             } ?? []
-            errorMessage = nil
         } catch { errorMessage = error.localizedDescription }
-    }
-
-    func refreshConnections() async {
         do {
-            let value = try await cli.run(["connections", "list"])
-            connections = value["connections"]?.array.enumerated().map { index, item in
-                let metadata = item["metadata"]
-                return Connection(
-                    id: item["id"]?.string ?? String(index),
-                    host: metadata?["host"]?.string ?? item["host"]?.string ?? "Unknown",
-                    network: metadata?["network"]?.string ?? item["network"]?.string ?? "",
-                    uploaded: item["upload"]?.integer,
-                    downloaded: item["download"]?.integer
-                )
-            } ?? []
-            errorMessage = nil
-        } catch { errorMessage = error.localizedDescription }
+            let service = try await cli.run(["service", "status"])
+            serviceEnabled = service["enabled"]?.bool
+            serviceInstalled = service["installed"]?.bool
+        } catch { serviceEnabled = nil; serviceInstalled = nil }
+        if state == .running {
+            do {
+                let value = try await cli.run(["proxy", "groups"])
+                groups = value["groups"]?.array.compactMap { item in
+                    guard let name = item["name"]?.string else { return nil }
+                    return ProxyGroup(name: name, kind: item["type"]?.string ?? "", selected: item["now"]?.string ?? "",
+                                      nodes: item["all"]?.array.compactMap(\.string) ?? [])
+                } ?? []
+            } catch { groups = []; errorMessage = error.localizedDescription }
+            do { mode = try await cli.run(["mode"])["mode"]?.string }
+            catch { mode = nil; errorMessage = error.localizedDescription }
+            do { systemProxy = try await cli.run(["system-proxy", "status"])["enabled"]?.bool }
+            catch { systemProxy = nil; errorMessage = error.localizedDescription }
+            do {
+                let value = try await cli.run(["tun", "status"])
+                tun = value["enabled"]?.bool; tunAdapter = value["adapter_status"]?.string
+            } catch { tun = nil; tunAdapter = nil; errorMessage = error.localizedDescription }
+        } else { groups = []; mode = nil; systemProxy = nil; tun = nil; tunAdapter = nil }
+        notify()
     }
-
-    func start() async { await perform(["start"]) { await self.refreshDashboard() } }
-    func stop() async { await perform(["stop"]) { await self.refreshDashboard() } }
-    func restart() async { await perform(["restart"]) { await self.refreshDashboard() } }
-    func useProfile(_ name: String) async { await perform(["profile", "use", name]) { await self.refreshDashboard() } }
-    func select(_ node: String, in group: String) async { await perform(["proxy", "select", group, node]) { await self.refreshProxies() } }
-    func update(_ name: String) async { await perform(["subscription", "update", name]) { await self.refreshSubscriptions() } }
-
-    private func perform(_ arguments: [String], then refresh: @escaping @MainActor () async -> Void) async {
+    func perform(_ arguments: [String], success: String? = nil) {
         guard !busy else { return }
         busy = true
-        defer { busy = false }
+        Task {
+            defer { busy = false }
+            do { _ = try await cli.run(arguments); errorMessage = nil; notice = success; await refresh() }
+            catch { errorMessage = error.localizedDescription }
+        }
+    }
+    func quit() {
+        guard !busy && !quitting else { return }
+        quitting = true; busy = true
+        quitErrorMessage = nil
+        Task {
+            defer { quitting = false; busy = false }
+            do {
+                _ = try await cli.run(["quit"])
+                stopTraffic(); refreshTask?.cancel()
+                NSApplication.shared.terminate(nil)
+            } catch { quitErrorMessage = "Quit failed: \(error.localizedDescription)" }
+        }
+    }
+    func setAppLogin(_ enabled: Bool) {
         do {
-            _ = try await cli.run(arguments)
+            if enabled { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
             errorMessage = nil
-            await refresh()
-        } catch { errorMessage = error.localizedDescription }
+        } catch { errorMessage = "App login setting failed: \(error.localizedDescription)" }
+        notify()
+    }
+    func pauseForSleep() { sleeping = true; stopTraffic() }
+    func resumeAfterWake() {
+        sleeping = false
+        Task { await refresh() }
+    }
+    func ensureFreshTraffic() {
+        guard state == .running, !sleeping, trafficTask != nil else { return }
+        if Date().timeIntervalSince(max(lastSample, streamStartedAt)) > 8 {
+            stopTraffic()
+            startTraffic()
+        }
+    }
+    private func startTraffic() {
+        trafficGeneration += 1
+        let generation = trafficGeneration
+        streamStartedAt = Date()
+        trafficTask = Task {
+            while !Task.isCancelled && state == .running && generation == trafficGeneration {
+                do {
+                    let stream = try cli.trafficStream { [weak self] value in
+                        Task { @MainActor in
+                            guard let self, self.state == .running, generation == self.trafficGeneration else { return }
+                            self.uploadBPS = value["upload_bps"]?.int64
+                            self.downloadBPS = value["download_bps"]?.int64
+                            self.lastSample = Date(); self.notify()
+                            if self.errorMessage?.hasPrefix("Traffic unavailable:") == true { self.errorMessage = nil }
+                        }
+                    }
+                    if generation != trafficGeneration { stream.stop(); break }
+                    trafficStream = stream
+                    try await stream.wait()
+                } catch {
+                    if !Task.isCancelled && state == .running { errorMessage = "Traffic unavailable: \(error.localizedDescription)" }
+                }
+                if generation == trafficGeneration {
+                    trafficStream = nil; uploadBPS = nil; downloadBPS = nil; notify()
+                }
+                if !Task.isCancelled { try? await Task.sleep(nanoseconds: 2_000_000_000) }
+            }
+            if generation == trafficGeneration { trafficTask = nil }
+        }
+    }
+    private func stopTraffic() {
+        trafficGeneration += 1
+        trafficTask?.cancel(); trafficTask = nil
+        trafficStream?.stop(); trafficStream = nil
+        uploadBPS = nil; downloadBPS = nil; notify()
     }
 }

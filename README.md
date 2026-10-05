@@ -1,6 +1,6 @@
 # Nagi
 
-Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, and encrypted DNS policy, and provides proxy search, saved selections, latency checks, connection controls, runtime routing modes, system proxy and TUN controls, and listener/LAN status. Profile export, backup, restore, and comparison support local configuration work. Read-only diagnostics, Bash, Zsh, and Fish completion, and an interactive terminal dashboard support terminal use. A macOS SwiftUI client calls the CLI for common operations.
+Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, and encrypted DNS policy, and provides proxy search, saved selections, latency checks, connection controls, runtime routing modes, system proxy and TUN controls, and listener/LAN status. Profile export, backup, restore, and comparison support local configuration work. Read-only diagnostics, Bash, Zsh, and Fish completion, and an interactive terminal dashboard support terminal use. A macOS menu bar app calls the CLI for common operations.
 
 ## Quick start
 
@@ -13,11 +13,12 @@ MIHOMO_DIR=/path/to/mihomo make build
 ./bin/nagi status
 ```
 
-Without `MIHOMO_DIR`, the build script fetches the repository and exact commit in `engine.lock`. The first `start` creates a minimal `default` profile. Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the SwiftUI app requires macOS 13 or newer.
+Without `MIHOMO_DIR`, the build script fetches the repository and exact commit in `engine.lock`. The first `start` creates a minimal `default` profile. Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
 
 ## Documentation
 
 - [Architecture](ARCHITECTURE.md): system boundaries and module relationships.
+- [macOS menu app](macos/NagiApp/README.md): menu controls, traffic display, installation, and packaging.
 - [Getting started](docs/guides/getting-started.md): initial configuration and operation.
 - [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
 - [Traffic access](docs/guides/traffic-access.md): system proxy, TUN, listener ports, and LAN access.
