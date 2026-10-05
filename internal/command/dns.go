@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"net"
 	"net/url"
 	"os"
 	"regexp"
