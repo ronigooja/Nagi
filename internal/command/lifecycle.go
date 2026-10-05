@@ -166,9 +166,7 @@ func quit(ctx context.Context, args []string, version, commit string) (result an
 	defer func() {
 		if !completed {
 			_, rollbackErr := withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "stopped") })
-			if rollbackErr != nil {
-				err = fmt.Errorf("%w; could not clear pending quit state: %v; repair Nagi's state directory and retry `nagi quit`", err, rollbackErr)
-			}
+			err = quitRollbackError(err, rollbackErr)
 		}
 	}()
 	if err := pauseMonitor(); err != nil {
@@ -183,4 +181,11 @@ func quit(ctx context.Context, args []string, version, commit string) (result an
 	}
 	completed = true
 	return map[string]any{"quit": true}, nil
+}
+
+func quitRollbackError(cause, rollbackErr error) error {
+	if rollbackErr == nil {
+		return cause
+	}
+	return fmt.Errorf("%w; could not clear pending quit state: %v; repair Nagi's state directory and retry `nagi quit`", cause, rollbackErr)
 }

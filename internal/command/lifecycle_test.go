@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ronigooja/Nagi/internal/engine"
@@ -139,5 +140,13 @@ func TestQuitReturnsSuccessAfterCleanupAndResumesAtNextLogin(t *testing.T) {
 	}
 	if got, err := readIntent(paths); err != nil || got != "running" {
 		t.Fatalf("next-login intent = %q, %v", got, err)
+	}
+}
+
+func TestQuitRollbackErrorExplainsRecovery(t *testing.T) {
+	cause := errors.New("monitor pause failed")
+	err := quitRollbackError(cause, errors.New("permission denied"))
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "pending quit state") || !strings.Contains(err.Error(), "retry `nagi quit`") {
+		t.Fatalf("error = %v", err)
 	}
 }
