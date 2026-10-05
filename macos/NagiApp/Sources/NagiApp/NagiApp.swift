@@ -15,6 +15,7 @@ import AppKit
     private let menu = NSMenu()
     private var pulse: Timer?
     private var menuRefreshTask: Task<Void, Never>?
+    private var spinner: NSProgressIndicator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -42,12 +43,22 @@ import AppKit
 
     private func renderStatus() {
         guard let button = statusItem?.button else { return }
+        if spinner == nil {
+            let indicator = NSProgressIndicator(frame: NSRect(x: 0, y: 0, width: 16, height: 16))
+            indicator.style = .spinning
+            indicator.controlSize = .small
+            indicator.isDisplayedWhenStopped = false
+            button.addSubview(indicator)
+            spinner = indicator
+        }
+        spinner?.isHidden = !model.busy
+        if model.busy { spinner?.startAnimation(nil) } else { spinner?.stopAnimation(nil) }
         let icon = NSImage(systemSymbolName: model.state == .running ? "point.3.connected.trianglepath.dotted" :
                             model.state == .unavailable ? "exclamationmark.triangle" : "circle.dotted",
                            accessibilityDescription: "Nagi")
             ?? NSImage(systemSymbolName: "network", accessibilityDescription: "Nagi")
         icon?.isTemplate = true
-        button.image = icon
+        button.image = model.busy ? nil : icon
         button.imagePosition = .imageLeading
         let title = model.statusTitle
         button.attributedTitle = NSAttributedString(string: icon == nil ? "N" : (title.isEmpty ? "" : "  " + title),
@@ -59,8 +70,10 @@ import AppKit
         case .stopped: state = "stopped"
         case .unavailable: state = "status unavailable"
         }
-        button.setAccessibilityLabel("Nagi \(state), \(model.accessibilityTraffic)")
+        button.setAccessibilityLabel(model.busy ? "Nagi, applying setting" : "Nagi \(state), \(model.accessibilityTraffic)")
     }
+
+    func menuShouldOpen(_ menu: NSMenu) -> Bool { !model.busy }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         rebuildMenu()
