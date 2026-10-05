@@ -18,7 +18,12 @@ func (h *recordingHandler) Handle(_ context.Context, _ int, _ privileged.Request
 }
 
 func TestPeerCredentialRejectsAnotherSession(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "helper.sock")
+	dir, err := os.MkdirTemp("/tmp", "ng-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "helper.sock")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +57,12 @@ func TestControllerActionCannotForwardHTTP(t *testing.T) {
 }
 
 func TestSocketRequiresRootControlledAncestors(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "controller.sock")
+	dir, err := os.MkdirTemp("/tmp", "ng-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "controller.sock")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)

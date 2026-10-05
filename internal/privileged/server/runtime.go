@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -339,6 +340,16 @@ func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (pr
 func readUserConfig(root, path string, uid int) ([]byte, error) {
 	if !filepath.IsAbs(root) || !filepath.IsAbs(path) || filepath.Clean(root) != root || filepath.Clean(path) != path {
 		return nil, errors.New("invalid configuration path")
+	}
+	// macOS maps /var to /private/var. Resolve only this fixed system alias;
+	// the openat walk below still rejects links in user-controlled components.
+	if runtime.GOOS == "darwin" {
+		if strings.HasPrefix(root, "/var/") {
+			root = "/private" + root
+		}
+		if strings.HasPrefix(path, "/var/") {
+			path = "/private" + path
+		}
 	}
 	rel, err := filepath.Rel(root, path)
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
