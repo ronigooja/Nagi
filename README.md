@@ -28,6 +28,7 @@ Without `MIHOMO_DIR`, the build script fetches the repository and exact commit i
 - [Terminal dashboard](docs/guides/terminal-dashboard.md): interactive keys and workflows.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Development](docs/development/build-and-test.md): locked builds and tests.
+- [Linux privileged helper scaffold](docs/development/privileged-linux.md): system service boundary and current availability.
 - [Feature roadmap](docs/development/roadmap.md): planned user-facing capabilities.
 - [CLI usability rules](docs/development/cli-usability.md): command help, human output, actionable errors, and compatibility checks.
 - [Release process](docs/development/release.md): version rules, release checks, and release note requirements.
