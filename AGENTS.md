@@ -29,20 +29,20 @@ docs/
 
 This structure defines where content belongs. Directories do not need to be created in advance: create a document directory only when it contains actual content, and do not create empty directories or placeholder documents.
 
-## Responsibilities and Boundaries
+## Documentation Responsibilities and Scope
 
-| Location | Question answered | Content scope |
+| Location | Use this location for | Content scope |
 | --- | --- | --- |
-| `README.md` | What is the project, and where do I start? | Project purpose, supported platforms, current capabilities, shortest getting-started path, and documentation navigation |
-| `AGENTS.md` | What rules should agents follow? | Development responsibility constraints, documentation categories, locations, references, and maintenance rules |
-| `ARCHITECTURE.md` | How is the overall system organized? | System relationships, repository boundaries, module responsibilities, dependency direction, key constraints, and links to detailed designs |
-| `docs/guides/` | How do I complete a user task? | Prerequisites, steps, expected results, and common issues |
-| `docs/reference/` | What exactly is a command, configuration item, or interface? | Parameters, fields, types, defaults, constraints, exit codes, and compatibility rules |
-| `docs/design/` | How does a mechanism work? | Component cooperation, data flow, state transitions, concurrency, failure handling, and recovery |
-| `docs/development/` | How do I develop and maintain the project? | Development environment, build, testing, debugging, mihomo integration, contribution, and release workflows |
-| `docs/decisions/` | Why was this architecture choice made? | Decision context, alternatives, selected approach, trade-offs, and consequences |
+| `README.md` | Introducing the project and directing readers | Project purpose, supported platforms, current capabilities, shortest getting-started path, and documentation navigation |
+| `AGENTS.md` | Defining agent responsibilities and workflow rules | Development responsibility constraints, documentation categories, locations, references, and maintenance rules |
+| `ARCHITECTURE.md` | Describing the current system organization and boundaries | System relationships, repository boundaries, module responsibilities, dependency direction, key constraints, and links to detailed designs |
+| `docs/guides/` | Explaining how users complete a task | Prerequisites, steps, expected results, and common issues |
+| `docs/reference/` | Defining an exact command, configuration item, or interface | Parameters, fields, types, defaults, constraints, exit codes, and compatibility rules |
+| `docs/design/` | Explaining how a mechanism works | Component cooperation, data flow, state transitions, concurrency, failure handling, and recovery |
+| `docs/development/` | Documenting development and maintenance workflows | Development environment, build, testing, debugging, mihomo integration, contribution, and release workflows |
+| `docs/decisions/` | Recording why an architecture choice was made | Decision context, alternatives, selected approach, trade-offs, and consequences |
 
-System architecture is documented in `ARCHITECTURE.md` and `docs/design/`. `AGENTS.md` defines development and documentation rules and links to the system design rather than duplicating it.
+System architecture is documented in `ARCHITECTURE.md` and `docs/design/`. `AGENTS.md` defines agent and documentation rules without duplicating those documents.
 
 ## Agent Workflow Rules
 
