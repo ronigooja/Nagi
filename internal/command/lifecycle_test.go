@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ronigooja/Nagi/internal/engine"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
@@ -174,5 +175,45 @@ func TestInterruptedQuitCanBeRetried(t *testing.T) {
 	}
 	if got, err := readIntent(paths); err != nil || got != "quit-ready" {
 		t.Fatalf("intent = %q, %v", got, err)
+	}
+}
+
+func TestStartWaitsForWholeQuitTransaction(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	paths, err := nagiruntime.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	quitDone := make(chan error, 1)
+	go func() {
+		_, err := withQuitLock(paths, func() (any, error) {
+			close(entered)
+			<-release
+			return nil, nil
+		})
+		quitDone <- err
+	}()
+	<-entered
+	startDone := make(chan error, 1)
+	go func() {
+		_, err := execute(context.Background(), []string{"start"}, "test", "test")
+		startDone <- err
+	}()
+	select {
+	case err := <-startDone:
+		t.Fatalf("start crossed quit lock: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	if err := <-quitDone; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-startDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("start did not proceed after quit lock released")
 	}
 }

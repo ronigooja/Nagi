@@ -19,10 +19,18 @@ var pauseMonitor = service.PauseIfActive
 // The lifecycle lock spans intent changes and engine operations. The engine's
 // own lock still protects its PID and socket from other engine callers.
 func withLifecycleLock(paths nagiruntime.Paths, fn func() (any, error)) (any, error) {
+	return withNamedLock(paths, "lifecycle.lock", fn)
+}
+
+func withQuitLock(paths nagiruntime.Paths, fn func() (any, error)) (any, error) {
+	return withNamedLock(paths, "quit.lock", fn)
+}
+
+func withNamedLock(paths nagiruntime.Paths, name string, fn func() (any, error)) (any, error) {
 	if err := paths.EnsureRuntime(); err != nil {
 		return nil, err
 	}
-	file, err := os.OpenFile(filepath.Join(paths.RuntimeDir, "lifecycle.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	file, err := os.OpenFile(filepath.Join(paths.RuntimeDir, name), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +100,16 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	if err != nil {
 		return nil, err
 	}
+	if command == "start" || command == "stop" || command == "restart" {
+		return withQuitLock(paths, func() (any, error) {
+			return executeLockedLifecycle(ctx, args, version, commit, paths)
+		})
+	}
+	return executeLockedLifecycle(ctx, args, version, commit, paths)
+}
+
+func executeLockedLifecycle(ctx context.Context, args []string, version, commit string, paths nagiruntime.Paths) (any, error) {
+	command := args[0]
 	result, err := withLifecycleLock(paths, func() (any, error) {
 		switch command {
 		case "start", "restart":
@@ -157,6 +175,12 @@ func quit(ctx context.Context, args []string, version, commit string) (result an
 	if err != nil {
 		return nil, err
 	}
+	return withQuitLock(paths, func() (any, error) {
+		return quitLocked(ctx, paths, version, commit)
+	})
+}
+
+func quitLocked(ctx context.Context, paths nagiruntime.Paths, version, commit string) (result any, err error) {
 	// Mark stopped before asking the service manager to terminate its monitor.
 	// launchctl/systemctl can wait for that monitor, so do not hold the lock here.
 	if _, err := withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "quit-pending") }); err != nil {
