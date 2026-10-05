@@ -226,7 +226,7 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
 	for {
-		if err := VerifyControllerSocket(controller); err == nil {
+		if _, err := QueryController(ctx, controller, ControllerVersion); err == nil {
 			return privileged.Response{OK: true, Running: true, PID: cmd.Process.Pid}, nil
 		}
 		select {
