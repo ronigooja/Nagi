@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -45,8 +46,7 @@ func requireRoot(uid int) error {
 // that the invoked CLI is the expected installed binary; it never enters plist
 // content without checking the fixed path's ownership and permissions.
 func Install(executable string) (Result, error) {
-	r := result()
-	return r, errors.New("privileged helper installation is not enabled: restricted control API and configuration validation are required")
+	return install(result(), executable, os.Geteuid(), run)
 }
 
 func install(r Result, executable string, uid int, command runner) (Result, error) {
@@ -62,12 +62,16 @@ func install(r Result, executable string, uid int, command runner) (Result, erro
 	if err := secureDirectory(filepath.Dir(r.Path)); err != nil {
 		return r, fmt.Errorf("unsafe LaunchDaemon directory: %w", err)
 	}
+	sessionUID, err := sudoSessionUID()
+	if err != nil {
+		return r, err
+	}
 	if _, err := os.Lstat(r.Path); err == nil {
 		return r, fmt.Errorf("helper definition already exists at %s; uninstall before reinstalling", r.Path)
 	} else if !os.IsNotExist(err) {
 		return r, fmt.Errorf("inspect helper definition: %w", err)
 	}
-	content := definition()
+	content := definition(sessionUID)
 	if err := writeExclusive(r.Path, []byte(content)); err != nil {
 		return r, fmt.Errorf("write helper definition: %w", err)
 	}
@@ -120,12 +124,21 @@ func Status() (Result, error) {
 	return r, nil
 }
 
-func definition() string {
+func sudoSessionUID() (int, error) {
+	value := os.Getenv("SUDO_UID")
+	uid, err := strconv.Atoi(value)
+	if err != nil || uid <= 0 {
+		return 0, errors.New("install the helper with sudo from the intended macOS user account")
+	}
+	return uid, nil
+}
+
+func definition(sessionUID int) string {
 	return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
 		"<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
 		"<plist version=\"1.0\"><dict>" +
 		"<key>Label</key><string>" + Label + "</string>" +
-		"<key>ProgramArguments</key><array><string>" + ExecutablePath + "</string><string>__privileged-helper</string></array>" +
+		"<key>ProgramArguments</key><array><string>" + ExecutablePath + "</string><string>__privileged-helper</string><string>" + strconv.Itoa(sessionUID) + "</string></array>" +
 		"<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>" +
 		"<key>Umask</key><integer>63</integer>" +
 		"</dict></plist>\n"
@@ -154,6 +167,9 @@ func secureExecutable(path string) error {
 	}
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("%s is not a regular file", path)
+	}
+	if info.Mode().Perm()&0111 == 0 {
+		return fmt.Errorf("%s is not executable", path)
 	}
 	return secureOwnership(path, info)
 }
@@ -185,6 +201,15 @@ func secureOwnership(path string, info os.FileInfo) error {
 	}
 	if info.Mode().Perm()&0022 != 0 {
 		return fmt.Errorf("%s is writable by group or others", path)
+	}
+	// An ACL can grant write access even when POSIX mode bits do not.
+	out, err := exec.Command("/bin/ls", "-lde", path).Output()
+	if err != nil {
+		return fmt.Errorf("inspect ACL for %s: %w", path, err)
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 || len(fields[0]) < 10 || strings.Contains(fields[0], "+") {
+		return fmt.Errorf("%s has an ACL or unreadable permission record", path)
 	}
 	return nil
 }

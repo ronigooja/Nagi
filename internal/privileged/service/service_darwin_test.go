@@ -8,16 +8,19 @@ import (
 	"testing"
 )
 
-func TestInstallFailsClosed(t *testing.T) {
+func TestInstallRequiresRoot(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can install the helper")
+	}
 	got, err := Install(ExecutablePath)
-	if err == nil || !strings.Contains(err.Error(), "not enabled") {
-		t.Fatalf("Install = %+v, %v; wanted an explicit disabled error", got, err)
+	if err == nil || !strings.Contains(err.Error(), "administrator privileges") {
+		t.Fatalf("Install = %+v, %v; wanted a root requirement", got, err)
 	}
 }
 
 func TestDefinitionHasFixedRootCommand(t *testing.T) {
-	content := definition()
-	for _, item := range []string{Label, "<string>" + ExecutablePath + "</string>", "<string>__privileged-helper</string>", "<key>RunAtLoad</key><true/>", "<key>Umask</key><integer>63</integer>"} {
+	content := definition(501)
+	for _, item := range []string{Label, "<string>" + ExecutablePath + "</string>", "<string>__privileged-helper</string>", "<string>501</string>", "<key>RunAtLoad</key><true/>", "<key>Umask</key><integer>63</integer>"} {
 		if !strings.Contains(content, item) {
 			t.Fatalf("plist missing %q", item)
 		}
