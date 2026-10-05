@@ -15,7 +15,7 @@ import (
 )
 
 func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
-	source := "proxies:\n  - name: New\n    type: direct\n"
+	source := "mixed-port: 7890\nrules:\n  - MATCH,Proxy\nproxies:\n  - name: New\n    type: direct\nproxy-groups:\n  - name: Proxy\n    type: select\n    proxies: [New, DIRECT]\n"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(source)) }))
 	defer server.Close()
 	dir := t.TempDir()
@@ -30,7 +30,7 @@ func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
 	}
-	old := "mixed-port: 7000\nrules:\n  - MATCH,DIRECT\nproxies:\n  - name: Old\n    type: direct\n"
+	old := "mixed-port: 7000\nrules:\n  - MATCH,Subscription\nproxies:\n  - name: Old\n    type: direct\nproxy-groups:\n  - name: Subscription\n    type: select\n    proxies: [Old, DIRECT]\n"
 	if err := os.WriteFile(path, []byte(old), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ = os.ReadFile(path)
-	if !strings.Contains(string(data), "mixed-port: 7000") || !strings.Contains(string(data), "MATCH,DIRECT") || !strings.Contains(string(data), "name: New") {
+	if !strings.Contains(string(data), "mixed-port: 7890") || !strings.Contains(string(data), "MATCH,Proxy") || strings.Contains(string(data), "MATCH,Subscription") || !strings.Contains(string(data), "name: New") {
 		t.Fatalf("merged profile:\n%s", data)
 	}
 	settings, _ := os.ReadFile(filepath.Join(dir, "settings.yaml"))

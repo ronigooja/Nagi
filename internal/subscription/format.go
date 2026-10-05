@@ -63,16 +63,27 @@ func addGroup(doc map[string]any, proxies []any) {
 
 func stringValue(v any) string { s, _ := v.(string); return s }
 
-// Merge retains local configuration and valid group choices in an existing profile.
+// Merge uses the downloaded configuration as the source of truth while retaining
+// settings absent from it and valid group choices from an existing profile.
 func Merge(incoming, existing map[string]any) map[string]any {
+	for _, key := range []string{"rules", "rule-providers", "dns", "hosts", "tun", "mixed-port", "port", "socks-port", "redir-port", "tproxy-port", "mode", "ipv6", "sniffer", "profile"} {
+		if _, present := incoming[key]; !present && existing != nil {
+			if value, ok := existing[key]; ok {
+				incoming[key] = value
+			}
+		}
+	}
+	// Nagi owns controller access and keeps subscription listeners local.
+	for _, key := range []string{"external-controller", "external-controller-unix", "external-controller-tls", "external-controller-pipe", "external-controller-cors", "external-controller-routing-mark", "secret"} {
+		delete(incoming, key)
+	}
+	incoming["allow-lan"] = false
+	incoming["bind-address"] = "127.0.0.1"
+	if incoming["mixed-port"] == nil && incoming["port"] == nil {
+		incoming["mixed-port"] = 17890
+	}
 	if existing == nil {
 		return incoming
-	}
-	// These values are user-owned once a profile has been applied.
-	for _, key := range []string{"rules", "rule-providers", "dns", "hosts", "tun", "mixed-port", "port", "socks-port", "redir-port", "tproxy-port", "allow-lan", "bind-address", "mode", "external-controller", "external-controller-unix", "secret", "ipv6", "sniffer", "profile"} {
-		if value, ok := existing[key]; ok {
-			incoming[key] = value
-		}
 	}
 	oldGroups := groupMap(existing["proxy-groups"])
 	for _, item := range sliceValue(incoming["proxy-groups"]) {

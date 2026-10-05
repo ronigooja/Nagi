@@ -45,16 +45,40 @@ func TestSupportedFormatsAndPreview(t *testing.T) {
 	}
 }
 
-func TestMergePreservesLocalSettingsAndValidChoices(t *testing.T) {
+func TestMergePrefersDownloadedSettingsAndRetainsValidChoices(t *testing.T) {
 	old, _, _ := Document([]byte("mixed-port: 7890\nrules:\n  - MATCH,DIRECT\ndns:\n  enable: true\nproxies:\n  - name: Alpha\n    type: direct\n  - name: Gone\n    type: direct\nproxy-groups:\n  - name: Choice\n    type: select\n    proxies: [Alpha, Gone, DIRECT]\n"))
 	next, _, _ := Document([]byte("mixed-port: 9999\nrules:\n  - MATCH,REJECT\nproxies:\n  - name: Alpha\n    type: direct\n  - name: New\n    type: direct\nproxy-groups:\n  - name: Choice\n    type: select\n    proxies: [New, Alpha, DIRECT]\n"))
 	merged := Merge(next, old)
-	if merged["mixed-port"] != 7890 || merged["dns"] == nil || sliceValue(merged["rules"])[0] != "MATCH,DIRECT" {
-		t.Fatalf("lost local settings: %#v", merged)
+	if merged["mixed-port"] != 9999 || merged["dns"] == nil || sliceValue(merged["rules"])[0] != "MATCH,REJECT" {
+		t.Fatalf("downloaded settings were not applied: %#v", merged)
 	}
 	group := groupMap(merged["proxy-groups"])["Choice"]
 	if !reflect.DeepEqual(group["proxies"], []any{"Alpha", "DIRECT", "New"}) {
 		t.Fatalf("choices: %#v", group["proxies"])
+	}
+}
+
+func TestMergeKeepsSubscriptionListenerLocal(t *testing.T) {
+	incoming, _, err := Document([]byte("mixed-port: 7890\nallow-lan: true\nbind-address: '*'\nexternal-controller: 127.0.0.1:9090\nsecret: provider-secret\nproxies:\n  - name: Node\n    type: direct\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	merged := Merge(incoming, nil)
+	if merged["mixed-port"] != 7890 || merged["allow-lan"] != false || merged["bind-address"] != "127.0.0.1" {
+		t.Fatalf("listener settings: %#v", merged)
+	}
+	if _, ok := merged["external-controller"]; ok {
+		t.Fatal("subscription exposed a controller")
+	}
+	if _, ok := merged["secret"]; ok {
+		t.Fatal("subscription controller secret was retained")
+	}
+	bare, _, err := Document([]byte("proxies:\n  - name: Node\n    type: direct\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Merge(bare, nil)["mixed-port"]; got != 17890 {
+		t.Fatalf("default mixed port = %v", got)
 	}
 }
 
