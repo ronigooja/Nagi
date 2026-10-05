@@ -92,6 +92,9 @@ func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 	if err := req.Validate(policy); err != nil {
 		return fmt.Errorf("validate request: %w", err)
 	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		return err
+	}
 	resp, err := s.Handler.Handle(ctx, uid, req)
 	if err != nil {
 		resp = privileged.Response{Version: privileged.ProtocolVersion, Error: err.Error()}
@@ -99,6 +102,9 @@ func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 	resp.Version = privileged.ProtocolVersion
 	if err := resp.Validate(); err != nil {
 		return fmt.Errorf("invalid handler response: %w", err)
+	}
+	if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
 	}
 	return privileged.WriteResponse(conn, resp)
 }

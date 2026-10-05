@@ -17,40 +17,65 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 )
 
 const ProtocolVersion = 1
+const MaxMessageBytes = 8 << 20
+
+// SocketPath is the authenticated session endpoint created by the root helper.
+func SocketPath(uid int) string {
+	return filepath.Join(RuntimeRoot(), "uid-"+strconv.Itoa(uid), "helper.sock")
+}
+
+func RuntimeRoot() string {
+	if runtime.GOOS == "darwin" {
+		return "/private/var/run/nagi"
+	}
+	return "/run/nagi"
+}
 
 type Operation string
 
 const (
-	Start  Operation = "start"
-	Stop   Operation = "stop"
-	Status Operation = "status"
+	Start   Operation = "start"
+	Stop    Operation = "stop"
+	Status  Operation = "status"
+	Control Operation = "control"
+	Logs    Operation = "logs"
 )
 
 // Request is one complete helper operation. A request is encoded as one JSON
 // object terminated by a newline; this keeps the protocol stream-friendly and
 // lets the helper reject oversized or concatenated messages at its boundary.
 type Request struct {
-	Version    int       `json:"version"`
-	Operation  Operation `json:"operation"`
-	Profile    string    `json:"profile,omitempty"`
-	BinaryPath string    `json:"binary_path,omitempty"`
-	ConfigPath string    `json:"config_path,omitempty"`
-	WorkDir    string    `json:"work_dir,omitempty"`
-	SocketPath string    `json:"socket_path,omitempty"`
-	LogPath    string    `json:"log_path,omitempty"`
-	PIDPath    string    `json:"pid_path,omitempty"`
+	Version    int             `json:"version"`
+	Operation  Operation       `json:"operation"`
+	Profile    string          `json:"profile,omitempty"`
+	BinaryPath string          `json:"binary_path,omitempty"`
+	ConfigPath string          `json:"config_path,omitempty"`
+	WorkDir    string          `json:"work_dir,omitempty"`
+	SocketPath string          `json:"socket_path,omitempty"`
+	LogPath    string          `json:"log_path,omitempty"`
+	PIDPath    string          `json:"pid_path,omitempty"`
+	Method     string          `json:"method,omitempty"`
+	Path       string          `json:"path,omitempty"`
+	Body       json.RawMessage `json:"body,omitempty"`
+	Lines      int             `json:"lines,omitempty"`
+	Offset     int64           `json:"offset,omitempty"`
 }
 
 type Response struct {
-	Version int    `json:"version"`
-	OK      bool   `json:"ok"`
-	Error   string `json:"error,omitempty"`
-	PID     int    `json:"pid,omitempty"`
-	Running bool   `json:"running,omitempty"`
+	Version int             `json:"version"`
+	OK      bool            `json:"ok"`
+	Error   string          `json:"error,omitempty"`
+	PID     int             `json:"pid,omitempty"`
+	Running bool            `json:"running,omitempty"`
+	Status  int             `json:"status,omitempty"`
+	Body    json.RawMessage `json:"body,omitempty"`
+	Offset  int64           `json:"offset,omitempty"`
 }
 
 type Policy struct {
@@ -69,28 +94,40 @@ func (r Request) Validate(p Policy) error {
 	if p.PeerUID <= 0 {
 		return errors.New("untrusted peer uid")
 	}
-	if err := validateProfile(r.Profile); err != nil {
-		return err
-	}
 	switch r.Operation {
 	case Start:
-		if r.BinaryPath == "" || r.ConfigPath == "" || r.WorkDir == "" || r.SocketPath == "" || r.LogPath == "" || r.PIDPath == "" {
-			return errors.New("start requires all engine paths")
+		if err := validateProfile(r.Profile); err != nil {
+			return err
 		}
-		if err := validatePath(r.BinaryPath, p.AllowedPaths); err != nil {
-			return fmt.Errorf("binary_path: %w", err)
+		if r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 {
+			return errors.New("unexpected control fields")
+		}
+		if r.BinaryPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" {
+			return errors.New("untrusted engine paths are not allowed")
+		}
+		if r.ConfigPath == "" {
+			return errors.New("configuration path is required")
 		}
 		if err := validatePath(r.ConfigPath, p.AllowedPaths); err != nil {
 			return fmt.Errorf("config_path: %w", err)
 		}
-		for label, path := range map[string]string{"work_dir": r.WorkDir, "socket_path": r.SocketPath, "log_path": r.LogPath, "pid_path": r.PIDPath} {
-			if err := validatePath(path, p.AllowedPaths); err != nil {
-				return fmt.Errorf("%s: %w", label, err)
-			}
-		}
 	case Stop, Status:
+		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 {
+			return errors.New("unexpected start fields")
+		}
+	case Control:
+		if r.Lines != 0 || r.Offset != 0 {
+			return errors.New("unexpected log fields")
+		}
 		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" {
 			return errors.New("unexpected start fields")
+		}
+		if r.Method == "" || r.Path == "" || len(r.Path) > 2048 || len(r.Body) > 1<<20 || len(r.Body) != 0 && !json.Valid(r.Body) {
+			return errors.New("invalid control request")
+		}
+	case Logs:
+		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines < 0 || r.Lines > 1000 || r.Offset < -1 {
+			return errors.New("invalid log request")
 		}
 	default:
 		return fmt.Errorf("unsupported operation %q", r.Operation)
@@ -104,6 +141,9 @@ func (r Response) Validate() error {
 	}
 	if r.OK && r.Error != "" {
 		return errors.New("successful response cannot contain error")
+	}
+	if len(r.Body) > MaxMessageBytes-1024 || len(r.Body) != 0 && !json.Valid(r.Body) {
+		return errors.New("invalid control response")
 	}
 	return nil
 }
@@ -138,11 +178,11 @@ func writeJSON(w io.Writer, v any) error {
 }
 
 func readJSON(r io.Reader, v any) error {
-	line, err := bufio.NewReader(io.LimitReader(r, (1<<20)+2)).ReadBytes('\n')
+	line, err := bufio.NewReader(io.LimitReader(r, MaxMessageBytes+2)).ReadBytes('\n')
 	if err != nil {
 		return err
 	}
-	if len(line) > 1<<20 {
+	if len(line) > MaxMessageBytes {
 		return errors.New("protocol message too large")
 	}
 	dec := json.NewDecoder(strings.NewReader(string(line)))

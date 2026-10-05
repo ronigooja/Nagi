@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -11,7 +12,7 @@ import (
 func fixture(t *testing.T) (Request, Policy) {
 	t.Helper()
 	root := t.TempDir()
-	return Request{Version: ProtocolVersion, Operation: Start, Profile: "work_1", BinaryPath: filepath.Join(root, "mihomo"), ConfigPath: filepath.Join(root, "config.yaml"), WorkDir: root, SocketPath: filepath.Join(root, "mihomo.sock"), LogPath: filepath.Join(root, "mihomo.log"), PIDPath: filepath.Join(root, "mihomo.pid")}, Policy{PeerUID: 501, AllowedPaths: []string{root}}
+	return Request{Version: ProtocolVersion, Operation: Start, Profile: "work_1", ConfigPath: filepath.Join(root, "config.yaml")}, Policy{PeerUID: 501, AllowedPaths: []string{root}}
 }
 
 func TestRequestValidation(t *testing.T) {
@@ -24,9 +25,10 @@ func TestRequestValidation(t *testing.T) {
 		"operation": func(r *Request) { r.Operation = "exec" },
 		"profile":   func(r *Request) { r.Profile = "../evil" },
 		"relative":  func(r *Request) { r.ConfigPath = "config.yaml" },
-		"outside":   func(r *Request) { r.LogPath = "/etc/passwd" },
-		"unclean":   func(r *Request) { r.PIDPath += "/../x" },
-		"missing":   func(r *Request) { r.SocketPath = "" },
+		"outside":   func(r *Request) { r.ConfigPath = "/etc/passwd" },
+		"unclean":   func(r *Request) { r.ConfigPath += "/../x" },
+		"missing":   func(r *Request) { r.ConfigPath = "" },
+		"binary":    func(r *Request) { r.BinaryPath = "/usr/local/bin/mihomo" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			copy := req
@@ -41,11 +43,11 @@ func TestRequestValidation(t *testing.T) {
 		t.Fatal("untrusted peer accepted")
 	}
 	policy.PeerUID = 501
-	stop := Request{Version: ProtocolVersion, Operation: Stop, Profile: "work_1"}
+	stop := Request{Version: ProtocolVersion, Operation: Stop}
 	if err := stop.Validate(policy); err != nil {
 		t.Fatal(err)
 	}
-	stop.BinaryPath = req.BinaryPath
+	stop.ConfigPath = req.ConfigPath
 	if err := stop.Validate(policy); err == nil {
 		t.Fatal("stop start fields accepted")
 	}
@@ -73,7 +75,7 @@ func TestProtocolRoundTripAndBounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := ReadRequest(&b)
-	if err != nil || got != req {
+	if err != nil || !reflect.DeepEqual(got, req) {
 		t.Fatalf("roundtrip: %#v %v", got, err)
 	}
 	b.Reset()
@@ -82,7 +84,7 @@ func TestProtocolRoundTripAndBounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	gotResp, err := ReadResponse(&b)
-	if err != nil || gotResp != resp {
+	if err != nil || !reflect.DeepEqual(gotResp, resp) {
 		t.Fatalf("roundtrip: %#v %v", gotResp, err)
 	}
 	if err := resp.Validate(); err != nil {
