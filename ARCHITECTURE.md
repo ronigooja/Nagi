@@ -42,6 +42,8 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
+On macOS, an optional root LaunchDaemon helper can own mihomo for TUN access. The CLI still owns user operations and selects the backend explicitly. The helper authenticates the CLI over a Unix socket, snapshots validated configuration, and mediates a restricted set of mihomo controller calls. Its controller socket and log remain root-private. The user-mode backend remains the default. The [CLI reference](docs/reference/cli.md#traffic-access) defines installation and switching.
+
 DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception is a mihomo configuration option. `dns check` inspects the selected configuration and queries mihomo through its private control API. It does not verify operating-system routes, resolver capture, or external DNS leaks. See the [DNS reference](docs/reference/cli.md#dns-policy-and-checks).
 
 ## Interfaces and data

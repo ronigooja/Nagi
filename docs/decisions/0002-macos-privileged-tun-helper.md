@@ -35,8 +35,8 @@ The helper must validate configuration features and referenced files before
 allowing root mihomo to consume user-owned configuration.
 
 The existing per-user launchd Agent remains the default for profiles that do
-not require privileged TUN. Enabling privileged mode will be explicit and
-will require administrator authorization during helper installation.
+not require privileged TUN. Enabling privileged mode is explicit and
+requires administrator authorization during helper installation.
 
 ## Consequences
 
@@ -45,8 +45,7 @@ installer/uninstaller, peer credential checks, a restricted control API path,
 configuration validation, and lifecycle integration in the engine manager.
 The installer must run as root and use only a root-owned executable under a
 root-owned, non-user-writable path. Failures must leave the user-mode path
-available. Installation and use remain disabled until these security checks
-are implemented and tested.
+available.
 
 Network Extension support remains out of scope unless a future requirement
 needs App Store-style sandboxing or packet-tunnel APIs.
@@ -54,12 +53,15 @@ needs App Store-style sandboxing or packet-tunnel APIs.
 ## Implementation status
 
 The configuration policy accepts inline proxy nodes, groups, and rules in
-ordinary subscription profiles. It rejects providers, scripts, plugins,
+ordinary subscription profiles, plus Nagi's inline rule providers. It rejects
+file and remote providers, scripts, plugins,
 external controllers, extra listeners, file references, YAML aliases,
 unknown top-level fields, and multiple YAML documents. Snapshot creation
 copies validated bytes into an existing private root-owned directory. On
 macOS, the directory and each ancestor are also checked for ACL entries.
-Root mihomo must never open the user's mutable profile path. Helper
-installation and privileged engine activation remain disabled until the
-controller API is mediated and the complete configuration/runtime path has
-been validated safely.
+Root mihomo must never open the user's mutable profile path. The macOS helper
+uses a peer-authenticated session socket, a root-private controller and log,
+and a fixed controller request allowlist. A marker prevents a restarted helper
+from launching a duplicate root child after an unobserved helper crash;
+administrator recovery is required in that case. The Linux installer remains
+disabled.
