@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/subscription"
@@ -47,7 +46,8 @@ func (b tuiBackend) Load() (tui.Snapshot, error) {
 		}
 		if paths, err := nagiruntime.Resolve(); err == nil {
 			var cfg map[string]any
-			if control.New(paths.SocketPath).Get(context.Background(), "/configs", &cfg) == nil {
+			client, clientErr := controlClientForCurrentBackend(paths)
+			if clientErr == nil && client.Get(context.Background(), "/configs", &cfg) == nil {
 				if dns, ok := cfg["dns"].(map[string]any); ok {
 					if enabled, ok := dns["enable"].(bool); ok {
 						if enabled {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
+	"github.com/ronigooja/Nagi/internal/engine"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 )
 
@@ -26,6 +27,10 @@ type FullReport struct {
 }
 
 func RunFull(ctx context.Context, paths nagiruntime.Paths, binary string) FullReport {
+	return RunFullWithAccess(ctx, paths, binary, control.New(paths.SocketPath), nil)
+}
+
+func RunFullWithAccess(ctx context.Context, paths nagiruntime.Paths, binary string, api *control.Client, selected *engine.Status) FullReport {
 	r := FullReport{Healthy: true, Checks: []Check{}, Platform: runtime.GOOS}
 	add := func(n, s, m string) {
 		r.Checks = append(r.Checks, Check{n, s, m})
@@ -33,7 +38,7 @@ func RunFull(ctx context.Context, paths nagiruntime.Paths, binary string) FullRe
 			r.Healthy = false
 		}
 	}
-	base := Run(ctx, paths, binary)
+	base := RunWithAccess(ctx, paths, binary, api, selected)
 	for _, c := range base.Checks {
 		add(c.Name, c.Status, c.Message)
 	}
@@ -57,7 +62,11 @@ func RunFull(ctx context.Context, paths nagiruntime.Paths, binary string) FullRe
 	}
 	checkPerm("config_permissions", paths.ConfigDir, os.FileMode(0077))
 	checkPerm("runtime_permissions", paths.RuntimeDir, os.FileMode(0077))
-	if i, e := os.Stat(paths.SocketPath); e == nil {
+	socketPath := paths.SocketPath
+	if selected != nil {
+		socketPath = selected.SocketPath
+	}
+	if i, e := os.Stat(socketPath); e == nil {
 		if i.Mode().Perm()&0077 != 0 {
 			add("socket_permissions", "error", "Unix control socket is accessible beyond the owner; restart Nagi after fixing runtime directory permissions.")
 		} else {
@@ -65,7 +74,6 @@ func RunFull(ctx context.Context, paths nagiruntime.Paths, binary string) FullRe
 		}
 	}
 	var cfg map[string]any
-	api := control.New(paths.SocketPath)
 	if err := api.Get(ctx, "/configs", &cfg); err != nil {
 		add("configuration", "warning", "Mihomo configuration is unavailable; start mihomo before checking listeners, DNS, and controller exposure.")
 	} else {

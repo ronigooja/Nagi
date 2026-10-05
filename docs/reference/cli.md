@@ -64,6 +64,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `connections close-all` | Request closure of all current connections. |
 | `mode [rule\|global\|direct\|save MODE\|saved]` | Read or change temporary runtime mode, or explicitly persist/read the selected profile's mode. |
 | `service install`, `service uninstall` | Manage a per-user launchd Agent or systemd service. |
+| `privileged-helper status\|install\|uninstall\|enable\|disable` | Inspect or manage the macOS privileged TUN helper and selected engine backend. |
 | `version` | Report Nagi version, mihomo version and pinned commit, OS, and architecture. |
 | `completion bash\|zsh\|fish` | Print a shell completion script without reading runtime configuration. |
 
@@ -258,6 +259,8 @@ JSON payloads contain `rules`, `providers`, `entries`, `order`/`conflicts`, or `
 
 `tun enable` needs OS permission to create a TUN device and install routes. macOS and Linux permission mechanisms differ; inspect `nagi logs` if the adapter does not start. The mihomo API may accept a TUN patch while logging an adapter creation error, so a reported `enabled` setting alone does not prove that interception works. `tun status|enable|disable` also reports `adapter_status`: `inactive` when TUN is disabled, `unknown` when no device name is exposed by mihomo or OS interface enumeration fails, and `missing`, `down`, or `up` for a configured `tun.device` name. `adapter_name` is present only when mihomo exposes that name. An up adapter does not prove route ownership or DNS capture. Runtime TUN and LAN changes are reset when a profile is reloaded or mihomo restarts. Enabling LAN exposes configured proxy listeners at the selected address; use firewall rules and authentication appropriate to that network.
 
+On macOS, an installed privileged helper can run mihomo with permission to create the TUN adapter. Install it from a root-owned `/usr/local/bin/nagi` using `sudo /usr/local/bin/nagi privileged-helper install`. Stop the user engine, run `nagi privileged-helper enable`, then `nagi start`. `privileged-helper status` reports `service` (`path`, `manager`, `installed`, `active`, `executable`), `selected_backend` (`user` or `privileged`), and `available`. `enable` and `disable` return `selected_backend` and `changed`. Switching is refused while the outgoing backend's mihomo process is running. The selected backend is persisted in the private `engine-backend` file in Nagi's configuration directory; an absent file means `user`. The app continues to use the same CLI commands. In privileged mode, lifecycle, logs, traffic samples, and control operations use the authenticated helper socket; mihomo's root-only controller is not exposed to the user.
+
 JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolean), `backend`, and `http`, `https`, and `socks` objects with `enabled`, optional `host`, and optional `port`. `tun status|enable|disable` include `enabled` (boolean), `settings` (mihomo TUN object), `adapter_status` (string), and optional `adapter_name` (string). `lan status|enable|disable` include `enabled` and `bind_address`. `ports status` includes integer `http`, `https`, `socks`, and `mixed`, plus `bind_address` and `allow_lan`. The `http` and `https` values are the same because mihomo uses one HTTP proxy listener for both schemes. All use the usual success/error envelope and exit codes. `system_proxy_error` and `tun_error` indicate failed traffic operations.
 
 ## Startup and background operation
@@ -267,6 +270,11 @@ JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolea
 | `service install` | Install and enable the per-user launchd/systemd service. |
 | `service uninstall` | Disable, stop, and remove the service definition. |
 | `service status` | Report definition path, manager, installed, enabled, and active state. |
+| `privileged-helper status` | Report system helper installation, activity, and selected engine backend. |
+| `privileged-helper install` | Install the system helper; requires administrator privileges and the root-owned installed executable. |
+| `privileged-helper uninstall` | Stop and remove the system helper; requires administrator privileges. Stop privileged mihomo and select the user backend first. |
+| `privileged-helper enable` | Select the privileged backend for subsequent starts; requires an active helper and a stopped user mihomo process. |
+| `privileged-helper disable` | Select the user backend for subsequent starts; requires privileged mihomo to be stopped. |
 | `startup status` | Report service status together with mihomo process state. |
 | `startup enable` | Enable an installed login service without rewriting its definition. |
 | `startup disable` | Disable the login service while retaining its definition. |

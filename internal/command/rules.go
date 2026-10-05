@@ -88,8 +88,16 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 	if err != nil {
 		return nil, err
 	}
+	var lifecycle lifecycleBackend = manager
+	mode, err := readBackend(paths)
+	if err != nil {
+		return nil, err
+	}
+	if mode == privilegedBackend {
+		lifecycle = helperBackend{profile: name, binary: binary, configPath: path, paths: paths}
+	}
 	var profileStore *profile.Store
-	profileStore = newProfileStore(paths, binary, client, manager)
+	profileStore = newProfileStore(paths, binary, client, lifecycle)
 	check := func(ctx context.Context) error {
 		effective, err := profileStore.Effective(name)
 		if err != nil {
@@ -98,7 +106,7 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		if err := profileStore.Validate(effective); err != nil {
 			return err
 		}
-		status, err := manager.Status(ctx)
+		status, err := lifecycle.Status(ctx)
 		if err != nil {
 			return err
 		}

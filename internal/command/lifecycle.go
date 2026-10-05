@@ -89,6 +89,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	}
 	command := args[0]
 	locked := command == "start" || command == "stop" || command == "restart" ||
+		(command == "privileged-helper" && len(args) == 2 && (args[1] == "enable" || args[1] == "disable")) ||
 		(command == "startup" && len(args) == 2 && (args[1] == "ensure" || args[1] == "shutdown" || args[1] == "check" || args[1] == "login"))
 	if command == "quit" {
 		return quit(ctx, args, version, commit)
@@ -100,7 +101,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	if err != nil {
 		return nil, err
 	}
-	if command == "start" || command == "stop" || command == "restart" {
+	if command == "start" || command == "stop" || command == "restart" || command == "privileged-helper" {
 		return withQuitLock(paths, func() (any, error) {
 			return executeLockedLifecycle(ctx, args, version, commit, paths)
 		})

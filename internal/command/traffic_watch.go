@@ -33,7 +33,12 @@ func runTrafficWatch(stdout, stderr io.Writer, jsonMode bool) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return watchTraffic(ctx, control.New(paths.SocketPath), stdout, stderr, jsonMode)
+	client, err := controlClientForCurrentBackend(paths)
+	if err != nil {
+		output.WriteError(stderr, jsonMode, "internal_error", err.Error())
+		return 1
+	}
+	return watchTraffic(ctx, client, stdout, stderr, jsonMode)
 }
 
 func watchTraffic(ctx context.Context, client *control.Client, stdout, stderr io.Writer, jsonMode bool) int {

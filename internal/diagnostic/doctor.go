@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
+	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/platform"
 	"github.com/ronigooja/Nagi/internal/profile"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
@@ -29,6 +30,12 @@ type Report struct {
 }
 
 func Run(ctx context.Context, paths nagiruntime.Paths, binary string) Report {
+	return RunWithAccess(ctx, paths, binary, control.New(paths.SocketPath), nil)
+}
+
+// RunWithAccess checks the selected backend without assuming the user owns
+// mihomo's PID marker or controller socket.
+func RunWithAccess(ctx context.Context, paths nagiruntime.Paths, binary string, api *control.Client, selected *engine.Status) Report {
 	report := Report{Healthy: true, Checks: make([]Check, 0, 8)}
 	add := func(name, status, message string) {
 		report.Checks = append(report.Checks, Check{Name: name, Status: status, Message: message})
@@ -77,32 +84,41 @@ func Run(ctx context.Context, paths nagiruntime.Paths, binary string) Report {
 		add("selected_profile", "ok", fmt.Sprintf("Selected profile %s is readable.", name))
 	}
 
-	pidData, err := os.ReadFile(paths.PIDPath)
 	running := false
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		add("process", "warning", "No Nagi PID file is present; mihomo appears stopped. Run `nagi start` when ready.")
-	case err != nil:
-		add("process", "error", "Cannot read the Nagi PID file; check runtime directory permissions.")
-	default:
-		pid, parseErr := strconv.Atoi(strings.TrimSpace(string(pidData)))
-		if parseErr != nil || pid <= 0 {
-			add("process", "error", "Nagi PID file is invalid; inspect runtime files and `nagi status`.")
-		} else if !platform.Alive(pid) {
-			add("process", "error", fmt.Sprintf("PID %d is stale; inspect `nagi logs` and `nagi status`.", pid))
+	if selected != nil {
+		running = selected.Running
+		if running {
+			add("process", "ok", fmt.Sprintf("Privileged mihomo PID %d is reported by the helper.", selected.PID))
 		} else {
-			running = true
-			add("process", "ok", fmt.Sprintf("PID %d exists; process identity is not verified.", pid))
+			add("process", "warning", "Privileged mihomo is stopped; run `nagi start` when ready.")
+		}
+	} else {
+		pidData, err := os.ReadFile(paths.PIDPath)
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			add("process", "warning", "No Nagi PID file is present; mihomo appears stopped. Run `nagi start` when ready.")
+		case err != nil:
+			add("process", "error", "Cannot read the Nagi PID file; check runtime directory permissions.")
+		default:
+			pid, parseErr := strconv.Atoi(strings.TrimSpace(string(pidData)))
+			if parseErr != nil || pid <= 0 {
+				add("process", "error", "Nagi PID file is invalid; inspect runtime files and `nagi status`.")
+			} else if !platform.Alive(pid) {
+				add("process", "error", fmt.Sprintf("PID %d is stale; inspect `nagi logs` and `nagi status`.", pid))
+			} else {
+				running = true
+				add("process", "ok", fmt.Sprintf("PID %d exists; process identity is not verified.", pid))
+			}
 		}
 	}
-	if _, err := os.Stat(paths.SocketPath); err != nil && errors.Is(err, os.ErrNotExist) && !running {
+	if selected == nil && !running && !socketExists(paths.SocketPath) {
 		add("control_api", "warning", "No control socket is present; start mihomo to check API reachability.")
 	} else {
 		requestCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		var version struct {
 			Version string `json:"version"`
 		}
-		err := control.New(paths.SocketPath).Get(requestCtx, "/version", &version)
+		err := api.Get(requestCtx, "/version", &version)
 		cancel()
 		if err != nil {
 			if running {
@@ -116,3 +132,5 @@ func Run(ctx context.Context, paths nagiruntime.Paths, binary string) Report {
 	}
 	return report
 }
+
+func socketExists(path string) bool { _, err := os.Stat(path); return err == nil }

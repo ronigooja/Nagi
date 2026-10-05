@@ -10,16 +10,21 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/output"
+	privilegedserver "github.com/ronigooja/Nagi/internal/privileged/server"
+	privilegedservice "github.com/ronigooja/Nagi/internal/privileged/service"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
@@ -39,6 +44,33 @@ func (e *commandError) Error() string   { return e.err.Error() }
 func fail(code string, err error) error { return &commandError{code, err} }
 
 func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
+	if len(args) > 0 && args[0] == "__privileged-helper" {
+		if len(args) != 2 || os.Geteuid() != 0 {
+			output.WriteError(stderr, false, "privileged_helper_error", "root helper requires a single target UID and root privileges")
+			return 1
+		}
+		uid, err := strconv.Atoi(args[1])
+		if err != nil || uid <= 0 {
+			output.WriteError(stderr, false, "privileged_helper_error", "invalid target UID")
+			return 1
+		}
+		account, err := user.LookupId(args[1])
+		if err != nil || account.HomeDir == "" {
+			output.WriteError(stderr, false, "privileged_helper_error", "target user is unavailable")
+			return 1
+		}
+		sourceDir := filepath.Join(account.HomeDir, ".config", "nagi")
+		if runtime.GOOS == "darwin" {
+			sourceDir = filepath.Join(account.HomeDir, "Library", "Application Support", "Nagi", "config")
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := privilegedserver.RunDaemon(ctx, uid, "/usr/local/bin/mihomo", sourceDir); err != nil {
+			output.WriteError(stderr, false, "privileged_helper_error", err.Error())
+			return 1
+		}
+		return 0
+	}
 	if len(args) == 1 && args[0] == "__startup-watch" {
 		return runStartupWatch(stderr, version, commit)
 	}
@@ -121,6 +153,25 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		}
 		return 0
 	}
+	if follow, ok := data.(helperFollowResult); ok {
+		if jsonMode {
+			encoder := json.NewEncoder(stdout)
+			err := follow.Follow(context.Background(), func(line string) error {
+				return encoder.Encode(output.Envelope{OK: true, Data: map[string]any{"line": line}})
+			})
+			if err != nil && !errors.Is(err, context.Canceled) {
+				output.WriteError(stderr, true, "output_error", err.Error())
+				return 1
+			}
+			return 0
+		}
+		err := follow.Follow(context.Background(), func(line string) error { _, err := fmt.Fprintln(stdout, line); return err })
+		if err != nil && !errors.Is(err, context.Canceled) {
+			output.WriteError(stderr, false, "output_error", err.Error())
+			return 1
+		}
+		return 0
+	}
 	if err := output.Write(stdout, jsonMode, data); err != nil {
 		output.WriteError(stderr, jsonMode, "output_error", err.Error())
 		return 1
@@ -181,7 +232,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if err != nil {
 				return nil, err
 			}
-			service := proxy.NewService(control.New(paths.SocketPath))
+			client, e := controlClientForCurrentBackend(paths)
+			if e != nil {
+				return nil, e
+			}
+			service := proxy.NewService(client)
 			groups, err := service.Groups(ctx)
 			if err != nil {
 				return nil, err
@@ -234,15 +289,121 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return map[string]any{"nagi": version, "mihomo": mihomoVersion, "mihomo_commit": commit, "os": runtime.GOOS, "arch": runtime.GOARCH}, nil
 	}
+	if command == "privileged-helper" {
+		switch args[1] {
+		case "status":
+			status, err := privilegedservice.Status()
+			if err != nil {
+				return nil, fail("privileged_helper_error", err)
+			}
+			paths, err := nagiruntime.Resolve()
+			if err != nil {
+				return nil, err
+			}
+			mode, err := readBackend(paths)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"service": status, "selected_backend": mode, "available": status.Installed && status.Active}, nil
+		case "install":
+			executable, err := os.Executable()
+			if err != nil {
+				return nil, err
+			}
+			status, err := privilegedservice.Install(executable)
+			if err != nil {
+				return nil, fail("privileged_helper_error", err)
+			}
+			return status, nil
+		case "uninstall":
+			status, err := privilegedservice.Uninstall()
+			if err != nil {
+				return nil, fail("privileged_helper_error", err)
+			}
+			return status, nil
+		case "enable", "disable":
+			paths, err := nagiruntime.Resolve()
+			if err != nil {
+				return nil, err
+			}
+			mode, err := readBackend(paths)
+			if err != nil {
+				return nil, err
+			}
+			if args[1] == "enable" {
+				status, err := privilegedservice.Status()
+				if err != nil {
+					return nil, fail("privileged_helper_error", err)
+				}
+				if !status.Installed || !status.Active {
+					return nil, fail("privileged_helper_error", errors.New("install and start the privileged helper before enabling it"))
+				}
+				if _, err := (helperBackend{paths: paths}).Status(ctx); err != nil {
+					return nil, fail("privileged_helper_error", fmt.Errorf("helper service is active but its authenticated socket is unavailable: %w", err))
+				}
+				userEngine, err := engine.New(engine.Options{Binary: binary, ConfigPath: filepath.Join(paths.ConfigDir, "profiles", "default.yaml"), Paths: paths})
+				if err != nil {
+					return nil, err
+				}
+				userStatus, err := userEngine.Status(ctx)
+				if err != nil {
+					return nil, err
+				}
+				if userStatus.Running {
+					return nil, fail("privileged_helper_error", errors.New("stop the user mihomo process before enabling the privileged backend"))
+				}
+				if err := writeBackend(paths, privilegedBackend); err != nil {
+					return nil, err
+				}
+				return map[string]any{"selected_backend": privilegedBackend, "changed": mode != privilegedBackend}, nil
+			}
+			if mode == privilegedBackend {
+				b := helperBackend{profile: "default", paths: paths}
+				st, err := b.Status(ctx)
+				if err != nil {
+					return nil, fail("privileged_helper_error", err)
+				}
+				if st.Running {
+					return nil, fail("privileged_helper_error", errors.New("stop the privileged mihomo process before disabling the backend"))
+				}
+			}
+			if err := writeBackend(paths, userBackend); err != nil {
+				return nil, err
+			}
+			return map[string]any{"selected_backend": userBackend, "changed": mode != userBackend}, nil
+		}
+	}
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		return nil, err
 	}
+	backendMode, err := readBackend(paths)
+	if err != nil {
+		return nil, err
+	}
 	if command == "doctor" {
+		if backendMode == privilegedBackend {
+			b := helperBackend{profile: "default", paths: paths}
+			st, err := b.Status(ctx)
+			if err != nil {
+				return nil, fail("privileged_helper_error", err)
+			}
+			return diagnostic.RunWithAccess(ctx, paths, binary, b.controlClient(), &st), nil
+		}
 		return diagnostic.Run(ctx, paths, binary), nil
 	}
 	if command == "diagnostics" {
-		report := diagnostic.RunFull(ctx, paths, binary)
+		var report diagnostic.FullReport
+		if backendMode == privilegedBackend {
+			b := helperBackend{profile: "default", paths: paths}
+			st, err := b.Status(ctx)
+			if err != nil {
+				return nil, fail("privileged_helper_error", err)
+			}
+			report = diagnostic.RunFullWithAccess(ctx, paths, binary, b.controlClient(), &st)
+		} else {
+			report = diagnostic.RunFull(ctx, paths, binary)
+		}
 		if len(args) == 1 {
 			return report, nil
 		}
@@ -261,7 +422,6 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
 	trafficManager := traffic.New(paths.StateDir)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
-	proxies := proxy.NewService(client)
 	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
@@ -279,6 +439,10 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		profileName = "default"
 	}
 	configPath := filepath.Join(paths.ConfigDir, "profiles", profileName+".yaml")
+	if backendMode == privilegedBackend {
+		client = (helperBackend{profile: profileName, binary: binary, configPath: configPath, paths: paths}).controlClient()
+	}
+	proxies := proxy.NewService(client)
 	var manager *engine.Manager
 	getManager := func() (*engine.Manager, error) {
 		if manager != nil {
@@ -298,12 +462,23 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		manager, err = engine.New(engine.Options{Binary: binary, ConfigPath: configPath, Paths: paths})
 		return manager, err
 	}
+	getLifecycle := func() (lifecycleBackend, error) {
+		if backendMode == privilegedBackend {
+			if command == "start" || command == "restart" || command == "config" {
+				if _, err := getManager(); err != nil {
+					return nil, err
+				}
+			}
+			return helperBackend{profile: profileName, binary: binary, configPath: configPath, paths: paths}, nil
+		}
+		return getManager()
+	}
 	var profiles *profile.Store
 	getProfiles := func() (*profile.Store, error) {
 		if profiles != nil {
 			return profiles, nil
 		}
-		m, err := getManager()
+		m, err := getLifecycle()
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +493,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err := ensureDefaultProfile(filepath.Join(paths.ConfigDir, "profiles", profileName+".yaml"), profileName); err != nil {
 			return nil, err
 		}
-		m, err := getManager()
+		m, err := getLifecycle()
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +503,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return result, err
 	case "stop":
-		m, err := getManager()
+		m, err := getLifecycle()
 		if err != nil {
 			return nil, err
 		}
@@ -348,7 +523,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err := ensureDefaultProfile(filepath.Join(paths.ConfigDir, "profiles", profileName+".yaml"), profileName); err != nil {
 			return nil, err
 		}
-		m, err := getManager()
+		m, err := getLifecycle()
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +541,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return result, err
 	case "status":
-		m, err := getManager()
+		m, err := getLifecycle()
 		if err != nil {
 			return nil, err
 		}
@@ -410,6 +585,25 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return data, nil
 	case "logs":
+		if backendMode == privilegedBackend {
+			b := helperBackend{profile: profileName, paths: paths}
+			if len(args) == 2 && args[1] == "follow" {
+				st, err := b.Status(ctx)
+				if err != nil {
+					return nil, err
+				}
+				if !st.Running {
+					return nil, fail("not_running", errors.New("mihomo is not running; start it before following logs"))
+				}
+				return helperFollowResult{backend: b}, nil
+			}
+			count := 100
+			if len(args) == 2 {
+				count, _ = strconv.Atoi(args[1])
+			}
+			lines, err := b.Logs(ctx, count)
+			return map[string]any{"lines": lines}, err
+		}
 		m, err := getManager()
 		if err != nil {
 			return nil, err
@@ -468,7 +662,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if err := m.Validate(ctx); err != nil {
 				return nil, fail("invalid_config", err)
 			}
-			status, err := m.Status(ctx)
+			lifecycle, err := getLifecycle()
+			if err != nil {
+				return nil, err
+			}
+			status, err := lifecycle.Status(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -575,7 +773,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if cfg["allow-lan"] == true {
 			return nil, fail("system_proxy_error", errors.New("disable LAN access before enabling the system proxy, or configure a loopback-only listener"))
 		}
-		status, e := getManager()
+		status, e := getLifecycle()
 		if e != nil {
 			return nil, e
 		}
@@ -742,6 +940,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if e != nil {
 			return nil, e
 		}
+		if backendMode == privilegedBackend {
+			return map[string]any{"recovered": false, "reason": "helper owns runtime state"}, nil
+		}
 		status, e := m.Recover(ctx)
 		if e != nil {
 			if errors.Is(e, engine.ErrNotRunning) {
@@ -756,7 +957,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if e != nil {
 				return nil, e
 			}
-			m, e := getManager()
+			m, e := getLifecycle()
 			if e != nil {
 				return nil, e
 			}
@@ -773,7 +974,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return service.Disable()
 		}
 		if args[1] == "check" {
-			m, e := getManager()
+			m, e := getLifecycle()
 			if e != nil {
 				return nil, e
 			}
@@ -781,12 +982,16 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if e != nil {
 				return nil, e
 			}
-			if st.StalePID != 0 {
-				rec, e := m.Recover(ctx)
+			if st.StalePID != 0 && backendMode == userBackend {
+				rec, e := getManager()
 				if e != nil {
 					return nil, e
 				}
-				return map[string]any{"checked": true, "recovered": true, "stale_pid": rec.StalePID}, nil
+				recovered, e := rec.Recover(ctx)
+				if e != nil {
+					return nil, e
+				}
+				return map[string]any{"checked": true, "recovered": true, "stale_pid": recovered.StalePID}, nil
 			}
 			reachable := false
 			if st.Running {

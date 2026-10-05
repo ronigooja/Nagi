@@ -12,10 +12,9 @@ import (
 	"strings"
 
 	"github.com/ronigooja/Nagi/internal/control"
-	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/profile"
-	"github.com/ronigooja/Nagi/internal/rules"
 	"github.com/ronigooja/Nagi/internal/proxy"
+	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 )
 
@@ -48,7 +47,7 @@ func ensureDefaultProfile(path, selected string) error {
 	return file.Close()
 }
 
-func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Client, manager *engine.Manager) *profile.Store {
+func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Client, manager lifecycleBackend) *profile.Store {
 	validate := func(data []byte) error {
 		if strings.TrimSpace(string(data)) == "" {
 			return errors.New("empty profile")
@@ -166,7 +165,7 @@ func materializeProfile(store *profile.Store, configDir, name string) (string, e
 
 var mixedPortPattern = regexp.MustCompile(`(?m)^mixed-port:\s*([0-9]+)\s*$`)
 
-func startAndVerify(ctx context.Context, manager *engine.Manager, client *control.Client, configPath, profileName string) (any, error) {
+func startAndVerify(ctx context.Context, manager lifecycleBackend, client *control.Client, configPath, profileName string) (any, error) {
 	status, err := manager.Start(ctx)
 	if err != nil {
 		return nil, err

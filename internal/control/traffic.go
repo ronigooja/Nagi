@@ -20,6 +20,9 @@ type TrafficSample struct {
 // WatchTraffic reads mihomo's continuous newline-delimited JSON stream. Unlike
 // ordinary control requests, the HTTP client has no whole-request timeout.
 func (c *Client) WatchTraffic(ctx context.Context, receive func(TrafficSample) error) error {
+	if c.trafficFunc != nil {
+		return c.trafficFunc(ctx, receive)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://unix/traffic", nil)
 	if err != nil {
 		return err

@@ -15,7 +15,15 @@ import (
 
 // Client talks to mihomo's HTTP API exclusively over a local Unix socket.
 type Client struct {
-	http *http.Client
+	http        *http.Client
+	requestFunc func(context.Context, string, string, any, any) error
+	trafficFunc func(context.Context, func(TrafficSample) error) error
+}
+
+// NewWithBridge sends control operations through an authenticated local
+// helper. The bridge enforces its own allowlist before forwarding to mihomo.
+func NewWithBridge(request func(context.Context, string, string, any, any) error, traffic func(context.Context, func(TrafficSample) error) error) *Client {
+	return &Client{requestFunc: request, trafficFunc: traffic}
 }
 
 type APIError struct {
@@ -59,6 +67,9 @@ func (c *Client) Delete(ctx context.Context, path string, out any) error {
 func (c *Client) request(ctx context.Context, method, path string, body, out any) error {
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
 		return errors.New("invalid mihomo API path")
+	}
+	if c.requestFunc != nil {
+		return c.requestFunc(ctx, method, path, body, out)
 	}
 	var reader io.Reader
 	if body != nil {
