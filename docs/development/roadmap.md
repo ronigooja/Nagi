@@ -46,6 +46,9 @@ The CLI implements the items below as defined in the [CLI reference](../referenc
 
 ## Traffic access
 
+Implemented CLI commands and scope are in the [CLI reference](../reference/cli.md#traffic-access). The remaining platform and interception limits are documented there and in the [traffic access guide](../guides/traffic-access.md).
+
+
 - Enable, disable, and report the system proxy.
 - Enable, disable, and report TUN mode.
 - Show HTTP, HTTPS, and SOCKS port status.

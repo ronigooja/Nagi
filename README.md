@@ -1,6 +1,6 @@
 # Nagi
 
-Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, and encrypted DNS policy, and provides proxy search, saved selections, latency checks, connection controls, and runtime routing modes. Profile export, backup, restore, and comparison support local configuration work. Read-only diagnostics and Bash, Zsh, and Fish completion support terminal use. A macOS SwiftUI client calls the CLI for common operations.
+Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, and encrypted DNS policy, and provides proxy search, saved selections, latency checks, connection controls, runtime routing modes, system proxy and TUN controls, and listener/LAN status. Profile export, backup, restore, and comparison support local configuration work. Read-only diagnostics and Bash, Zsh, and Fish completion support terminal use. A macOS SwiftUI client calls the CLI for common operations.
 
 ## Quick start
 
@@ -20,6 +20,7 @@ Without `MIHOMO_DIR`, the build script fetches the repository and exact commit i
 - [Architecture](ARCHITECTURE.md): system boundaries and module relationships.
 - [Getting started](docs/guides/getting-started.md): initial configuration and operation.
 - [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
+- [Traffic access](docs/guides/traffic-access.md): system proxy, TUN, listener ports, and LAN access.
 - [CLI reference](docs/reference/cli.md): commands, output, and exit codes.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Development](docs/development/build-and-test.md): locked builds and tests.

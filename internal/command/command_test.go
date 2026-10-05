@@ -367,3 +367,19 @@ func TestRulesHelpAndUsage(t *testing.T) {
 		}
 	}
 }
+
+func TestTrafficCommandHelpAndUsage(t *testing.T) {
+	for _, topic := range [][]string{{"system-proxy", "status"}, {"tun", "enable"}, {"ports", "status"}, {"lan", "enable"}} {
+		var out, errs bytes.Buffer
+		args := append([]string{"--json", "help"}, topic...)
+		if code := Run(args, &out, &errs, "test", "commit"); code != 0 || !strings.Contains(out.String(), "Usage: nagi "+strings.Join(topic, " ")) {
+			t.Fatalf("help %v: %d %s %s", topic, code, out.String(), errs.String())
+		}
+	}
+	for _, args := range [][]string{{"--json", "system-proxy"}, {"--json", "tun", "bad"}, {"--json", "ports", "status", "extra"}, {"--json", "lan", "enable", "invalid"}} {
+		var out, errs bytes.Buffer
+		if code := Run(args, &out, &errs, "test", "commit"); code != 2 || !strings.Contains(errs.String(), `"code":"usage"`) {
+			t.Fatalf("usage %v: %d %s", args, code, errs.String())
+		}
+	}
+}

@@ -37,6 +37,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/rules` | Persistent custom rules, imported rule sets, effective overlays, and conflict reports. |
 | `internal/diagnostic` | Read-only inspection of paths, executable, selected profile, PID, and control API. |
 | `internal/service` | Per-user launchd and systemd service installation. |
+| `internal/traffic` | OS proxy settings, restore journal, and engine exit watcher. |
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 

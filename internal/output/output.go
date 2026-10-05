@@ -12,6 +12,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/rules"
 	"github.com/ronigooja/Nagi/internal/service"
 	"github.com/ronigooja/Nagi/internal/subscription"
+	"github.com/ronigooja/Nagi/internal/traffic"
 )
 
 type Failure struct {
@@ -125,6 +126,27 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return line(w, fmt.Sprintf("Run `nagi subscription apply %s` to select its profile.", v.Name))
 	case subscription.Preview:
 		return writePreview(w, v)
+	case traffic.State:
+		state := "disabled"
+		if v.Enabled {
+			state = "enabled"
+		}
+		if err := line(w, "System proxy: "+state+" ("+v.Backend+")"); err != nil {
+			return err
+		}
+		for _, item := range []struct {
+			name  string
+			value traffic.Setting
+		}{{"HTTP", v.HTTP}, {"HTTPS", v.HTTPS}, {"SOCKS", v.SOCKS}} {
+			label := "off"
+			if item.value.Enabled {
+				label = fmt.Sprintf("%s:%d", item.value.Host, item.value.Port)
+			}
+			if err := line(w, item.name+": "+label); err != nil {
+				return err
+			}
+		}
+		return nil
 	case service.Result:
 		return line(w, fmt.Sprintf("Service manager: %s\nService file: %s", v.Manager, v.Path))
 	case map[string]any:
@@ -393,6 +415,28 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		}
 		if v["unexpected_exit"] == true {
 			return line(w, "The previous mihomo process exited unexpectedly. Inspect logs with `nagi logs`.")
+		}
+		return nil
+	}
+	if enabled, ok := v["enabled"].(bool); ok {
+		label := "disabled"
+		if enabled {
+			label = "enabled"
+		}
+		kind := "TUN"
+		if _, ok := v["bind_address"]; ok {
+			kind = "LAN access"
+		}
+		if err := line(w, kind+": "+label); err != nil {
+			return err
+		}
+		return printField(w, "Bind address", v, "bind_address")
+	}
+	if _, ok := v["http"]; ok {
+		for _, item := range []struct{ key, label string }{{"http", "HTTP/HTTPS port"}, {"socks", "SOCKS port"}, {"mixed", "Mixed HTTP/SOCKS port"}, {"bind_address", "Bind address"}, {"allow_lan", "LAN access"}} {
+			if err := printField(w, item.label, v, item.key); err != nil {
+				return err
+			}
 		}
 		return nil
 	}

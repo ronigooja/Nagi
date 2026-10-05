@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -79,6 +80,20 @@ var commandSpecs = []commandSpec{
 	{"connections list", "connections list", "List active connections", "Shows a snapshot of active connections.", "nagi connections list", "", 0, 0},
 	{"connections close", "connections close ID", "Close a connection", "Closes one connection by its mihomo ID.", "nagi connections close 42", "Run `nagi connections list` to find IDs.", 1, 1},
 	{"connections close-all", "connections close-all", "Close all connections", "Closes all active connections.", "nagi connections close-all", "", 0, 0},
+	{"system-proxy", "system-proxy <status|enable|disable>", "Manage OS proxy settings", "Uses macOS networksetup or a GNOME gsettings session. Saved settings are restored on stop or engine exit.", "nagi system-proxy status", "", 0, -1},
+	{"system-proxy status", "system-proxy status", "Show OS proxy settings", "Reports the active OS proxy settings.", "nagi system-proxy status", "", 0, 0},
+	{"system-proxy enable", "system-proxy enable", "Enable OS proxy", "Points OS HTTP and HTTPS proxy settings at the running local mihomo port and saves previous settings for restore.", "nagi system-proxy enable", "", 0, 0},
+	{"system-proxy disable", "system-proxy disable", "Restore OS proxy settings", "Restores settings saved by system-proxy enable.", "nagi system-proxy disable", "", 0, 0},
+	{"tun", "tun <status|enable|disable>", "Manage TUN mode", "Reads or changes runtime mihomo TUN mode; requires OS TUN permissions.", "nagi tun status", "", 0, -1},
+	{"tun status", "tun status", "Show TUN mode", "Reports runtime TUN configuration.", "nagi tun status", "", 0, 0},
+	{"tun enable", "tun enable", "Enable TUN mode", "Enables runtime TUN with auto-route and interface detection; inspect logs for adapter errors.", "nagi tun enable", "", 0, 0},
+	{"tun disable", "tun disable", "Disable TUN mode", "Disables runtime TUN; profile reload may re-enable it.", "nagi tun disable", "", 0, 0},
+	{"ports", "ports <status>", "Show listener ports", "Reports HTTP, HTTPS, SOCKS, and mixed listener ports from the running engine.", "nagi ports status", "", 0, -1},
+	{"ports status", "ports status", "Show listener ports", "HTTP and HTTPS share mihomo's HTTP proxy port; mixed accepts both HTTP and SOCKS.", "nagi ports status", "", 0, 0},
+	{"lan", "lan <status|enable [ADDRESS]|disable>", "Manage LAN access", "Changes runtime allow-lan and bind address. Enabling defaults to all interfaces; supply an explicit local IP to restrict listening.", "nagi lan enable 192.168.1.10", "", 0, -1},
+	{"lan status", "lan status", "Show LAN access", "Reports allow-lan and bind address.", "nagi lan status", "", 0, 0},
+	{"lan enable", "lan enable [ADDRESS]", "Enable LAN access", "Binds to all interfaces by default; ADDRESS must be a local IPv4 or IPv6 address.", "nagi lan enable 192.168.1.10", "", 0, 1},
+	{"lan disable", "lan disable", "Disable LAN access", "Restricts proxy listeners to loopback.", "nagi lan disable", "", 0, 0},
 	{"mode", "mode [rule|global|direct]", "Read or set runtime mode", "Reads mihomo mode or updates it at runtime; profile files are not edited.", "nagi mode rule", "", 0, 1},
 	{"service", "service <install|uninstall>", "Manage the user service", "Installs or removes the per-user launchd Agent or systemd service.", "nagi service install", "", 0, -1},
 	{"service install", "service install", "Install the user service", "Installs a per-user launchd Agent or systemd service.", "nagi service install", "", 0, 0},
@@ -220,6 +235,9 @@ func validateInvocation(args []string) error {
 		if args[3] != "classical" && args[3] != "domain" && args[3] != "ipcidr" {
 			return syntaxError("BEHAVIOR must be classical, domain, or ipcidr", spec)
 		}
+	}
+	if spec.path == "lan enable" && n == 1 && net.ParseIP(args[2]) == nil {
+		return syntaxError("ADDRESS must be an IPv4 or IPv6 address", spec)
 	}
 	if spec.path == "mode" && n == 1 {
 		if args[1] != "rule" && args[1] != "global" && args[1] != "direct" {

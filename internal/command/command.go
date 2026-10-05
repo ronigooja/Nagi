@@ -24,6 +24,7 @@ import (
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/service"
 	"github.com/ronigooja/Nagi/internal/subscription"
+	"github.com/ronigooja/Nagi/internal/traffic"
 )
 
 type commandError struct {
@@ -35,6 +36,18 @@ func (e *commandError) Error() string   { return e.err.Error() }
 func fail(code string, err error) error { return &commandError{code, err} }
 
 func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
+	if len(args) == 2 && args[0] == "__traffic-watch" {
+		pid, e := strconv.Atoi(args[1])
+		if e != nil || pid <= 0 {
+			return 2
+		}
+		paths, e := nagiruntime.Resolve()
+		if e != nil {
+			return 1
+		}
+		traffic.New(paths.StateDir).Watch(context.Background(), pid)
+		return 0
+	}
 	jsonMode := false
 	filtered := make([]string, 0, len(args))
 	for _, arg := range args {
@@ -173,6 +186,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		controlTimeout = 31 * time.Second
 	}
 	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
+	trafficManager := traffic.New(paths.StateDir)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
 	proxies := proxy.NewService(client)
 	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
@@ -248,6 +262,11 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		if err := arity(args, 1); err != nil {
 			return nil, err
 		}
+		if trafficManager.Managed() {
+			if _, e := trafficManager.Disable(ctx); e != nil {
+				return nil, fail("system_proxy_error", e)
+			}
+		}
 		return m.Stop(ctx)
 	case "restart":
 		if err := arity(args, 1); err != nil {
@@ -259,6 +278,11 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		m, err := getManager()
 		if err != nil {
 			return nil, err
+		}
+		if trafficManager.Managed() {
+			if _, e := trafficManager.Disable(ctx); e != nil {
+				return nil, fail("system_proxy_error", e)
+			}
 		}
 		if _, err := m.Stop(ctx); err != nil && !errors.Is(err, engine.ErrNotRunning) {
 			return nil, err
@@ -279,6 +303,11 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		status, err := m.Status(ctx)
 		if err != nil {
 			return nil, err
+		}
+		if !status.Running {
+			if e := trafficManager.RestoreIfStopped(ctx, 0); e != nil {
+				return nil, fail("system_proxy_error", e)
+			}
 		}
 		data := map[string]any{"running": status.Running, "socket_path": status.SocketPath, "log_path": status.LogPath}
 		if profileErr == nil {
@@ -410,6 +439,121 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		default:
 			return nil, usage("connections list|close ID|close-all")
 		}
+	case "system-proxy":
+		if args[1] == "status" {
+			state, e := trafficManager.Status(ctx)
+			if e != nil {
+				return nil, fail("system_proxy_error", e)
+			}
+			return state, nil
+		}
+		if args[1] == "disable" {
+			state, e := trafficManager.Disable(ctx)
+			if e != nil {
+				return nil, fail("system_proxy_error", e)
+			}
+			return state, nil
+		}
+		var cfg map[string]any
+		if e := client.Get(ctx, "/configs", &cfg); e != nil {
+			return nil, fail("system_proxy_error", fmt.Errorf("start mihomo first: %w", e))
+		}
+		port := intField(cfg, "mixed-port")
+		if port == 0 {
+			port = intField(cfg, "port")
+		}
+		if port == 0 {
+			return nil, fail("system_proxy_error", errors.New("no HTTP or mixed listener is configured; inspect `nagi ports status`"))
+		}
+		if cfg["allow-lan"] == true {
+			return nil, fail("system_proxy_error", errors.New("disable LAN access before enabling the system proxy, or configure a loopback-only listener"))
+		}
+		status, e := getManager()
+		if e != nil {
+			return nil, e
+		}
+		engineStatus, e := status.Status(ctx)
+		if e != nil || !engineStatus.Running {
+			return nil, fail("system_proxy_error", errors.New("start mihomo before enabling the system proxy"))
+		}
+		state, e := trafficManager.Enable(ctx, engineStatus.PID, port)
+		if e != nil {
+			return nil, fail("system_proxy_error", e)
+		}
+		exe, e := os.Executable()
+		if e == nil {
+			watch := exec.Command(exe, "__traffic-watch", strconv.Itoa(engineStatus.PID))
+			watch.Stdin = nil
+			watch.Stdout = io.Discard
+			watch.Stderr = io.Discard
+			if e = watch.Start(); e == nil {
+				_ = watch.Process.Release()
+			}
+		}
+		if e != nil {
+			_, _ = trafficManager.Disable(ctx)
+			return nil, fail("system_proxy_error", fmt.Errorf("cannot start exit recovery watcher: %w", e))
+		}
+		return state, nil
+	case "tun":
+		cfg, e := trafficConfig(ctx, client)
+		if e != nil {
+			return nil, e
+		}
+		tun, _ := cfg["tun"].(map[string]any)
+		enabled, _ := tun["enable"].(bool)
+		if args[1] == "status" {
+			return map[string]any{"enabled": enabled, "settings": tun}, nil
+		}
+		requested := args[1] == "enable"
+		payload := map[string]any{"enable": requested}
+		if requested {
+			payload["auto-route"] = true
+			payload["auto-detect-interface"] = true
+		}
+		if e := client.Patch(ctx, "/configs", map[string]any{"tun": payload}, nil); e != nil {
+			return nil, e
+		}
+		cfg, e = trafficConfig(ctx, client)
+		if e != nil {
+			return nil, e
+		}
+		tun, _ = cfg["tun"].(map[string]any)
+		enabled, _ = tun["enable"].(bool)
+		if enabled != requested {
+			return nil, fail("tun_error", errors.New("mihomo did not report the requested TUN state; inspect `nagi logs` and OS TUN permissions"))
+		}
+		return map[string]any{"enabled": enabled, "settings": tun}, nil
+	case "ports":
+		cfg, e := trafficConfig(ctx, client)
+		if e != nil {
+			return nil, e
+		}
+		return map[string]any{"http": intField(cfg, "port"), "https": intField(cfg, "port"), "socks": intField(cfg, "socks-port"), "mixed": intField(cfg, "mixed-port"), "bind_address": cfg["bind-address"], "allow_lan": cfg["allow-lan"]}, nil
+	case "lan":
+		cfg, e := trafficConfig(ctx, client)
+		if e != nil {
+			return nil, e
+		}
+		if args[1] != "status" {
+			requested := args[1] == "enable"
+			address := "127.0.0.1"
+			if requested {
+				address = "*"
+				if len(args) == 3 {
+					address = args[2]
+				}
+			}
+			if e := client.Patch(ctx, "/configs", map[string]any{"allow-lan": requested, "bind-address": address}, nil); e != nil {
+				return nil, e
+			}
+			cfg, e = trafficConfig(ctx, client)
+			if e != nil {
+				return nil, e
+			}
+		}
+		enabled, _ := cfg["allow-lan"].(bool)
+		return map[string]any{"enabled": enabled, "bind_address": cfg["bind-address"]}, nil
 	case "mode":
 		if len(args) == 1 {
 			return proxies.Mode(ctx, nil)
@@ -777,3 +921,12 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
 	}
 }
+
+func trafficConfig(ctx context.Context, client *control.Client) (map[string]any, error) {
+	var cfg map[string]any
+	if err := client.Get(ctx, "/configs", &cfg); err != nil {
+		return nil, fmt.Errorf("mihomo must be running; run `nagi start` or inspect `nagi status`: %w", err)
+	}
+	return cfg, nil
+}
+func intField(m map[string]any, key string) int { v, _ := m[key].(float64); return int(v) }
