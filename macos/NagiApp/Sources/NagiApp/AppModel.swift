@@ -33,6 +33,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     private var sleeping = false
     private var quitting = false
     private(set) var busy = false { didSet { notify() } }
+    private(set) var applyingSetting = false { didSet { notify() } }
     private(set) var state: EngineState = .starting { didSet { notify() } }
     private(set) var errorMessage: String? { didSet { notify() } }
     private(set) var quitErrorMessage: String? { didSet { notify() } }
@@ -156,8 +157,9 @@ enum EngineState { case starting, running, stopped, unavailable }
     func perform(_ arguments: [String], success: String? = nil) {
         guard !busy && !quitting else { return }
         busy = true
+        applyingSetting = true
         Task {
-            defer { busy = false }
+            defer { applyingSetting = false; busy = false }
             do { _ = try await cli.run(arguments); errorMessage = nil; notice = success; await refresh() }
             catch { errorMessage = error.localizedDescription }
         }

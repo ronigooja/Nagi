@@ -47,6 +47,10 @@ import AppKit
         if model.busy {
             menu.cancelTracking()
             statusItem.menu = nil
+        } else {
+            statusItem.menu = menu
+        }
+        if model.applyingSetting {
             if loadingTimer == nil {
                 loadingFrame = 0
                 loadingTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
@@ -60,18 +64,12 @@ import AppKit
         } else {
             loadingTimer?.invalidate()
             loadingTimer = nil
-            statusItem.menu = menu
+            loadingFrame = 0
         }
-        let networkColor = model.state == .unavailable ? NSColor.white : NSColor.labelColor
-        let translucentWhite = NSColor.white.withAlphaComponent(0.5)
-        let shieldColor: NSColor
-        if model.state == .unavailable {
-            shieldColor = .systemYellow
-        } else if model.busy {
-            shieldColor = loadingFrame == 0 ? .white : translucentWhite
-        } else {
-            shieldColor = model.state == .running ? .white : translucentWhite
-        }
+        let textColor = NSColor.labelColor
+        let translucentText = textColor.withAlphaComponent(0.5)
+        let networkColor = model.applyingSetting || model.state == .running ? textColor : translucentText
+        let shieldColor = model.applyingSetting && loadingFrame == 1 ? translucentText : networkColor
         let configuration = NSImage.SymbolConfiguration(paletteColors: [shieldColor, networkColor])
         let icon = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")?
             .withSymbolConfiguration(configuration)
@@ -93,7 +91,7 @@ import AppKit
         case .stopped: state = "stopped"
         case .unavailable: state = "status unavailable"
         }
-        button.setAccessibilityLabel(model.busy ? "Nagi, applying setting" : "Nagi \(state), \(model.accessibilityTraffic)")
+        button.setAccessibilityLabel(model.applyingSetting ? "Nagi, applying setting" : "Nagi \(state), \(model.accessibilityTraffic)")
     }
 
     func menuShouldOpen(_ menu: NSMenu) -> Bool { !model.busy }
