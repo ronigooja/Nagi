@@ -62,29 +62,19 @@ import AppKit
             loadingTimer = nil
             statusItem.menu = menu
         }
-        let networkColor = NSColor.labelColor
+        let networkColor = model.state == .unavailable ? NSColor.white : NSColor.labelColor
+        let translucentWhite = NSColor.white.withAlphaComponent(0.5)
         let shieldColor: NSColor
-        if model.busy {
-            shieldColor = loadingFrame == 0 ? .white : .clear
+        if model.state == .unavailable {
+            shieldColor = .systemYellow
+        } else if model.busy {
+            shieldColor = loadingFrame == 0 ? .white : translucentWhite
         } else {
-            shieldColor = model.state == .running ? .white : .tertiaryLabelColor
+            shieldColor = model.state == .running ? .white : translucentWhite
         }
         let configuration = NSImage.SymbolConfiguration(paletteColors: [shieldColor, networkColor])
-        let baseIcon = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")?
+        let icon = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")?
             .withSymbolConfiguration(configuration)
-        let icon: NSImage?
-        if model.state == .unavailable, let baseIcon,
-           let warning = NSImage(systemSymbolName: "exclamationmark", accessibilityDescription: "Status unavailable")?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.white])) {
-            icon = NSImage(size: baseIcon.size, flipped: false) { _ in
-                baseIcon.draw(in: NSRect(origin: .zero, size: baseIcon.size))
-                warning.draw(in: NSRect(x: baseIcon.size.width * 0.62, y: baseIcon.size.height * 0.08,
-                                        width: baseIcon.size.width * 0.28, height: baseIcon.size.height * 0.45))
-                return true
-            }
-        } else {
-            icon = baseIcon
-        }
         icon?.isTemplate = false
         button.image = icon
         button.imagePosition = .imageLeading
