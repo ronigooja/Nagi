@@ -23,10 +23,14 @@ const startupWatchMaxDelay = 5 * time.Minute
 func runStartupWatch(stderr io.Writer, version, commit string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if _, err := execute(ctx, []string{"startup", "login"}, version, commit); err != nil {
+		output.WriteError(stderr, false, "service_start_error", err.Error())
+		return 1
+	}
 	defer func() {
 		shutdown, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		if _, err := execute(shutdown, []string{"stop"}, version, commit); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, engine.ErrNotRunning) {
+		if _, err := execute(shutdown, []string{"startup", "shutdown"}, version, commit); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, engine.ErrNotRunning) {
 			output.WriteError(stderr, false, "service_stop_error", err.Error())
 		}
 	}()
@@ -80,6 +84,6 @@ func startupWatchStep(ctx context.Context, call func(...string) (any, error)) er
 		}
 		return nil
 	}
-	_, err = call("start")
+	_, err = call("startup", "ensure")
 	return err
 }

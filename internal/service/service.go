@@ -241,3 +241,37 @@ func Disable() (Result, error) {
 	}
 	return result, nil
 }
+
+// PauseIfActive stops this login session's monitor without changing whether
+// the service starts at the next login.
+func PauseIfActive() error {
+	result, err := Status()
+	if err != nil || !result.Active {
+		return err
+	}
+	switch result.Manager {
+	case "systemd":
+		return run("systemctl", "--user", "stop", "nagi.service")
+	case "launchd":
+		return run("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), result.Path)
+	default:
+		return fmt.Errorf("unsupported service manager: %s", result.Manager)
+	}
+}
+
+// ResumeIfEnabled restores monitoring after a previous quit when the user's
+// login-start preference remains enabled.
+func ResumeIfEnabled() error {
+	result, err := Status()
+	if err != nil || !result.Enabled || result.Active {
+		return err
+	}
+	switch result.Manager {
+	case "systemd":
+		return run("systemctl", "--user", "start", "nagi.service")
+	case "launchd":
+		return run("launchctl", "bootstrap", fmt.Sprintf("gui/%d", os.Getuid()), result.Path)
+	default:
+		return fmt.Errorf("unsupported service manager: %s", result.Manager)
+	}
+}

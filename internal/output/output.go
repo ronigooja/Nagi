@@ -261,6 +261,9 @@ func writeGroup(w io.Writer, g proxy.Group) error {
 }
 
 func writeHumanMap(w io.Writer, v map[string]any) error {
+	if v["quit"] == true {
+		return line(w, "Nagi stopped for this login session. Login startup preference is unchanged.")
+	}
 	if v["flushed"] == true {
 		return line(w, "Cleared mihomo DNS cache.")
 	}

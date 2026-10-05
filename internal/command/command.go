@@ -140,9 +140,9 @@ func runJSONFollow(stdout, stderr io.Writer, follow engine.FollowResult) int {
 	return 0
 }
 
-func execute(ctx context.Context, args []string, version, commit string) (any, error) {
+func executeInternal(ctx context.Context, args []string, version, commit string) (any, error) {
 	if len(args) == 0 {
-		return nil, fail("usage", errors.New("command required: start, stop, restart, status, doctor, logs, config, profile, subscription, dns, proxy, connections, service, version"))
+		return nil, fail("usage", errors.New("command required: start, stop, quit, restart, status, doctor, logs, config, profile, subscription, dns, proxy, connections, service, version"))
 	}
 	binary := os.Getenv("NAGI_MIHOMO_BIN")
 	if binary == "" {

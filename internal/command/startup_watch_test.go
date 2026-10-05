@@ -17,8 +17,8 @@ func TestStartupWatchStep(t *testing.T) {
 		err   string
 	}{
 		{"healthy", map[string]any{"running": true, "control_api": true}, "startup check", ""},
-		{"crashed", map[string]any{"recovered": true}, "startup check,start", ""},
-		{"stopped", map[string]any{"running": false}, "startup check,start", ""},
+		{"crashed", map[string]any{"recovered": true}, "startup check,startup ensure", ""},
+		{"stopped", map[string]any{"running": false}, "startup check,startup ensure", ""},
 		{"api unavailable", map[string]any{"running": true, "control_api": false}, "startup check", "control API is unavailable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
