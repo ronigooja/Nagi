@@ -69,7 +69,7 @@ import AppKit
         } else {
             shieldColor = model.state == .running ? .white : .tertiaryLabelColor
         }
-        let configuration = NSImage.SymbolConfiguration(paletteColors: [networkColor, shieldColor])
+        let configuration = NSImage.SymbolConfiguration(paletteColors: [shieldColor, networkColor])
         let baseIcon = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")?
             .withSymbolConfiguration(configuration)
         let icon: NSImage?
