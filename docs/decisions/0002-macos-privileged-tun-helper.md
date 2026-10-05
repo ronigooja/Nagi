@@ -43,9 +43,10 @@ will require administrator authorization during helper installation.
 The implementation needs a versioned IPC protocol, a root LaunchDaemon
 installer/uninstaller, peer credential checks, a restricted control API path,
 configuration validation, and lifecycle integration in the engine manager.
-Helper installation must be signed or otherwise protected from replacement,
-and failures must leave the user-mode path available. Installation and use
-remain disabled until these security checks are implemented and tested.
+The installer must run as root and use only a root-owned executable under a
+root-owned, non-user-writable path. Failures must leave the user-mode path
+available. Installation and use remain disabled until these security checks
+are implemented and tested.
 
 Network Extension support remains out of scope unless a future requirement
 needs App Store-style sandboxing or packet-tunnel APIs.
