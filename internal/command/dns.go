@@ -139,7 +139,20 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		}
 		result := map[string]any{"profile": name, "enabled": dns["enable"] == true, "ipv6": dns["ipv6"] == true, "policy": policy, "upstream_hosts": dnsHosts(servers), "tun_enabled": tun["enable"] == true, "issues": issues, "leak_protection_verified": false}
 		if args[1] == "check" {
-			result["scope"] = "configuration and control API only; system routing and external leaks are not proven"
+			result["scope"] = "configuration, mihomo API, and observed OS routes/resolvers; application DNS paths and external leaks are not proven"
+			observation := systemDNSCheck(ctx)
+			evidence := map[string]any{"platform": observation.Platform, "route_interfaces": observation.RouteInterfaces, "resolvers": observation.Resolvers, "route_source": observation.RouteSource, "resolver_source": observation.ResolverSource, "issues": observation.Issues}
+			if device, ok := tun["device"].(string); ok && device != "" {
+				evidence["configured_tun_device"] = device
+				_, interfaceErr := net.InterfaceByName(device)
+				evidence["configured_tun_present"] = interfaceErr == nil
+				matches := map[string]bool{}
+				for family, name := range observation.RouteInterfaces {
+					matches[family] = name == device
+				}
+				evidence["default_route_matches_tun"] = matches
+			}
+			result["system_evidence"] = evidence
 			var response map[string]any
 			if err := client.Get(ctx, "/dns/query?name=example.com&type=A", &response); err == nil {
 				result["engine_query_ok"] = true

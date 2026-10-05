@@ -43,7 +43,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `dns tun on`, `dns tun off` | Save TUN DNS interception settings for the selected profile. |
 | `dns query DOMAIN [A\|AAAA]` | Query the running mihomo resolver over its private control socket. |
 | `dns flush` | Clear the running mihomo DNS cache. |
-| `dns check` | Audit the selected configuration and try a mihomo DNS query. |
+| `dns check` | Audit the selected configuration, try a mihomo DNS query, and observe system default routes and resolvers. |
 | `subscription list` | List names, refresh times, and available expiry and traffic metadata without URLs. |
 | `subscription add NAME URL` | Save an HTTP or HTTPS subscription URL. |
 | `subscription update NAME` | Fetch and validate up to 8 MiB, cache it, and report node changes against the preceding cache. |
@@ -99,7 +99,7 @@ New default profiles enable mihomo DNS, IPv6, and fake IP mode. They listen only
 
 `dns tun on` configures mihomo TUN with `auto-route`, `strict-route`, interface auto-detection, and UDP/TCP port 53 hijack (`any:53` and `tcp://any:53`). It requires an encrypted primary and bootstrap DNS configuration. The engine and OS may require additional privileges or platform support to activate TUN; configuration validation alone does not establish that traffic is intercepted. `dns tun off` disables the selected profile's TUN override. These commands do not change the operating system's DNS server setting. On a platform or network where TUN cannot be activated, applications outside mihomo can still resolve through the system resolver.
 
-`dns query` supports `A` and `AAAA` only and returns mihomo's `/dns/query` response. `dns flush` calls `/cache/dns/flush`. Both require a running control API. `dns check` inspects the selected effective configuration and makes one `example.com` A query through mihomo; it reports `engine_query_ok` and a list of configuration `issues`. The result always sets `leak_protection_verified: false`: Nagi does not yet prove OS route ownership, capture every application path, or perform an external DNS leak test. `dns status` is configuration inspection, not proof of running TUN state. Neither command prints full DoH URL paths or credentials; inspect `profile override show NAME` for exact local settings.
+`dns query` supports `A` and `AAAA` only and returns mihomo's `/dns/query` response. `dns flush` calls `/cache/dns/flush`. Both require a running control API. `dns check` inspects the selected effective configuration, makes one `example.com` A query through mihomo, and observes read-only system route and resolver state. On Linux it reads the IPv4 and IPv6 default route interfaces from `/proc/net/route` and `/proc/net/ipv6_route` and nameserver addresses from `/etc/resolv.conf`. On macOS it reads default route interfaces with `route -n get` and nameserver addresses with `scutil --dns`. The `system_evidence` object reports these observations, their sources, and collection issues; missing routes or commands leave the affected observation empty. When the profile names a TUN `device`, it also checks whether that interface exists and whether observed default routes use it. A local stub resolver or scoped macOS resolver does not reveal its upstream. Default routes can also miss split TUN routes. The result always sets `leak_protection_verified: false`: this sample does not prove route ownership for every destination, DNS capture for every application, or absence of external leaks. No external DNS probe runs because an ordinary public lookup cannot attribute the DNS path reliably. `dns status` is configuration inspection, not proof of running TUN state. Neither command prints full DoH URL paths or credentials; inspect `profile override show NAME` for exact local settings.
 
 ## Proxy latency, connections, and mode
 
@@ -188,7 +188,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `profile override clear NAME` | `name` (string), `override_cleared: true`. |
 | `profile remove NAME` | `name` (string), `removed: true`, `kind: "profile"`. |
 | `dns status` | `profile`, `policy` (strings), `enabled`, `ipv6`, `tun_enabled`, `leak_protection_verified` (booleans), `upstream_hosts`, `issues` (string arrays). |
-| `dns check` | DNS status fields plus `scope` (string), `engine_query_ok` (boolean). |
+| `dns check` | DNS status fields plus `scope` (string), `engine_query_ok` (boolean), and `system_evidence` (`platform`, `route_source`, `resolver_source` strings; `route_interfaces` object with optional `ipv4`/`ipv6` interface names; `resolvers`, `issues` string arrays; optional `configured_tun_device` string, `configured_tun_present` boolean, and `default_route_matches_tun` object with booleans for observed families). |
 | `dns set` | `profile`, `policy`, `proxy_node` (strings), `upstream_count` (integer), `saved: true`. |
 | `dns exception add/remove` | `profile`, `domain` (strings), `exception_changed: true`. |
 | `dns tun on/off` | `profile` (string), `tun_enabled` (boolean), `saved: true`. |
