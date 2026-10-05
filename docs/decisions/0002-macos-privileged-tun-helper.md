@@ -53,14 +53,13 @@ needs App Store-style sandboxing or packet-tunnel APIs.
 
 ## Implementation status
 
-The configuration policy currently accepts only a small literal subset:
-`mode: direct`, basic log/IPv6 settings, and selected TUN booleans and stack
-values. It rejects proxy nodes, providers, listeners, external controllers,
-file references, YAML aliases, unknown fields, and multiple YAML documents.
-On Linux, validated bytes can be copied into a private root-owned snapshot
-directory; root mihomo must never open the user's mutable profile path. macOS
-snapshot creation remains disabled until ACLs can be checked in addition to
-POSIX ownership and mode. This subset does not support subscription-backed
-proxy use. Helper installation and privileged engine activation remain
-disabled until the controller API is mediated and the complete
-configuration/runtime path can be validated safely.
+The configuration policy accepts inline proxy nodes, groups, and rules in
+ordinary subscription profiles. It rejects providers, scripts, plugins,
+external controllers, extra listeners, file references, YAML aliases,
+unknown top-level fields, and multiple YAML documents. Snapshot creation
+copies validated bytes into an existing private root-owned directory. On
+macOS, the directory and each ancestor are also checked for ACL entries.
+Root mihomo must never open the user's mutable profile path. Helper
+installation and privileged engine activation remain disabled until the
+controller API is mediated and the complete configuration/runtime path has
+been validated safely.
