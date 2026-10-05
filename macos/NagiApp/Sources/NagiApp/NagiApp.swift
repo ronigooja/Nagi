@@ -66,13 +66,29 @@ import AppKit
             loadingTimer = nil
             loadingFrame = 0
         }
-        let textColor = NSColor.labelColor
-        let translucentText = textColor.withAlphaComponent(0.5)
-        let networkColor = model.applyingSetting || model.state == .running ? textColor : translucentText
-        let shieldColor = model.applyingSetting && loadingFrame == 1 ? translucentText : networkColor
-        let configuration = NSImage.SymbolConfiguration(paletteColors: [shieldColor, networkColor])
-        let icon = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")?
-            .withSymbolConfiguration(configuration)
+        let symbol = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")
+        let full = symbol?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.white, .white]))
+        let icon: NSImage?
+        if let symbol, let full {
+            if model.applyingSetting {
+                let network = symbol.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.clear, .white]))
+                let shield = symbol.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.white, .clear]))
+                let shieldOpacity: CGFloat = loadingFrame == 0 ? 1 : 0.5
+                icon = NSImage(size: full.size, flipped: false) { rect in
+                    network?.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+                    shield?.draw(in: rect, from: .zero, operation: .sourceOver, fraction: shieldOpacity)
+                    return true
+                }
+            } else {
+                let opacity: CGFloat = model.state == .running ? 1 : 0.5
+                icon = NSImage(size: full.size, flipped: false) { rect in
+                    full.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                    return true
+                }
+            }
+        } else {
+            icon = nil
+        }
         icon?.isTemplate = false
         button.image = icon
         button.imagePosition = .imageLeading
