@@ -75,7 +75,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 	}
 	switch args[1] {
 	case "status", "check":
-		if len(args) != 2 {
+		if (args[1] == "status" && len(args) != 2) || (args[1] == "check" && !(len(args) == 2 || len(args) == 3 && args[2] == "--packet-sample")) {
 			return nil, usage("dns " + args[1])
 		}
 		data, err := store.Effective(name)
@@ -153,6 +153,10 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 				evidence["default_route_matches_tun"] = matches
 			}
 			result["system_evidence"] = evidence
+			if len(args) == 3 {
+				sample := packetSample(ctx, observation, realDNSPacketRunner{})
+				result["packet_sample"] = map[string]any{"status": sample.Status, "domain": sample.Domain, "capture_interfaces": sample.CaptureInterfaces, "matched_interfaces": sample.MatchedInterfaces, "resolver_routes": sample.ResolverRoutes, "query_attempted": sample.QueryAttempted, "issues": sample.Issues}
+			}
 			var response map[string]any
 			if err := client.Get(ctx, "/dns/query?name=example.com&type=A", &response); err == nil {
 				result["engine_query_ok"] = true

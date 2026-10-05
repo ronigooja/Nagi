@@ -59,7 +59,7 @@ Implemented CLI commands and scope are in the [CLI reference](../reference/cli.m
 
 The CLI now creates default profiles with IPv4/IPv6 mihomo DNS and DoH. Selected profiles can configure multiple custom DoH upstreams, direct or proxy-node routing, explicit domain exceptions, TUN DNS hijack, cache flushing, and mihomo DNS queries. Failure of all configured upstreams is reported by mihomo without a configured plaintext fallback. See the [DNS CLI reference](../reference/cli.md#dns-policy-and-leak-checks).
 
-Implemented: `dns check` now records default route interfaces and configured resolver addresses on macOS and Linux, with evidence sources and collection issues; an explicitly configured TUN device is also checked against interface presence and default routes. Remaining: verify TUN ownership for actual application destinations and determine whether a trustworthy external authoritative DNS test can distinguish captured application queries from queries taking another path. `dns check` does not claim system-wide leak protection.
+Implemented: `dns check` now records default route interfaces and configured resolver addresses on macOS and Linux, with evidence sources and collection issues; an explicitly configured TUN device is also checked against interface presence and default routes. Implemented: the opt-in `dns check --packet-sample` observes a fresh OS resolver query on physical interfaces with bounded tcpdump capture and inspects routes to configured resolver addresses where available. Remaining: prove route and resolver behavior across applications, split routes, encrypted transports, and network changes. One captured or uncaptured query cannot establish system-wide leak protection; `dns check` makes no such claim.
 
 ## Rules
 

@@ -55,7 +55,7 @@ var commandSpecs = []commandSpec{
 	{"subscription remove", "subscription remove NAME", "Remove a subscription", "Removes the saved subscription and its cache.", "nagi subscription remove work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
 	{"dns", "dns <status|set|exception|tun|query|flush|check>", "Manage DNS protection", "Configures selected-profile DNS in a separate local override; inspects mihomo DNS through its private control API.", "nagi dns status", "", 0, -1},
 	{"dns status", "dns status", "Show selected DNS policy", "Reports configured upstreams, IPv6, TUN, and configuration risks.", "nagi dns status", "", 0, 0},
-	{"dns check", "dns check", "Check DNS configuration and OS evidence", "Audits configuration, probes mihomo DNS, and observes system default routes and resolvers; does not prove system-wide leak protection.", "nagi dns check", "", 0, 0},
+	{"dns check", "dns check [--packet-sample]", "Check DNS configuration and OS evidence", "Audits configuration, probes mihomo DNS, and observes system routes and resolvers. --packet-sample requires root and tcpdump and samples one OS lookup; it does not prove system-wide leak protection.", "nagi dns check --packet-sample", "", 0, 1},
 	{"dns set", "dns set direct URL [URL...]|proxy NODE URL [URL...]", "Set encrypted DNS upstreams", "Saves one or more HTTPS DoH URLs. Direct connects directly; proxy pins DoH to a named non-direct node in the selected profile. No plaintext fallback is configured.", "nagi dns set direct https://1.1.1.1/dns-query", "", 2, 32},
 	{"dns exception", "dns exception <add DOMAIN SERVER|remove DOMAIN>", "Manage DNS exceptions", "Exceptions route a domain suffix to an explicit server; plaintext IP servers are allowed only here.", "nagi dns exception add corp.example udp://10.0.0.53:53", "", 0, -1},
 	{"dns exception add", "dns exception add DOMAIN SERVER", "Add DNS exception", "Maps a domain suffix to a DoH URL or an explicitly requested plaintext IP server.", "nagi dns exception add corp.example udp://10.0.0.53:53", "", 2, 2},
@@ -211,6 +211,9 @@ func validateInvocation(args []string) error {
 	}
 	if n > spec.maxArgs {
 		return syntaxError("too many arguments", spec)
+	}
+	if spec.path == "dns check" && n == 1 && args[2] != "--packet-sample" {
+		return syntaxError("only --packet-sample is supported", spec)
 	}
 	if spec.path == "completion candidates" {
 		if args[2] != "profile" && args[2] != "subscription" && args[2] != "groups" && args[2] != "nodes" {

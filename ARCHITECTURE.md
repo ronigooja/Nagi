@@ -42,7 +42,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
-DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception is a mihomo configuration option. `dns check` observes default route interfaces and resolver settings on macOS and Linux; Nagi does not itself manage operating-system DNS servers or verify system-wide route capture. See the [DNS reference](docs/reference/cli.md#dns-policy-and-leak-checks).
+DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception is a mihomo configuration option. `dns check` observes default route interfaces and resolver settings on macOS and Linux. An opt-in packet sample uses the OS resolver and bounded physical-interface capture to detect one matching plaintext DNS query. Nagi does not itself manage operating-system DNS servers or verify system-wide route capture. See the [DNS reference](docs/reference/cli.md#dns-policy-and-leak-checks).
 
 ## Interfaces and data
 

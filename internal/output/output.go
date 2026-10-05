@@ -315,6 +315,18 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				}
 			}
 		}
+		if sample, ok := v["packet_sample"].(map[string]any); ok {
+			if err := line(w, fmt.Sprintf("Packet sample: %v | capture interfaces: %v | matched interfaces: %v", sample["status"], sample["capture_interfaces"], sample["matched_interfaces"])); err != nil {
+				return err
+			}
+			if issues, ok := sample["issues"].([]string); ok {
+				for _, issue := range issues {
+					if err := line(w, "Packet sample: "+issue); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		if scope, ok := v["scope"].(string); ok {
 			return line(w, "Scope: "+scope)
 		}
