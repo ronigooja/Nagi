@@ -126,7 +126,7 @@ func (r Request) Validate(p Policy) error {
 			return errors.New("invalid control request")
 		}
 	case Logs:
-		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines < 0 || r.Lines > 1000 || r.Offset < -1 {
+		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines < 0 || r.Lines > 10000 || r.Offset < -1 {
 			return errors.New("invalid log request")
 		}
 	default:

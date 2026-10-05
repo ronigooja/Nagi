@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,6 +32,7 @@ type RuntimeHandler struct {
 	child      *exec.Cmd
 	done       chan error
 	snapshot   string
+	orphaned   bool
 }
 
 func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Request) (privileged.Response, error) {
@@ -38,10 +40,19 @@ func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Reque
 	defer h.mu.Unlock()
 	switch req.Operation {
 	case privileged.Start:
+		if h.orphaned {
+			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
+		}
 		return h.start(ctx, req)
 	case privileged.Stop:
+		if h.orphaned {
+			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
+		}
 		return h.stop(ctx)
 	case privileged.Status:
+		if h.orphaned {
+			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
+		}
 		return h.status(), nil
 	case privileged.Control:
 		if h.child == nil {
@@ -140,6 +151,10 @@ func (h *RuntimeHandler) status() privileged.Response {
 	select {
 	case <-h.done:
 		h.child = nil
+		_ = os.Remove(h.controllerPath())
+		_ = os.Remove(h.snapshot)
+		_ = os.Remove(h.markerPath())
+		h.snapshot = ""
 		return privileged.Response{OK: true}
 	default:
 		return privileged.Response{OK: true, Running: true, PID: h.child.Process.Pid}
@@ -149,6 +164,10 @@ func (h *RuntimeHandler) status() privileged.Response {
 func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (privileged.Response, error) {
 	if h.status().Running {
 		return privileged.Response{}, errors.New("already_running")
+	}
+	if markerExists(h.markerPath()) || controllerLive(h.controllerPath()) {
+		h.orphaned = true
+		return privileged.Response{}, errors.New("orphaned_privileged_engine: prior root child may still be active")
 	}
 	if err := verifyTrustedBinary(h.BinaryPath); err != nil {
 		return privileged.Response{}, err
@@ -179,8 +198,25 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	cmd.Dir = h.PrivateDir
 	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + h.PrivateDir, "TMPDIR=" + h.PrivateDir}
 	cmd.Stdout, cmd.Stderr = log, log
+	marker, err := os.OpenFile(h.markerPath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY|unix.O_NOFOLLOW, 0600)
+	if err != nil {
+		os.Remove(snapshot)
+		return privileged.Response{}, fmt.Errorf("create child marker: %w", err)
+	}
+	if _, err := marker.WriteString("pending\n"); err != nil {
+		marker.Close()
+		os.Remove(h.markerPath())
+		os.Remove(snapshot)
+		return privileged.Response{}, err
+	}
+	if err := marker.Close(); err != nil {
+		os.Remove(h.markerPath())
+		os.Remove(snapshot)
+		return privileged.Response{}, err
+	}
 	if err := cmd.Start(); err != nil {
 		os.Remove(snapshot)
+		os.Remove(h.markerPath())
 		return privileged.Response{}, fmt.Errorf("start privileged mihomo: %w", err)
 	}
 	h.child, h.done, h.snapshot = cmd, make(chan error, 1), snapshot
@@ -203,6 +239,7 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 		case <-h.done:
 			h.child = nil
 			os.Remove(snapshot)
+			os.Remove(h.markerPath())
 			return privileged.Response{}, errors.New("privileged mihomo exited during startup")
 		case <-tick.C:
 		}
@@ -224,6 +261,7 @@ func (h *RuntimeHandler) stop(ctx context.Context) (privileged.Response, error) 
 	h.child = nil
 	_ = os.Remove(h.controllerPath())
 	_ = os.Remove(h.snapshot)
+	_ = os.Remove(h.markerPath())
 	h.snapshot = ""
 	return privileged.Response{OK: true}, nil
 }
@@ -236,6 +274,7 @@ func (h *RuntimeHandler) kill() {
 	}
 	_ = os.Remove(h.controllerPath())
 	_ = os.Remove(h.snapshot)
+	_ = os.Remove(h.markerPath())
 	h.snapshot = ""
 }
 
@@ -250,6 +289,20 @@ func (h *RuntimeHandler) Close() error {
 }
 
 func (h *RuntimeHandler) controllerPath() string { return filepath.Join(h.PrivateDir, "mihomo.sock") }
+func (h *RuntimeHandler) markerPath() string     { return filepath.Join(h.PrivateDir, "child.marker") }
+func markerExists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil || !errors.Is(err, os.ErrNotExist)
+}
+
+func controllerLive(path string) bool {
+	conn, err := net.DialTimeout("unix", path, 250*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
 
 func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (privileged.Response, error) {
 	var body struct {

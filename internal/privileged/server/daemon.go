@@ -90,7 +90,7 @@ func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) error
 	if err := os.Chmod(path, 0600); err != nil {
 		return err
 	}
-	handler := &RuntimeHandler{SessionUID: uid, BinaryPath: binaryPath, SourceDir: sourceDir, PrivateDir: privateDir}
+	handler := &RuntimeHandler{SessionUID: uid, BinaryPath: binaryPath, SourceDir: sourceDir, PrivateDir: privateDir, orphaned: markerExists(filepath.Join(privateDir, "child.marker")) || controllerLive(filepath.Join(privateDir, "mihomo.sock"))}
 	defer handler.Close()
 	return (Server{SessionUID: uid, Policy: privileged.Policy{AllowedPaths: []string{sourceDir, binaryPath, root}}, Handler: handler}).Serve(ctx, listener)
 }

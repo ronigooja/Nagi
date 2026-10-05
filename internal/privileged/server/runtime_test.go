@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -54,5 +55,20 @@ func TestReadUserConfigRejectsSymlinksAndEscape(t *testing.T) {
 	}
 	if _, err := readUserConfig(root, link, os.Getuid()); err == nil {
 		t.Fatal("followed symlink")
+	}
+}
+
+func TestOrphanMarkerPreventsDuplicateRootChild(t *testing.T) {
+	dir := t.TempDir()
+	h := &RuntimeHandler{PrivateDir: dir}
+	if err := os.WriteFile(h.markerPath(), []byte("pending\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.Handle(context.Background(), os.Getuid(), privileged.Request{Operation: privileged.Start})
+	if err == nil || !h.orphaned {
+		t.Fatalf("orphan marker was ignored: %v", err)
+	}
+	if _, err := h.Handle(context.Background(), os.Getuid(), privileged.Request{Operation: privileged.Status}); err == nil {
+		t.Fatal("orphan status reported stopped")
 	}
 }
