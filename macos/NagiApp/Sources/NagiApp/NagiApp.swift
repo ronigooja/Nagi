@@ -62,14 +62,19 @@ import AppKit
             loadingTimer = nil
             statusItem.menu = menu
         }
-        let loadingSymbols = ["circle.dotted", "circle.lefthalf.filled", "circle.righthalf.filled", "circle.fill",
-                              "circle.righthalf.filled", "circle.lefthalf.filled", "circle.dotted", "circle.dotted"]
-        let iconName = model.busy ? loadingSymbols[loadingFrame] :
-            (model.state == .running ? "point.3.connected.trianglepath.dotted" :
-             model.state == .unavailable ? "exclamationmark.triangle" : "circle.dotted")
-        let icon = NSImage(systemSymbolName: iconName, accessibilityDescription: "Nagi")
-            ?? NSImage(systemSymbolName: "network", accessibilityDescription: "Nagi")
-        icon?.isTemplate = true
+        let loadingSymbols = ["network.badge.shield.half.filled", "network.badge.shield.fill",
+                              "network.badge.shield.half.filled", "shield.lefthalf.filled",
+                              "network.badge.shield.half.filled", "network.badge.shield.fill",
+                              "network.badge.shield.half.filled", "network.badge.shield.half.filled"]
+        let iconName = model.busy ? loadingSymbols[loadingFrame] : "network.badge.shield.half.filled"
+        let color: NSColor = model.busy ? .systemBlue :
+            (model.state == .running ? .systemGreen :
+             model.state == .starting ? .systemYellow :
+             model.state == .unavailable ? .systemRed : .secondaryLabelColor)
+        let configuration = NSImage.SymbolConfiguration(paletteColors: [color])
+        let icon = NSImage(systemSymbolName: iconName, accessibilityDescription: "Nagi")?.withSymbolConfiguration(configuration)
+            ?? NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")
+        icon?.isTemplate = false
         button.image = icon
         button.imagePosition = .imageLeading
         let title = model.statusTitle
