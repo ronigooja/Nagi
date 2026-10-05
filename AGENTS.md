@@ -1,12 +1,23 @@
-# Project Documentation Guidelines
+# Project Agent Guidelines
 
-These guidelines apply to creating, organizing, and maintaining documentation in the Nagi repository.
+These guidelines define development responsibilities and documentation practices for agents working in the Nagi repository.
+
+## Development Responsibility Rules
+
+Apply these rules to every feature. The [architecture overview](ARCHITECTURE.md) defines the system boundary, and the [runtime design](docs/design/runtime.md) describes configuration and lifecycle behavior.
+
+- Treat mihomo as the implementation owner for proxy protocols, DNS resolution, traffic forwarding, routing rules, and TUN networking. Nagi configures and manages those capabilities through mihomo's configuration and APIs.
+- Implement Nagi's responsibilities around user operations: translate intent into configuration or API calls, persist settings, manage process lifecycle, display state, and handle operation failures.
+- Before designing a feature, inspect the pinned mihomo version's existing capabilities, configuration fields, and APIs. Identify the specific configuration or management work Nagi needs to provide.
+- Use existing mihomo mechanisms instead of duplicating them in Nagi. When a capability is missing, first determine whether the extension belongs in mihomo or Nagi according to the system boundary.
+- Verify Nagi's configuration generation, API calls, persistence, and activation behavior. Use relevant integration checks to confirm that the configured capability works; broader network detection or verification requires a separate requirement and must not become an implicit prerequisite for a configuration feature.
+- For example, providing DNS leak prevention through mihomo means configuring the relevant TUN, DNS interception, and DNS upstream settings for the intended behavior. It does not by itself require Nagi to build a system-wide DNS leak verification mechanism.
 
 ## Documentation Structure
 
 ```text
 README.md               Project entry point and documentation navigation
-AGENTS.md               Documentation organization and maintenance rules for agents
+AGENTS.md               Development responsibility and documentation rules for agents
 ARCHITECTURE.md         System architecture overview
 docs/
 ├── guides/             User-facing task guides
@@ -23,7 +34,7 @@ This structure defines where content belongs. Directories do not need to be crea
 | Location | Question answered | Content scope |
 | --- | --- | --- |
 | `README.md` | What is the project, and where do I start? | Project purpose, supported platforms, current capabilities, shortest getting-started path, and documentation navigation |
-| `AGENTS.md` | How should agents organize and maintain documentation? | Documentation categories, locations, references, and maintenance rules |
+| `AGENTS.md` | What rules should agents follow? | Development responsibility constraints, documentation categories, locations, references, and maintenance rules |
 | `ARCHITECTURE.md` | How is the overall system organized? | System relationships, repository boundaries, module responsibilities, dependency direction, key constraints, and links to detailed designs |
 | `docs/guides/` | How do I complete a user task? | Prerequisites, steps, expected results, and common issues |
 | `docs/reference/` | What exactly is a command, configuration item, or interface? | Parameters, fields, types, defaults, constraints, exit codes, and compatibility rules |
@@ -31,7 +42,7 @@ This structure defines where content belongs. Directories do not need to be crea
 | `docs/development/` | How do I develop and maintain the project? | Development environment, build, testing, debugging, mihomo integration, contribution, and release workflows |
 | `docs/decisions/` | Why was this architecture choice made? | Decision context, alternatives, selected approach, trade-offs, and consequences |
 
-System architecture is documented in `ARCHITECTURE.md` and `docs/design/`. `AGENTS.md` defines documentation rules and links to the system design rather than duplicating it.
+System architecture is documented in `ARCHITECTURE.md` and `docs/design/`. `AGENTS.md` defines development and documentation rules and links to the system design rather than duplicating it.
 
 ## Agent Workflow Rules
 

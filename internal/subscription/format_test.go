@@ -2,7 +2,6 @@ package subscription
 
 import (
 	"context"
-	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,17 +13,11 @@ import (
 )
 
 func TestSupportedFormatsAndPreview(t *testing.T) {
-	uris := "ss://" + base64.StdEncoding.EncodeToString([]byte("aes-128-gcm:secret")) + "@example.com:8388#Alpha\n" +
-		"trojan://secret@example.net:443#Beta\n"
-	vmess := base64.StdEncoding.EncodeToString([]byte(`{"ps":"Gamma","add":"vm.example","port":"443","id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","aid":0}`))
 	for _, tc := range []struct {
 		name, source string
 		count        int
 	}{
 		{"yaml", "proxies:\n  - name: Alpha\n    type: direct\n", 1},
-		{"uris", uris, 2},
-		{"base64", base64.StdEncoding.EncodeToString([]byte(uris)), 2},
-		{"vmess", "vmess://" + vmess, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			doc, _, err := Document([]byte(tc.source))

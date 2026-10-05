@@ -401,7 +401,7 @@ func TestStartupHelpAndUsage(t *testing.T) {
 }
 
 func TestDiagnosticsUsage(t *testing.T) {
-	for _, args := range [][]string{{"--json", "diagnostics", "export", "relative.json"}, {"--json", "diagnostics", "bad"}, {"--json", "kill-switch", "bad"}} {
+	for _, args := range [][]string{{"--json", "diagnostics", "export", "relative.json"}, {"--json", "diagnostics", "bad"}} {
 		var out, errs bytes.Buffer
 		if code := Run(args, &out, &errs, "test", "commit"); code != 2 || !strings.Contains(errs.String(), `"code":"usage"`) {
 			t.Fatalf("usage %v: %d %s", args, code, errs.String())

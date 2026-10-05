@@ -22,10 +22,6 @@ var commandSpecs = []commandSpec{
 	{"restart", "restart", "Restart mihomo", "Restarts mihomo with the selected profile.", "nagi restart", "", 0, 0},
 	{"status", "status", "Show process status", "Shows running state, selected profile, PID, and runtime paths.", "nagi status", "", 0, 0},
 	{"diagnostics", "diagnostics [export FILE]", "Run security diagnostics", "Checks executable, profile, listeners, DNS, proxy control API, permissions, and controller exposure. Output is redacted.", "nagi --json diagnostics", "", 0, 2},
-	{"kill-switch", "kill-switch <status|enable|disable>", "Manage direct-traffic protection", "Reports firewall support. Enabling is refused unless Nagi has a safe managed firewall transaction for this host.", "nagi kill-switch status", "", 0, -1},
-	{"kill-switch status", "kill-switch status", "Show kill-switch status", "Reports supported firewall backend and managed state.", "nagi kill-switch status", "", 0, 0},
-	{"kill-switch enable", "kill-switch enable TUN_INTERFACE IP:PORT [IP:PORT ...]", "Enable kill switch", "Linux nftables: block all direct outbound traffic for the target user except loopback, TUN interface, and listed numeric proxy/DNS upstream endpoints. Run as root with SUDO_UID preserved.", "sudo nagi kill-switch enable tun0 203.0.113.10:443", "", 2, 32},
-	{"kill-switch disable", "kill-switch disable", "Disable kill switch", "Removes Nagi's managed firewall transaction when one exists.", "nagi kill-switch disable", "", 0, 0},
 	{"doctor", "doctor", "Inspect the local installation", "Checks local paths, mihomo executable, selected profile, process marker, and Unix Socket API without changing files. Exit status is zero for a completed report; inspect healthy and checks for problems.", "nagi --json doctor", "", 0, 0},
 	{"logs", "logs [lines]", "Show or follow logs", "Shows recent lines or follows newly appended log lines until interrupted.", "nagi logs follow", "", 0, 1},
 	{"logs follow", "logs follow", "Follow mihomo logs", "Streams newly appended log lines until interrupted.", "nagi logs follow", "", 0, 0},
@@ -51,11 +47,11 @@ var commandSpecs = []commandSpec{
 	{"subscription add", "subscription add NAME URL", "Save a subscription URL", "Saves an HTTP or HTTPS URL; does not download or activate it. Names use letters, digits, _ or -, up to 128 characters.", "nagi subscription add work https://example.com/subscription", "", 2, 2},
 	{"subscription update", "subscription update NAME", "Download a subscription", "Validates and caches up to 8 MiB, then reports node changes; does not activate it.", "nagi subscription update work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
 	{"subscription preview", "subscription preview NAME", "Preview cached node changes", "Compares cached nodes with the existing profile without changing it.", "nagi subscription preview work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
-	{"subscription apply", "subscription apply NAME", "Apply a cached subscription", "Converts supported formats, retains local settings and valid group choices, validates, and selects the profile.", "nagi subscription apply work", "Run `nagi subscription preview NAME` to inspect node changes.", 1, 1},
+	{"subscription apply", "subscription apply NAME", "Apply a cached subscription", "Applies supported mihomo YAML, retains local settings and valid group choices, validates, and selects the profile.", "nagi subscription apply work", "Run `nagi subscription preview NAME` to inspect node changes.", 1, 1},
 	{"subscription remove", "subscription remove NAME", "Remove a subscription", "Removes the saved subscription and its cache.", "nagi subscription remove work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
 	{"dns", "dns <status|set|exception|tun|query|flush|check>", "Manage DNS protection", "Configures selected-profile DNS in a separate local override; inspects mihomo DNS through its private control API.", "nagi dns status", "", 0, -1},
 	{"dns status", "dns status", "Show selected DNS policy", "Reports configured upstreams, IPv6, TUN, and configuration risks.", "nagi dns status", "", 0, 0},
-	{"dns check", "dns check [--packet-sample]", "Check DNS configuration and OS evidence", "Audits configuration, probes mihomo DNS, and observes system routes and resolvers. --packet-sample requires root and tcpdump and samples one OS lookup; it does not prove system-wide leak protection.", "nagi dns check --packet-sample", "", 0, 1},
+	{"dns check", "dns check", "Check DNS configuration and mihomo API", "Inspects the selected effective DNS configuration and queries the running mihomo resolver.", "nagi dns check", "", 0, 0},
 	{"dns set", "dns set direct URL [URL...]|proxy NODE URL [URL...]", "Set encrypted DNS upstreams", "Saves one or more HTTPS DoH URLs. Direct connects directly; proxy pins DoH to a named non-direct node in the selected profile. No plaintext fallback is configured.", "nagi dns set direct https://1.1.1.1/dns-query", "", 2, 32},
 	{"dns exception", "dns exception <add DOMAIN SERVER|remove DOMAIN>", "Manage DNS exceptions", "Exceptions route a domain suffix to an explicit server; plaintext IP servers are allowed only here.", "nagi dns exception add corp.example udp://10.0.0.53:53", "", 0, -1},
 	{"dns exception add", "dns exception add DOMAIN SERVER", "Add DNS exception", "Maps a domain suffix to a DoH URL or an explicitly requested plaintext IP server.", "nagi dns exception add corp.example udp://10.0.0.53:53", "", 2, 2},
@@ -211,9 +207,6 @@ func validateInvocation(args []string) error {
 	}
 	if n > spec.maxArgs {
 		return syntaxError("too many arguments", spec)
-	}
-	if spec.path == "dns check" && n == 1 && args[2] != "--packet-sample" {
-		return syntaxError("only --packet-sample is supported", spec)
 	}
 	if spec.path == "completion candidates" {
 		if args[2] != "profile" && args[2] != "subscription" && args[2] != "groups" && args[2] != "nodes" {

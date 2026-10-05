@@ -276,7 +276,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	if domain, ok := v["domain"].(string); ok && v["response"] != nil {
 		return line(w, fmt.Sprintf("Mihomo DNS response for %s (%v): %v", domain, v["type"], v["response"]))
 	}
-	if _, ok := v["leak_protection_verified"].(bool); ok {
+	if _, ok := v["upstream_hosts"].([]string); ok {
 		if err := line(w, fmt.Sprintf("DNS profile: %v | enabled: %v | IPv6: %v | DoH policy: %v | TUN: %v", v["profile"], v["enabled"], v["ipv6"], v["policy"], v["tun_enabled"])); err != nil {
 			return err
 		}
@@ -285,46 +285,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				return err
 			}
 		}
-		if err := line(w, fmt.Sprintf("Leak protection verified: %v", v["leak_protection_verified"])); err != nil {
-			return err
-		}
 		for _, issue := range v["issues"].([]string) {
 			if err := line(w, "Warning: "+issue); err != nil {
 				return err
-			}
-		}
-		if evidence, ok := v["system_evidence"].(map[string]any); ok {
-			routes, _ := evidence["route_interfaces"].(map[string]string)
-			resolvers, _ := evidence["resolvers"].([]string)
-			if err := line(w, fmt.Sprintf("System routes (%v): IPv4 %q, IPv6 %q (empty means unavailable)", evidence["route_source"], routes["ipv4"], routes["ipv6"])); err != nil {
-				return err
-			}
-			if err := line(w, fmt.Sprintf("System resolvers (%v): %v", evidence["resolver_source"], resolvers)); err != nil {
-				return err
-			}
-			if device, ok := evidence["configured_tun_device"].(string); ok {
-				if err := line(w, fmt.Sprintf("Configured TUN device: %s | present: %v | default route matches: %v", device, evidence["configured_tun_present"], evidence["default_route_matches_tun"])); err != nil {
-					return err
-				}
-			}
-			if issues, ok := evidence["issues"].([]string); ok {
-				for _, issue := range issues {
-					if err := line(w, "Observation: "+issue); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		if sample, ok := v["packet_sample"].(map[string]any); ok {
-			if err := line(w, fmt.Sprintf("Packet sample: %v | capture interfaces: %v | matched interfaces: %v", sample["status"], sample["capture_interfaces"], sample["matched_interfaces"])); err != nil {
-				return err
-			}
-			if issues, ok := sample["issues"].([]string); ok {
-				for _, issue := range issues {
-					if err := line(w, "Packet sample: "+issue); err != nil {
-						return err
-					}
-				}
 			}
 		}
 		if scope, ok := v["scope"].(string); ok {

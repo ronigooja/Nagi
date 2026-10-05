@@ -251,23 +251,6 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		}
 		return nil, usage("diagnostics [export ABSOLUTE_FILE]")
 	}
-	if command == "kill-switch" {
-		switch args[1] {
-		case "status":
-			return diagnostic.KillSwitchStatus(paths.StateDir), nil
-		case "enable":
-			if err := diagnostic.EnableKillSwitch(ctx, paths.StateDir, args[2], args[3:]); err != nil {
-				return nil, fail("kill_switch_error", err)
-			}
-			return map[string]any{"enabled": true}, nil
-		case "disable":
-			if err := diagnostic.DisableKillSwitch(ctx, paths.StateDir); err != nil {
-				return nil, fail("kill_switch_error", err)
-			}
-			return map[string]any{"enabled": false}, nil
-		}
-		return nil, usage("kill-switch status|enable|disable")
-	}
 	controlTimeout := 10 * time.Second
 	if len(args) >= 2 && command == "proxy" && (args[1] == "delay" || args[1] == "delays") {
 		controlTimeout = 31 * time.Second

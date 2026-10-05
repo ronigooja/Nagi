@@ -42,13 +42,13 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
-DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception is a mihomo configuration option. `dns check` observes default route interfaces and resolver settings on macOS and Linux. An opt-in packet sample uses the OS resolver and bounded physical-interface capture to detect one matching plaintext DNS query. Nagi does not itself manage operating-system DNS servers or verify system-wide route capture. See the [DNS reference](docs/reference/cli.md#dns-policy-and-leak-checks).
+DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception is a mihomo configuration option. `dns check` inspects the selected configuration and queries mihomo through its private control API. It does not verify operating-system routes, resolver capture, or external DNS leaks. See the [DNS reference](docs/reference/cli.md#dns-policy-and-checks).
 
 ## Interfaces and data
 
 The CLI is the sole full-featured entry point. All commands accept `--json`; JSON envelopes and error codes form the app integration interface. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy search and latency tests, saved proxy selections, connection inspection and closure, temporary and persistent runtime mode changes, log following, and validated configuration reloads. The app polls status using short-lived commands. An event stream is not implemented.
 
-Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). Supported YAML and proxy URI subscriptions can be explicitly converted and applied as profiles; the [CLI reference](docs/reference/cli.md) defines formats and merge behavior.
+Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). Supported mihomo YAML subscriptions can be applied as profiles; the [CLI reference](docs/reference/cli.md) defines the format and merge behavior.
 
 ## Services, builds, and validation
 

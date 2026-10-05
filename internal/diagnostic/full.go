@@ -20,19 +20,9 @@ import (
 // FullReport is a redacted, read-only health report. It never includes profile
 // contents, subscription URLs, controller secrets, or command output.
 type FullReport struct {
-	Healthy    bool            `json:"healthy"`
-	Checks     []Check         `json:"checks"`
-	Platform   string          `json:"platform"`
-	KillSwitch KillSwitchState `json:"kill_switch"`
-}
-type KillSwitchState struct {
-	Supported        bool   `json:"supported"`
-	Enabled          bool   `json:"enabled"`
-	Backend          string `json:"backend,omitempty"`
-	Message          string `json:"message,omitempty"`
-	TargetUID        int    `json:"target_uid,omitempty"`
-	Interface        string `json:"interface,omitempty"`
-	AllowedEndpoints int    `json:"allowed_endpoints,omitempty"`
+	Healthy  bool    `json:"healthy"`
+	Checks   []Check `json:"checks"`
+	Platform string  `json:"platform"`
 }
 
 func RunFull(ctx context.Context, paths nagiruntime.Paths, binary string) FullReport {
@@ -111,7 +101,6 @@ func RunFull(ctx context.Context, paths nagiruntime.Paths, binary string) FullRe
 	if baseHealthy := base.Healthy; baseHealthy == false {
 		r.Healthy = false
 	}
-	r.KillSwitch = KillSwitchStatus(paths.StateDir)
 	return r
 }
 func number(v any) int {

@@ -21,7 +21,7 @@ The existing CLI remains the interface for scripts, automation, and the macOS ap
 Implemented CLI behavior covers the actions below within the formats and preservation limits in the [CLI reference](../reference/cli.md). The TUI can update and apply a selected subscription.
 
 - Add, remove, update, and apply subscriptions.
-- Support common subscription formats in addition to complete mihomo YAML.
+- Support mihomo YAML subscriptions containing `proxies` or `proxy-providers`.
 - Show changes before applying an update, including added, removed, and changed nodes.
 - Show refresh time, expiry time, and traffic usage when the subscription provides them.
 - Keep the previous working configuration when an update fails.
@@ -57,9 +57,9 @@ Implemented CLI commands and scope are in the [CLI reference](../reference/cli.m
 
 ## DNS and leak prevention
 
-The CLI now creates default profiles with IPv4/IPv6 mihomo DNS and DoH. Selected profiles can configure multiple custom DoH upstreams, direct or proxy-node routing, explicit domain exceptions, TUN DNS hijack, cache flushing, and mihomo DNS queries. Failure of all configured upstreams is reported by mihomo without a configured plaintext fallback. See the [DNS CLI reference](../reference/cli.md#dns-policy-and-leak-checks).
+The CLI now creates default profiles with IPv4/IPv6 mihomo DNS and DoH. Selected profiles can configure multiple custom DoH upstreams, direct or proxy-node routing, explicit domain exceptions, TUN DNS hijack, cache flushing, and mihomo DNS queries. Failure of all configured upstreams is reported by mihomo without a configured plaintext fallback. See the [DNS CLI reference](../reference/cli.md#dns-policy-and-checks).
 
-Implemented: `dns check` now records default route interfaces and configured resolver addresses on macOS and Linux, with evidence sources and collection issues; an explicitly configured TUN device is also checked against interface presence and default routes. Implemented: the opt-in `dns check --packet-sample` observes a fresh OS resolver query on physical interfaces with bounded tcpdump capture and inspects routes to configured resolver addresses where available. Remaining: prove route and resolver behavior across applications, split routes, encrypted transports, and network changes. One captured or uncaptured query cannot establish system-wide leak protection; `dns check` makes no such claim.
+`dns check` inspects configuration and queries mihomo through its control API. Operating-system route, resolver, packet-capture, and external leak verification are outside this configuration feature.
 
 ## Rules
 
@@ -96,11 +96,11 @@ Implemented lifecycle, startup, and stale-state behavior is documented in the [C
 - Recover after an unexpected engine exit while the login service is enabled.
 - Recheck process, control API, and managed system proxy state periodically, including after network changes, sleep, and wake. Reassert only system proxy settings that match the saved baseline; report conflicting or new macOS network services.
 
-Remaining: the periodic check does not verify OS route ownership, resolver capture, or restored connectivity. A live process whose control API is unreachable needs manual inspection.
+The periodic check is limited to process, control API, and managed system proxy state; it does not verify OS route ownership, resolver capture, or restored connectivity. A live process whose control API is unreachable needs manual inspection.
 
 ## Diagnostics and security
 
-Implemented checks, redaction, and kill-switch capability boundaries are documented in the [CLI reference](../reference/cli.md#diagnostics-and-security) and [diagnostics guide](../guides/diagnostics.md).
+Implemented checks and redaction are documented in the [CLI reference](../reference/cli.md#diagnostics-and-security) and [diagnostics guide](../guides/diagnostics.md).
 
 - Check the mihomo executable, configuration, ports, Unix Socket, DNS, and proxy connectivity.
 - Distinguish a live process from a reachable control API and a working proxy path.
@@ -108,7 +108,6 @@ Implemented checks, redaction, and kill-switch capability boundaries are documen
 - Protect configuration files and subscription credentials.
 - Check Unix Socket and configuration-file permissions.
 - Warn when a control interface is exposed beyond the local machine.
-- Provide a kill switch that blocks direct traffic when proxy or DNS protection fails.
 
 ## CLI and integration contract
 

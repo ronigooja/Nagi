@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"net"
 	"net/url"
 	"os"
 	"regexp"
@@ -75,7 +74,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 	}
 	switch args[1] {
 	case "status", "check":
-		if (args[1] == "status" && len(args) != 2) || (args[1] == "check" && !(len(args) == 2 || len(args) == 3 && args[2] == "--packet-sample")) {
+		if len(args) != 2 {
 			return nil, usage("dns " + args[1])
 		}
 		data, err := store.Effective(name)
@@ -137,26 +136,9 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		} else if dns["respect-rules"] == true {
 			policy = "rules"
 		}
-		result := map[string]any{"profile": name, "enabled": dns["enable"] == true, "ipv6": dns["ipv6"] == true, "policy": policy, "upstream_hosts": dnsHosts(servers), "tun_enabled": tun["enable"] == true, "issues": issues, "leak_protection_verified": false}
+		result := map[string]any{"profile": name, "enabled": dns["enable"] == true, "ipv6": dns["ipv6"] == true, "policy": policy, "upstream_hosts": dnsHosts(servers), "tun_enabled": tun["enable"] == true, "issues": issues}
 		if args[1] == "check" {
-			result["scope"] = "configuration, mihomo API, and observed OS routes/resolvers; application DNS paths and external leaks are not proven"
-			observation := systemDNSCheck(ctx)
-			evidence := map[string]any{"platform": observation.Platform, "route_interfaces": observation.RouteInterfaces, "resolvers": observation.Resolvers, "route_source": observation.RouteSource, "resolver_source": observation.ResolverSource, "issues": observation.Issues}
-			if device, ok := tun["device"].(string); ok && device != "" {
-				evidence["configured_tun_device"] = device
-				_, interfaceErr := net.InterfaceByName(device)
-				evidence["configured_tun_present"] = interfaceErr == nil
-				matches := map[string]bool{}
-				for family, name := range observation.RouteInterfaces {
-					matches[family] = name == device
-				}
-				evidence["default_route_matches_tun"] = matches
-			}
-			result["system_evidence"] = evidence
-			if len(args) == 3 {
-				sample := packetSample(ctx, observation, realDNSPacketRunner{})
-				result["packet_sample"] = map[string]any{"status": sample.Status, "domain": sample.Domain, "capture_interfaces": sample.CaptureInterfaces, "matched_interfaces": sample.MatchedInterfaces, "resolver_routes": sample.ResolverRoutes, "query_attempted": sample.QueryAttempted, "issues": sample.Issues}
-			}
+			result["scope"] = "configuration and mihomo API"
 			var response map[string]any
 			if err := client.Get(ctx, "/dns/query?name=example.com&type=A", &response); err == nil {
 				result["engine_query_ok"] = true
