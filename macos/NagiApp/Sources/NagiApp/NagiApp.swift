@@ -49,10 +49,10 @@ import AppKit
             statusItem.menu = nil
             if loadingTimer == nil {
                 loadingFrame = 0
-                loadingTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+                loadingTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
                     Task { @MainActor [weak self] in
                         guard let self else { return }
-                        self.loadingFrame = (self.loadingFrame + 1) % 8
+                        self.loadingFrame = (self.loadingFrame + 1) % 2
                         self.renderStatus()
                     }
                 }
@@ -62,20 +62,33 @@ import AppKit
             loadingTimer = nil
             statusItem.menu = menu
         }
-        let iconName = "network.badge.shield.half.filled"
-        let color: NSColor = model.busy ?
-            (loadingFrame.isMultiple(of: 2) ? .systemBlue : .systemIndigo) :
-            (model.state == .running ? .systemGreen :
-             model.state == .starting ? .systemYellow :
-             model.state == .unavailable ? .systemRed : .secondaryLabelColor)
-        let configuration = NSImage.SymbolConfiguration(paletteColors: [color])
-        let icon = NSImage(systemSymbolName: iconName, accessibilityDescription: "Nagi")?.withSymbolConfiguration(configuration)
-            ?? NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")
-        icon?.isTemplate = false
+        let shieldName: String
+        let shieldColor: NSColor
+        if model.busy {
+            shieldName = loadingFrame == 0 ? "shield.lefthalf.filled" : "shield.fill"
+            shieldColor = .systemGreen
+        } else {
+            switch model.state {
+            case .starting: shieldName = "shield.lefthalf.filled"; shieldColor = .systemGreen
+            case .running: shieldName = "shield.fill"; shieldColor = .systemGreen
+            case .stopped: shieldName = "shield.lefthalf.filled"; shieldColor = .secondaryLabelColor
+            case .unavailable: shieldName = "shield.slash"; shieldColor = .systemRed
+            }
+        }
+        let network = NSImage(systemSymbolName: "network", accessibilityDescription: "Nagi")?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.secondaryLabelColor]))
+        let shield = NSImage(systemSymbolName: shieldName, accessibilityDescription: "Nagi")?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [shieldColor]))
+        let icon = NSImage(size: NSSize(width: 21, height: 18), flipped: false) { _ in
+            network?.draw(in: NSRect(x: 0, y: 1, width: 17, height: 17))
+            shield?.draw(in: NSRect(x: 11, y: 0, width: 10, height: 11))
+            return true
+        }
+        icon.isTemplate = false
         button.image = icon
         button.imagePosition = .imageLeading
         let title = model.statusTitle
-        button.attributedTitle = NSAttributedString(string: icon == nil ? "N" : (title.isEmpty ? "" : "  " + title),
+        button.attributedTitle = NSAttributedString(string: title.isEmpty ? "" : "  " + title,
             attributes: [.font: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)])
         let state: String
         switch model.state {
