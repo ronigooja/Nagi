@@ -62,12 +62,9 @@ import AppKit
             loadingTimer = nil
             statusItem.menu = menu
         }
-        let loadingSymbols = ["network.badge.shield.half.filled", "network.badge.shield.fill",
-                              "network.badge.shield.half.filled", "shield.lefthalf.filled",
-                              "network.badge.shield.half.filled", "network.badge.shield.fill",
-                              "network.badge.shield.half.filled", "network.badge.shield.half.filled"]
-        let iconName = model.busy ? loadingSymbols[loadingFrame] : "network.badge.shield.half.filled"
-        let color: NSColor = model.busy ? .systemBlue :
+        let iconName = "network.badge.shield.half.filled"
+        let color: NSColor = model.busy ?
+            (loadingFrame.isMultiple(of: 2) ? .systemBlue : .systemIndigo) :
             (model.state == .running ? .systemGreen :
              model.state == .starting ? .systemYellow :
              model.state == .unavailable ? .systemRed : .secondaryLabelColor)
