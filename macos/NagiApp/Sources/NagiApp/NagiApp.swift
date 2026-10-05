@@ -62,29 +62,24 @@ import AppKit
             loadingTimer = nil
             statusItem.menu = menu
         }
-        let shieldName: String
-        let shieldColor: NSColor
-        if model.busy {
-            shieldName = loadingFrame == 0 ? "shield.lefthalf.filled" : "shield.fill"
-            shieldColor = .systemGreen
-        } else {
-            switch model.state {
-            case .starting: shieldName = "shield.lefthalf.filled"; shieldColor = .systemGreen
-            case .running: shieldName = "shield.fill"; shieldColor = .systemGreen
-            case .stopped: shieldName = "shield.lefthalf.filled"; shieldColor = .secondaryLabelColor
-            case .unavailable: shieldName = "shield.slash"; shieldColor = .systemRed
+        let color: NSColor = model.state == .running || model.busy ? .white : .secondaryLabelColor
+        let configuration = NSImage.SymbolConfiguration(paletteColors: [color])
+        let baseIcon = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "Nagi")?
+            .withSymbolConfiguration(configuration)
+        let icon: NSImage?
+        if model.state == .unavailable, let baseIcon,
+           let warning = NSImage(systemSymbolName: "exclamationmark", accessibilityDescription: "Status unavailable")?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.white])) {
+            icon = NSImage(size: baseIcon.size, flipped: false) { _ in
+                baseIcon.draw(in: NSRect(origin: .zero, size: baseIcon.size))
+                warning.draw(in: NSRect(x: baseIcon.size.width * 0.62, y: baseIcon.size.height * 0.08,
+                                        width: baseIcon.size.width * 0.28, height: baseIcon.size.height * 0.45))
+                return true
             }
+        } else {
+            icon = baseIcon
         }
-        let network = NSImage(systemSymbolName: "network", accessibilityDescription: "Nagi")?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.secondaryLabelColor]))
-        let shield = NSImage(systemSymbolName: shieldName, accessibilityDescription: "Nagi")?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [shieldColor]))
-        let icon = NSImage(size: NSSize(width: 21, height: 18), flipped: false) { _ in
-            network?.draw(in: NSRect(x: 0, y: 1, width: 17, height: 17))
-            shield?.draw(in: NSRect(x: 11, y: 0, width: 10, height: 11))
-            return true
-        }
-        icon.isTemplate = false
+        icon?.isTemplate = false
         button.image = icon
         button.imagePosition = .imageLeading
         let title = model.statusTitle
