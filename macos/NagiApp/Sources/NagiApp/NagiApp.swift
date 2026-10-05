@@ -1,10 +1,10 @@
 import AppKit
 
 @MainActor @main enum NagiApp {
+    private static let appDelegate = MenuAppDelegate()
     static func main() {
         let app = NSApplication.shared
-        let delegate = MenuAppDelegate()
-        app.delegate = delegate
+        app.delegate = appDelegate
         app.run()
     }
 }
