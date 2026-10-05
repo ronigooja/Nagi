@@ -2,100 +2,84 @@
 
 These guidelines define development responsibilities and documentation practices for agents working in the Nagi repository.
 
-## Development Responsibility Rules
+## Architecture Boundaries and Feature Design
 
-These rules apply to every feature.
+These rules apply to every feature:
 
 - Treat mihomo as the implementation owner for proxy protocols, DNS resolution, traffic forwarding, routing rules, and TUN networking. Nagi configures and manages those capabilities through mihomo's configuration and APIs.
+- Nagi owns user operations: translating intent into configuration or API calls, persisting settings, managing process lifecycle, displaying state, and handling operation failures.
+- The macOS UI is the interactive entry point for common daily-use scenarios. The CLI remains the complete interface for advanced configuration, batch operations, automation, diagnostics, recovery, and operational tasks. The UI does not implement those business operations.
+- Before designing a feature, inspect the pinned mihomo version's capabilities, configuration fields, and APIs. Identify the configuration or management work Nagi must provide.
+- Use existing mihomo mechanisms instead of duplicating them in Nagi. If a capability is missing, determine whether the extension belongs in mihomo or Nagi according to the system boundary.
+- Verify configuration generation, API calls, persistence, and activation behavior with relevant checks. Broader network detection or verification requires a separate requirement and must not become an implicit prerequisite for a configuration feature.
+- For example, DNS leak prevention through mihomo means configuring the relevant TUN, DNS interception, and DNS upstream settings. It does not require Nagi to build a system-wide DNS leak verification mechanism.
 
-- Implement the Nagi CLI's responsibilities around user operations: translate intent into configuration or API calls, persist settings, manage process lifecycle, display state, and handle operation failures.
-
-- Treat the macOS UI as the interactive entry point for common daily-use scenarios. The CLI remains the complete interface for advanced configuration, batch operations, automation, diagnostics, recovery, and operational tasks; the UI does not implement those business operations.
-
-## Feature Design and Verification Rules
-
-- Before designing a feature, inspect the pinned mihomo version's existing capabilities, configuration fields, and APIs. Identify the specific configuration or management work Nagi needs to provide.
-- Use existing mihomo mechanisms instead of duplicating them in Nagi. When a capability is missing, first determine whether the extension belongs in mihomo or Nagi according to the system boundary.
-- Verify Nagi's configuration generation, API calls, persistence, and activation behavior. Use relevant integration checks to confirm that the configured capability works; broader network detection or verification requires a separate requirement and must not become an implicit prerequisite for a configuration feature.
-- For example, providing DNS leak prevention through mihomo means configuring the relevant TUN, DNS interception, and DNS upstream settings for the intended behavior. It does not by itself require Nagi to build a system-wide DNS leak verification mechanism.
-
-## Documentation Structure
+## Documentation Locations and Responsibilities
 
 ```text
 README.md               Project entry point and documentation navigation
-AGENTS.md               Development responsibility and documentation rules for agents
-ARCHITECTURE.md         System architecture overview
+AGENTS.md               Agent responsibilities and workflow rules
+ARCHITECTURE.md         Current system architecture overview
 docs/
 ├── guides/             User-facing task guides
-├── reference/          Precise command, configuration, and interface specifications
-├── design/             Module design, interaction flows, and failure handling
-├── development/        Build, test, debugging, mihomo integration, and contribution workflows
-└── decisions/          Important architecture decisions and their rationale
+├── reference/          Exact command, configuration, and interface specifications
+├── design/             Current module designs, flows, and failure handling
+├── development/        Build, test, debugging, integration, and contribution workflows
+└── decisions/          Architecture decisions and their rationale
 ```
 
-This structure defines where content belongs. Directories do not need to be created in advance: create a document directory only when it contains actual content, and do not create empty directories or placeholder documents.
+Create a documentation directory only when it contains actual content; do not create empty directories or placeholder documents.
 
-## Documentation Responsibilities and Scope
+Use each location as follows:
 
-| Location | Use this location for | Content scope |
-| --- | --- | --- |
-| `README.md` | Introducing the project and directing readers | Project purpose, supported platforms, current capabilities, shortest getting-started path, and documentation navigation |
-| `AGENTS.md` | Defining agent responsibilities and workflow rules | Development responsibility constraints, documentation categories, locations, references, and maintenance rules |
-| `ARCHITECTURE.md` | Describing the current system organization and boundaries | System relationships, repository boundaries, module responsibilities, dependency direction, key constraints, and links to detailed designs |
-| `docs/guides/` | Explaining how users complete a task | Prerequisites, steps, expected results, and common issues |
-| `docs/reference/` | Defining an exact command, configuration item, or interface | Parameters, fields, types, defaults, constraints, exit codes, and compatibility rules |
-| `docs/design/` | Explaining how a mechanism works | Component cooperation, data flow, state transitions, concurrency, failure handling, and recovery |
-| `docs/development/` | Documenting development and maintenance workflows | Development environment, build, testing, debugging, mihomo integration, contribution, and release workflows |
-| `docs/decisions/` | Recording why an architecture choice was made | Decision context, alternatives, selected approach, trade-offs, and consequences |
+| Location | Scope |
+| --- | --- |
+| `README.md` | Project purpose, supported platforms, current capabilities, shortest getting-started path, and documentation navigation. |
+| `AGENTS.md` | Agent responsibilities, documentation categories, workflow rules, and maintenance requirements. |
+| `ARCHITECTURE.md` | Current system relationships, repository boundaries, module responsibilities, dependency direction, constraints, and links to detailed designs. |
+| `docs/guides/` | Prerequisites, steps, expected results, and common issues for user tasks. |
+| `docs/reference/` | Complete definitions of parameters, fields, defaults, constraints, exit codes, and compatibility rules. |
+| `docs/design/` | Current component responsibilities, interfaces, data flow, state transitions, concurrency, failure handling, and recovery. |
+| `docs/development/` | Development environment, build, testing, debugging, mihomo integration, contribution, and release workflows. |
+| `docs/decisions/` | Context, alternatives, selected decision, trade-offs, and consequences for important architecture choices. |
 
-System architecture is documented in `ARCHITECTURE.md` and `docs/design/`. `AGENTS.md` defines agent and documentation rules without duplicating those documents.
+`README.md` is the unified documentation entry point. `ARCHITECTURE.md` maintains the overall view and links to detailed designs; it must not accumulate command parameters or operational steps. Each topic has one authoritative document containing its complete definition. Other documents contain only summaries, examples, and relative links to that source. Organize documents by content responsibility, not development phase, and split a document only when its topic needs to be read or maintained independently.
 
-## Agent Workflow Rules
+## Agent Workflow
 
-- Documentation must be written in English.
-- During execution, the agent communicates with the user in English; progress reports and important information are communicated in Chinese.
-- Before modifying any file, explain the modification scope to the user in Chinese and request permission.
-- Before making changes, read this file, `README.md` (if present), and the architecture, design, and reference documents directly related to the task.
-- In this workspace, development tools are installed under `$HOME/environment`; check there for required toolchains before installing or downloading them.
-- Classify the content before choosing a destination; do not move documents merely because the implementation phase has changed.
-- When changing functionality, interfaces, configuration, or development workflows, check for the relevant authoritative document and update it once the behavior is settled.
-- When changing CLI behavior, follow the [CLI usability rules](docs/development/cli-usability.md) and update the [CLI reference](docs/reference/cli.md) for implemented behavior.
+- Before making changes, read this file, `README.md` if present, and the architecture, design, and reference documents directly related to the task.
+- Before modifying any file, explain the modification scope to the user in Chinese and request permission. Modify files only within the scope authorized by the user; do not rewrite unrelated documentation or implementation.
+- Check `$HOME/environment` for required development tools before installing or downloading anything.
+- Classify content before choosing a documentation destination. Do not move documents merely because the implementation phase has changed.
+- When changing functionality, interfaces, configuration, or development workflows, check the relevant authoritative document and update it once behavior is settled.
+- When changing CLI behavior, follow [the CLI usability rules](docs/development/cli-usability.md) and update [the CLI reference](docs/reference/cli.md) for implemented behavior.
 - Do not describe a recommended architecture in `ARCHITECTURE.md`, an unimplemented design, or an alternative in a decision record as a current capability.
-- When it is unclear whether behavior is implemented, use the current code, tests, and reproducible command results as evidence. If it cannot be verified, mark the status explicitly instead of guessing.
-- After making changes, check new or modified relative links, commands, paths, field names, and examples.
-- Agents may modify files only within the scope authorized by the user. Do not rewrite unrelated documentation or implementation as part of the task.
+- When behavior is unclear, use current code, tests, and reproducible command results as evidence. If it cannot be verified, mark its status explicitly instead of guessing.
+- After changes, check new or modified relative links, commands, paths, field names, and examples.
 
-## Organization and References
+## Documentation Writing Rules
 
-- `README.md` is the unified documentation entry point and links to the architecture overview and the main entry points for each documentation category.
-- When documents conflict, prefer the more specific document and the verified current implementation. Resolve the conflict by updating stale references; do not leave two documents asserting different conclusions.
-- Each topic must have one authoritative document containing the complete definition of its parameters, fields, or behavior. Other documents should contain only summaries, examples, and relative links to that source.
-- `ARCHITECTURE.md` maintains an overall view and links to detailed designs instead of accumulating command parameters and operational steps.
-- Guides may include examples needed to complete a task; complete parameter and configuration definitions belong in reference documentation.
-- Design documents describe the currently accepted design; decision records preserve the reasons for choosing it.
-- Organize by content responsibility, not by development phase.
-- Each document should cover one coherent topic. Split only when content needs to be read or maintained independently; avoid excessive fragmentation.
-- Files under `docs/` use short, clear, lowercase English names with hyphens between words. Links use repository-relative paths.
-- When a category contains enough documents that navigation becomes unclear, add a `README.md` index containing only navigation and brief descriptions.
-
-## Writing Rules
-
-- Write prose in English by default; preserve the original spelling of code identifiers, commands, and API fields.
-- State the document topic and scope at the beginning, then organize content in the order readers need to complete the task or understand the system.
+- Write documentation prose in English by default. Preserve the original spelling of code identifiers, commands, and API fields.
+- State each document's topic and scope at the beginning, then organize content in the order readers need to complete the task or understand the system.
 - Clearly distinguish implemented behavior, accepted but unimplemented designs, and proposals under discussion. Guides and reference documents must not present planned capabilities as current functionality.
 - Design documents must explain responsibilities, interfaces, key flows, and the state after failures. Diagrams must agree with the surrounding text.
-- Name architecture decisions `NNNN-topic.md`, using four-digit decimal numbers starting at `0001` in creation order. Never reuse a number.
-- Each decision must record its status, context, alternatives, decision, and consequences. Status must be one of proposed, accepted, superseded, or deprecated. When a decision is superseded, keep the original record and link to the replacement.
-- Mark planned architecture and unimplemented designs with their status and scope at the beginning of the document. Update the description to current behavior only after implementation is complete.
-- Examples must be accurate and self-consistent. Mark placeholder parameters clearly, and never include real credentials or subscription URLs.
+- Mark planned architecture and unimplemented designs with their status and scope at the beginning. Update the description to current behavior only after implementation is complete.
+- Name architecture decisions `NNNN-topic.md`, using four-digit decimal numbers starting at `0001` in creation order. Never reuse a number. Each decision must record its status, context, alternatives, decision, and consequences. Status must be `proposed`, `accepted`, `superseded`, or `deprecated`. When superseded, keep the original record and link to the replacement.
+- Keep examples accurate and self-consistent. Mark placeholder parameters clearly, and never include real credentials or subscription URLs.
 - Prefer relative paths, environment variables, or generic examples. Local paths such as `/root/Nagi` and `/root/mihomo` may appear only as explicitly labeled development examples, never as architecture constraints.
+- Use short, clear, lowercase English filenames with hyphens under `docs/`, and repository-relative links. When a category becomes difficult to navigate, add a `README.md` index containing only navigation and brief descriptions.
 
-## Maintenance Rules
+## Documentation Maintenance and Verification
 
-- Once functionality, interface, or development workflow behavior is settled, update affected documentation in the same change. Experimental implementations may remain outside formal guides and reference documents, but must not be presented as stable capabilities.
-- When the design changes, update its authoritative source. Record important architectural trade-offs in a decision record.
-- When adding, moving, or deleting a document, update navigation and all affected links.
-- Verify that commands, paths, fields, and examples in the documentation match the described implementation or design.
+- When functionality, an interface, configuration, or development workflow changes, update the affected authoritative documentation in the same change once behavior is settled. Experimental implementations may remain outside formal guides and reference documents, but must not be presented as stable capabilities.
+- When the design changes, update its authoritative source and record important architectural trade-offs in a decision record.
+- When adding, moving, or deleting a document, update navigation and all affected links. When documents conflict, prefer the more specific document and the verified current implementation, then update stale references so conflicting claims do not remain.
+- Guides may include task-specific examples; complete parameter and configuration definitions belong in reference documentation. Design documents describe the currently accepted design; decision records preserve why it was chosen.
+- Verify that commands, paths, fields, examples, and Markdown relative links match the implementation or design. Changes involving commands, configuration, or interfaces must also verify parameters, exit codes, and example output.
 - Remove duplicate or obsolete explanations. Preserve historical rationale in decision records instead of current usage documentation.
-- At minimum, documentation changes must verify Markdown relative links and example paths. Changes involving commands, configuration, or interfaces must also verify parameters, fields, exit codes, and example output against the current implementation.
 - If the repository has no automated documentation checks, perform a manual review before submission and record any checks that could not be run and why.
+
+## Communication
+
+- Keep documentation in English unless the document is explicitly intended to preserve another language.
+- During execution, communicate with the user in the language requested by the user. Progress reports and important information are communicated in Chinese unless the user requests otherwise.
