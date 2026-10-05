@@ -14,6 +14,7 @@ import AppKit
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var pulse: Timer?
+    private var menuRefreshTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -33,8 +34,10 @@ import AppKit
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // The Quit menu owns termination, so the CLI can restore managed OS state first.
-        return .terminateNow
+        model.quit { succeeded in
+            sender.reply(toApplicationShouldTerminate: succeeded)
+        }
+        return .terminateLater
     }
 
     private func renderStatus() {
@@ -42,11 +45,12 @@ import AppKit
         let icon = NSImage(systemSymbolName: model.state == .running ? "point.3.connected.trianglepath.dotted" :
                             model.state == .unavailable ? "exclamationmark.triangle" : "circle.dotted",
                            accessibilityDescription: "Nagi")
+            ?? NSImage(systemSymbolName: "network", accessibilityDescription: "Nagi")
         icon?.isTemplate = true
         button.image = icon
         button.imagePosition = .imageLeading
         let title = model.statusTitle
-        button.attributedTitle = NSAttributedString(string: title.isEmpty ? "" : "  " + title,
+        button.attributedTitle = NSAttributedString(string: icon == nil ? "N" : (title.isEmpty ? "" : "  " + title),
             attributes: [.font: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)])
         let state: String
         switch model.state {
@@ -60,7 +64,12 @@ import AppKit
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         rebuildMenu()
-        Task { await model.refreshMenuData() }
+        guard menuRefreshTask == nil else { return }
+        menuRefreshTask = Task {
+            await model.refreshMenuData()
+            if menu.isAttached { rebuildMenu() }
+            menuRefreshTask = nil
+        }
     }
 
     private func rebuildMenu() {
@@ -150,11 +159,10 @@ import AppKit
         addSubmenu("Display", displayMenu)
         let startupMenu = NSMenu()
         add("Open app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
-        let startupCommand = model.serviceEnabled == true ? ["startup", "disable"] :
-            model.serviceInstalled == true ? ["startup", "enable"] : ["service", "install"]
+        let startupCommand = model.serviceInstalled == true ? ["service", "uninstall"] : ["service", "install"]
         add("Start Nagi at login", command: startupCommand,
-            checked: model.serviceEnabled == true, enabled: model.serviceEnabled != nil && !model.busy, to: startupMenu)
-        if model.serviceEnabled == nil { disabled("Service status unavailable", to: startupMenu) }
+            checked: model.serviceInstalled == true, enabled: model.serviceInstalled != nil && !model.busy, to: startupMenu)
+        if model.serviceInstalled == nil { disabled("Service status unavailable", to: startupMenu) }
         addSubmenu("Startup", startupMenu)
         menu.addItem(.separator())
         add("Help", action: #selector(openHelp))
@@ -199,7 +207,7 @@ import AppKit
         NSWorkspace.shared.open(URL(string: "https://github.com/ronigooja/Nagi#documentation")!)
     }
     @objc private func showAbout() { NSApp.orderFrontStandardAboutPanel(nil); NSApp.activate(ignoringOtherApps: true) }
-    @objc private func quit() { model.quit() }
+    @objc private func quit() { NSApp.terminate(nil) }
     @objc private func willSleep(_ notification: Notification) { model.pauseForSleep() }
     @objc private func didWake(_ notification: Notification) { model.resumeAfterWake() }
 }

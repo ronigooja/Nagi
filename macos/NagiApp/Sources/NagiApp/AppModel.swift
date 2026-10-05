@@ -46,7 +46,6 @@ enum EngineState { case starting, running, stopped, unavailable }
     private(set) var systemProxy: Bool?
     private(set) var tun: Bool?
     private(set) var tunAdapter: String?
-    private(set) var serviceEnabled: Bool?
     private(set) var serviceInstalled: Bool?
     private(set) var uploadBPS: Int64?
     private(set) var downloadBPS: Int64?
@@ -95,7 +94,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         }
     }
     func retryStart() {
-        guard !busy else { return }
+        guard !busy && !quitting else { return }
         busy = true
         Task { await startEngine(); await refresh(); busy = false }
     }
@@ -123,7 +122,8 @@ enum EngineState { case starting, running, stopped, unavailable }
         do {
             let value = try await cli.run(["profile", "list"])
             profiles = value["profiles"]?.array.compactMap { $0.string ?? $0["name"]?.string } ?? []
-            profile = value["current"]?.string ?? profile
+            profile = value["current"]?.string
+            if let problem = value["current_error"]?.string { errorMessage = "Profile selection unavailable: \(problem)" }
         } catch { errorMessage = error.localizedDescription }
         do {
             let value = try await cli.run(["subscription", "list"])
@@ -134,9 +134,8 @@ enum EngineState { case starting, running, stopped, unavailable }
         } catch { errorMessage = error.localizedDescription }
         do {
             let service = try await cli.run(["service", "status"])
-            serviceEnabled = service["enabled"]?.bool
             serviceInstalled = service["installed"]?.bool
-        } catch { serviceEnabled = nil; serviceInstalled = nil }
+        } catch { serviceInstalled = nil }
         if state == .running {
             do {
                 let value = try await cli.run(["proxy", "groups"])
@@ -158,7 +157,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         notify()
     }
     func perform(_ arguments: [String], success: String? = nil) {
-        guard !busy else { return }
+        guard !busy && !quitting else { return }
         busy = true
         Task {
             defer { busy = false }
@@ -166,20 +165,26 @@ enum EngineState { case starting, running, stopped, unavailable }
             catch { errorMessage = error.localizedDescription }
         }
     }
-    func quit() {
-        guard !busy && !quitting else { return }
-        quitting = true; busy = true
+    func quit(completion: @escaping (Bool) -> Void) {
+        guard !quitting else { return }
+        quitting = true
         quitErrorMessage = nil
         Task {
-            defer { quitting = false; busy = false }
+            while busy { try? await Task.sleep(nanoseconds: 100_000_000) }
+            busy = true
             do {
                 _ = try await cli.run(["quit"])
                 stopTraffic(); refreshTask?.cancel()
-                NSApplication.shared.terminate(nil)
-            } catch { quitErrorMessage = "Quit failed: \(error.localizedDescription)" }
+                completion(true)
+            } catch {
+                quitErrorMessage = "Quit failed: \(error.localizedDescription)"
+                completion(false)
+            }
+            busy = false; quitting = false
         }
     }
     func setAppLogin(_ enabled: Bool) {
+        guard !quitting else { return }
         do {
             if enabled { try SMAppService.mainApp.register() }
             else { try SMAppService.mainApp.unregister() }

@@ -6,7 +6,7 @@ Install the matching Nagi CLI as an executable at `/usr/local/bin/nagi`. Install
 
 The status item displays mihomo's upload and download rates once a second from `nagi --json traffic watch`. Upload and download is the default display; Download only and Icon only are alternatives. The numeric display uses a monospaced font. A dash means the engine is stopped, the stream is unavailable, or the last sample is stale; a valid zero appears as `0 B/s`. The app reconnects the stream after interruption while the engine is running. Display choice is the only app data stored in UserDefaults.
 
-Subscription Update downloads and validates a cache. Apply cached copy is a separate explicit action that activates it as a profile. Proxy selection is offered only for mihomo Selector groups. A TUN setting can be on while its adapter is absent or down; the menu shows that warning. Service login startup is managed through CLI service/startup commands. “Open app at login” uses macOS `SMAppService` and requires an installed app bundle.
+Subscription Update downloads and validates a cache. Apply cached copy is a separate explicit action that activates it as a profile. Proxy selection is offered only for mihomo Selector groups. A TUN setting can be on while its adapter is absent or down; the menu shows that warning. “Start Nagi at login” installs or uninstalls the CLI's login service; uninstalling removes its service definition and leaves profiles and settings intact. “Open app at login” uses macOS `SMAppService` and requires an installed app bundle.
 
 Build and package on macOS with Xcode command line tools:
 
