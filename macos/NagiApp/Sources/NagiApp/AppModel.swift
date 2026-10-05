@@ -11,11 +11,10 @@ struct ProxyGroup {
 }
 struct Subscription { let name: String; let updatedAt: String? }
 enum TrafficDisplay: String, CaseIterable {
-    case both, download, icon
+    case both, icon
     var title: String {
         switch self {
         case .both: return "Upload and download"
-        case .download: return "Download only"
         case .icon: return "Icon only"
         }
     }
@@ -58,7 +57,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         let fresh = state == .running && Date().timeIntervalSince(lastSample) < 3.5
         let upload = Self.rate(fresh ? (uploadBPS ?? 0) : 0)
         let download = Self.rate(fresh ? (downloadBPS ?? 0) : 0)
-        return display == .both ? "↑ \(upload)\n↓ \(download)" : "↓ \(download)"
+        return "↑ \(upload)\n↓ \(download)"
     }
     var accessibilityTraffic: String {
         guard state == .running, Date().timeIntervalSince(lastSample) < 3.5,
