@@ -38,8 +38,17 @@ type ServiceSettings struct {
 	SOCKS Setting `json:"socks"`
 }
 type journal struct {
-	PID    int   `json:"pid"`
-	Before State `json:"before"`
+	PID     int   `json:"pid"`
+	Before  State `json:"before"`
+	Applied State `json:"applied,omitempty"`
+}
+type RecheckResult struct {
+	Managed    bool     `json:"managed"`
+	Status     string   `json:"status"`
+	Reasserted []string `json:"reasserted"`
+	Conflicts  []string `json:"conflicts"`
+	Untracked  []string `json:"untracked"`
+	Missing    []string `json:"missing"`
 }
 type Manager struct {
 	Dir string
@@ -117,6 +126,142 @@ func (m *Manager) Status(ctx context.Context) (State, error) {
 	err := m.locked(func() error { var e error; result, e = m.current(ctx); return e })
 	return result, err
 }
+
+// Recheck reasserts only settings that exactly reverted to the saved baseline.
+// Third-party changes and newly appearing macOS services are left untouched.
+func (m *Manager) Recheck(ctx context.Context, pid int) (RecheckResult, error) {
+	result := RecheckResult{Status: "unmanaged", Reasserted: []string{}, Conflicts: []string{}, Untracked: []string{}, Missing: []string{}}
+	err := m.locked(func() error {
+		j, err := m.readJournal()
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		result.Managed = true
+		if pid <= 0 || j.PID != pid {
+			result.Status = "stale_journal"
+			return nil
+		}
+		if j.Applied.Backend == "" {
+			result.Status = "legacy_journal"
+			return nil
+		}
+		current, err := m.current(ctx)
+		if err != nil {
+			return err
+		}
+		if current.Backend != j.Applied.Backend || current.Backend != j.Before.Backend {
+			result.Status = "backend_changed"
+			return nil
+		}
+		switch current.Backend {
+		case "gnome-gsettings":
+			if sameGNOME(current, j.Applied) {
+				result.Status = "current"
+				return nil
+			}
+			if !sameGNOME(current, j.Before) {
+				result.Conflicts = append(result.Conflicts, "GNOME proxy settings changed outside Nagi")
+				result.Status = "attention"
+				return nil
+			}
+			if err := m.apply(ctx, j.Applied); err != nil {
+				return fmt.Errorf("reassert GNOME proxy settings: %w", err)
+			}
+			verified, err := m.current(ctx)
+			if err != nil {
+				return err
+			}
+			if !sameGNOME(verified, j.Applied) {
+				return errors.New("GNOME did not retain reasserted proxy settings")
+			}
+			result.Reasserted = append(result.Reasserted, "GNOME")
+		case "macos-networksetup":
+			for _, name := range current.Services {
+				if _, ok := j.Applied.PerService[name]; !ok {
+					result.Untracked = append(result.Untracked, name)
+				}
+			}
+			for _, name := range j.Applied.Services {
+				actual, ok := current.PerService[name]
+				if !ok {
+					result.Missing = append(result.Missing, name)
+					continue
+				}
+				before, beforeOK := j.Before.PerService[name]
+				if !beforeOK {
+					result.Conflicts = append(result.Conflicts, name)
+					continue
+				}
+				target := j.Applied.PerService[name]
+				drift, safe := macServiceDrift(actual, before, target)
+				if !safe {
+					result.Conflicts = append(result.Conflicts, name)
+					continue
+				}
+				if !drift {
+					continue
+				}
+				one := State{Backend: "macos-networksetup", Services: []string{name}, PerService: map[string]ServiceSettings{name: target}}
+				if err := m.apply(ctx, one); err != nil {
+					return fmt.Errorf("reassert network service %q: %w", name, err)
+				}
+				result.Reasserted = append(result.Reasserted, name)
+			}
+			if len(result.Reasserted) > 0 {
+				verified, err := m.current(ctx)
+				if err != nil {
+					return err
+				}
+				for _, name := range result.Reasserted {
+					if actual, ok := verified.PerService[name]; !ok || !macTargetMatches(actual, j.Applied.PerService[name]) {
+						return fmt.Errorf("macOS did not retain reasserted proxy settings for %q", name)
+					}
+				}
+			}
+		default:
+			return errors.New("unknown system proxy backend")
+		}
+		result.Status = "current"
+		if len(result.Reasserted) > 0 {
+			result.Status = "reasserted"
+		}
+		if len(result.Conflicts)+len(result.Untracked)+len(result.Missing) > 0 {
+			result.Status = "attention"
+		}
+		return nil
+	})
+	return result, err
+}
+
+func sameGNOME(a, b State) bool {
+	return a.Mode == b.Mode && a.HTTP.Host == b.HTTP.Host && a.HTTP.Port == b.HTTP.Port &&
+		a.HTTPS.Host == b.HTTPS.Host && a.HTTPS.Port == b.HTTPS.Port &&
+		a.SOCKS.Host == b.SOCKS.Host && a.SOCKS.Port == b.SOCKS.Port
+}
+func macTargetMatches(actual, target ServiceSettings) bool {
+	return targetSettingMatches(actual.HTTP, target.HTTP) && targetSettingMatches(actual.HTTPS, target.HTTPS) && targetSettingMatches(actual.SOCKS, target.SOCKS)
+}
+func targetSettingMatches(actual, target Setting) bool {
+	if actual.Enabled != target.Enabled {
+		return false
+	}
+	return !target.Enabled || (actual.Host == target.Host && actual.Port == target.Port)
+}
+func macServiceDrift(actual, before, target ServiceSettings) (drift, safe bool) {
+	for _, pair := range [][3]Setting{{actual.HTTP, before.HTTP, target.HTTP}, {actual.HTTPS, before.HTTPS, target.HTTPS}, {actual.SOCKS, before.SOCKS, target.SOCKS}} {
+		if targetSettingMatches(pair[0], pair[2]) {
+			continue
+		}
+		if pair[0] != pair[1] {
+			return false, false
+		}
+		drift = true
+	}
+	return drift, true
+}
 func (m *Manager) Enable(ctx context.Context, pid int, port int) (State, error) {
 	var result State
 	err := m.locked(func() error {
@@ -140,10 +285,13 @@ func (m *Manager) Enable(ctx context.Context, pid int, port int) (State, error) 
 		if e != nil {
 			return e
 		}
-		if e = m.writeJournal(journal{PID: pid, Before: before}); e != nil {
-			return e
-		}
 		target := before
+		if before.PerService != nil {
+			target.PerService = make(map[string]ServiceSettings, len(before.PerService))
+			for service, values := range before.PerService {
+				target.PerService[service] = values
+			}
+		}
 		target.Enabled = true
 		target.HTTP = Setting{true, "127.0.0.1", port}
 		target.HTTPS = target.HTTP
@@ -154,6 +302,9 @@ func (m *Manager) Enable(ctx context.Context, pid int, port int) (State, error) 
 			}
 		}
 		target.Mode = "manual"
+		if e = m.writeJournal(journal{PID: pid, Before: before, Applied: target}); e != nil {
+			return e
+		}
 		if e = m.apply(ctx, target); e != nil {
 			restoreErr := m.apply(ctx, before)
 			if restoreErr == nil {

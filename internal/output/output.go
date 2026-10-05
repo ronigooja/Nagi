@@ -464,6 +464,13 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if err := line(w, kind+": "+label); err != nil {
 			return err
 		}
+		if status, ok := v["adapter_status"].(string); ok {
+			name, _ := v["adapter_name"].(string)
+			if name != "" {
+				return line(w, "Adapter "+name+": "+status)
+			}
+			return line(w, "Adapter: "+status)
+		}
 		return printField(w, "Bind address", v, "bind_address")
 	}
 	if _, ok := v["http"]; ok {

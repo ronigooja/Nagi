@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/ronigooja/Nagi/internal/traffic"
 )
 
 func TestStartupWatchStep(t *testing.T) {
@@ -39,6 +41,14 @@ func TestStartupWatchStepPropagatesFailure(t *testing.T) {
 	want := errors.New("startup failed")
 	err := startupWatchStep(context.Background(), func(...string) (any, error) { return nil, want })
 	if !errors.Is(err, want) {
+		t.Fatal(err)
+	}
+}
+func TestStartupWatchStepReportsProxyDrift(t *testing.T) {
+	err := startupWatchStep(context.Background(), func(...string) (any, error) {
+		return map[string]any{"running": true, "control_api": true, "system_proxy": traffic.RecheckResult{Managed: true, Status: "attention"}}, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "system proxy needs attention") {
 		t.Fatal(err)
 	}
 }

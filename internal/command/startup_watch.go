@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/output"
+	"github.com/ronigooja/Nagi/internal/traffic"
 )
 
 const startupWatchInterval = 30 * time.Second
@@ -69,6 +71,12 @@ func startupWatchStep(ctx context.Context, call func(...string) (any, error)) er
 	if check["running"] == true {
 		if check["control_api"] != true {
 			return errors.New("mihomo is running but its control API is unavailable; inspect `nagi logs`")
+		}
+		if message, ok := check["system_proxy_error"].(string); ok && message != "" {
+			return fmt.Errorf("system proxy recheck failed: %s; inspect `nagi startup check`", message)
+		}
+		if proxyCheck, ok := check["system_proxy"].(traffic.RecheckResult); ok && proxyCheck.Managed && proxyCheck.Status != "current" && proxyCheck.Status != "reasserted" {
+			return fmt.Errorf("system proxy needs attention (%s); inspect `nagi startup check`", proxyCheck.Status)
 		}
 		return nil
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -623,7 +624,11 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		tun, _ := cfg["tun"].(map[string]any)
 		enabled, _ := tun["enable"].(bool)
 		if args[1] == "status" {
-			return map[string]any{"enabled": enabled, "settings": tun}, nil
+			result := map[string]any{"enabled": enabled, "settings": tun}
+			for key, value := range tunAdapterReport(tun, net.Interfaces) {
+				result[key] = value
+			}
+			return result, nil
 		}
 		requested := args[1] == "enable"
 		payload := map[string]any{"enable": requested}
@@ -643,7 +648,11 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 		if enabled != requested {
 			return nil, fail("tun_error", errors.New("mihomo did not report the requested TUN state; inspect `nagi logs` and OS TUN permissions"))
 		}
-		return map[string]any{"enabled": enabled, "settings": tun}, nil
+		result := map[string]any{"enabled": enabled, "settings": tun}
+		for key, value := range tunAdapterReport(tun, net.Interfaces) {
+			result[key] = value
+		}
+		return result, nil
 	case "ports":
 		cfg, e := trafficConfig(ctx, client)
 		if e != nil {
@@ -798,7 +807,15 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 				var v any
 				reachable = client.Get(ctx, "/version", &v) == nil
 			}
-			return map[string]any{"checked": true, "running": st.Running, "control_api": reachable}, nil
+			result := map[string]any{"checked": true, "running": st.Running, "control_api": reachable}
+			if st.Running && reachable {
+				proxyCheck, checkErr := trafficManager.Recheck(ctx, st.PID)
+				result["system_proxy"] = proxyCheck
+				if checkErr != nil {
+					result["system_proxy_error"] = output.RedactError(checkErr.Error())
+				}
+			}
+			return result, nil
 		}
 		return nil, usage("startup status|enable|disable|check")
 	case "service":

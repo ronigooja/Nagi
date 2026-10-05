@@ -46,7 +46,7 @@ The CLI implements the items below as defined in the [CLI reference](../referenc
 
 ## Traffic access
 
-Implemented CLI commands and scope are in the [CLI reference](../reference/cli.md#traffic-access). The remaining platform and interception limits are documented there and in the [traffic access guide](../guides/traffic-access.md).
+Implemented CLI commands and scope are in the [CLI reference](../reference/cli.md#traffic-access). TUN status checks an explicitly named OS adapter when mihomo exposes one, but an up adapter does not prove traffic capture. The remaining platform and interception limits are documented there and in the [traffic access guide](../guides/traffic-access.md).
 
 - Enable, disable, and report the system proxy.
 - Enable, disable, and report TUN mode.
@@ -94,7 +94,7 @@ Implemented lifecycle, startup, and stale-state behavior is documented in the [C
 - Prevent duplicate starts and distinguish stale state from a live engine.
 
 - Recover after an unexpected engine exit while the login service is enabled.
-- Recheck process and control API state periodically, including after network changes, sleep, and wake.
+- Recheck process, control API, and managed system proxy state periodically, including after network changes, sleep, and wake. Reassert only system proxy settings that match the saved baseline; report conflicting or new macOS network services.
 
 Remaining: the periodic check does not verify OS route ownership, resolver capture, or restored connectivity. A live process whose control API is unreachable needs manual inspection.
 
