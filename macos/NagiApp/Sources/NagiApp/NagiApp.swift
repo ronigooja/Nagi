@@ -67,7 +67,7 @@ import AppKit
         guard menuRefreshTask == nil else { return }
         menuRefreshTask = Task {
             await model.refreshMenuData()
-            if menu.isAttached { rebuildMenu() }
+            if menu.isAttached() { rebuildMenu() }
             menuRefreshTask = nil
         }
     }

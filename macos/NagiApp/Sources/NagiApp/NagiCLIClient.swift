@@ -83,7 +83,7 @@ struct NagiCLIClient {
     }
 }
 
-private final class ProcessHolder {
+private final class ProcessHolder: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
     private var cancelledFlag = false
@@ -181,7 +181,7 @@ final class TrafficStream {
     }
     func wait() async throws {
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 DispatchQueue.global(qos: .utility).async { [self] in
                     done.wait()
                     lock.lock(); let localFailure = failure, wasStopped = stopped; lock.unlock()
