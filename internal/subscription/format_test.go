@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,11 +19,15 @@ func TestSupportedFormatsAndPreview(t *testing.T) {
 		count        int
 	}{
 		{"yaml", "proxies:\n  - name: Alpha\n    type: direct\n", 1},
+		{"v2ray-links", base64.StdEncoding.EncodeToString([]byte("vless://11111111-1111-1111-1111-111111111111@example.com:443?security=tls&type=tcp#Node\nss://YWVzLTI1Ni1nY206cGFzcw==@example.com:8388#SS")), 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			doc, _, err := Document([]byte(tc.source))
+			doc, format, err := Document([]byte(tc.source))
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.name == "v2ray-links" && format != "mihomo-v2ray" {
+				t.Fatalf("format: %s", format)
 			}
 			if len(sliceValue(doc["proxies"])) != tc.count {
 				t.Fatalf("nodes: %#v", doc)

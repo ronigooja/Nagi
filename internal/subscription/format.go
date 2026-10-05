@@ -6,9 +6,11 @@ import (
 	"sort"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/ronigooja/Nagi/internal/subscription/v2ray"
 )
 
-// Document parses supported mihomo YAML subscription responses.
+// Document parses mihomo YAML or mihomo-compatible V2Ray-style subscription responses.
 // The returned document is independent of the source bytes and safe to merge.
 func Document(data []byte) (map[string]any, string, error) {
 	var doc map[string]any
@@ -26,7 +28,16 @@ func Document(data []byte) (map[string]any, string, error) {
 			return doc, "mihomo-yaml", nil
 		}
 	}
-	return nil, "", errors.New("unsupported subscription format; expected mihomo YAML")
+	if proxies, err := v2ray.ConvertsV2Ray(data); err == nil && len(proxies) > 0 {
+		items := make([]any, len(proxies))
+		for i := range proxies {
+			items[i] = proxies[i]
+		}
+		doc = map[string]any{"proxies": items}
+		addGroup(doc, items)
+		return doc, "mihomo-v2ray", nil
+	}
+	return nil, "", errors.New("unsupported subscription format; expected mihomo YAML or V2Ray links")
 }
 
 func checkProxies(proxies []any) error {
