@@ -62,7 +62,7 @@ import AppKit
             loadingTimer = nil
             statusItem.menu = menu
         }
-        let networkColor = NSColor.tertiaryLabelColor
+        let networkColor = NSColor.labelColor
         let shieldColor: NSColor
         if model.busy {
             shieldColor = loadingFrame == 0 ? .white : .clear
