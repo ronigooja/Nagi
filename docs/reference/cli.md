@@ -21,6 +21,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `doctor` | Produce a read-only diagnostic report with checks and suggested next steps. |
 | `logs [lines]` | Return the last 100 lines by default, or 1 through 10000 lines. |
 | `logs follow` | Stream new log lines until interrupted. |
+| `traffic watch` | Stream live transfer rates and cumulative byte counters until interrupted. |
 | `config validate` | Check the selected profile with `mihomo -t`. |
 | `config show` | Return the selected profile YAML. |
 | `config reload` | Validate and safely reload the selected profile in a running mihomo instance. |
@@ -131,6 +132,8 @@ Replace `Node A`, `Proxy Group`, and `CONNECTION_ID` with names and IDs from you
 
 `logs follow` starts at the current end of the log and streams newly appended complete lines until interrupted. It does not replay existing lines. Text mode prints each new line; `--json` emits one success envelope per line with `data.line`. Terminal users should press Ctrl-C. Log file errors are reported without exposing configuration values.
 
+`traffic watch` connects to mihomo's private Unix Socket `GET /traffic` stream and prints each sample as it arrives, approximately once per second. It requires a running mihomo control API. Text mode labels rates in bytes per second and cumulative totals in bytes. `--json` emits one newline-delimited success envelope per sample with `data.upload_bps`, `data.download_bps`, `data.upload_total`, and `data.download_total` as nonnegative integer byte counts, plus `data.sampled_at` as an RFC 3339 UTC timestamp. The rates are mihomo's current rates; the totals are mihomo's counters since its current start. Ctrl-C or SIGTERM ends the command successfully. A failed connection, malformed sample, or unexpected stream end writes a failure envelope to stderr in JSON mode and exits `1` with `mihomo_api_error`; a failed output write uses `output_error`. The stream is not subject to the ordinary control request's whole-request timeout.
+
 ## Shell completion
 
 `completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell and DNS policy values, DNS query record types, and local files for profile import, export, and override set. At completion time, proxy group and node names are queried from the running engine; an unreachable engine yields no dynamic proxy candidates. Profile and subscription names are queried from local stores without exposing URLs. `completion candidates groups|nodes [GROUP]|profile|subscription` returns newline-separated text or a JSON string array; connection IDs are not completed.
@@ -211,6 +214,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `mode saved` | `mode`, `persistent: true` (stored profile mode). |
 | `config reload` | `profile`, `reloaded: true`. |
 | `logs follow` | A stream of success envelopes, each with `line` (string), when `--json` is used. |
+| `traffic watch` | A stream of success envelopes, each with `upload_bps`, `download_bps`, `upload_total`, `download_total` (nonnegative integers), and `sampled_at` (RFC 3339 UTC string), when `--json` is used. |
 | `completion SHELL` | A string containing the completion script. |
 | `completion candidates RESOURCE [GROUP]` | An array of local profile or subscription names, or live proxy group or node names. `GROUP` applies only to nodes. |
 
@@ -241,6 +245,7 @@ JSON payloads contain `rules`, `providers`, `entries`, `order`/`conflicts`, or `
 
 | Command | Result or effect |
 | --- | --- |
+| `traffic watch` | Stream live transfer rates and cumulative byte counters from mihomo once per second until interrupted. |
 | `system-proxy status` | Read active OS HTTP, HTTPS, and SOCKS proxy settings. |
 | `system-proxy enable` | Save current OS settings and point HTTP and HTTPS proxy settings at mihomo's local mixed port (or HTTP port). Requires a running engine. |
 | `system-proxy disable` | Restore settings saved by Nagi; when no restore record exists, report the current settings without changing them. |

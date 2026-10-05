@@ -85,6 +85,9 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		}
 		return runTUI(stdout, stderr, version, commit)
 	}
+	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
+		return runTrafficWatch(stdout, stderr, jsonMode)
+	}
 	data, err := execute(context.Background(), filtered, version, commit)
 	if err != nil {
 		code := "internal_error"

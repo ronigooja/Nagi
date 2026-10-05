@@ -25,6 +25,8 @@ var commandSpecs = []commandSpec{
 	{"doctor", "doctor", "Inspect the local installation", "Checks local paths, mihomo executable, selected profile, process marker, and Unix Socket API without changing files. Exit status is zero for a completed report; inspect healthy and checks for problems.", "nagi --json doctor", "", 0, 0},
 	{"logs", "logs [lines]", "Show or follow logs", "Shows recent lines or follows newly appended log lines until interrupted.", "nagi logs follow", "", 0, 1},
 	{"logs follow", "logs follow", "Follow mihomo logs", "Streams newly appended log lines until interrupted.", "nagi logs follow", "", 0, 0},
+	{"traffic", "traffic <watch>", "Watch live traffic", "Streams upload and download rates and cumulative byte counters from the running mihomo control API.", "nagi traffic watch", "", 0, -1},
+	{"traffic watch", "traffic watch", "Watch live traffic", "Streams one sample per second from mihomo until interrupted. Text mode prints labeled rates and totals; --json emits one success envelope per sample.", "nagi --json traffic watch", "Start mihomo before watching traffic.", 0, 0},
 	{"config", "config <validate|show>", "Inspect or reload configuration", "Validate, print, or safely reload the selected profile. Use `config reload` for a running engine.", "nagi config reload", "", 0, -1},
 	{"config validate", "config validate", "Validate the selected profile", "Runs mihomo -t against the selected profile; requires a mihomo executable.", "nagi config validate", "", 0, 0},
 	{"config show", "config show", "Print the selected profile", "Prints the selected profile YAML.", "nagi config show", "", 0, 0},
