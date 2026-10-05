@@ -55,18 +55,16 @@ enum EngineState { case starting, running, stopped, unavailable }
     var appLoginEnabled: Bool { SMAppService.mainApp.status == .enabled }
     var statusTitle: String {
         guard display != .icon else { return "" }
-        guard state == .running, Date().timeIntervalSince(lastSample) < 3.5,
-              let down = downloadBPS, let up = uploadBPS else {
-            return display == .both ? "↑ \(Self.placeholder)  ↓ \(Self.placeholder)" : "↓ \(Self.placeholder)"
-        }
-        return display == .both ? "↑ \(Self.rate(up))  ↓ \(Self.rate(down))" : "↓ \(Self.rate(down))"
+        let fresh = state == .running && Date().timeIntervalSince(lastSample) < 3.5
+        let upload = Self.rate(fresh ? (uploadBPS ?? 0) : 0)
+        let download = Self.rate(fresh ? (downloadBPS ?? 0) : 0)
+        return display == .both ? "↑ \(upload)\n↓ \(download)" : "↓ \(download)"
     }
     var accessibilityTraffic: String {
         guard state == .running, Date().timeIntervalSince(lastSample) < 3.5,
               let up = uploadBPS, let down = downloadBPS else { return "traffic unavailable" }
         return "upload \(Self.rate(up).trimmingCharacters(in: .whitespaces)), download \(Self.rate(down).trimmingCharacters(in: .whitespaces))"
     }
-    private static let placeholder = String(repeating: " ", count: 9) + "—"
     private static func rate(_ bytes: Int64) -> String {
         let value = Double(max(0, bytes))
         let unit: String

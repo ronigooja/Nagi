@@ -79,8 +79,12 @@ import AppKit
         button.image = icon
         button.imagePosition = .imageLeading
         let title = model.statusTitle
+        let stacked = model.display == .both
+        button.cell?.usesSingleLineMode = !stacked
+        button.cell?.wraps = stacked
+        button.cell?.lineBreakMode = .byClipping
         button.attributedTitle = NSAttributedString(string: title.isEmpty ? "" : "  " + title,
-            attributes: [.font: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)])
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: stacked ? 9 : NSFont.systemFontSize, weight: .regular)])
         let state: String
         switch model.state {
         case .starting: state = "starting"
