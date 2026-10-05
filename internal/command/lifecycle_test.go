@@ -150,3 +150,29 @@ func TestQuitRollbackErrorExplainsRecovery(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestInterruptedQuitCanBeRetried(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	paths, err := nagiruntime.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeIntent(paths, "quit-pending"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = execute(context.Background(), []string{"start"}, "test", "test")
+	var commandErr *commandError
+	if !errors.As(err, &commandErr) || commandErr.code != "lifecycle_busy" || !strings.Contains(err.Error(), "`nagi quit` again") {
+		t.Fatalf("start error = %v", err)
+	}
+	previous := pauseMonitor
+	pauseMonitor = func() error { return nil }
+	t.Cleanup(func() { pauseMonitor = previous })
+	if _, err := execute(context.Background(), []string{"quit"}, "test", "test"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := readIntent(paths); err != nil || got != "quit-ready" {
+		t.Fatalf("intent = %q, %v", got, err)
+	}
+}

@@ -98,7 +98,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			if intent, err := readIntent(paths); err != nil {
 				return nil, err
 			} else if intent == "quit-pending" {
-				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes"))
+				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes, or run `nagi quit` again if the prior quit was interrupted"))
 			}
 			if err := writeIntent(paths, "running"); err != nil {
 				return nil, err
@@ -107,7 +107,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			if intent, err := readIntent(paths); err != nil {
 				return nil, err
 			} else if intent == "quit-pending" {
-				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes"))
+				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes, or run `nagi quit` again if the prior quit was interrupted"))
 			}
 			if err := writeIntent(paths, "stopped"); err != nil {
 				return nil, err
