@@ -123,9 +123,9 @@ nagi mode
 
 Replace `Node A`, `Proxy Group`, and `CONNECTION_ID` with names and IDs from your engine. Connection lists show IDs and any selected proxy chain in text and JSON. Closing an ID that has already disappeared succeeds because mihomo treats it as an idempotent request. `close-all` is explicit, noninteractive, and affects all connections present when mihomo processes the request. Applications may immediately establish new connections. No closed-connection count is returned.
 
-`mode` without an argument reads the running mode. With `rule`, `global`, or `direct`, it changes only the running engine through `PATCH /configs` and returns `persistent: false`; restarting or reloading a profile reapplies the mode in that configuration. `mode save MODE` edits the selected profile after validating the mode and writes it through the profile's atomic replacement and reload path; it returns `persistent: true`. `mode saved` reads the selected profile's stored mode without contacting mihomo and returns `persistent: true`. A persistent save while the engine is running reloads the profile; a failed reload rolls the profile file back. All temporary mode changes require a reachable mihomo Unix Socket API.
+`mode` without an argument reads the running mode. With `rule`, `global`, or `direct`, it changes only the running engine through `PATCH /configs` and returns `persistent: false`; restarting or reloading a profile reapplies the mode in that configuration. `mode save MODE` edits the selected profile's local override when one exists, otherwise its source profile, using the atomic replacement and reload path; it returns `persistent: true`. `mode saved` reads the effective stored mode without contacting mihomo and returns `persistent: true`. A persistent save while the engine is running reloads the profile; a failed reload rolls the modified file back. All temporary mode changes require a reachable mihomo Unix Socket API.
 
-`config reload` validates the selected profile first, requires a running engine, and sends mihomo `PUT /configs?force=true` with the selected profile path. Validation failure leaves the running engine untouched. If the API reload fails after validation, the command reports that runtime state may still use the previous configuration; Nagi does not claim a rollback of mihomo's internal state. A successful reload returns `reloaded: true` and the profile name.
+`config reload` validates the selected profile's effective configuration first, requires a running engine, and sends mihomo `PUT /configs?force=true` with the source or generated effective profile path. Validation failure leaves the running engine untouched. If the API reload fails after validation, the command reports that runtime state may still use the previous configuration; Nagi does not claim a rollback of mihomo's internal state. A successful reload returns `reloaded: true` and the profile name.
 
 `connections show ID` finds one connection in a fresh `/connections` snapshot and reports the same `id`, `metadata`, `chains`, `upload`, and `download` fields as a list item. A missing ID fails with a suggestion to list current IDs. `connections list` remains a snapshot. `connections close ID` is idempotent when mihomo has already removed the connection; `connections close-all` affects connections present when mihomo processes the request. A closed connection can be recreated by applications.
 
@@ -172,7 +172,7 @@ To inspect mihomo's own diagnostics locally, use `mihomo -t -f FILE -d DIRECTORY
 
 ## JSON and exit codes
 
-JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `not_running`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `proxy_selection_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
+JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `not_running`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `kill_switch_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
 
 Additional success payloads are defined below; all appear in `data`:
 
@@ -212,7 +212,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `config reload` | `profile`, `reloaded: true`. |
 | `logs follow` | A stream of success envelopes, each with `line` (string), when `--json` is used. |
 | `completion SHELL` | A string containing the completion script. |
-| `completion candidates RESOURCE` | An array of profile or subscription name strings. |
+| `completion candidates RESOURCE [GROUP]` | An array of local profile or subscription names, or live proxy group or node names. `GROUP` applies only to nodes. |
 
 `NAGI_MIHOMO_BIN` overrides the default mihomo executable path, which is a file named `mihomo` beside the Nagi executable. Nagi uses XDG directories on Linux and `~/Library/Application Support/Nagi` on macOS; see the [runtime design](../design/runtime.md).
 
@@ -236,6 +236,7 @@ Targets are `DIRECT`, `REJECT`, or a mihomo proxy group name. Custom rules are s
 `rules conflicts` reports duplicate matchers and rules appearing after an earlier `MATCH`, which cannot be reached. This is a static report and does not prove semantic overlap between arbitrary regular expressions, geolocation databases, or provider contents. `rules connection ID` only works while the connection remains active; mihomo supplies the recorded `rule` and `rulePayload` fields.
 
 JSON payloads contain `rules`, `providers`, `entries`, `order`/`conflicts`, or `id`/`rule`/`rule_payload` as appropriate. Errors use `rule_error` for validation, persistence, download, and reload failures, with the standard envelope and exit codes.
+
 ## Traffic access
 
 | Command | Result or effect |
@@ -252,6 +253,7 @@ JSON payloads contain `rules`, `providers`, `entries`, `order`/`conflicts`, or `
 `tun enable` needs OS permission to create a TUN device and install routes. macOS and Linux permission mechanisms differ; inspect `nagi logs` if the adapter does not start. The mihomo API may accept a TUN patch while logging an adapter creation error, so a reported `enabled` setting alone does not prove that interception works. Runtime TUN and LAN changes are reset when a profile is reloaded or mihomo restarts. Enabling LAN exposes configured proxy listeners at the selected address; use firewall rules and authentication appropriate to that network.
 
 JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolean), `backend`, and `http`, `https`, and `socks` objects with `enabled`, optional `host`, and optional `port`. `tun status|enable|disable` include `enabled` (boolean) and `settings` (mihomo TUN object). `lan status|enable|disable` include `enabled` and `bind_address`. `ports status` includes integer `http`, `https`, `socks`, and `mixed`, plus `bind_address` and `allow_lan`. The `http` and `https` values are the same because mihomo uses one HTTP proxy listener for both schemes. All use the usual success/error envelope and exit codes. `system_proxy_error` and `tun_error` indicate failed traffic operations.
+
 ## Startup and background operation
 
 | Command | Result or effect |
@@ -268,6 +270,7 @@ JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolea
 `start` is duplicate-safe: a live PID returns `already_running`; a stale PID is reported as an unexpected exit and can be repaired with `recover` or `startup check` before starting again. The lifecycle lock serializes concurrent start, stop, restart, and recovery calls. `stop` remains explicit and returns `not_running` when there is no live process. Login service support is platform-specific: macOS uses a per-user launchd Agent and Linux uses a per-user systemd unit. Missing service-manager sessions return an actionable manager error.
 
 The service manager starts Nagi at login, but Nagi does not automatically restart a crashed mihomo process. `startup check` is intended for launch agents, resume hooks, or an operator after network and sleep/wake changes; it reports whether the control API is reachable and cleans stale state. Applications should inspect `running`, `control_api`, and `recovered` fields instead of assuming that an active service means an active proxy.
+
 ## Diagnostics and security
 
 | Command | Result or effect |

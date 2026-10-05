@@ -212,8 +212,13 @@ func validateInvocation(args []string) error {
 	if n > spec.maxArgs {
 		return syntaxError("too many arguments", spec)
 	}
-	if spec.path == "completion candidates" && args[2] != "profile" && args[2] != "subscription" {
-		return syntaxError("RESOURCE must be profile or subscription", spec)
+	if spec.path == "completion candidates" {
+		if args[2] != "profile" && args[2] != "subscription" && args[2] != "groups" && args[2] != "nodes" {
+			return syntaxError("RESOURCE must be profile, subscription, groups, or nodes", spec)
+		}
+		if n == 2 && args[2] != "nodes" {
+			return syntaxError("GROUP is only valid for nodes", spec)
+		}
 	}
 	if spec.path == "logs" && n == 1 {
 		if args[1] == "follow" {

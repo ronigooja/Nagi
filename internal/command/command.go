@@ -685,7 +685,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			if err != nil {
 				return nil, err
 			}
-			data, err := profiles.Show(profileName)
+			data, err := profiles.Effective(profileName)
 			if err != nil {
 				return nil, err
 			}
@@ -703,7 +703,13 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			if len(args) != 3 || !runtimecontrol.ValidMode(args[2]) {
 				return nil, usage("mode save MODE")
 			}
-			data, err := profiles.Show(profileName)
+			data, overrideErr := profiles.Override(profileName)
+			useOverride := overrideErr == nil
+			if errors.Is(overrideErr, os.ErrNotExist) {
+				data, err = profiles.Show(profileName)
+			} else {
+				err = overrideErr
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -711,7 +717,12 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			if err != nil {
 				return nil, err
 			}
-			if err := profiles.Write(ctx, profileName, updated); err != nil {
+			if useOverride {
+				err = profiles.SetOverride(ctx, profileName, updated)
+			} else {
+				err = profiles.Write(ctx, profileName, updated)
+			}
+			if err != nil {
 				return nil, fail("invalid_config", fmt.Errorf("persistent mode was not saved: %w", err))
 			}
 			return map[string]any{"mode": args[2], "persistent": true, "changed": true}, nil

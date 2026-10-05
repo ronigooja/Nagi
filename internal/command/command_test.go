@@ -437,3 +437,14 @@ func TestLocalCompletionCandidatesAreJSONAndPrivate(t *testing.T) {
 		}
 	}
 }
+
+func TestProxyCandidateSyntax(t *testing.T) {
+	for _, args := range [][]string{{"completion", "candidates", "groups"}, {"completion", "candidates", "nodes"}, {"completion", "candidates", "nodes", "Proxy Group"}} {
+		if err := validateInvocation(args); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+	if err := validateInvocation([]string{"completion", "candidates", "profile", "extra"}); err == nil {
+		t.Fatal("profile accepted extra group")
+	}
+}
