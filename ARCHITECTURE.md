@@ -1,6 +1,6 @@
 # Nagi Architecture
 
-This document describes the implemented system as of October 2026. Nagi is a macOS and Linux CLI that manages a locally installed mihomo process. A macOS SwiftUI app covers common operations by invoking the CLI. Future release work is marked separately below.
+This document describes the implemented system as of October 2026. Nagi is a macOS and Linux CLI that manages a locally installed mihomo process. A macOS SwiftUI app invokes the CLI. Future release work is marked separately below.
 
 ## System boundary
 
@@ -46,7 +46,7 @@ DNS policy is stored in user-owned profile overrides. The CLI validates a genera
 
 ## Interfaces and data
 
-The CLI is the sole full-featured entry point. All commands accept `--json`; JSON envelopes and error codes form the app integration interface. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy search and latency tests, saved proxy selections, connection inspection and closure, temporary and persistent runtime mode changes, log following, and validated configuration reloads. The app polls status using short-lived commands. An event stream is not implemented.
+All commands accept `--json`; JSON envelopes and error codes form the app integration interface. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy search and latency tests, saved proxy selections, connection inspection and closure, temporary and persistent runtime mode changes, log following, and validated configuration reloads. The app polls status using short-lived commands. An event stream is not implemented.
 
 Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). Supported mihomo YAML subscriptions can be applied as profiles; the [CLI reference](docs/reference/cli.md) defines the format and merge behavior.
 
@@ -58,4 +58,4 @@ Go tests cover runtime paths, lifecycle state, profile writes and rollback, subs
 
 ## Long-term constraints
 
-Nagi keeps a pinned mihomo source commit, uses a Unix Socket for local control, and keeps mihomo core changes in the separate mihomo repository. The CLI owns business behavior and the macOS app uses only its JSON interface. These constraints apply to future features as well as current code.
+Nagi keeps a pinned mihomo source commit, uses a Unix Socket for local control, and keeps mihomo core changes in the separate mihomo repository. The macOS app uses the CLI's JSON interface. These constraints apply to future features as well as current code.

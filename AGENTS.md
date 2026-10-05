@@ -4,10 +4,16 @@ These guidelines define development responsibilities and documentation practices
 
 ## Development Responsibility Rules
 
-Apply these rules to every feature. The [architecture overview](ARCHITECTURE.md) defines the system boundary, and the [runtime design](docs/design/runtime.md) describes configuration and lifecycle behavior.
+These rules apply to every feature.
 
 - Treat mihomo as the implementation owner for proxy protocols, DNS resolution, traffic forwarding, routing rules, and TUN networking. Nagi configures and manages those capabilities through mihomo's configuration and APIs.
-- Implement Nagi's responsibilities around user operations: translate intent into configuration or API calls, persist settings, manage process lifecycle, display state, and handle operation failures.
+
+- Implement the Nagi CLI's responsibilities around user operations: translate intent into configuration or API calls, persist settings, manage process lifecycle, display state, and handle operation failures.
+
+- Treat the macOS UI as the interactive entry point for common daily-use scenarios. The CLI remains the complete interface for advanced configuration, batch operations, automation, diagnostics, recovery, and operational tasks; the UI does not implement those business operations.
+
+## Feature Design and Verification Rules
+
 - Before designing a feature, inspect the pinned mihomo version's existing capabilities, configuration fields, and APIs. Identify the specific configuration or management work Nagi needs to provide.
 - Use existing mihomo mechanisms instead of duplicating them in Nagi. When a capability is missing, first determine whether the extension belongs in mihomo or Nagi according to the system boundary.
 - Verify Nagi's configuration generation, API calls, persistence, and activation behavior. Use relevant integration checks to confirm that the configured capability works; broader network detection or verification requires a separate requirement and must not become an implicit prerequisite for a configuration feature.

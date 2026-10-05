@@ -12,4 +12,4 @@ swift build -c release
 swift run NagiApp
 ```
 
-The app expects the CLI JSON envelope `{ "ok": true, "data": ... }` or `{ "ok": false, "error": { "code": "...", "message": "..." } }`. The Settings page controls only the app's status polling interval. Manage advanced configuration with the CLI.
+The app expects the CLI JSON envelope `{ "ok": true, "data": ... }` or `{ "ok": false, "error": { "code": "...", "message": "..." } }`. The Settings page controls only the app's status polling interval.
