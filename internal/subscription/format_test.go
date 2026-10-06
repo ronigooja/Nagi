@@ -45,15 +45,15 @@ func TestSupportedFormatsAndPreview(t *testing.T) {
 	}
 }
 
-func TestMergePrefersDownloadedSettingsAndRetainsValidChoices(t *testing.T) {
+func TestMergePrefersDownloadedSettingsAndOrder(t *testing.T) {
 	old, _, _ := Document([]byte("mixed-port: 7890\nrules:\n  - MATCH,DIRECT\ndns:\n  enable: true\nproxies:\n  - name: Alpha\n    type: direct\n  - name: Gone\n    type: direct\nproxy-groups:\n  - name: Choice\n    type: select\n    proxies: [Alpha, Gone, DIRECT]\n"))
 	next, _, _ := Document([]byte("mixed-port: 9999\nrules:\n  - MATCH,REJECT\nproxies:\n  - name: Alpha\n    type: direct\n  - name: New\n    type: direct\nproxy-groups:\n  - name: Choice\n    type: select\n    proxies: [New, Alpha, DIRECT]\n"))
 	merged := Merge(next, old)
 	if merged["mixed-port"] != 9999 || merged["dns"] == nil || sliceValue(merged["rules"])[0] != "MATCH,REJECT" {
 		t.Fatalf("downloaded settings were not applied: %#v", merged)
 	}
-	group := groupMap(merged["proxy-groups"])["Choice"]
-	if !reflect.DeepEqual(group["proxies"], []any{"Alpha", "DIRECT", "New"}) {
+	group := sliceValue(merged["proxy-groups"])[0].(map[string]any)
+	if !reflect.DeepEqual(group["proxies"], []any{"New", "Alpha", "DIRECT"}) {
 		t.Fatalf("choices: %#v", group["proxies"])
 	}
 }

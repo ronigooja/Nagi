@@ -64,7 +64,7 @@ func addGroup(doc map[string]any, proxies []any) {
 func stringValue(v any) string { s, _ := v.(string); return s }
 
 // Merge uses the downloaded configuration as the source of truth while retaining
-// settings absent from it and valid group choices from an existing profile.
+// settings absent from it. Proxy and group order comes from the download.
 func Merge(incoming, existing map[string]any) map[string]any {
 	for _, key := range []string{"rules", "rule-providers", "dns", "hosts", "tun", "mixed-port", "port", "socks-port", "redir-port", "tproxy-port", "mode", "ipv6", "sniffer", "profile"} {
 		if _, present := incoming[key]; !present && existing != nil {
@@ -82,56 +82,9 @@ func Merge(incoming, existing map[string]any) map[string]any {
 	if incoming["mixed-port"] == nil && incoming["port"] == nil {
 		incoming["mixed-port"] = 17890
 	}
-	if existing == nil {
-		return incoming
-	}
-	oldGroups := groupMap(existing["proxy-groups"])
-	for _, item := range sliceValue(incoming["proxy-groups"]) {
-		group, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		old := oldGroups[stringValue(group["name"])]
-		if old == nil {
-			continue
-		}
-		previous := sliceValue(old["proxies"])
-		available := map[string]bool{}
-		for _, p := range sliceValue(group["proxies"]) {
-			available[stringValue(p)] = true
-		}
-		retained := make([]any, 0, len(previous))
-		seen := map[string]bool{}
-		for _, p := range previous {
-			name := stringValue(p)
-			if available[name] && !seen[name] {
-				retained = append(retained, p)
-				seen[name] = true
-			}
-		}
-		for _, p := range sliceValue(group["proxies"]) {
-			name := stringValue(p)
-			if !seen[name] {
-				retained = append(retained, p)
-				seen[name] = true
-			}
-		}
-		if len(retained) > 0 {
-			group["proxies"] = retained
-		}
-	}
 	return incoming
 }
 func sliceValue(v any) []any { s, _ := v.([]any); return s }
-func groupMap(v any) map[string]map[string]any {
-	out := map[string]map[string]any{}
-	for _, item := range sliceValue(v) {
-		if g, ok := item.(map[string]any); ok {
-			out[stringValue(g["name"])] = g
-		}
-	}
-	return out
-}
 
 type NodeChange struct {
 	Name string `json:"name"`
