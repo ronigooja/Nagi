@@ -90,16 +90,38 @@ import AppKit
             icon = nil
         }
         icon?.isTemplate = false
-        button.image = icon
-        button.imagePosition = .imageLeading
-        let title = model.statusTitle
         let stacked = model.display == .both
-        statusItem.length = stacked ? 116 : NSStatusItem.variableLength
-        button.cell?.usesSingleLineMode = !stacked
-        button.cell?.wraps = stacked
-        button.cell?.lineBreakMode = .byClipping
-        button.attributedTitle = NSAttributedString(string: title.isEmpty ? "" : "  " + title.replacingOccurrences(of: "\n", with: "\n  "),
-            attributes: [.font: NSFont.monospacedSystemFont(ofSize: stacked ? 9 : NSFont.systemFontSize, weight: .regular)])
+        button.title = ""
+        button.imagePosition = .imageOnly
+        if stacked, let icon {
+            let font = NSFont.monospacedSystemFont(ofSize: 9, weight: .regular)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .right
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font, .foregroundColor: NSColor.white, .paragraphStyle: paragraph,
+                .kern: -1.2
+            ]
+            let rows = model.statusTitle.split(separator: "\n").map(String.init)
+            let iconWidth = min(icon.size.width, 20)
+            let rateX = iconWidth + 2
+            let rateWidth = ("999 KB/s" as NSString).size(withAttributes: attributes).width
+            let size = NSSize(width: rateX + rateWidth, height: 22)
+            button.image = NSImage(size: size, flipped: false) { _ in
+                icon.draw(in: NSRect(x: 0, y: (size.height - 18) / 2, width: iconWidth, height: 18),
+                    from: .zero, operation: .sourceOver, fraction: 1)
+                for (index, row) in rows.prefix(2).enumerated() {
+                    let rate = row.trimmingCharacters(in: .whitespaces) as NSString
+                    let y: CGFloat = index == 0 ? 10 : 1
+                    rate.draw(in: NSRect(x: rateX, y: y, width: rateWidth, height: 11),
+                        withAttributes: attributes)
+                }
+                return true
+            }
+            statusItem.length = size.width
+        } else {
+            button.image = icon
+            statusItem.length = NSStatusItem.variableLength
+        }
         let state: String
         switch model.state {
         case .starting: state = "starting"

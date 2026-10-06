@@ -58,7 +58,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         let fresh = state == .running && Date().timeIntervalSince(lastSample) < 3.5
         let upload = Self.rate(fresh ? (uploadBPS ?? 0) : 0)
         let download = Self.rate(fresh ? (downloadBPS ?? 0) : 0)
-        return "↑ \(upload)\n↓ \(download)"
+        return "\(upload)\n\(download)"
     }
     var accessibilityTraffic: String {
         guard state == .running, Date().timeIntervalSince(lastSample) < 3.5,
