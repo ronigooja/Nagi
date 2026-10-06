@@ -68,3 +68,42 @@ func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
 		t.Fatal("failed apply changed profile")
 	}
 }
+
+func TestSubscriptionApplyRetainsExistingLocalOverride(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("mixed-port: 7890\nproxies:\n  - name: New\n    type: direct\n"))
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	cache := subscription.NewStore(dir, filepath.Join(dir, "cache"), nil)
+	if err := cache.Add("work", server.URL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cache.Refresh(context.Background(), "work"); err != nil {
+		t.Fatal(err)
+	}
+	profiles := profile.NewStore(dir, func([]byte) error { return nil }, nil)
+	if err := profiles.Write(context.Background(), "work", []byte("mixed-port: 7000\nproxies:\n  - name: Old\n    type: direct\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := profiles.SetOverride(context.Background(), "work", []byte("mixed-port: 7999\n")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := subscriptionCommand(context.Background(), []string{"subscription", "apply", "work"}, cache, profiles, nil); err != nil {
+		t.Fatal(err)
+	}
+	source, err := profiles.Show("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(source), "7999") {
+		t.Fatalf("subscription apply wrote local override into source: %s", source)
+	}
+	effective, err := profiles.Effective("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(effective), "mixed-port: 7999") {
+		t.Fatalf("local override was lost after subscription apply: %s", effective)
+	}
+}
