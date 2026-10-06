@@ -102,13 +102,10 @@ func TestApplyDefaultOverrideCopiesOnlyDefaultLocalOverride(t *testing.T) {
 		return nil
 	}, nil)
 	ctx := context.Background()
-	if err := s.Write(ctx, "default", []byte("mixed-port: 17890\nproxies:\n  - name: default-node\n")); err != nil {
+	if err := s.Write(ctx, "default", []byte("mixed-port: 17890\ndns:\n  enable: true\nproxies:\n  - name: default-node\nrules:\n  - MATCH,DIRECT\nexternal-controller: 127.0.0.1:9090\nsecret: private\n")); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Write(ctx, "work", []byte("mixed-port: 17900\nproxies:\n  - name: subscription-node\n")); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SetOverride(ctx, "default", []byte("dns:\n  enable: true\n")); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.ApplyDefaultOverride(ctx, "work"); err != nil {
@@ -118,8 +115,13 @@ func TestApplyDefaultOverrideCopiesOnlyDefaultLocalOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(override) != "dns:\n  enable: true\n" {
-		t.Fatalf("override = %q", override)
+	if !strings.Contains(string(override), "mixed-port: 17890") || !strings.Contains(string(override), "enable: true") {
+		t.Fatalf("local settings missing from override: %q", override)
+	}
+	for _, excluded := range []string{"proxies:", "default-node", "rules:", "MATCH,DIRECT", "external-controller:", "secret:"} {
+		if strings.Contains(string(override), excluded) {
+			t.Fatalf("excluded field %q copied into override: %q", excluded, override)
+		}
 	}
 	effective, err := s.Effective("work")
 	if err != nil {

@@ -33,7 +33,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `profile override set NAME FILE` | Save a separate local YAML mapping (maximum 8 MiB) and apply it to this profile. |
 | `profile override show NAME` | Print the local override YAML. |
 | `profile override clear NAME` | Remove the local override and reload if selected and running. |
-| `profile override apply-default NAME` | Copy only the local override from `default` onto NAME; source profile YAML and subscription nodes are unchanged. |
+| `profile override apply-default NAME` | Copy safe local runtime settings from `profiles/default.yaml` onto NAME; nodes, groups, rules, and Nagi-managed fields are excluded. |
 | `profile remove NAME` | Delete an unselected regular profile file, retaining any existing `.bak` file. |
 | `dns status` | Show selected profile DNS policy, upstream hosts, IPv6, TUN configuration, and warnings. |
 | `dns set direct URL [URL...]` | Save one or more HTTPS DoH upstreams for direct connection. |

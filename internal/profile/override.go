@@ -82,14 +82,32 @@ func (s *Store) Effective(name string) ([]byte, error) {
 	return rules.Apply(merged, s.Dir)
 }
 
-// ApplyDefaultOverride copies only the local override attached to the default profile
-// onto the named profile. The default source profile itself is never copied.
+// ApplyDefaultOverride copies safe local runtime settings from the default profile
+// onto the named profile, excluding nodes, groups, rules, and Nagi-managed fields.
 func (s *Store) ApplyDefaultOverride(ctx context.Context, name string) error {
-	data, err := s.Override("default")
+	data, err := s.Show("default")
 	if err != nil {
-		return fmt.Errorf("default profile has no local override: %w", err)
+		return fmt.Errorf("default profile is unavailable: %w", err)
 	}
-	return s.SetOverride(ctx, name, data)
+	var source map[string]any
+	if err := yaml.Unmarshal(data, &source); err != nil || source == nil {
+		return errors.New("default profile must be a YAML mapping")
+	}
+	for key := range defaultOverrideExcludedKeys {
+		delete(source, key)
+	}
+	filtered, err := yaml.Marshal(source)
+	if err != nil {
+		return fmt.Errorf("default profile settings could not be prepared: %w", err)
+	}
+	return s.SetOverride(ctx, name, filtered)
+}
+
+var defaultOverrideExcludedKeys = map[string]struct{}{
+	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {},
+	"external-controller": {}, "external-controller-unix": {}, "external-controller-tls": {},
+	"external-controller-pipe": {}, "external-controller-cors": {}, "external-controller-routing-mark": {},
+	"external-ui": {}, "external-ui-url": {}, "secret": {}, "authentication": {},
 }
 
 // SetOverride stores a user-owned YAML mapping separately from the source profile.
