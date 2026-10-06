@@ -138,7 +138,9 @@ final class TrafficStream {
         DispatchQueue.global(qos: .userInitiated).async { [self] in
             var pending = Data()
             var invalid = false
-            while let chunk = try? stdout.fileHandleForReading.read(upToCount: 4096), !chunk.isEmpty {
+            while true {
+                let chunk = stdout.fileHandleForReading.availableData
+                if chunk.isEmpty { break }
                 pending.append(chunk)
                 while let newline = pending.firstIndex(of: 10) {
                     let line = pending.prefix(upTo: newline)
