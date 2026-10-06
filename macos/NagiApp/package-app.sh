@@ -1,6 +1,14 @@
 #!/bin/sh
 set -eu
 
+report_failure() {
+    status=$?
+    if [ "$status" -ne 0 ]; then
+        printf 'Nagi App build failed\n' >&2
+    fi
+}
+trap report_failure EXIT
+
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(CDPATH= cd -- "$project_dir/../.." && pwd)
 swift build --package-path "$project_dir" -c release
@@ -25,4 +33,4 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
   <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
-echo "$app_dir"
+printf 'Nagi App build succeeded: %s\n' "$app_dir"

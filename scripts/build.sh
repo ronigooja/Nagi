@@ -75,6 +75,14 @@ if [[ -n "${TARGET_GOOS:-}" || -n "${TARGET_GOARCH:-}" ]]; then
 fi
 mkdir -p "$output_dir"
 if [[ "$build_mode" == all ]]; then
-    (cd "$engine_dir" && "$go_bin" build -tags with_gvisor -o "$output_dir/mihomo" .)
+    if ! (cd "$engine_dir" && "$go_bin" build -tags with_gvisor -o "$output_dir/mihomo" .); then
+        echo 'mihomo build failed' >&2
+        exit 1
+    fi
+    printf 'mihomo build succeeded: %s\n' "$output_dir/mihomo"
 fi
-(cd "$project_dir" && "$go_bin" build -ldflags "-X main.version=$nagi_version -X main.engineCommit=$commit" -o "$output_dir/nagi" ./cmd/nagi)
+if ! (cd "$project_dir" && "$go_bin" build -ldflags "-X main.version=$nagi_version -X main.engineCommit=$commit" -o "$output_dir/nagi" ./cmd/nagi); then
+    echo 'Nagi CLI build failed' >&2
+    exit 1
+fi
+printf 'Nagi CLI build succeeded: %s\n' "$output_dir/nagi"
