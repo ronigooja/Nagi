@@ -8,7 +8,7 @@ Place matching executable `nagi` and `mihomo` files in one directory. On macOS, 
 
 ## Install, update, and remove
 
-Run from the repository root. Stop Nagi before replacing binaries. On macOS, quit the menu app as well. Remove an installed login service before updating or uninstalling binaries; disabling it alone does not satisfy the installer preflight. With the default `/usr/local` prefix on macOS, the installer installs and selects the privileged TUN helper on a new installation. On update, it reinstalls an existing helper and preserves its backend selection. On uninstall, it removes the helper. See [Startup and recovery](../guides/startup.md) for login service operations.
+Run from the repository root. Stop Nagi before replacing binaries. On macOS, quit the menu app as well. Remove an installed login service before updating or uninstalling binaries; disabling it alone does not satisfy the installer preflight. With the default `/usr/local` prefix on macOS, the installer installs and selects the privileged TUN helper on a new installation. It retries the helper's authenticated connection briefly after launchd starts the service; if the helper remains unavailable, installation fails and the installer rolls back its changes. On update, it reinstalls an existing helper and preserves its backend selection. On uninstall, it removes the helper and waits for launchd to release the job, including when its definition has already disappeared. If a previous run left a helper definition or active job without an installer record, rebuild the CLI and run `sudo ./bin/nagi privileged-helper uninstall` from the repository root before retrying `install`. See [Startup and recovery](../guides/startup.md) for login service operations.
 
 ```sh
 make build cli

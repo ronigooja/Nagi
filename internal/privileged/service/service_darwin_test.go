@@ -70,6 +70,29 @@ func TestUninstallRetainsDefinitionWhenBootoutFails(t *testing.T) {
 	}
 }
 
+func TestUninstallStopsJobWithoutDefinition(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing-helper.plist")
+	active := true
+	bootouts := 0
+	_, err := uninstall(Result{Path: path}, 0, func(_ string, args ...string) error {
+		switch args[0] {
+		case "print":
+			if active {
+				return nil
+			}
+			return errors.New("job not found")
+		case "bootout":
+			bootouts++
+			active = false
+			return nil
+		}
+		return errors.New("unexpected launchctl command")
+	})
+	if err != nil || active || bootouts != 1 {
+		t.Fatalf("uninstall orphaned job: active=%t bootouts=%d err=%v", active, bootouts, err)
+	}
+}
+
 func TestSecureExecutableRejectsWritableAndSymlink(t *testing.T) {
 	base := t.TempDir()
 	path := filepath.Join(base, "nagi")

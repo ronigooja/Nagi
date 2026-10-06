@@ -101,6 +101,13 @@ cp "$artifact_v1/nagi" "$invalid/nagi"
 expect_failure 'missing regular executable' bash "$installer" install --artifact-dir "$invalid" --prefix "$prefix"
 [[ ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'invalid artifact created an installer record'
 
+# A failed first install must leave the destination and the existing default profile intact.
+mkdir -p "$XDG_CONFIG_HOME/nagi/profiles"
+printf 'local default\n' > "$XDG_CONFIG_HOME/nagi/profiles/default.yaml"
+expect_failure 'installed nagi failed its version check' env NAGI_TEST_FAIL_INSTALLED_VERSION=1 bash "$installer" install --artifact-dir "$artifact_v1" --prefix "$prefix"
+[[ ! -e "$prefix/bin/nagi" && ! -e "$prefix/bin/mihomo" && ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'failed install left managed files behind'
+[[ $(cat "$XDG_CONFIG_HOME/nagi/profiles/default.yaml") == 'local default' ]] || fail_test 'failed install changed default profile'
+
 bash "$installer" install --artifact-dir "$artifact_v1" --prefix "$prefix" > "$log"
 assert_installed_from "$artifact_v1"
 [[ $(cat "$XDG_CONFIG_HOME/nagi/profiles/default.yaml") == 'mode: v1' ]] || fail_test 'install did not write default profile'

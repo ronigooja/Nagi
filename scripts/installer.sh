@@ -130,7 +130,8 @@ if [[ "$action" == install ]]; then
     fi
     if (( manage_helper )); then
         helper=$("$artifact_dir/nagi" --json privileged-helper status) || fail "cannot inspect privileged helper"
-        [[ "$helper" != *'"installed":true'* && "$helper" != *'"active":true'* ]] || fail "privileged helper already exists without an installer record"
+        [[ "$helper" != *'"installed":true'* ]] || fail "privileged helper definition already exists without an installer record; run 'sudo \"$artifact_dir/nagi\" privileged-helper uninstall' and retry"
+        [[ "$helper" != *'"active":true'* ]] || fail "privileged helper launchd job remains active without an installer record; run 'sudo \"$artifact_dir/nagi\" privileged-helper uninstall' and retry"
     fi
 else
     if ! exists "$state"; then
@@ -221,6 +222,15 @@ remove_fs() {
         if [[ -d "$1" && ! -L "$1" ]]; then write_fs rm -R -- "$1"; else write_fs rm -- "$1"; fi
     fi
 }
+enable_helper_when_ready() {
+    local attempt error
+    for (( attempt=1; attempt<=20; attempt++ )); do
+        if error=$("$nagi" privileged-helper enable 2>&1 >/dev/null); then return 0; fi
+        if (( attempt < 20 )); then sleep 0.25; fi
+    done
+    printf '%s\n' "$error" >&2
+    return 1
+}
 
 write_fs mkdir -p -- "$bin_dir" "$state_dir"
 stage=$(write_fs mktemp -d "$prefix/.nagi-install.XXXXXXXX")
@@ -242,6 +252,8 @@ profile_stage=
 helper_removed=0
 helper_added=0
 helper_switched=0
+helper_was_installed=0
+helper_was_privileged=0
 cleanup() {
     local result=$?
     trap - EXIT
@@ -265,9 +277,9 @@ cleanup() {
     fi
     if (( ! committed && helper_removed && helper_was_installed )); then
         sudo "$nagi" privileged-helper install >/dev/null || rollback_failed=1
-        if (( helper_was_privileged )); then "$nagi" privileged-helper enable >/dev/null || rollback_failed=1; fi
+        if (( helper_was_privileged )); then enable_helper_when_ready || rollback_failed=1; fi
     elif (( ! committed && helper_switched && ! helper_removed )); then
-        "$nagi" privileged-helper enable >/dev/null || rollback_failed=1
+        enable_helper_when_ready || rollback_failed=1
     fi
     if (( rollback_failed )); then
         printf 'nagi installer: rollback incomplete; staged backups retained at %s %s %s\n' "$stage" "$app_stage" "$profile_stage" >&2
@@ -327,7 +339,7 @@ if [[ "$action" != uninstall ]]; then
         sudo "$nagi" privileged-helper install >/dev/null
         helper_added=1
         if [[ "$action" == install ]] || (( helper_was_privileged )); then
-            "$nagi" privileged-helper enable >/dev/null
+            enable_helper_when_ready
         fi
     fi
 fi

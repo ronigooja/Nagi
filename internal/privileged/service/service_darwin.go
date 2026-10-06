@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 const (
@@ -95,19 +96,32 @@ func uninstall(r Result, uid int, command runner) (Result, error) {
 	if err := requireRoot(uid); err != nil {
 		return r, err
 	}
-	if _, err := os.Lstat(r.Path); err != nil {
-		if os.IsNotExist(err) {
-			return r, nil
-		}
+	_, err := os.Lstat(r.Path)
+	installed := err == nil
+	if err != nil && !os.IsNotExist(err) {
 		return r, fmt.Errorf("inspect helper definition: %w", err)
 	}
 	if command(launchctlPath, "print", "system/"+Label) == nil {
 		if err := command(launchctlPath, "bootout", "system/"+Label); err != nil {
-			return r, fmt.Errorf("launchctl bootout: %w; definition retained at %s", err, r.Path)
+			if installed {
+				return r, fmt.Errorf("launchctl bootout: %w; definition retained at %s", err, r.Path)
+			}
+			return r, fmt.Errorf("launchctl bootout: %w; no definition exists at %s", err, r.Path)
+		}
+		for attempt := 0; attempt < 20; attempt++ {
+			if command(launchctlPath, "print", "system/"+Label) != nil {
+				break
+			}
+			if attempt == 19 {
+				return r, fmt.Errorf("helper launchd job remains active after bootout; inspect %s", r.Path)
+			}
+			time.Sleep(250 * time.Millisecond)
 		}
 	}
-	if err := os.Remove(r.Path); err != nil {
-		return r, fmt.Errorf("helper stopped but removing definition failed: %w", err)
+	if installed {
+		if err := os.Remove(r.Path); err != nil {
+			return r, fmt.Errorf("helper stopped but removing definition failed: %w", err)
+		}
 	}
 	return r, nil
 }
