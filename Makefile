@@ -1,11 +1,11 @@
-GO ?= go
+GO ?= $(firstword $(shell command -v go 2>/dev/null) $(wildcard $(HOME)/environment/go*/bin/go))
 
 .PHONY: build cli app release test clean
 build:
 	@if [ -z "$(filter cli app,$(MAKECMDGOALS))" ]; then printf 'Usage: make build cli, or on macOS: make build app\n'; exit 2; fi
 
 cli:
-	./scripts/build.sh cli
+	GO="$(GO)" ./scripts/build.sh cli
 
 app:
 	@if [ "$(shell uname -s)" != Darwin ]; then printf 'Nagi.app can only be built on macOS\n' >&2; exit 2; fi

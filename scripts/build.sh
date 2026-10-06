@@ -43,7 +43,22 @@ if [[ "$build_mode" == all ]]; then
     fi
 fi
 
-go_bin="${GO:-go}"
+go_bin="${GO:-}"
+if [[ -z "$go_bin" ]]; then
+    go_bin="$(command -v go || true)"
+fi
+if [[ -z "$go_bin" ]]; then
+    for candidate in "$HOME"/environment/go*/bin/go; do
+        if [[ -x "$candidate" ]]; then
+            go_bin="$candidate"
+            break
+        fi
+    done
+fi
+if [[ -z "$go_bin" ]] || ! command -v "$go_bin" >/dev/null 2>&1; then
+    echo 'Go executable not found; install Go or set GO=/path/to/go' >&2
+    exit 1
+fi
 nagi_version="$(git -C "$project_dir" describe --tags --always --dirty)"
 output_dir="$project_dir/bin"
 if [[ -n "${TARGET_GOOS:-}" || -n "${TARGET_GOARCH:-}" ]]; then

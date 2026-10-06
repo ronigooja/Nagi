@@ -2,10 +2,10 @@
 
 This document describes development builds and verification for Nagi and the pinned mihomo source.
 
-Use Go 1.20 or newer. `engine.lock` records the mihomo repository, ref, and exact commit. `make build cli` creates `bin/nagi` without rebuilding mihomo. On macOS, `make build app` packages `bin/Nagi.app` through `macos/NagiApp/package-app.sh`. Run `./scripts/build.sh` for a full pinned mihomo and CLI build. The mihomo build includes `with_gvisor`, which is required when a profile selects the gVisor TUN stack. Set `MIHOMO_DIR` to a checkout at the exact locked commit for local builds. Otherwise the script clones or updates `.build/mihomo` and checks out that commit. A mismatch fails the build.
+Use Go 1.20 or newer. `engine.lock` records the mihomo repository, ref, and exact commit. `make build cli` creates `bin/nagi` without rebuilding mihomo. The CLI build uses Go from `PATH`, or an executable under `$HOME/environment/go*/bin/go` if Go is not on `PATH`; set `GO=/path/to/go` to choose another executable. On macOS, `make build app` packages `bin/Nagi.app` through `macos/NagiApp/package-app.sh`. Run `./scripts/build.sh` for a full pinned mihomo and CLI build. The mihomo build includes `with_gvisor`, which is required when a profile selects the gVisor TUN stack. Set `MIHOMO_DIR` to a checkout at the exact locked commit for local builds. Otherwise the script clones or updates `.build/mihomo` and checks out that commit. A mismatch fails the build.
 
 ```sh
-GO=/path/to/go make build cli
+make build cli
 # On macOS:
 make build app
 # To rebuild the pinned mihomo as well:
