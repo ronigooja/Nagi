@@ -1,6 +1,6 @@
 # Nagi
 
-Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, and encrypted DNS policy, and provides proxy search, saved selections, latency checks, connection controls, runtime routing modes, system proxy and TUN controls, and listener/LAN status. Profile export, backup, restore, and comparison support local configuration work. Read-only diagnostics and Bash, Zsh, and Fish completion support terminal use. A macOS menu bar app calls the CLI for common operations.
+Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, and encrypted DNS policy, and provides proxy search, saved selections, latency checks, connection controls, runtime routing modes, system proxy and TUN controls, and listener/LAN status. Profile export, backup, restore, and comparison support local configuration work. An interactive, line-oriented terminal menu, read-only diagnostics, and Bash, Zsh, and Fish completion support terminal use. A macOS menu bar app calls the CLI for common operations.
 
 ## Quick start
 
@@ -11,9 +11,12 @@ MIHOMO_DIR=/path/to/mihomo make build
 ./bin/nagi --json version
 ./bin/nagi start
 ./bin/nagi status
+./bin/nagi menu
 ```
 
 Without `MIHOMO_DIR`, the build script fetches the repository and exact commit in `engine.lock`. The first `start` creates a minimal `default` profile. Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
+
+`nagi menu` opens a step-by-step menu when both input and output are terminals. Choose numbered actions; use `b` to go back and `q` to leave the menu. Use ordinary commands with `--json` for scripts and applications. See the [CLI reference](docs/reference/cli.md#terminal-menu) for the full interaction contract.
 
 ## Documentation
 
@@ -25,7 +28,7 @@ Without `MIHOMO_DIR`, the build script fetches the repository and exact commit i
 - [Startup and recovery](docs/guides/startup.md): login service, stale state, and rechecks.
 - [Diagnostics](docs/guides/diagnostics.md): redacted health and security checks.
 - [CLI reference](docs/reference/cli.md): commands, output, and exit codes.
-- [Terminal menu design](docs/design/terminal-menu.md): accepted `nagi menu` design and implementation handoff plan.
+- [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Development](docs/development/build-and-test.md): locked builds and tests.
 - [Linux privileged helper scaffold](docs/development/privileged-linux.md): system service boundary and current availability.

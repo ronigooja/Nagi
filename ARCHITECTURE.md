@@ -18,6 +18,8 @@ Nagi CLI (macOS / Linux)
                                   mihomo Meta
 ```
 
+An interactive terminal menu is another entry point into the CLI. It presents pages and invokes existing commands through their JSON results; it does not own proxy, profile, or lifecycle operations. See the [terminal menu design](docs/design/terminal-menu.md) for its responsibilities and failure behavior.
+
 Nagi manages lifecycle, configuration, subscriptions, proxy selection, and status. mihomo implements proxy protocols, DNS, rules, and connections. The app does not read configuration files, use the socket, or call mihomo directly. Its fixed command path and menu controls are documented in [the app README](macos/NagiApp/README.md).
 
 The mihomo source belongs in a separate repository. Nagi records the exact source commit in [`engine.lock`](engine.lock); [`scripts/build.sh`](scripts/build.sh) rejects a local checkout at any other commit. The current lock points to the available fork's `main` branch. A dedicated `nagi/meta` branch and upstream `Meta` synchronization workflow remain future repository maintenance work. Nagi contains no mihomo source modifications. The pinning rationale is in [decision 0001](docs/decisions/0001-pin-mihomo-commit.md).
@@ -38,6 +40,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/diagnostic` | Read-only health, connectivity, permission, exposure, and redacted export checks. |
 | `internal/service` | Per-user launchd and systemd service installation and status. |
 | `internal/traffic` | OS proxy settings, restore journal, and engine exit watcher. |
+| `internal/menu` | Terminal input, pages, command result presentation, and stream cancellation. |
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
@@ -47,7 +50,7 @@ DNS policy is stored in user-owned profile overrides. The CLI validates a genera
 
 ## Interfaces and data
 
-All commands accept `--json`; JSON envelopes and error codes form the app integration interface. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy search and latency tests, saved proxy selections, connection inspection and closure, temporary and persistent runtime mode changes, log following, and validated configuration reloads. The app polls status using short-lived commands and reads traffic from the CLI's one-second NDJSON traffic stream.
+Ordinary commands accept `--json`; JSON envelopes and error codes form the app integration interface. The terminal-only `nagi menu` uses those commands internally and rejects `--json`. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy search and latency tests, saved proxy selections, connection inspection and closure, temporary and persistent runtime mode changes, log following, and validated configuration reloads. The app polls status using short-lived commands and reads traffic from the CLI's one-second NDJSON traffic stream.
 
 Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). Supported mihomo YAML subscriptions can be applied as profiles; the [CLI reference](docs/reference/cli.md) defines the format and merge behavior.
 

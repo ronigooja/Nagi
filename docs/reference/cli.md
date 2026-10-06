@@ -1,6 +1,6 @@
 # CLI reference
 
-This document defines the implemented Nagi commands and their JSON interface. `--json` may appear anywhere in the argument list. Without it, Nagi prints text intended for terminal reading. Scripts and applications should use `--json` rather than parse the text presentation.
+This document defines the implemented Nagi commands and their JSON interface. Except for the interactive `menu` command, `--json` may appear anywhere in the argument list. Without it, Nagi prints text intended for terminal reading. Scripts and applications should use ordinary commands with `--json` rather than parse the text presentation.
 
 ## Help and syntax
 
@@ -12,6 +12,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 
 | Command | Result or effect |
 | --- | --- |
+| `menu` | Open the interactive, line-oriented terminal menu for common CLI operations. Requires terminal input and output. |
 | `start`, `stop`, `restart` | Manage the mihomo process and its desired running state. `start` creates the default profile if absent. |
 | `quit` | Stop this session's login monitor and mihomo, restore Nagi-managed system proxy settings, and preserve login startup preference. |
 | `status` | Report running state, selected profile, PID, paths, and available mihomo version and mixed port. |
@@ -69,6 +70,16 @@ Profile and subscription names consist of ASCII letters, digits, `_`, or `-` and
 `subscription update` identifies itself as a Clash Meta/mihomo client and advertises YAML support so servers such as XBoard can return their complete mihomo configuration. It reports added, removed, and changed nodes compared with the preceding cache; `subscription preview` compares the cache with the existing profile. A changed node keeps its name but has a different definition. Lists are sorted by name. On `subscription apply`, downloaded rules, DNS, TUN, listening ports, mode, and other supplied settings take effect; existing settings are retained only when the download omits them. Nagi removes downloaded external-controller settings, disables LAN access, and binds listeners to loopback. If neither an HTTP nor a mixed port is supplied or retained, it adds mixed port `17890`. Use a profile override for local settings that must persist across subscription updates. Apply carries existing proxy-group node order forward for nodes that remain available, then appends new nodes. When applying to the selected profile with a reachable engine, Nagi also attempts to restore the live selection in each group when that node remains available; `selections_restored` counts accepted restore requests. A removed node cannot be retained. Existing profile content that cannot be parsed for merging must be repaired or removed before applying.
 
 The optional `Subscription-Userinfo` response header supplies `upload`, `download`, `total` (nonnegative bytes) and `expire` (Unix seconds). Available values appear in `subscription list` and the update result. The URL remains hidden from list output. A missing header clears previously stored traffic and expiry values on a successful update.
+
+## Terminal menu
+
+Run `nagi menu` in a terminal to browse numbered pages for runtime status, proxies, profiles and subscriptions, DNS, rules, traffic access, connections, logs and traffic, service/startup, and diagnostics/recovery. The diagnostics page also offers version and shell completion; privileged-helper actions appear there only on macOS. The root page shows a short mihomo and selected-profile summary when available. A status read failure is shown without closing the menu. See [the terminal menu design](../design/terminal-menu.md) for the page inventory.
+
+At a `Choice:` prompt, enter a displayed number. `b` returns to the parent page, `r` refreshes its data, `h` displays that page's command help, and `q` exits the menu from any page. `0` exits at the root page. An empty answer repeats the page. `n` and `p` move between pages when a list has more than ten items; numbers start again at `1` on each page. All ten root categories fit on the first page. Invalid choices print a correction and leave the page open. During value prompts, `b` cancels the prompt and `q` exits the menu. A marked action proceeds only after typing exactly `yes`; another answer cancels it.
+
+The menu invokes the existing commands and prints their results or errors. It does not change the semantics of an underlying command. Leaving with `q`, `0`, end of input, or Ctrl-C at a prompt exits with status `0` and does not stop mihomo; the confirmed `quit` command is a separate menu action. A failed action is displayed on the current page and the menu continues; it does not become the menu process's exit status. An unrecoverable menu input error exits `1`.
+
+Both standard input and standard output must be terminals. `nagi menu` with redirected input or output, or with `--json`, writes a `usage` error to stderr and exits `2`. `nagi menu --help` is available without a terminal and exits `0`. There is no JSON menu session; automation should invoke the corresponding ordinary command with `--json`.
 
 ## Diagnostics
 

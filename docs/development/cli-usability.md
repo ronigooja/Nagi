@@ -23,11 +23,19 @@ This document defines development and review rules for Nagi's command-line inter
 - Give a concrete next command when another step is necessary. Do not equate a running process with usable proxy nodes or configured system proxy settings.
 - Explain failures with enough context to act: what failed, the known resulting state, and a relevant check or recovery step. Do not assert rollback or successful activation without evidence.
 - Keep credentials and subscription URLs out of ordinary diagnostics. If engine diagnostics cannot be safely exposed, explain how to inspect the relevant configuration or run validation locally; do not direct users to a deleted temporary file.
-- Keep noninteractive commands usable by scripts. Any future interactive prompt must define behavior for redirected input and provide an explicit noninteractive path.
+- Keep ordinary commands usable by scripts. The terminal menu requires terminal input and output, rejects `--json`, and directs redirected or automated use to ordinary commands and their JSON results.
+
+## Terminal menu interactions
+
+- Keep menu pages line-oriented and preserve terminal scrollback. Put the page title, current state or an actionable read error, numbered actions, and available navigation keys in the output.
+- Accept `b` for the parent page, `r` to refresh, `h` for page command help, and `q` to leave the menu. A blank choice repeats the page; an invalid choice leaves it open with a correction. Paginate lists in groups of ten with `n` and `p` when available. Numbering restarts on each page.
+- Let people select known profiles, groups, nodes, rules, and connection IDs by number from read-only command results. Prompt for new names, file paths, domains, addresses, and URLs; pass each answer as one command argument.
+- Require an explicit `yes` for actions marked as broad or destructive. Treat other answers as cancellation. Do not imply that leaving the menu stops mihomo; the `quit` command is a separate confirmed action.
+- Use existing commands for reads and mutations. Preserve their errors and resulting state. An unavailable status summary must leave recovery actions accessible. Handle Ctrl-C in a log or traffic stream by returning to its menu page.
 
 ## Review and verification
 
-For affected behavior, verify help, missing and invalid arguments, normal and empty output, and actionable failures. Test help with unavailable or invalid runtime configuration. Check JSON success and failure compatibility independently of text formatting. When validation changes, verify that diagnostics do not reveal sensitive configuration values.
+For affected behavior, verify help, missing and invalid arguments, normal and empty output, and actionable failures. Test help with unavailable or invalid runtime configuration. Check JSON success and failure compatibility independently of text formatting. When validation changes, verify that diagnostics do not reveal sensitive configuration values. For menu changes, also check redirected input and output, `--json menu`, navigation, pagination, confirmation, stale or empty data, and interrupted streams.
 
 Update the CLI reference and affected guides in the same change. Test representative user journeys rather than only matching renderer internals. Use isolated runtime directories for checks that change profiles, subscriptions, or process state; see [Build and test](build-and-test.md).
 
