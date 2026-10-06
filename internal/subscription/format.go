@@ -69,21 +69,20 @@ func completeGroups(doc map[string]any, proxies []any) {
 		return
 	}
 	used := map[string]bool{"DIRECT": true, "REJECT": true, "GLOBAL": true}
-	names := []any{}
 	for _, item := range proxies {
-		name := item.(map[string]any)["name"].(string)
-		used[name] = true
-		names = append(names, name)
+		used[item.(map[string]any)["name"].(string)] = true
 	}
-	providers := []any{}
-	if source, ok := doc["proxy-providers"].(map[string]any); ok {
-		keys := make([]string, 0, len(source))
-		for name := range source {
-			keys = append(keys, name)
-		}
-		sort.Strings(keys)
-		for _, name := range keys {
-			providers = append(providers, name)
+	if sources, ok := doc["proxy-providers"].(map[string]any); ok {
+		for _, raw := range sources {
+			provider, ok := raw.(map[string]any)
+			if !ok || provider["type"] != "inline" {
+				continue
+			}
+			for _, item := range sliceValue(provider["payload"]) {
+				if node, ok := item.(map[string]any); ok {
+					used[stringValue(node["name"])] = true
+				}
+			}
 		}
 	}
 	unique := func(base string) string {
@@ -97,6 +96,29 @@ func completeGroups(doc map[string]any, proxies []any) {
 				used[candidate] = true
 				return candidate
 			}
+		}
+	}
+	names := []any{}
+	for _, item := range proxies {
+		proxy := item.(map[string]any)
+		name := proxy["name"].(string)
+		if name == "GLOBAL" {
+			// mihomo reserves GLOBAL for its global-mode group. Keep the node
+			// selectable without colliding with the generated GLOBAL group.
+			name = unique("GLOBAL")
+			proxy["name"] = name
+		}
+		names = append(names, name)
+	}
+	providers := []any{}
+	if source, ok := doc["proxy-providers"].(map[string]any); ok {
+		keys := make([]string, 0, len(source))
+		for name := range source {
+			keys = append(keys, name)
+		}
+		sort.Strings(keys)
+		for _, name := range keys {
+			providers = append(providers, name)
 		}
 	}
 	auto, fallback, balance, manual := unique("Subscription Auto"), unique("Subscription Fallback"), unique("Subscription Balance"), unique("Subscription")
@@ -118,7 +140,7 @@ func completeGroups(doc map[string]any, proxies []any) {
 	choices := []any{auto, fallback, balance}
 	choices = append(choices, names...)
 	choices = append(choices, "DIRECT")
-	doc["proxy-groups"] = []any{group(auto, "url-test"), group(fallback, "fallback"), group(balance, "load-balance"), map[string]any{"name": manual, "type": "select", "proxies": choices}, map[string]any{"name": "GLOBAL", "type": "select", "proxies": []any{manual}}}
+	doc["proxy-groups"] = []any{group(auto, "url-test"), group(fallback, "fallback"), group(balance, "load-balance"), map[string]any{"name": manual, "type": "select", "proxies": choices, "use": providers}, map[string]any{"name": "GLOBAL", "type": "select", "proxies": []any{manual}}}
 	if _, ok := doc["mode"]; !ok {
 		doc["mode"] = "rule"
 	}

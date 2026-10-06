@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -146,7 +147,7 @@ func TestGeneratedGroupsUseNodesAndProviders(t *testing.T) {
 			t.Fatalf("auto: %#v", auto)
 		}
 		manual := groups[3].(map[string]any)
-		if sliceValue(manual["proxies"])[0] != auto["name"] || sliceValue(manual["proxies"])[len(sliceValue(manual["proxies"]))-1] != "DIRECT" {
+		if sliceValue(manual["proxies"])[0] != auto["name"] || sliceValue(manual["proxies"])[len(sliceValue(manual["proxies"]))-1] != "DIRECT" || !reflect.DeepEqual(manual["use"], []any{"remote"}) {
 			t.Fatalf("manual: %#v", manual)
 		}
 		if groups[4].(map[string]any)["proxies"].([]any)[0] != manual["name"] {
@@ -155,6 +156,69 @@ func TestGeneratedGroupsUseNodesAndProviders(t *testing.T) {
 		if sliceValue(doc["rules"])[0] != "MATCH,"+manual["name"].(string) {
 			t.Fatalf("rules: %#v", doc["rules"])
 		}
+	}
+}
+
+func TestGeneratedGroupsKeepGlobalNodeSelectable(t *testing.T) {
+	for _, tc := range []struct{ name, source, alias string }{
+		{"global node", "proxies:\n  - name: GLOBAL\n    type: direct\n", "GLOBAL-2"},
+		{"occupied suffix", "proxies:\n  - name: GLOBAL\n    type: direct\n  - name: GLOBAL-2\n    type: direct\n", "GLOBAL-3"},
+		{"inline provider", "proxy-providers:\n  local:\n    type: inline\n    payload:\n      - name: GLOBAL\n        type: direct\n", ""},
+		{"inline provider collision", "proxies:\n  - name: GLOBAL\n    type: direct\nproxy-providers:\n  local:\n    type: inline\n    payload:\n      - name: GLOBAL-2\n        type: direct\n      - name: Subscription Auto\n        type: direct\n", "GLOBAL-3"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc, _, err := Document([]byte(tc.source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			groups := sliceValue(doc["proxy-groups"])
+			manual := groups[3].(map[string]any)
+			if groups[4].(map[string]any)["name"] != "GLOBAL" || !reflect.DeepEqual(groups[4].(map[string]any)["proxies"], []any{"Subscription"}) {
+				t.Fatalf("global-mode selection: %#v", groups[4])
+			}
+			if tc.alias != "" {
+				if sliceValue(doc["proxies"])[0].(map[string]any)["name"] != tc.alias || !containsChoice(manual, tc.alias) || !containsChoice(groups[0].(map[string]any), tc.alias) {
+					t.Fatalf("renamed node unavailable: %#v", doc)
+				}
+			}
+			if doc["proxy-providers"] != nil && !reflect.DeepEqual(manual["use"], []any{"local"}) {
+				t.Fatalf("manual provider membership: %#v", manual)
+			}
+			if tc.name == "inline provider collision" && groups[0].(map[string]any)["name"] != "Subscription Auto-2" {
+				t.Fatalf("generated group collision: %#v", groups[0])
+			}
+			validateGeneratedWithMihomo(t, doc)
+		})
+	}
+}
+
+func containsChoice(group map[string]any, name string) bool {
+	for _, item := range sliceValue(group["proxies"]) {
+		if item == name {
+			return true
+		}
+	}
+	return false
+}
+
+func validateGeneratedWithMihomo(t *testing.T, doc map[string]any) {
+	t.Helper()
+	bin := os.Getenv("NAGI_MIHOMO_BIN")
+	if bin == "" {
+		t.Skip("set NAGI_MIHOMO_BIN to validate generated YAML with mihomo")
+	}
+	data, err := Encode(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	output, err := exec.Command(bin, "-t", "-f", path, "-d", dir).CombinedOutput()
+	if err != nil {
+		t.Fatalf("mihomo rejected generated YAML: %v\n%s\n%s", err, data, output)
 	}
 }
 
