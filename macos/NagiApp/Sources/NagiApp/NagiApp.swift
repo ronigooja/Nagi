@@ -207,8 +207,17 @@ import AppKit
         let profileMenu = NSMenu()
         if model.profiles.isEmpty { disabled("No profiles", to: profileMenu) }
         for name in model.profiles {
-            add(name, command: ["profile", "use", name], checked: model.profile == name,
-                enabled: !model.busy, to: profileMenu)
+            if name == "default" {
+                let actions = NSMenu()
+                add("切换到此配置", action: #selector(switchToDefaultProfile),
+                    checked: model.profile == name, enabled: !model.busy, to: actions)
+                add("将本地默认配置应用到当前订阅", action: #selector(applyDefaultOverride),
+                    enabled: !model.busy, to: actions)
+                addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
+            } else {
+                add(name, command: ["profile", "use", name], checked: model.profile == name,
+                    enabled: !model.busy, to: profileMenu)
+            }
         }
         addSubmenu("Profiles", profileMenu, enabled: !model.profiles.isEmpty)
 
@@ -278,6 +287,8 @@ import AppKit
         guard let command = sender.representedObject as? [String] else { return }
         model.perform(command)
     }
+    @objc private func switchToDefaultProfile() { model.switchToDefaultProfile() }
+    @objc private func applyDefaultOverride() { model.applyDefaultOverrideToCurrentProfile() }
     @objc private func updateAndApplySubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         model.updateAndApplySubscription(name)

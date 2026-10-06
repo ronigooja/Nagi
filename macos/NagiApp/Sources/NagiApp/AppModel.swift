@@ -22,6 +22,13 @@ enum TrafficDisplay: String, CaseIterable {
 enum EngineState { case starting, running, stopped, unavailable }
 
 @MainActor final class AppModel {
+    // Keep profile action command names in one place while the backend command
+    // contract is being finalized.
+    private enum ProfileCommands {
+        static let useDefault = ["profile", "use", "default"]
+        static let applyDefaultOverride = ["profile", "override", "apply-default"]
+    }
+
     var onChange: (() -> Void)?
     private let cli = NagiCLIClient()
     private var refreshTask: Task<Void, Never>?
@@ -167,6 +174,14 @@ enum EngineState { case starting, running, stopped, unavailable }
             do { _ = try await cli.run(arguments); errorMessage = nil; await refresh() }
             catch { errorMessage = error.localizedDescription }
         }
+    }
+
+    func switchToDefaultProfile() {
+        perform(ProfileCommands.useDefault)
+    }
+
+    func applyDefaultOverrideToCurrentProfile() {
+        perform(ProfileCommands.applyDefaultOverride)
     }
     func updateAndApplySubscription(_ name: String) {
         guard !busy && !quitting else { return }
