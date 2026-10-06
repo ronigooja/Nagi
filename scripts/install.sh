@@ -91,7 +91,7 @@ verify_hash() {
 app_hash() {
     local root=$1 entry
     (
-        cd "$root"
+        cd "$root" || exit 1
         # Sorting lines is portable across Linux and macOS. Reject filenames that
         # could make the sorted digest ambiguous before using that representation.
         while IFS= read -r -d '' entry; do
@@ -193,7 +193,7 @@ if [[ -n "$source_app" || ( "$action" != install && -n "${recorded_app:-}" ) ]];
 fi
 if (( needs_sudo )) && (( EUID != 0 )); then
     command -v sudo >/dev/null || fail "sudo is required to write the installation destination"
-    sudo -v || fail "administrator authorization failed"
+    sudo -n true 2>/dev/null || sudo -v || fail "administrator authorization failed"
 fi
 write_fs() {
     if (( needs_sudo )) && (( EUID != 0 )); then sudo "$@"; else "$@"; fi
@@ -206,6 +206,7 @@ remove_fs() {
 
 write_fs mkdir -p -- "$bin_dir" "$state_dir"
 stage=$(write_fs mktemp -d "$prefix/.nagi-install.XXXXXXXX")
+write_fs chmod 0755 "$stage"
 app_stage=
 committed=0
 changed=0
@@ -251,6 +252,7 @@ trap 'exit 130' INT TERM
 if [[ -n "$source_app" || -n "${recorded_app:-}" ]]; then
     write_fs mkdir -p -- "$(dirname "$app_dest")"
     app_stage=$(write_fs mktemp -d "$(dirname "$app_dest")/.nagi-app.XXXXXXXX")
+    write_fs chmod 0755 "$app_stage"
 fi
 if [[ "$action" != uninstall ]]; then
     mkdir -p -m 0700 -- "$profile_dir"
@@ -262,9 +264,13 @@ if [[ "$action" != uninstall ]]; then
     if [[ -n "$source_app" ]]; then write_fs cp -R -- "$source_app" "$app_stage/new-app"; fi
     new_app_hash=
     if [[ -n "$source_app" ]]; then new_app_hash=$(app_hash "$app_stage/new-app"); fi
+    new_nagi_hash=$(hash_file "$stage/new-nagi")
+    new_mihomo_hash=$(hash_file "$stage/new-mihomo")
+    valid_hash "$new_nagi_hash" && valid_hash "$new_mihomo_hash" || fail "cannot hash staged executables"
+    if [[ -n "$source_app" ]]; then valid_hash "$new_app_hash" || fail "cannot hash staged App"; fi
     printf 'nagi-installer-v3\napp=%s\nnagi_sha256=%s\nmihomo_sha256=%s\napp_sha256=%s\n' \
-        "${source_app:+$app_dest}" "$(hash_file "$stage/new-nagi")" "$(hash_file "$stage/new-mihomo")" \
-        "$new_app_hash" | write_fs tee "$stage/new-state" >/dev/null
+        "${source_app:+$app_dest}" "$new_nagi_hash" "$new_mihomo_hash" "$new_app_hash" \
+        | write_fs tee "$stage/new-state" >/dev/null
     write_fs chmod 0644 "$stage/new-state"
 fi
 if [[ "$action" != install ]]; then
