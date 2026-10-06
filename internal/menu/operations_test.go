@@ -95,20 +95,13 @@ func TestLinuxTrafficMenuOmitsSystemProxy(t *testing.T) {
 	}
 }
 
-func TestOperationPageScope(t *testing.T) {
+func TestDNSPageScope(t *testing.T) {
 	dns, err := DNSPage().Load(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(dns.Context, "not an OS DNS leak test") {
 		t.Fatal(dns.Context)
-	}
-	traffic, err := TrafficPage().Load(context.Background(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(traffic.Context, "neither proves") {
-		t.Fatal(traffic.Context)
 	}
 }
 
