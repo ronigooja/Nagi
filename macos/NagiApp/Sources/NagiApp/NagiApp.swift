@@ -219,8 +219,18 @@ import AppKit
                     add(node, command: ["proxy", "select", group.name, node],
                         checked: group.selected == node, enabled: !model.busy, to: choices)
                 }
-            } else { disabled("\(group.kind) · \(group.selected)", to: choices) }
-            addSubmenu(group.name, choices, enabled: group.selectable && !group.nodes.isEmpty, to: groupsMenu)
+            } else {
+                disabled("\(group.kind) · \(group.selected)", to: choices)
+                if !group.nodes.isEmpty { choices.addItem(.separator()) }
+                for node in group.nodes {
+                    let item = NSMenuItem(title: node, action: nil, keyEquivalent: "")
+                    item.state = group.selected == node ? .on : .off
+                    item.isEnabled = false
+                    choices.addItem(item)
+                }
+            }
+            if group.nodes.isEmpty { disabled("No nodes in this group", to: choices) }
+            addSubmenu(group.name, choices, to: groupsMenu)
         }
         addSubmenu("Proxy Groups", groupsMenu, enabled: model.state == .running)
         menu.addItem(.separator())
