@@ -26,7 +26,9 @@ enum EngineState { case starting, running, stopped, unavailable }
     // contract is being finalized.
     private enum ProfileCommands {
         static let useDefault = ["profile", "use", "default"]
-        static let applyDefaultOverride = ["profile", "override", "apply-default"]
+        static func applyDefaultOverride(for profile: String) -> [String] {
+            ["profile", "override", "apply-default", profile]
+        }
     }
 
     var onChange: (() -> Void)?
@@ -181,7 +183,11 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
 
     func applyDefaultOverrideToCurrentProfile() {
-        perform(ProfileCommands.applyDefaultOverride)
+        guard let profile, !profile.isEmpty else {
+            errorMessage = "No current profile is selected."
+            return
+        }
+        perform(ProfileCommands.applyDefaultOverride(for: profile))
     }
     func updateAndApplySubscription(_ name: String) {
         guard !busy && !quitting else { return }
