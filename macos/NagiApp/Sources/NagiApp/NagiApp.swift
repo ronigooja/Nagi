@@ -154,15 +154,18 @@ import AppKit
         case .unavailable: stateTitle = "Nagi · Status unavailable"
         }
         let status = NSMenuItem(title: stateTitle, action: nil, keyEquivalent: "")
-        status.isEnabled = false; menu.addItem(status)
-        if let error = model.quitErrorMessage {
-            let item = NSMenuItem(title: "⚠ \(error)", action: nil, keyEquivalent: "")
-            item.isEnabled = false; item.toolTip = error; menu.addItem(item)
+        let errors = [model.quitErrorMessage, model.errorMessage].compactMap { $0 }
+        if !errors.isEmpty {
+            let details = NSMenu()
+            for error in errors {
+                let item = NSMenuItem(title: "⚠ \(error)", action: nil, keyEquivalent: "")
+                item.isEnabled = false; item.toolTip = error; details.addItem(item)
+            }
+            status.submenu = details
+        } else {
+            status.isEnabled = false
         }
-        if let error = model.errorMessage {
-            let item = NSMenuItem(title: "⚠ \(error)", action: nil, keyEquivalent: "")
-            item.isEnabled = false; item.toolTip = error; menu.addItem(item)
-        }
+        menu.addItem(status)
         if let notice = model.notice {
             let item = NSMenuItem(title: notice, action: nil, keyEquivalent: "")
             item.isEnabled = false; menu.addItem(item)
@@ -213,11 +216,9 @@ import AppKit
         if model.subscriptions.isEmpty { disabled("No subscriptions · Add one with the CLI", to: subscriptionMenu) }
         for subscription in model.subscriptions {
             let actions = NSMenu()
-            add("Update cached copy", command: ["subscription", "update", subscription.name],
-                enabled: !model.busy, to: actions)
-            add("Apply cached copy to profile", command: ["subscription", "apply", subscription.name],
-                enabled: !model.busy, to: actions)
-            if let updated = subscription.updatedAt { disabled("Last update: \(updated)", to: actions) }
+            let item = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
+                           enabled: !model.busy, to: actions)
+            item.representedObject = subscription.name
             addSubmenu(subscription.name, actions, to: subscriptionMenu)
         }
         addSubmenu("Subscriptions", subscriptionMenu, enabled: !model.subscriptions.isEmpty)
@@ -230,12 +231,12 @@ import AppKit
         }
         addSubmenu("Display", displayMenu)
         let startupMenu = NSMenu()
-        add("Open app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
+        add("Open menu bar app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
         let startupCommand = model.serviceInstalled == true ? ["service", "uninstall"] : ["service", "install"]
-        add("Start Nagi at login", command: startupCommand,
+        add("Run engine at login", command: startupCommand,
             checked: model.serviceInstalled == true, enabled: model.serviceInstalled != nil && !model.busy, to: startupMenu)
-        if model.serviceInstalled == nil { disabled("Service status unavailable", to: startupMenu) }
-        addSubmenu("Startup", startupMenu)
+        if model.serviceInstalled == nil { disabled("Engine service status unavailable", to: startupMenu) }
+        addSubmenu("Login", startupMenu)
         menu.addItem(.separator())
         add("Help", action: #selector(openHelp))
         add("About Nagi", action: #selector(showAbout))
@@ -266,9 +267,11 @@ import AppKit
     }
     @objc private func runCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? [String] else { return }
-        let success = command.count >= 2 && command[0] == "subscription" && command[1] == "update"
-            ? "Cache updated. Apply the cached copy separately." : nil
-        model.perform(command, success: success)
+        model.perform(command)
+    }
+    @objc private func updateAndApplySubscription(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        model.updateAndApplySubscription(name)
     }
     @objc private func retryStart() { model.retryStart() }
     @objc private func setDisplay(_ sender: NSMenuItem) {

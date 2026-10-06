@@ -10,7 +10,7 @@ The status item uses Apple's native `network.badge.shield.half.filled` geometry 
 
 While a menu command is applying a setting and refreshing the displayed state, the shield animates and the menu is temporarily detached so it cannot be opened. The animation stops when the command finishes or reports an error.
 
-Subscription Update downloads and validates a cache. Apply cached copy is a separate explicit action that activates it as a profile. Proxy selection is offered only for mihomo Selector groups. A TUN setting can be on while its adapter is absent or down; the menu shows that warning. “Start Nagi at login” installs or uninstalls the CLI's login service; uninstalling removes its service definition and leaves profiles and settings intact. “Open app at login” uses macOS `SMAppService` and requires an installed app bundle.
+The status menu item shows CLI errors in its submenu while keeping the engine state visible. A subscription's “Update and Apply” action downloads and validates its cache, then applies it as a profile. If applying fails, the updated cache remains available and the error states that activation failed. Proxy selection is offered only for mihomo Selector groups. A TUN setting can be on while its adapter is absent or down; the menu shows that warning. Under “Login,” “Run engine at login” installs or uninstalls the CLI's login service; uninstalling removes its service definition and leaves profiles and settings intact. “Open menu bar app at login” uses macOS `SMAppService` and requires an installed app bundle.
 
 Build and package on macOS with Xcode command line tools:
 

@@ -9,7 +9,7 @@ struct ProxyGroup {
     let nodes: [String]
     var selectable: Bool { kind.lowercased() == "selector" }
 }
-struct Subscription { let name: String; let updatedAt: String? }
+struct Subscription { let name: String }
 enum TrafficDisplay: String, CaseIterable {
     case both, icon
     var title: String {
@@ -127,7 +127,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             let value = try await cli.run(["subscription", "list"])
             subscriptions = value["subscriptions"]?.array.compactMap { item in
                 guard let name = item["name"]?.string else { return nil }
-                return Subscription(name: name, updatedAt: item["updated_at"]?.string)
+                return Subscription(name: name)
             } ?? []
         } catch { errorMessage = error.localizedDescription }
         do {
@@ -154,14 +154,38 @@ enum EngineState { case starting, running, stopped, unavailable }
         } else { groups = []; mode = nil; systemProxy = nil; tun = nil; tunAdapter = nil }
         notify()
     }
-    func perform(_ arguments: [String], success: String? = nil) {
+    func perform(_ arguments: [String]) {
         guard !busy && !quitting else { return }
         busy = true
         applyingSetting = true
+        notice = nil
         Task {
             defer { applyingSetting = false; busy = false }
-            do { _ = try await cli.run(arguments); errorMessage = nil; notice = success; await refresh() }
+            do { _ = try await cli.run(arguments); errorMessage = nil; await refresh() }
             catch { errorMessage = error.localizedDescription }
+        }
+    }
+    func updateAndApplySubscription(_ name: String) {
+        guard !busy && !quitting else { return }
+        busy = true
+        applyingSetting = true
+        notice = nil
+        Task {
+            defer { applyingSetting = false; busy = false }
+            do {
+                _ = try await cli.run(["subscription", "update", name])
+            } catch {
+                errorMessage = "Subscription update failed: \(error.localizedDescription)"
+                return
+            }
+            do {
+                _ = try await cli.run(["subscription", "apply", name])
+                errorMessage = nil
+                notice = "Subscription updated and applied."
+                await refresh()
+            } catch {
+                errorMessage = "Subscription updated, but apply failed: \(error.localizedDescription)"
+            }
         }
     }
     func quit(completion: @escaping (Bool) -> Void) {
