@@ -22,8 +22,7 @@ enum TrafficDisplay: String, CaseIterable {
 enum EngineState { case starting, running, stopped, unavailable }
 
 @MainActor final class AppModel {
-    // Keep profile action command names in one place while the backend command
-    // contract is being finalized.
+    // Keep profile action command names in one place.
     private enum ProfileCommands {
         static let useDefault = ["profile", "use", "default"]
         static func applyDefaultOverride(for profile: String) -> [String] {
