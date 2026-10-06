@@ -14,7 +14,7 @@ MIHOMO_DIR=/path/to/mihomo make build
 ./bin/nagi menu
 ```
 
-Without `MIHOMO_DIR`, the build script fetches the repository and exact commit in `engine.lock`. The first `start` creates a minimal `default` profile. Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
+Without `MIHOMO_DIR`, the build script fetches the repository and exact commit in `engine.lock`. The first `start` creates a `default` profile with DoH resolvers and TUN DNS interception; activating TUN requires OS permissions. Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
 
 `nagi menu` opens a step-by-step menu when both input and output are terminals. Choose numbered actions; use `b` to go back and `q` to leave the menu. Use ordinary commands with `--json` for scripts and applications. See the [CLI reference](docs/reference/cli.md#terminal-menu) for the full interaction contract.
 

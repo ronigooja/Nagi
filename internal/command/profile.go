@@ -18,7 +18,44 @@ import (
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 )
 
-const defaultProfile = "mixed-port: 17890\nallow-lan: false\nipv6: true\nmode: rule\nlog-level: info\nproxies: []\nproxy-groups: []\nrules:\n  - MATCH,DIRECT\ndns:\n  enable: true\n  listen: 127.0.0.1:1053\n  ipv6: true\n  enhanced-mode: fake-ip\n  default-nameserver:\n    - https://1.1.1.1/dns-query\n    - https://8.8.8.8/dns-query\n  nameserver:\n    - https://1.1.1.1/dns-query\n    - https://8.8.8.8/dns-query\n  fallback: []\n  respect-rules: false\n"
+const defaultProfile = `mixed-port: 17890
+allow-lan: false
+ipv6: true
+mode: rule
+log-level: info
+proxies: []
+proxy-groups: []
+rules:
+  - MATCH,DIRECT
+dns:
+  enable: true
+  listen: 127.0.0.1:1053
+  ipv6: true
+  enhanced-mode: fake-ip
+  default-nameserver:
+    - https://223.5.5.5/dns-query
+    - https://223.6.6.6/dns-query
+  nameserver:
+    - https://1.1.1.1/dns-query
+    - https://8.8.8.8/dns-query
+  direct-nameserver:
+    - https://223.5.5.5/dns-query
+    - https://223.6.6.6/dns-query
+  proxy-server-nameserver:
+    - https://223.5.5.5/dns-query
+    - https://223.6.6.6/dns-query
+  fallback: []
+  respect-rules: false
+tun:
+  enable: true
+  stack: system
+  auto-route: true
+  strict-route: true
+  auto-detect-interface: true
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+`
 
 func ensureDefaultProfile(path, selected string) error {
 	if selected != "default" {

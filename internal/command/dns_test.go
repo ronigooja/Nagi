@@ -8,11 +8,57 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/ronigooja/Nagi/internal/control"
+	"gopkg.in/yaml.v3"
 )
+
+func TestNewDefaultProfileDNSAndTUN(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles", "default.yaml")
+	if err := ensureDefaultProfile(path, "default"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Rules []string `yaml:"rules"`
+		DNS   struct {
+			Enable                bool     `yaml:"enable"`
+			EnhancedMode          string   `yaml:"enhanced-mode"`
+			DefaultNameserver     []string `yaml:"default-nameserver"`
+			Nameserver            []string `yaml:"nameserver"`
+			DirectNameserver      []string `yaml:"direct-nameserver"`
+			ProxyServerNameserver []string `yaml:"proxy-server-nameserver"`
+			Fallback              []string `yaml:"fallback"`
+		} `yaml:"dns"`
+		TUN struct {
+			Enable              bool     `yaml:"enable"`
+			AutoRoute           bool     `yaml:"auto-route"`
+			StrictRoute         bool     `yaml:"strict-route"`
+			AutoDetectInterface bool     `yaml:"auto-detect-interface"`
+			DNSHijack           []string `yaml:"dns-hijack"`
+		} `yaml:"tun"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	ali := []string{"https://223.5.5.5/dns-query", "https://223.6.6.6/dns-query"}
+	proxy := []string{"https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"}
+	if !cfg.DNS.Enable || cfg.DNS.EnhancedMode != "fake-ip" || !slices.Equal(cfg.Rules, []string{"MATCH,DIRECT"}) {
+		t.Fatalf("unexpected default DNS or rules: %+v", cfg)
+	}
+	if !slices.Equal(cfg.DNS.DefaultNameserver, ali) || !slices.Equal(cfg.DNS.DirectNameserver, ali) || !slices.Equal(cfg.DNS.ProxyServerNameserver, ali) || !slices.Equal(cfg.DNS.Nameserver, proxy) || len(cfg.DNS.Fallback) != 0 {
+		t.Fatalf("unexpected DoH roles: %+v", cfg.DNS)
+	}
+	if !cfg.TUN.Enable || !cfg.TUN.AutoRoute || !cfg.TUN.StrictRoute || !cfg.TUN.AutoDetectInterface || !slices.Equal(cfg.TUN.DNSHijack, []string{"any:53", "tcp://any:53"}) {
+		t.Fatalf("unexpected TUN interception: %+v", cfg.TUN)
+	}
+}
 
 func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 	root := t.TempDir()
