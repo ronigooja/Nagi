@@ -1,18 +1,15 @@
 GO ?= go
-PREFIX ?= /usr/local
 
-.PHONY: build release test clean install update uninstall
+.PHONY: build cli app release test clean
 build:
-	./scripts/build.sh
+	@if [ -z "$(filter cli app,$(MAKECMDGOALS))" ]; then printf 'Usage: make build cli, or on macOS: make build app\n'; exit 2; fi
 
-install: build
-	./scripts/install.sh install --artifact-dir "$(CURDIR)/bin" --prefix "$(PREFIX)"
+cli:
+	./scripts/build.sh cli
 
-update: build
-	./scripts/install.sh update --artifact-dir "$(CURDIR)/bin" --prefix "$(PREFIX)"
-
-uninstall:
-	./scripts/install.sh uninstall --prefix "$(PREFIX)"
+app:
+	@if [ "$(shell uname -s)" != Darwin ]; then printf 'Nagi.app can only be built on macOS\n' >&2; exit 2; fi
+	./macos/NagiApp/package-app.sh
 
 release:
 	./scripts/release.sh

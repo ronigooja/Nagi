@@ -4,12 +4,14 @@ set -euo pipefail
 
 usage() {
     cat <<'USAGE'
-Usage: scripts/install.sh install|update|uninstall [--artifact-dir DIR] [--prefix DIR] [--app-dest DIR]
-  install/update require --artifact-dir containing executable nagi and mihomo;
+Usage: scripts/installer.sh install|update|uninstall [--artifact-dir DIR] [--prefix DIR] [--app-dest DIR]
+  install/update use bin/ beside this script by default, containing nagi and mihomo;
   on macOS it may also contain Nagi.app. The default prefix is /usr/local.
   App installation requires --prefix /usr/local; its default destination is
   /Applications/Nagi.app. Install and update replace the default profile.
-  No network access is performed.
+  On macOS with the default prefix, install selects the privileged TUN helper;
+  update reinstalls it and preserves any existing backend selection. Uninstall
+  removes it. No network access is performed.
 USAGE
 }
 fail() { printf 'nagi installer: %s\n' "$*" >&2; exit 1; }
@@ -17,7 +19,9 @@ fail() { printf 'nagi installer: %s\n' "$*" >&2; exit 1; }
 action=$1
 shift
 case "$action" in install|update|uninstall) ;; *) usage >&2; exit 2 ;; esac
-artifact_dir=
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+artifact_dir=$script_dir/../bin
+artifact_dir_given=0
 prefix=/usr/local
 app_dest=/Applications/Nagi.app
 app_dest_given=0
@@ -26,7 +30,7 @@ while (( $# )); do
         --artifact-dir|--prefix|--app-dest)
             [[ $# -ge 2 ]] || fail "missing value for $1"
             case "$1" in
-                --artifact-dir) artifact_dir=$2 ;;
+                --artifact-dir) artifact_dir=$2; artifact_dir_given=1 ;;
                 --prefix) prefix=$2 ;;
                 --app-dest) app_dest=$2; app_dest_given=1 ;;
             esac
@@ -50,6 +54,9 @@ state=$state_dir/install-state
 nagi=$bin_dir/nagi
 mihomo=$bin_dir/mihomo
 platform=$(uname -s)
+manage_helper=0
+if [[ "$platform" == Darwin && "$prefix" == /usr/local ]]; then manage_helper=1; fi
+if (( manage_helper && EUID == 0 )); then fail "run as the intended macOS user, not root; the installer uses sudo for the helper"; fi
 if [[ "$platform" == Darwin ]]; then
     profile_dir=$HOME/Library/Application\ Support/Nagi/config/profiles
 else
@@ -60,7 +67,6 @@ fi
 default_profile=$profile_dir/default.yaml
 source_app=
 if [[ "$action" != uninstall ]]; then
-    [[ -n "$artifact_dir" ]] || fail "--artifact-dir is required for $action"
     [[ -d "$artifact_dir" ]] || fail "artifact directory does not exist: $artifact_dir"
     artifact_dir=$(cd "$artifact_dir" && pwd -P)
     for name in nagi mihomo; do
@@ -77,7 +83,7 @@ if [[ "$action" != uninstall ]]; then
         source_app=$artifact_dir/Nagi.app
     fi
     [[ $app_dest_given -eq 0 || -n "$source_app" ]] || fail "--app-dest requires Nagi.app in the artifact directory"
-elif [[ -n "$artifact_dir" ]]; then
+elif (( artifact_dir_given )); then
     fail "--artifact-dir is only used for install or update"
 fi
 
@@ -122,6 +128,10 @@ if [[ "$action" == install ]]; then
     if [[ -n "$source_app" ]]; then
         ! exists "$app_dest" || fail "App destination already exists: $app_dest"
     fi
+    if (( manage_helper )); then
+        helper=$("$artifact_dir/nagi" --json privileged-helper status) || fail "cannot inspect privileged helper"
+        [[ "$helper" != *'"installed":true'* && "$helper" != *'"active":true'* ]] || fail "privileged helper already exists without an installer record"
+    fi
 else
     if ! exists "$state"; then
         if [[ "$action" == uninstall && ! -e "$nagi" && ! -e "$mihomo" ]]; then
@@ -148,16 +158,18 @@ else
         app_dest=$recorded_app
         valid_hash "$recorded_app_hash" || fail "invalid installer record: $state"
         [[ -d "$app_dest" && ! -L "$app_dest" && "$(app_hash "$app_dest")" == "$recorded_app_hash" ]] || fail "installed App changed outside the installer: $app_dest"
-    elif (( app_dest_given )); then
+    elif (( app_dest_given )) && [[ -z "$source_app" ]]; then
         fail "--app-dest specified but no App is installed"
     else
         [[ -z "$recorded_app_hash" ]] || fail "invalid installer record: $state"
     fi
     if [[ "$action" == update ]]; then
         [[ -f "$nagi" && -x "$nagi" && -f "$mihomo" && -x "$mihomo" ]] || fail "installed binaries are missing; repair the installation manually"
-        if [[ -n "$recorded_app" || -n "$source_app" ]]; then
-            [[ -n "$recorded_app" && -n "$source_app" ]] || fail "App must be present in both the existing installation and update artifact"
+        if [[ -n "$recorded_app" ]]; then
+            [[ -n "$source_app" ]] || fail "App is installed but missing from the update artifact"
             [[ -d "$app_dest" && ! -L "$app_dest" ]] || fail "installed App is missing or is a symbolic link"
+        elif [[ -n "$source_app" ]]; then
+            ! exists "$app_dest" || fail "App destination already exists outside the installer: $app_dest"
         fi
     fi
     # A user service records the exact executable path. Never replace it under a
@@ -172,7 +184,13 @@ else
     [[ "$service" != *'"installed":true'* ]] || fail "login service is installed; run '$nagi service uninstall' before changing its executable"
     if [[ "$platform" == Darwin ]]; then
         helper=$("$nagi" --json privileged-helper status) || fail "cannot inspect privileged helper; stop it and retry"
-        [[ "$helper" != *'"installed":true'* && "$helper" != *'"active":true'* ]] || fail "privileged helper is installed; disable and uninstall it before changing its executable"
+        helper_was_installed=0
+        helper_was_privileged=0
+        [[ "$helper" != *'"installed":true'* ]] || helper_was_installed=1
+        [[ "$helper" != *'"selected_backend":"privileged"'* ]] || helper_was_privileged=1
+        if (( helper_was_installed && ! manage_helper )); then
+            fail "privileged helper is installed but this prefix cannot manage it"
+        fi
         if [[ -n "$recorded_app" ]] && pgrep -x NagiApp >/dev/null 2>&1; then
             fail "quit Nagi.app before updating or uninstalling it"
         fi
@@ -191,7 +209,7 @@ if [[ -n "$source_app" || ( "$action" != install && -n "${recorded_app:-}" ) ]];
     [[ -w "$(nearest_parent "$(dirname "$app_dest")")" ]] || needs_sudo=1
     [[ ! -L "$app_dest" ]] || fail "App destination must not be a symbolic link"
 fi
-if (( needs_sudo )) && (( EUID != 0 )); then
+if (( needs_sudo || manage_helper )) && (( EUID != 0 )); then
     command -v sudo >/dev/null || fail "sudo is required to write the installation destination"
     sudo -n true 2>/dev/null || sudo -v || fail "administrator authorization failed"
 fi
@@ -221,12 +239,19 @@ new_app=0
 old_profile=0
 new_profile=0
 profile_stage=
+helper_removed=0
+helper_added=0
+helper_switched=0
 cleanup() {
     local result=$?
     trap - EXIT
     local rollback_failed=0
     if (( ! committed && changed )); then
         printf 'nagi installer: operation failed; restoring previous files\n' >&2
+        if (( helper_added )); then
+            "$nagi" privileged-helper disable >/dev/null 2>&1 || true
+            sudo "$nagi" privileged-helper uninstall >/dev/null 2>&1 || rollback_failed=1
+        fi
         if (( new_app )); then remove_fs "$app_dest" || rollback_failed=1; fi
         if (( old_app )); then write_fs mv -- "$app_stage/old-app" "$app_dest" || rollback_failed=1; fi
         if (( new_state )); then remove_fs "$state" || rollback_failed=1; fi
@@ -237,6 +262,12 @@ cleanup() {
         if (( old_mihomo )); then write_fs mv -- "$stage/old-mihomo" "$mihomo" || rollback_failed=1; fi
         if (( new_profile )); then rm -- "$default_profile" || rollback_failed=1; fi
         if (( old_profile )); then mv -- "$profile_stage/old-default.yaml" "$default_profile" || rollback_failed=1; fi
+    fi
+    if (( ! committed && helper_removed && helper_was_installed )); then
+        sudo "$nagi" privileged-helper install >/dev/null || rollback_failed=1
+        if (( helper_was_privileged )); then "$nagi" privileged-helper enable >/dev/null || rollback_failed=1; fi
+    elif (( ! committed && helper_switched && ! helper_removed )); then
+        "$nagi" privileged-helper enable >/dev/null || rollback_failed=1
     fi
     if (( rollback_failed )); then
         printf 'nagi installer: rollback incomplete; staged backups retained at %s %s %s\n' "$stage" "$app_stage" "$profile_stage" >&2
@@ -273,6 +304,11 @@ if [[ "$action" != uninstall ]]; then
         | write_fs tee "$stage/new-state" >/dev/null
     write_fs chmod 0644 "$stage/new-state"
 fi
+if (( manage_helper && ${helper_was_installed:-0} )); then
+    if (( helper_was_privileged )); then "$nagi" privileged-helper disable >/dev/null; helper_switched=1; fi
+    sudo "$nagi" privileged-helper uninstall >/dev/null
+    helper_removed=1
+fi
 if [[ "$action" != install ]]; then
     if exists "$nagi"; then write_fs mv -- "$nagi" "$stage/old-nagi"; old_nagi=1; changed=1; fi
     if exists "$mihomo"; then write_fs mv -- "$mihomo" "$stage/old-mihomo"; old_mihomo=1; changed=1; fi
@@ -287,6 +323,13 @@ if [[ "$action" != uninstall ]]; then
     if exists "$default_profile"; then mv -- "$default_profile" "$profile_stage/old-default.yaml"; old_profile=1; changed=1; fi
     mv -- "$profile_stage/new-default.yaml" "$default_profile"; new_profile=1; changed=1
     write_fs mv -- "$stage/new-state" "$state"; new_state=1; changed=1
+    if (( manage_helper )); then
+        sudo "$nagi" privileged-helper install >/dev/null
+        helper_added=1
+        if [[ "$action" == install ]] || (( helper_was_privileged )); then
+            "$nagi" privileged-helper enable >/dev/null
+        fi
+    fi
 fi
 committed=1
 printf 'Nagi %s complete at %s\n' "$action" "$prefix"

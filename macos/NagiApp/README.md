@@ -4,7 +4,7 @@ The macOS 13+ app lives only in the menu bar. It opens no main window and has no
 
 Install the matching Nagi CLI as an executable at `/usr/local/bin/nagi`. Install the pinned mihomo executable beside the CLI, or provide `NAGI_MIHOMO_BIN` in the app's environment. For a local build, [install from an artifact directory](../../docs/development/install.md), optionally including `Nagi.app` (installed to `/Applications/Nagi.app` by default). The app invokes only `nagi --json` commands; it does not read Nagi configuration files or contact mihomo's socket or API. The [CLI reference](../../docs/reference/cli.md) defines commands and JSON fields.
 
-When macOS denies ordinary-user TUN creation, [install and select the privileged CLI backend](../../docs/guides/traffic-access.md). The app uses the selected backend through the same CLI commands, so changing backends does not require rebuilding the app.
+The default macOS installer configures the privileged CLI backend for TUN; see [traffic access](../../docs/guides/traffic-access.md). The app uses the selected backend through the same CLI commands, so changing backends does not require rebuilding the app.
 
 The status item uses Apple's native `network.badge.shield.half.filled` geometry in white. Starting, stopped, and unavailable draw the whole symbol at half opacity; running draws it at full opacity. While applying a setting, the network globe stays fully opaque and only the shield alternates between half and full opacity. The item also displays mihomo's upload and download rates once a second from `nagi --json traffic watch`. Traffic rates is the default Display choice, with the icon vertically centered beside two right-aligned rate rows at fixed width and no arrows; Icon only is the other choice. The numeric display uses a monospaced font. A missing or stale sample, or a stopped engine, displays `0 B/s` for each visible rate. A saved Download only choice falls back to Traffic rates. The app reconnects the stream after interruption while the engine is running. Display choice is the only app data stored in UserDefaults.
 
@@ -15,8 +15,8 @@ The status menu item shows `Nagi · Running ⚠` when the engine is running and 
 Build and package on macOS with Xcode command line tools:
 
 ```sh
-macos/NagiApp/package-app.sh
-open macos/NagiApp/dist/Nagi.app
+make build app
+open bin/Nagi.app
 ```
 
-The packaging script creates `dist/Nagi.app` with `LSUIElement` set to true. Run the script from the repository root or by absolute path. SwiftPM alone builds an executable, not an app bundle with the menu-only activation setting. Install the built app in Applications before enabling its login item; include the bundle in the [artifact directory](../../docs/development/install.md) to install it alongside the CLI. The app is not signed or notarized by this script, and the repository release script does not package it.
+`make build app` calls the packaging script on macOS and creates `bin/Nagi.app` with `LSUIElement` set to true. You can also run `macos/NagiApp/package-app.sh` directly to rebuild only the App bundle. SwiftPM alone builds an executable, not an app bundle with the menu-only activation setting. Install the built app in Applications before enabling its login item; include the bundle in the [artifact directory](../../docs/development/install.md) to install it alongside the CLI. The app is not signed or notarized by this script, and the repository release script does not package it.

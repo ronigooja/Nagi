@@ -4,17 +4,17 @@ Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. I
 
 ## Quick start
 
-Requirements: Go 1.20 or newer, Git, and a local mihomo checkout at the commit in [`engine.lock`](engine.lock), or network access to obtain that commit.
+Requirements: Go 1.20 or newer, Git, and a matching executable at `bin/mihomo`. To build mihomo from the pinned source for the first time, run `./scripts/build.sh` with a checkout at the commit in [`engine.lock`](engine.lock), or let that script fetch it.
 
 ```sh
-MIHOMO_DIR=/path/to/mihomo make build
+make build cli
 ./bin/nagi --json version
 ./bin/nagi start
 ./bin/nagi status
 ./bin/nagi menu
 ```
 
-Without `MIHOMO_DIR`, the build script fetches the repository and exact commit in `engine.lock`. The first `start` creates a `default` profile with DoH resolvers and TUN DNS interception settings, but TUN is disabled until you run `nagi tun enable` (which requires OS permissions). Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
+Build the CLI with `make build cli` on Linux or macOS; build the macOS App separately with `make build app`. Install, update, or uninstall existing artifacts with `./scripts/installer.sh install`, `./scripts/installer.sh update`, or `./scripts/installer.sh uninstall`. `./scripts/sync_to_mac.sh` copies the source tree to the macair checkout while preserving its local build artifacts. The CLI build does not rebuild mihomo; prepare a matching `bin/mihomo` separately. For a full locked CLI and mihomo build, run `./scripts/build.sh` with `MIHOMO_DIR` pointing to the pinned checkout, or let that script fetch the pinned source. The first `start` creates a `default` profile with DoH resolvers and TUN DNS interception settings, but TUN is disabled until you run `nagi tun enable` (which requires OS permissions). Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
 
 `nagi menu` opens a step-by-step menu when both input and output are terminals. Choose numbered actions; use `b` to go back and `q` to leave the menu. Use ordinary commands with `--json` for scripts and applications. See the [CLI reference](docs/reference/cli.md#terminal-menu) for the full interaction contract.
 

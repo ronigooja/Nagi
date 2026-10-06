@@ -3,7 +3,7 @@
 set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
-installer=${INSTALLER_SCRIPT:-$script_dir/install.sh}
+installer=${INSTALLER_SCRIPT:-$script_dir/installer.sh}
 [[ -f "$installer" ]] || { printf 'installer not found: %s\n' "$installer" >&2; exit 1; }
 
 test_dir=$(mktemp -d)
@@ -148,5 +148,14 @@ bash "$installer" uninstall --prefix "$prefix" > "$log"
 [[ $(cat "$prefix/share/nagi/profiles/default.yaml") == 'user profile' ]] || fail_test 'uninstall removed user profile'
 [[ $(cat "$XDG_CONFIG_HOME/nagi/profiles/default.yaml") == 'mode: v2' ]] || fail_test 'uninstall removed default profile'
 [[ $(cat "$test_dir/user-data/subscription.yaml") == 'user subscription' ]] || fail_test 'uninstall removed user subscription'
+
+# Running the installer directly should find artifacts beside its scripts directory.
+default_root=$test_dir/default-layout
+mkdir -p "$default_root/scripts" "$default_root/bin"
+cp "$installer" "$default_root/scripts/installer.sh"
+cp "$artifact_v1/nagi" "$artifact_v1/mihomo" "$default_root/bin/"
+bash "$default_root/scripts/installer.sh" install --prefix "$default_root/prefix" > "$log"
+cmp -s "$artifact_v1/nagi" "$default_root/prefix/bin/nagi" || fail_test 'default artifact directory was not used'
+bash "$default_root/scripts/installer.sh" uninstall --prefix "$default_root/prefix" > "$log"
 
 printf 'installer integration tests passed\n'

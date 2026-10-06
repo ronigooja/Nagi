@@ -2,6 +2,9 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if (( $# > 1 )); then echo 'Usage: scripts/build.sh [cli]' >&2; exit 2; fi
+build_mode=${1:-all}
+case "$build_mode" in all|cli) ;; *) echo 'Usage: scripts/build.sh [cli]' >&2; exit 2 ;; esac
 read_lock() {
     sed -n "s/^$1: //p" "$project_dir/engine.lock"
 }
@@ -13,29 +16,31 @@ if [[ ! "$commit" =~ ^[0-9a-f]{40}$ || -z "$repository" || -z "$ref" ]]; then
     exit 1
 fi
 
-if [[ -n "${MIHOMO_DIR:-}" ]]; then
-    engine_dir="$(cd "$MIHOMO_DIR" && pwd)"
-    actual="$(git -C "$engine_dir" rev-parse HEAD)"
-    if [[ "$actual" != "$commit" ]]; then
-        echo "MIHOMO_DIR is at $actual; engine.lock requires $commit" >&2
-        exit 1
+if [[ "$build_mode" == all ]]; then
+    if [[ -n "${MIHOMO_DIR:-}" ]]; then
+        engine_dir="$(cd "$MIHOMO_DIR" && pwd)"
+        actual="$(git -C "$engine_dir" rev-parse HEAD)"
+        if [[ "$actual" != "$commit" ]]; then
+            echo "MIHOMO_DIR is at $actual; engine.lock requires $commit" >&2
+            exit 1
+        fi
+    else
+        engine_dir="$project_dir/.build/mihomo"
+        if [[ ! -d "$engine_dir/.git" ]]; then
+            mkdir -p "$(dirname "$engine_dir")"
+            git clone --no-checkout "$repository" "$engine_dir"
+        fi
+        git -C "$engine_dir" fetch origin "$ref"
+        git -C "$engine_dir" cat-file -e "$commit^{commit}" || {
+            echo "Pinned mihomo commit $commit cannot be obtained" >&2
+            exit 1
+        }
+        if ! git -C "$engine_dir" merge-base --is-ancestor "$commit" FETCH_HEAD; then
+            echo "Pinned mihomo commit $commit is not on $ref" >&2
+            exit 1
+        fi
+        git -C "$engine_dir" checkout --detach "$commit"
     fi
-else
-    engine_dir="$project_dir/.build/mihomo"
-    if [[ ! -d "$engine_dir/.git" ]]; then
-        mkdir -p "$(dirname "$engine_dir")"
-        git clone --no-checkout "$repository" "$engine_dir"
-    fi
-    git -C "$engine_dir" fetch origin "$ref"
-    git -C "$engine_dir" cat-file -e "$commit^{commit}" || {
-        echo "Pinned mihomo commit $commit cannot be obtained" >&2
-        exit 1
-    }
-    if ! git -C "$engine_dir" merge-base --is-ancestor "$commit" FETCH_HEAD; then
-        echo "Pinned mihomo commit $commit is not on $ref" >&2
-        exit 1
-    fi
-    git -C "$engine_dir" checkout --detach "$commit"
 fi
 
 go_bin="${GO:-go}"
@@ -54,5 +59,7 @@ if [[ -n "${TARGET_GOOS:-}" || -n "${TARGET_GOARCH:-}" ]]; then
     output_dir="$project_dir/dist/$TARGET_GOOS-$TARGET_GOARCH"
 fi
 mkdir -p "$output_dir"
-(cd "$engine_dir" && "$go_bin" build -tags with_gvisor -o "$output_dir/mihomo" .)
+if [[ "$build_mode" == all ]]; then
+    (cd "$engine_dir" && "$go_bin" build -tags with_gvisor -o "$output_dir/mihomo" .)
+fi
 (cd "$project_dir" && "$go_bin" build -ldflags "-X main.version=$nagi_version -X main.engineCommit=$commit" -o "$output_dir/nagi" ./cmd/nagi)

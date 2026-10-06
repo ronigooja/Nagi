@@ -2,9 +2,11 @@
 set -eu
 
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_dir=$(CDPATH= cd -- "$project_dir/../.." && pwd)
 swift build --package-path "$project_dir" -c release
 bin_dir=$(swift build --package-path "$project_dir" -c release --show-bin-path)
-app_dir="$project_dir/dist/Nagi.app"
+app_dir="$repo_dir/bin/Nagi.app"
+rm -rf -- "$app_dir"
 mkdir -p "$app_dir/Contents/MacOS"
 cp "$bin_dir/NagiApp" "$app_dir/Contents/MacOS/NagiApp"
 cat > "$app_dir/Contents/Info.plist" <<'PLIST'

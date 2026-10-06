@@ -60,7 +60,7 @@ completed manually.
    changes. If this is the first release, review the complete history instead.
 3. Update any authoritative documentation affected by the changes. Run the
    required checks from [Build and test](build-and-test.md), including `make
-   test` and a locked `make build`.
+   test` and a locked `./scripts/build.sh`.
 4. Create and push the version tag only after the review and checks pass:
 
    ```sh
@@ -68,7 +68,7 @@ completed manually.
    git push origin vX.Y.Z
    ```
 
-5. Check out the tag in a clean workspace, run `make build`, and then run
+5. Check out the tag in a clean workspace, run `./scripts/build.sh`, and then run
    `make release`. Inspect every target under `dist/` and verify executable
    permissions. Run the version check above for targets that can execute on the
    release host; for other targets, verify the embedded version from the build
@@ -121,7 +121,7 @@ omit that category rather than implying that it was reviewed incompletely.
 - [ ] Changes from the previous release tag were reviewed and listed in the
       release description.
 - [ ] `make test` passed.
-- [ ] Locked `make build` passed.
+- [ ] Locked `./scripts/build.sh` passed.
 - [ ] `make release` artifacts were inspected.
 - [ ] `./bin/nagi --json version` reports the release tag and locked mihomo
       commit.
