@@ -92,3 +92,40 @@ func TestRestoreBackupValidationAndReloadRollback(t *testing.T) {
 		t.Fatal("invalid backup accepted")
 	}
 }
+
+func TestApplyDefaultOverrideCopiesOnlyDefaultLocalOverride(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func(data []byte) error {
+		if len(data) == 0 {
+			return errors.New("empty")
+		}
+		return nil
+	}, nil)
+	ctx := context.Background()
+	if err := s.Write(ctx, "default", []byte("mixed-port: 17890\nproxies:\n  - name: default-node\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Write(ctx, "work", []byte("mixed-port: 17900\nproxies:\n  - name: subscription-node\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOverride(ctx, "default", []byte("dns:\n  enable: true\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyDefaultOverride(ctx, "work"); err != nil {
+		t.Fatal(err)
+	}
+	override, err := s.Override("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(override) != "dns:\n  enable: true\n" {
+		t.Fatalf("override = %q", override)
+	}
+	effective, err := s.Effective("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(effective), "subscription-node") || strings.Contains(string(effective), "default-node") {
+		t.Fatalf("effective profile copied source nodes: %s", effective)
+	}
+}

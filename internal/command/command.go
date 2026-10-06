@@ -1156,10 +1156,19 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 		}
 		return map[string]any{"name": args[2], "other": other, "diff": profileDiff(before, after), "changed": string(before) != string(after), "changes": changes, "warnings": warnings}, nil
 	case "override":
-		if len(args) < 4 {
-			return nil, usage("profile override set NAME FILE|show NAME|clear NAME")
+		if len(args) < 3 {
+			return nil, usage("profile override set NAME FILE|show NAME|clear NAME|apply-default NAME")
 		}
 		switch args[2] {
+		case "apply-default":
+			if len(args) != 4 {
+				return nil, usage("profile override apply-default NAME")
+			}
+			name := args[3]
+			if err := store.ApplyDefaultOverride(ctx, name); err != nil {
+				return nil, fail("profile_error", err)
+			}
+			return map[string]any{"name": name, "default_override_applied": true}, nil
 		case "set":
 			if len(args) != 5 {
 				return nil, usage("profile override set NAME FILE")
@@ -1195,7 +1204,7 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 			}
 			return map[string]any{"name": args[3], "override_cleared": true}, nil
 		}
-		return nil, usage("profile override set NAME FILE|show NAME|clear NAME")
+		return nil, usage("profile override set NAME FILE|show NAME|clear NAME|apply-default NAME")
 	case "remove":
 		if err := arity(args, 3); err != nil {
 			return nil, usage("profile remove NAME (run `nagi profile remove --help` for details)")

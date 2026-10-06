@@ -33,6 +33,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `profile override set NAME FILE` | Save a separate local YAML mapping (maximum 8 MiB) and apply it to this profile. |
 | `profile override show NAME` | Print the local override YAML. |
 | `profile override clear NAME` | Remove the local override and reload if selected and running. |
+| `profile override apply-default NAME` | Copy only the local override from `default` onto NAME; source profile YAML and subscription nodes are unchanged. |
 | `profile remove NAME` | Delete an unselected regular profile file, retaining any existing `.bak` file. |
 | `dns status` | Show selected profile DNS policy, upstream hosts, IPv6, TUN configuration, and warnings. |
 | `dns set direct URL [URL...]` | Save one or more HTTPS DoH upstreams for direct connection. |
@@ -204,6 +205,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `profile override set NAME FILE` | `name` (string), `override_saved: true`. |
 | `profile override show NAME` | `name`, `yaml` (strings). |
 | `profile override clear NAME` | `name` (string), `override_cleared: true`. |
+| `profile override apply-default NAME` | `name` (string), `default_override_applied: true`. |
 | `profile remove NAME` | `name` (string), `removed: true`, `kind: "profile"`. |
 | `dns status` | `profile`, `policy` (strings), `enabled`, `ipv6`, `tun_enabled` (booleans), `upstream_hosts`, `issues` (string arrays). |
 | `dns check` | DNS status fields plus `scope` (string) and `engine_query_ok` (boolean). Scope is `configuration and mihomo API`. |

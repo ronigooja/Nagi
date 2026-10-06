@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -79,6 +80,16 @@ func (s *Store) Effective(name string) ([]byte, error) {
 		return nil, err
 	}
 	return rules.Apply(merged, s.Dir)
+}
+
+// ApplyDefaultOverride copies only the local override attached to the default profile
+// onto the named profile. The default source profile itself is never copied.
+func (s *Store) ApplyDefaultOverride(ctx context.Context, name string) error {
+	data, err := s.Override("default")
+	if err != nil {
+		return fmt.Errorf("default profile has no local override: %w", err)
+	}
+	return s.SetOverride(ctx, name, data)
 }
 
 // SetOverride stores a user-owned YAML mapping separately from the source profile.
