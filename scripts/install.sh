@@ -8,7 +8,8 @@ Usage: scripts/install.sh install|update|uninstall [--artifact-dir DIR] [--prefi
   install/update require --artifact-dir containing executable nagi and mihomo;
   on macOS it may also contain Nagi.app. The default prefix is /usr/local.
   App installation requires --prefix /usr/local; its default destination is
-  /Applications/Nagi.app. No network access or user-data removal is performed.
+  /Applications/Nagi.app. Install and update replace the default profile.
+  No network access is performed.
 USAGE
 }
 fail() { printf 'nagi installer: %s\n' "$*" >&2; exit 1; }
@@ -49,6 +50,14 @@ state=$state_dir/install-state
 nagi=$bin_dir/nagi
 mihomo=$bin_dir/mihomo
 platform=$(uname -s)
+if [[ "$platform" == Darwin ]]; then
+    profile_dir=$HOME/Library/Application\ Support/Nagi/config/profiles
+else
+    config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+    [[ "$config_home" == /* ]] || config_home=$HOME/.config
+    profile_dir=$config_home/nagi/profiles
+fi
+default_profile=$profile_dir/default.yaml
 source_app=
 if [[ "$action" != uninstall ]]; then
     [[ -n "$artifact_dir" ]] || fail "--artifact-dir is required for $action"
@@ -60,6 +69,7 @@ if [[ "$action" != uninstall ]]; then
     version=$(NAGI_MIHOMO_BIN="$artifact_dir/mihomo" "$artifact_dir/nagi" --json version) || fail "artifact nagi cannot report its version on this host"
     [[ "$version" == *'"ok":true'* && "$version" == *'"mihomo_commit"'* && "$version" == *'"nagi"'* ]] || fail "artifact nagi returned an invalid version response"
     "$artifact_dir/mihomo" -v >/dev/null || fail "artifact mihomo cannot run on this host"
+    "$artifact_dir/nagi" __default-profile >/dev/null || fail "artifact nagi cannot provide its default profile"
     if [[ -e "$artifact_dir/Nagi.app" || -L "$artifact_dir/Nagi.app" ]]; then
         [[ "$platform" == Darwin && -d "$artifact_dir/Nagi.app" && ! -L "$artifact_dir/Nagi.app" ]] || fail "Nagi.app must be an ordinary directory on macOS"
         [[ -f "$artifact_dir/Nagi.app/Contents/Info.plist" && -x "$artifact_dir/Nagi.app/Contents/MacOS/NagiApp" ]] || fail "Nagi.app is incomplete"
@@ -101,6 +111,10 @@ app_hash() {
     ) | shasum -a 256 | cut -d ' ' -f 1
 }
 [[ ! -L "$bin_dir" && ! -L "$state_dir" && ! -L "$state" && ! -L "$nagi" && ! -L "$mihomo" ]] || fail "installation paths must not be symbolic links"
+if [[ "$action" != uninstall ]]; then
+    [[ ! -L "$profile_dir" && ! -L "$default_profile" ]] || fail "default profile paths must not be symbolic links"
+    [[ ! -e "$default_profile" || -f "$default_profile" ]] || fail "default profile is not a regular file: $default_profile"
+fi
 # Refuse an unrecognized existing installation rather than removing someone else's files.
 if [[ "$action" == install ]]; then
     ! exists "$state" || fail "already installed; use update"
@@ -203,6 +217,9 @@ new_nagi=0
 new_mihomo=0
 new_state=0
 new_app=0
+old_profile=0
+new_profile=0
+profile_stage=
 cleanup() {
     local result=$?
     trap - EXIT
@@ -217,12 +234,15 @@ cleanup() {
         if (( old_nagi )); then write_fs mv -- "$stage/old-nagi" "$nagi" || rollback_failed=1; fi
         if (( new_mihomo )); then remove_fs "$mihomo" || rollback_failed=1; fi
         if (( old_mihomo )); then write_fs mv -- "$stage/old-mihomo" "$mihomo" || rollback_failed=1; fi
+        if (( new_profile )); then rm -- "$default_profile" || rollback_failed=1; fi
+        if (( old_profile )); then mv -- "$profile_stage/old-default.yaml" "$default_profile" || rollback_failed=1; fi
     fi
     if (( rollback_failed )); then
-        printf 'nagi installer: rollback incomplete; staged backups retained at %s %s\n' "$stage" "$app_stage" >&2
+        printf 'nagi installer: rollback incomplete; staged backups retained at %s %s %s\n' "$stage" "$app_stage" "$profile_stage" >&2
         exit 1
     fi
     [[ -z "$app_stage" ]] || remove_fs "$app_stage" || true
+    [[ -z "$profile_stage" ]] || rm -rf -- "$profile_stage" || true
     remove_fs "$stage" || true
     exit "$result"
 }
@@ -233,6 +253,10 @@ if [[ -n "$source_app" || -n "${recorded_app:-}" ]]; then
     app_stage=$(write_fs mktemp -d "$(dirname "$app_dest")/.nagi-app.XXXXXXXX")
 fi
 if [[ "$action" != uninstall ]]; then
+    mkdir -p -m 0700 -- "$profile_dir"
+    profile_stage=$(mktemp -d "$profile_dir/.nagi-install.XXXXXXXX")
+    "$artifact_dir/nagi" __default-profile > "$profile_stage/new-default.yaml" || fail "artifact nagi cannot provide its default profile"
+    chmod 0600 "$profile_stage/new-default.yaml"
     write_fs install -m 0755 -- "$artifact_dir/nagi" "$stage/new-nagi"
     write_fs install -m 0755 -- "$artifact_dir/mihomo" "$stage/new-mihomo"
     if [[ -n "$source_app" ]]; then write_fs cp -R -- "$source_app" "$app_stage/new-app"; fi
@@ -254,6 +278,8 @@ if [[ "$action" != uninstall ]]; then
     write_fs mv -- "$stage/new-nagi" "$nagi"; new_nagi=1; changed=1
     if [[ -n "$source_app" ]]; then write_fs mv -- "$app_stage/new-app" "$app_dest"; new_app=1; changed=1; fi
     NAGI_MIHOMO_BIN="$mihomo" "$nagi" --json version >/dev/null || fail "installed nagi failed its version check"
+    if exists "$default_profile"; then mv -- "$default_profile" "$profile_stage/old-default.yaml"; old_profile=1; changed=1; fi
+    mv -- "$profile_stage/new-default.yaml" "$default_profile"; new_profile=1; changed=1
     write_fs mv -- "$stage/new-state" "$state"; new_state=1; changed=1
 fi
 committed=1

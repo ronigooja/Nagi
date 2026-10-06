@@ -108,7 +108,7 @@ Overrides live in `config/overrides/NAME.yaml`, separate from `config/profiles/N
 
 A DNS leak occurs when a domain lookup is sent outside the resolver or network path intended by the user, exposing the queried domain to an unintended party.
 
-New default profiles enable mihomo DNS, IPv6, and fake IP mode. They listen only on `127.0.0.1:1053`. The direct outbound resolver and bootstrap resolver use Ali DoH at `https://223.5.5.5/dns-query` and `https://223.6.6.6/dns-query`. The primary resolver uses Cloudflare and Google DoH at `https://1.1.1.1/dns-query` and `https://8.8.8.8/dns-query`. Proxy-node hostname resolution uses Ali DoH. All configured DNS upstreams use HTTPS; no plaintext fallback is configured. The default routing rule is `MATCH,DIRECT`; users manage subsequent routing rules. `direct-nameserver` resolves hostnames for direct outbound connections, while DNS questions handled by the primary resolver use Cloudflare or Google. Existing profiles are not rewritten.
+New default profiles enable mihomo DNS, IPv6, and fake IP mode. They listen only on `127.0.0.1:1053`. The direct outbound resolver and bootstrap resolver use Ali DoH at `https://223.5.5.5/dns-query` and `https://223.6.6.6/dns-query`. The primary resolver uses Cloudflare and Google DoH at `https://1.1.1.1/dns-query` and `https://8.8.8.8/dns-query`. Proxy-node hostname resolution uses Ali DoH. All configured DNS upstreams use HTTPS; no plaintext fallback is configured. The default routing rule is `MATCH,DIRECT`; users manage subsequent routing rules. `direct-nameserver` resolves hostnames for direct outbound connections, while DNS questions handled by the primary resolver use Cloudflare or Google. The installer replaces `default.yaml` on install and update; ordinary DNS inspection does not rewrite profiles.
 
 New default profiles include TUN settings for `auto-route`, `strict-route`, `auto-detect-interface`, and UDP/TCP port 53 hijack (`any:53` and `tcp://any:53`), but set `tun.enable` to `false`. Run `nagi tun enable` to activate TUN; this requires OS TUN permissions and working routes. If mihomo cannot activate TUN, inspect `nagi logs` and `nagi tun status`; configuration validation alone does not establish DNS interception. `system-proxy enable` changes only the OS HTTP/HTTPS proxy settings and does not replace TUN DNS interception.
 
@@ -237,7 +237,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `completion SHELL` | A string containing the completion script. |
 | `completion candidates RESOURCE [GROUP]` | An array of local profile or subscription names, or live proxy group or node names. `GROUP` applies only to nodes. |
 
-`NAGI_MIHOMO_BIN` overrides the default mihomo executable path, which is a file named `mihomo` beside the Nagi executable. Nagi uses XDG directories on Linux and `~/Library/Application Support/Nagi` on macOS; see the [runtime design](../design/runtime.md).
+`NAGI_MIHOMO_BIN` overrides the default mihomo executable path, which is a file named `mihomo` beside the Nagi executable. Nagi uses XDG directories on Linux and `~/Library/Application Support/Nagi` on macOS; see the [runtime design](../design/runtime.md). The local artifact installer writes the built-in default profile on both install and update; see the [installation workflow](../development/install.md).
 
 ## Rules
 

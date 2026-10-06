@@ -45,6 +45,13 @@ func (e *commandError) Error() string   { return e.err.Error() }
 func fail(code string, err error) error { return &commandError{code, err} }
 
 func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
+	if len(args) == 1 && args[0] == "__default-profile" {
+		if _, err := io.WriteString(stdout, defaultProfile); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		return 0
+	}
 	if len(args) > 0 && args[0] == "__privileged-helper" {
 		if len(args) != 2 || os.Geteuid() != 0 {
 			output.WriteError(stderr, false, "privileged_helper_error", "root helper requires a single target UID and root privileges")
