@@ -47,7 +47,7 @@ dns:
   fallback: []
   respect-rules: false
 tun:
-  enable: true
+  enable: false
   stack: system
   auto-route: true
   strict-route: true

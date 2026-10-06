@@ -97,7 +97,7 @@ var commandSpecs = []commandSpec{
 	{"tun", "tun <status|enable|disable>", "Manage TUN mode", "Reads or changes runtime mihomo TUN mode; requires OS TUN permissions.", "nagi tun status", "", 0, -1},
 	{"tun status", "tun status", "Show TUN mode", "Reports runtime TUN configuration and checks a named OS adapter when available; an up adapter does not prove route capture.", "nagi tun status", "", 0, 0},
 	{"tun enable", "tun enable", "Enable TUN mode", "Enables runtime TUN with auto-route and interface detection; inspect logs for adapter errors.", "nagi tun enable", "", 0, 0},
-	{"tun disable", "tun disable", "Disable TUN mode", "Disables runtime TUN; a later profile reload restores the profile's configured TUN state.", "nagi tun disable", "", 0, 0},
+	{"tun disable", "tun disable", "Disable TUN mode", "Disables runtime TUN; profile reload may re-enable it.", "nagi tun disable", "", 0, 0},
 	{"ports", "ports <status>", "Show listener ports", "Reports HTTP, HTTPS, SOCKS, and mixed listener ports from the running engine.", "nagi ports status", "", 0, -1},
 	{"ports status", "ports status", "Show listener ports", "HTTP and HTTPS share mihomo's HTTP proxy port; mixed accepts both HTTP and SOCKS.", "nagi ports status", "", 0, 0},
 	{"lan", "lan <status|enable [ADDRESS]|disable>", "Manage LAN access", "Changes runtime allow-lan and bind address. Enabling defaults to all interfaces; supply an explicit local IP to restrict listening.", "nagi lan enable 192.168.1.10", "", 0, -1},

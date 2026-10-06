@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestNewDefaultProfileDNSAndTUN(t *testing.T) {
+func TestNewDefaultProfileDNSAndTUNDisabled(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "profiles", "default.yaml")
 	if err := ensureDefaultProfile(path, "default"); err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestNewDefaultProfileDNSAndTUN(t *testing.T) {
 	if !slices.Equal(cfg.DNS.DefaultNameserver, ali) || !slices.Equal(cfg.DNS.DirectNameserver, ali) || !slices.Equal(cfg.DNS.ProxyServerNameserver, ali) || !slices.Equal(cfg.DNS.Nameserver, proxy) || len(cfg.DNS.Fallback) != 0 {
 		t.Fatalf("unexpected DoH roles: %+v", cfg.DNS)
 	}
-	if !cfg.TUN.Enable || !cfg.TUN.AutoRoute || !cfg.TUN.StrictRoute || !cfg.TUN.AutoDetectInterface || !slices.Equal(cfg.TUN.DNSHijack, []string{"any:53", "tcp://any:53"}) {
+	if cfg.TUN.Enable || !cfg.TUN.AutoRoute || !cfg.TUN.StrictRoute || !cfg.TUN.AutoDetectInterface || !slices.Equal(cfg.TUN.DNSHijack, []string{"any:53", "tcp://any:53"}) {
 		t.Fatalf("unexpected TUN interception: %+v", cfg.TUN)
 	}
 }
