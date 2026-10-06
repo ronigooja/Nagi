@@ -167,15 +167,15 @@ import AppKit
 
     private func rebuildMenu() {
         menu.removeAllItems()
+        let errors = [model.quitErrorMessage, model.errorMessage].compactMap { $0 }
         let stateTitle: String
         switch model.state {
         case .starting: stateTitle = "Nagi · Starting…"
-        case .running: stateTitle = "Nagi · Running"
+        case .running: stateTitle = errors.isEmpty ? "Nagi · Running" : "Nagi · Running ⚠"
         case .stopped: stateTitle = "Nagi · Stopped"
         case .unavailable: stateTitle = "Nagi · Status unavailable"
         }
         let status = NSMenuItem(title: stateTitle, action: nil, keyEquivalent: "")
-        let errors = [model.quitErrorMessage, model.errorMessage].compactMap { $0 }
         if !errors.isEmpty {
             let details = NSMenu()
             for error in errors {
