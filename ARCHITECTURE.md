@@ -52,7 +52,7 @@ DNS policy is stored in user-owned profile overrides. The CLI validates a genera
 
 Ordinary commands accept `--json`; JSON envelopes and error codes form the app integration interface. The terminal-only `nagi menu` uses those commands internally and rejects `--json`. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy search and latency tests, saved proxy selections, connection inspection and closure, temporary and persistent runtime mode changes, log following, and validated configuration reloads. The app polls status using short-lived commands and reads traffic from the CLI's one-second NDJSON traffic stream.
 
-Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). Supported mihomo YAML subscriptions can be applied as profiles; the [CLI reference](docs/reference/cli.md) defines the format and merge behavior.
+Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). Supported mihomo YAML subscriptions can be applied as profiles; the [CLI reference](docs/reference/cli.md) defines the format and replacement behavior.
 
 ## Services, builds, and validation
 

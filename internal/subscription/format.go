@@ -11,7 +11,7 @@ import (
 )
 
 // Document parses mihomo YAML or mihomo-compatible V2Ray-style subscription responses.
-// The returned document is independent of the source bytes and safe to merge.
+// The returned document is independent of the source bytes and safe to normalize.
 func Document(data []byte) (map[string]any, string, error) {
 	var doc map[string]any
 	if yaml.Unmarshal(data, &doc) == nil && len(doc) > 0 {
@@ -63,22 +63,21 @@ func addGroup(doc map[string]any, proxies []any) {
 
 func stringValue(v any) string { s, _ := v.(string); return s }
 
-// Merge uses the downloaded configuration as the source of truth while retaining
-// settings absent from it. Proxy and group order comes from the download.
-func Merge(incoming, existing map[string]any) map[string]any {
-	for _, key := range []string{"rules", "rule-providers", "dns", "hosts", "tun", "mixed-port", "port", "socks-port", "redir-port", "tproxy-port", "mode", "ipv6", "sniffer", "profile"} {
-		if _, present := incoming[key]; !present && existing != nil {
-			if value, ok := existing[key]; ok {
-				incoming[key] = value
-			}
-		}
-	}
+// Normalize keeps downloaded settings without carrying values from an old profile.
+func Normalize(incoming map[string]any) map[string]any {
 	// Nagi owns controller access and keeps subscription listeners local.
 	for _, key := range []string{"external-controller", "external-controller-unix", "external-controller-tls", "external-controller-pipe", "external-controller-cors", "external-controller-routing-mark", "secret"} {
 		delete(incoming, key)
 	}
 	incoming["allow-lan"] = false
 	incoming["bind-address"] = "127.0.0.1"
+	// mihomo defaults this to true and otherwise restores cached group choices.
+	profile, _ := incoming["profile"].(map[string]any)
+	if profile == nil {
+		profile = map[string]any{}
+		incoming["profile"] = profile
+	}
+	profile["store-selected"] = false
 	if incoming["mixed-port"] == nil && incoming["port"] == nil {
 		incoming["mixed-port"] = 17890
 	}

@@ -69,6 +69,26 @@ func TestSearchBatchAndSelectionStatus(t *testing.T) {
 		t.Fatalf("batch: %+v", batch)
 	}
 }
+
+func TestGroupsFollowConfiguredOrder(t *testing.T) {
+	order, err := GroupOrderFromYAML([]byte("proxy-groups:\n  - name: Other\n    type: select\n  - name: Choice\n    type: select\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(&roadmapClient{})
+	service.GroupOrder = order
+	groups, err := service.Groups(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 2 || groups[0].Name != "Other" || groups[1].Name != "Choice" {
+		t.Fatalf("configured group order lost: %+v", groups)
+	}
+	matches, err := service.Search(context.Background(), "Fast")
+	if err != nil || len(matches) != 2 || matches[0].Name != "Other" || matches[1].Name != "Choice" {
+		t.Fatalf("search group order lost: %+v, %v", matches, err)
+	}
+}
 func TestSelectionsPersistAndReportRemoved(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "proxy-selections.json")
 	store := SelectionStore{Path: path}

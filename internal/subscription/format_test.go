@@ -45,11 +45,10 @@ func TestSupportedFormatsAndPreview(t *testing.T) {
 	}
 }
 
-func TestMergePrefersDownloadedSettingsAndOrder(t *testing.T) {
-	old, _, _ := Document([]byte("mixed-port: 7890\nrules:\n  - MATCH,DIRECT\ndns:\n  enable: true\nproxies:\n  - name: Alpha\n    type: direct\n  - name: Gone\n    type: direct\nproxy-groups:\n  - name: Choice\n    type: select\n    proxies: [Alpha, Gone, DIRECT]\n"))
+func TestNormalizeUsesOnlyDownloadedSettingsAndOrder(t *testing.T) {
 	next, _, _ := Document([]byte("mixed-port: 9999\nrules:\n  - MATCH,REJECT\nproxies:\n  - name: Alpha\n    type: direct\n  - name: New\n    type: direct\nproxy-groups:\n  - name: Choice\n    type: select\n    proxies: [New, Alpha, DIRECT]\n"))
-	merged := Merge(next, old)
-	if merged["mixed-port"] != 9999 || merged["dns"] == nil || sliceValue(merged["rules"])[0] != "MATCH,REJECT" {
+	merged := Normalize(next)
+	if merged["mixed-port"] != 9999 || merged["dns"] != nil || sliceValue(merged["rules"])[0] != "MATCH,REJECT" {
 		t.Fatalf("downloaded settings were not applied: %#v", merged)
 	}
 	group := sliceValue(merged["proxy-groups"])[0].(map[string]any)
@@ -63,7 +62,7 @@ func TestMergeKeepsSubscriptionListenerLocal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	merged := Merge(incoming, nil)
+	merged := Normalize(incoming)
 	if merged["mixed-port"] != 7890 || merged["allow-lan"] != false || merged["bind-address"] != "127.0.0.1" {
 		t.Fatalf("listener settings: %#v", merged)
 	}
@@ -77,8 +76,11 @@ func TestMergeKeepsSubscriptionListenerLocal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := Merge(bare, nil)["mixed-port"]; got != 17890 {
+	if got := Normalize(bare)["mixed-port"]; got != 17890 {
 		t.Fatalf("default mixed port = %v", got)
+	}
+	if got := bare["profile"].(map[string]any)["store-selected"]; got != false {
+		t.Fatalf("mihomo selection persistence = %v", got)
 	}
 }
 

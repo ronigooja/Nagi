@@ -261,6 +261,29 @@ func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
 	return nil
 }
 
+// ApplySubscription replaces a subscription profile and removes its local
+// override before activation. A failed apply restores the prior override.
+func (s *Store) ApplySubscription(ctx context.Context, name string, data []byte) error {
+	path, err := s.overridePath(name)
+	if err != nil {
+		return err
+	}
+	old, err := s.Override(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return s.Apply(ctx, name, data)
+	}
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	if err := s.Apply(ctx, name, data); err != nil {
+		return errors.Join(err, writeReplace(path, old))
+	}
+	return nil
+}
+
 func restore(path string, old []byte, absent bool) error {
 	if absent {
 		return os.Remove(path)

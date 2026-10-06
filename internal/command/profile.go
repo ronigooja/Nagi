@@ -144,11 +144,30 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if err := client.Put(ctx, "/configs?force=true", map[string]any{"path": path}, nil); err != nil {
 			return err
 		}
-		_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, current, proxy.NewService(client))
+		if ctx.Value(skipSelectionRestoreKey{}) != true {
+			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, current, proxy.NewService(client))
+		}
 		return nil
 	}
 	store = profile.NewStore(paths.ConfigDir, validate, reload)
 	return store
+}
+
+type skipSelectionRestoreKey struct{}
+
+func orderedProxyService(client proxy.Client, configDir string) *proxy.Service {
+	service := proxy.NewService(client)
+	store := profile.NewStore(configDir, nil, nil)
+	selected, err := store.Current()
+	if err != nil {
+		return service
+	}
+	effective, err := store.Effective(selected)
+	if err != nil {
+		return service
+	}
+	service.GroupOrder, _ = proxy.GroupOrderFromYAML(effective)
+	return service
 }
 
 func materializeProfile(store *profile.Store, configDir, name string) (string, error) {

@@ -43,7 +43,7 @@ func (c *subscriptionSelectionClient) Put(_ context.Context, path string, body a
 	return nil
 }
 
-func TestSubscriptionApplyRestoresOnlyChangedManualChoices(t *testing.T) {
+func TestSubscriptionApplyDoesNotRestoreOldChoices(t *testing.T) {
 	ctx := context.Background()
 	source := []byte("proxies:\n  - name: A\n    type: direct\nproxy-groups:\n  - name: Manual\n    type: select\n    proxies: [A, DIRECT]\n")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(source) }))
@@ -60,20 +60,28 @@ func TestSubscriptionApplyRestoresOnlyChangedManualChoices(t *testing.T) {
 	if err := profile.NewStore(dir, validator, nil).Apply(ctx, "work", source); err != nil {
 		t.Fatal(err)
 	}
+	selections := proxy.SelectionStore{Path: filepath.Join(dir, "proxy-selections.json")}
+	if err := selections.Save("work", "Manual", "B"); err != nil {
+		t.Fatal(err)
+	}
 	client := &subscriptionSelectionClient{}
 	profiles := profile.NewStore(dir, validator, func(context.Context) error { client.reloaded = true; return nil })
 	result, err := subscriptionCommand(ctx, []string{"subscription", "apply", "work"}, cache, profiles, proxy.NewService(client))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.(map[string]any)["selections_restored"] != 3 {
+	if result.(map[string]any)["selections_restored"] != 0 {
 		t.Fatalf("result: %+v", result)
 	}
-	if len(client.gets) != 2 || client.gets[0] != "/proxies" || client.gets[1] != "/proxies" {
+	if len(client.gets) != 0 {
 		t.Fatalf("unexpected queries: %v", client.gets)
 	}
-	if len(client.puts) != 3 || client.puts["/proxies/Manual"] != "B" || client.puts["/proxies/Pinned"] != "Y" || client.puts["/proxies/Fallback"] != "Y" {
+	if len(client.puts) != 0 {
 		t.Fatalf("unexpected selections: %v", client.puts)
+	}
+	stored, err := selections.Restore(ctx, "work", proxy.NewService(client))
+	if err != nil || len(stored.Restored) != 0 || len(stored.Unavailable) != 0 {
+		t.Fatalf("old choices remain: %+v, %v", stored, err)
 	}
 }
 
@@ -93,7 +101,7 @@ func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
 	}
-	old := "mixed-port: 7000\nrules:\n  - MATCH,Subscription\nproxies:\n  - name: Old\n    type: direct\nproxy-groups:\n  - name: Subscription\n    type: select\n    proxies: [Old, DIRECT]\n"
+	old := "mixed-port: 7000\nrules:\n  - MATCH,Subscription\ndns:\n  enable: true\nproxies:\n  - name: Old\n    type: direct\nproxy-groups:\n  - name: Subscription\n    type: select\n    proxies: [Old, DIRECT]\n"
 	if err := os.WriteFile(path, []byte(old), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +122,7 @@ func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ = os.ReadFile(path)
-	if !strings.Contains(string(data), "mixed-port: 7890") || !strings.Contains(string(data), "MATCH,Proxy") || strings.Contains(string(data), "MATCH,Subscription") || !strings.Contains(string(data), "name: New") {
+	if !strings.Contains(string(data), "mixed-port: 7890") || !strings.Contains(string(data), "MATCH,Proxy") || strings.Contains(string(data), "MATCH,Subscription") || strings.Contains(string(data), "dns:") || !strings.Contains(string(data), "name: New") {
 		t.Fatalf("merged profile:\n%s", data)
 	}
 	settings, _ := os.ReadFile(filepath.Join(dir, "settings.yaml"))
@@ -132,7 +140,7 @@ func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
 	}
 }
 
-func TestSubscriptionApplyRetainsExistingLocalOverride(t *testing.T) {
+func TestSubscriptionApplyClearsExistingLocalOverride(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("mixed-port: 7890\nproxies:\n  - name: New\n    type: direct\n"))
 	}))
@@ -166,7 +174,54 @@ func TestSubscriptionApplyRetainsExistingLocalOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(effective), "mixed-port: 7999") {
-		t.Fatalf("local override was lost after subscription apply: %s", effective)
+	if strings.Contains(string(effective), "mixed-port: 7999") || !strings.Contains(string(effective), "mixed-port: 7890") {
+		t.Fatalf("old override still affects subscription: %s", effective)
+	}
+	if _, err := profiles.Override("work"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("override still exists: %v", err)
+	}
+	if err := profiles.SetOverride(context.Background(), "work", []byte("mixed-port: 7999\n")); err != nil {
+		t.Fatal(err)
+	}
+	failing := profile.NewStore(dir, func([]byte) error { return nil }, func(context.Context) error { return errors.New("reload failed") })
+	if _, err := subscriptionCommand(context.Background(), []string{"subscription", "apply", "work"}, cache, failing, nil); err == nil {
+		t.Fatal("expected reload failure")
+	}
+	if saved, err := failing.Override("work"); err != nil || string(saved) != "mixed-port: 7999\n" {
+		t.Fatalf("failed apply did not restore override: %s, %v", saved, err)
+	}
+}
+
+func TestSubscriptionApplyReplacesUnparseableOldProfile(t *testing.T) {
+	ctx := context.Background()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("proxies:\n  - name: New\n    type: direct\n"))
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	cache := subscription.NewStore(dir, filepath.Join(dir, "cache"), nil)
+	if err := cache.Add("work", server.URL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cache.Refresh(ctx, "work"); err != nil {
+		t.Fatal(err)
+	}
+	profiles := profile.NewStore(dir, func([]byte) error { return nil }, nil)
+	path := filepath.Join(dir, "profiles", "work.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("invalid old profile"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := subscriptionCommand(ctx, []string{"subscription", "preview", "work"}, cache, profiles, nil); err == nil {
+		t.Fatal("preview accepted unparseable old profile")
+	}
+	if _, err := subscriptionCommand(ctx, []string{"subscription", "apply", "work"}, cache, profiles, nil); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || strings.Contains(string(data), "invalid old profile") || !strings.Contains(string(data), "name: New") {
+		t.Fatalf("replaced profile: %s, %v", data, err)
 	}
 }

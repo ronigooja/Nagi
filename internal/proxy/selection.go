@@ -47,10 +47,14 @@ func (s SelectionStore) Save(profile, group, node string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0700); err != nil {
+	return writeSelections(s.Path, data)
+}
+
+func writeSelections(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(filepath.Dir(s.Path), ".nagi-selections-*")
+	file, err := os.CreateTemp(filepath.Dir(path), ".nagi-selections-*")
 	if err != nil {
 		return err
 	}
@@ -70,7 +74,24 @@ func (s SelectionStore) Save(profile, group, node string) error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	return os.Rename(file.Name(), s.Path)
+	return os.Rename(file.Name(), path)
+}
+
+// Clear removes choices for one profile after a replacement subscription applies.
+func (s SelectionStore) Clear(profile string) error {
+	all, err := s.read()
+	if err != nil {
+		return err
+	}
+	if _, ok := all[profile]; !ok {
+		return nil
+	}
+	delete(all, profile)
+	data, err := json.MarshalIndent(all, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeSelections(s.Path, data)
 }
 
 type RestoreResult struct {

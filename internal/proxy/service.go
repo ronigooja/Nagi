@@ -16,7 +16,10 @@ type Client interface {
 	Put(context.Context, string, any, any) error
 }
 
-type Service struct{ Client Client }
+type Service struct {
+	Client     Client
+	GroupOrder []string
+}
 type Candidates []string
 
 func NewService(client Client) *Service { return &Service{Client: client} }
@@ -198,7 +201,23 @@ func (s *Service) Groups(ctx context.Context) ([]Group, error) {
 		group.SelectedStatus = selectedStatus(group)
 		groups = append(groups, group)
 	}
-	sort.Slice(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
+	order := make(map[string]int, len(s.GroupOrder))
+	for i, name := range s.GroupOrder {
+		if _, exists := order[name]; !exists {
+			order[name] = i
+		}
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		left, leftKnown := order[groups[i].Name]
+		right, rightKnown := order[groups[j].Name]
+		if leftKnown && rightKnown {
+			return left < right
+		}
+		if leftKnown != rightKnown {
+			return leftKnown
+		}
+		return groups[i].Name < groups[j].Name
+	})
 	return groups, nil
 }
 

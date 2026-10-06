@@ -252,7 +252,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if e != nil {
 				return nil, e
 			}
-			service := proxy.NewService(client)
+			service := orderedProxyService(client, paths.ConfigDir)
 			groups, err := service.Groups(ctx)
 			if err != nil {
 				return nil, err
@@ -459,6 +459,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		client = (helperBackend{profile: profileName, binary: binary, configPath: configPath, paths: paths}).controlClient()
 	}
 	proxies := proxy.NewService(client)
+	if command == "proxy" {
+		proxies = orderedProxyService(client, paths.ConfigDir)
+	}
 	var manager *engine.Manager
 	getManager := func() (*engine.Manager, error) {
 		if manager != nil {
@@ -1302,7 +1305,10 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		if old, showErr := profiles.Show(args[2]); showErr == nil {
 			existing, _, err = subscription.Document(old)
 			if err != nil {
-				return nil, fail("subscription_error", errors.New("existing profile cannot be merged; inspect or remove it before applying"))
+				if args[1] == "preview" {
+					return nil, fail("subscription_error", errors.New("existing profile cannot be parsed for preview; inspect or remove it"))
+				}
+				existing = nil
 			}
 		} else if !errors.Is(showErr, os.ErrNotExist) {
 			return nil, fail("subscription_error", showErr)
@@ -1311,40 +1317,17 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		if args[1] == "preview" {
 			return preview, nil
 		}
-		var selected []proxy.Group
-		if current, currentErr := profiles.Current(); currentErr == nil && current == args[2] && proxies != nil {
-			groups, _ := proxies.Groups(ctx)
-			for _, group := range groups {
-				if group.LiveSelection() != "" {
-					selected = append(selected, group)
-				}
-			}
-		}
-		merged, err := subscription.Encode(subscription.Merge(incoming, existing))
+		merged, err := subscription.Encode(subscription.Normalize(incoming))
 		if err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		if err := profiles.Apply(ctx, args[2], merged); err != nil {
+		if err := profiles.ApplySubscription(context.WithValue(ctx, skipSelectionRestoreKey{}, true), args[2], merged); err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		restored := 0
-		if len(selected) > 0 {
-			if groups, err := proxies.Groups(ctx); err == nil {
-				available := make(map[string]proxy.Group, len(groups))
-				for _, group := range groups {
-					available[group.Name] = group
-				}
-				for _, before := range selected {
-					if after, ok := available[before.Name]; ok {
-						changed, err := proxies.SelectKnown(ctx, after, before.LiveSelection())
-						if err == nil && changed {
-							restored++
-						}
-					}
-				}
-			}
+		if err := (proxy.SelectionStore{Path: filepath.Join(profiles.Dir, "proxy-selections.json")}).Clear(args[2]); err != nil {
+			return nil, fail("subscription_error", fmt.Errorf("subscription applied but saved proxy choices could not be cleared: %w", err))
 		}
-		return map[string]any{"name": args[2], "profile": args[2], "applied": true, "preview": preview, "selections_restored": restored}, nil
+		return map[string]any{"name": args[2], "profile": args[2], "applied": true, "preview": preview, "selections_restored": 0}, nil
 	default:
 		return nil, usage("subscription list|add <name> <url>|update <name>|preview <name>|apply <name>|remove <name>")
 	}
