@@ -230,9 +230,9 @@ import AppKit
         for name in model.profiles {
             if name == "default" {
                 let actions = NSMenu()
-                add("切换到此配置", action: #selector(switchToDefaultProfile),
+                add("Use Default Profile", action: #selector(switchToDefaultProfile),
                     checked: model.profile == name, enabled: !model.busy, to: actions)
-                add("将本地默认配置应用到当前订阅", action: #selector(applyDefaultOverride),
+                add("Apply Local Default Settings to Current Profile", action: #selector(applyDefaultOverride),
                     enabled: !model.busy, to: actions)
                 addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
             } else {
