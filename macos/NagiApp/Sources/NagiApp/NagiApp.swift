@@ -335,7 +335,7 @@ import AppKit
                 alert.window.initialFirstResponder = urlField
                 continue
             }
-            model.addAndDownloadSubscription(name, url)
+            model.addAndDownloadSubscription(name, url: url)
             return
         }
     }
