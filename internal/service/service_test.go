@@ -99,6 +99,27 @@ func TestUninstallAbsentIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestUninstallLaunchdDefinitionAfterQuit(t *testing.T) {
+	result := serviceResult(t, "launchd")
+	if err := os.WriteFile(result.Path, []byte("existing"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	_, err := uninstall(result, 501, func(name string, args ...string) error {
+		calls++
+		if name != "launchctl" || len(args) != 2 || args[0] != "print" || args[1] != "gui/501/io.nagi.cli" {
+			t.Fatalf("unexpected command: %s %v", name, args)
+		}
+		return errors.New(`exit status 113: Could not find service "io.nagi.cli" in domain for user gui: 501`)
+	})
+	if err != nil || calls != 1 {
+		t.Fatalf("err=%v calls=%d", err, calls)
+	}
+	if _, err := os.Stat(result.Path); !os.IsNotExist(err) {
+		t.Fatalf("definition remains: %v", err)
+	}
+}
+
 func TestUninstallReloadFailureReportsRemovedDefinition(t *testing.T) {
 	result := serviceResult(t, "systemd")
 	if err := os.WriteFile(result.Path, []byte("existing"), 0600); err != nil {

@@ -285,7 +285,7 @@ On macOS, JSON payloads for `system-proxy status|enable|disable` include `enable
 | Command | Result or effect |
 | --- | --- |
 | `service install` | Install and enable the per-user launchd/systemd service. |
-| `service uninstall` | Disable, stop, and remove the service definition. |
+| `service uninstall` | Disable, stop, and remove the service definition. If `quit` already unloaded the launchd job, remove its remaining definition. |
 | `service status` | Report definition path, manager, installed, enabled, and active state. |
 | `privileged-helper status` | Report system helper installation, activity, and selected engine backend. |
 | `privileged-helper install` | Install the system helper; requires administrator privileges and the root-owned installed executable. |

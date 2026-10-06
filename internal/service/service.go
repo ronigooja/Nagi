@@ -154,8 +154,13 @@ func uninstall(result Result, uid int, command runner) (Result, error) {
 			return result, fmt.Errorf("systemctl --user disable --now nagi.service: %w; definition retained at %s; check systemctl --user status nagi.service and retry", err, result.Path)
 		}
 	case "launchd":
-		if err := command("launchctl", "bootout", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
-			return result, fmt.Errorf("launchctl bootout: %w; definition retained at %s; check launchctl print gui/%d/io.nagi.cli and retry", err, result.Path, uid)
+		service := fmt.Sprintf("gui/%d/io.nagi.cli", uid)
+		if err := command("launchctl", "print", service); err != nil {
+			if !strings.Contains(err.Error(), `Could not find service "io.nagi.cli"`) {
+				return result, fmt.Errorf("launchctl print: %w; definition retained at %s; check launchctl print %s and retry", err, result.Path, service)
+			}
+		} else if err := command("launchctl", "bootout", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
+			return result, fmt.Errorf("launchctl bootout: %w; definition retained at %s; check launchctl print %s and retry", err, result.Path, service)
 		}
 	default:
 		return result, fmt.Errorf("unsupported service manager: %s", result.Manager)
