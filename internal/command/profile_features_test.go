@@ -90,7 +90,8 @@ func TestApplyDefaultOverrideCLI(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(config, "profiles"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(config, "profiles", "default.yaml"), []byte("mixed-port: 17890\n"), 0600); err != nil {
+	defaultSource := "mixed-port: 17891\ndns:\n  enable: true\nproxies:\n  - name: Default Node\n    type: direct\nproxy-groups:\n  - name: Default Group\n    type: select\n    proxies: [Default Node]\nrules:\n  - MATCH,DIRECT\n"
+	if err := os.WriteFile(filepath.Join(config, "profiles", "default.yaml"), []byte(defaultSource), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(config, "profiles", "work.yaml"), []byte("mixed-port: 18000\nproxies:\n  - name: Subscription Node\n    type: direct\n"), 0600); err != nil {
@@ -116,19 +117,15 @@ func TestApplyDefaultOverrideCLI(t *testing.T) {
 		}
 		return payload.Data
 	}
-	defaultPatch := filepath.Join(root, "default-override.yaml")
-	if err := os.WriteFile(defaultPatch, []byte("mixed-port: 17891\ndns:\n  enable: true\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if got := run("profile", "override", "set", "default", defaultPatch); got["override_saved"] != true {
-		t.Fatal(got)
-	}
 	if got := run("profile", "override", "apply-default", "work"); got["default_override_applied"] != true || got["name"] != "work" {
 		t.Fatal(got)
 	}
 	override, err := os.ReadFile(filepath.Join(config, "overrides", "work.yaml"))
-	if err != nil || !strings.Contains(string(override), "17891") {
+	if err != nil || !strings.Contains(string(override), "17891") || !strings.Contains(string(override), "enable: true") {
 		t.Fatalf("work override = %q, %v", override, err)
+	}
+	if strings.Contains(string(override), "Default Node") || strings.Contains(string(override), "Default Group") || strings.Contains(string(override), "MATCH,DIRECT") {
+		t.Fatalf("subscription fields copied into work override: %q", override)
 	}
 	source, err := os.ReadFile(filepath.Join(config, "profiles", "work.yaml"))
 	if err != nil || !strings.Contains(string(source), "Subscription Node") || strings.Contains(string(source), "17891") {
