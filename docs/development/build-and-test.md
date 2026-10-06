@@ -13,7 +13,7 @@ GO=/path/to/go MIHOMO_DIR=/path/to/mihomo ./scripts/build.sh
 GO=/path/to/go make test
 ```
 
-For installation, updates, or removal, use `./scripts/installer.sh install`, `./scripts/installer.sh update`, or `./scripts/installer.sh uninstall` with artifacts already in `bin/`. Use `./scripts/sync_to_mac.sh` to copy the source tree to the macair checkout without copying local build artifacts. The [installation workflow](install.md) defines artifact layout, installer options, app installation, and cleanup.
+For installation, updates, or removal, use `./scripts/installer.sh install`, `./scripts/installer.sh update`, or `./scripts/installer.sh uninstall` with artifacts already in `bin/`. Use `./scripts/sync_to_mac.sh` to copy the source tree to the macair checkout without copying local build artifacts. The script prints the destination when it starts and reports success or failure when it finishes. The [installation workflow](install.md) defines artifact layout, installer options, app installation, and cleanup.
 
 `make test` runs the Go unit tests and the installer integration test with a temporary installation prefix. To check runtime integration manually with the built mihomo executable, run these commands from the repository root in order:
 
