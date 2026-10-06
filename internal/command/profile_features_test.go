@@ -83,3 +83,55 @@ func TestProfileFileCommandsAndOverrideCLI(t *testing.T) {
 		t.Fatalf("overwrite exit=%d stderr=%s", code, errout.String())
 	}
 }
+
+func TestApplyDefaultOverrideCLI(t *testing.T) {
+	root := t.TempDir()
+	config := filepath.Join(root, "config", "nagi")
+	if err := os.MkdirAll(filepath.Join(config, "profiles"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(config, "profiles", "default.yaml"), []byte("mixed-port: 17890\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(config, "profiles", "work.yaml"), []byte("mixed-port: 18000\nproxies:\n  - name: Subscription Node\n    type: direct\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	bin := writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\nexit 0\n")
+	t.Setenv("NAGI_MIHOMO_BIN", bin)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
+	run := func(args ...string) map[string]any {
+		t.Helper()
+		var out, errout bytes.Buffer
+		if code := Run(append([]string{"--json"}, args...), &out, &errout, "test", "commit"); code != 0 {
+			t.Fatalf("%v: exit=%d stderr=%s", args, code, errout.String())
+		}
+		var payload struct {
+			Data map[string]any `json:"data"`
+		}
+		if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		return payload.Data
+	}
+	defaultPatch := filepath.Join(root, "default-override.yaml")
+	if err := os.WriteFile(defaultPatch, []byte("mixed-port: 17891\ndns:\n  enable: true\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := run("profile", "override", "set", "default", defaultPatch); got["override_saved"] != true {
+		t.Fatal(got)
+	}
+	if got := run("profile", "override", "apply-default", "work"); got["default_override_applied"] != true || got["name"] != "work" {
+		t.Fatal(got)
+	}
+	override, err := os.ReadFile(filepath.Join(config, "overrides", "work.yaml"))
+	if err != nil || !strings.Contains(string(override), "17891") {
+		t.Fatalf("work override = %q, %v", override, err)
+	}
+	source, err := os.ReadFile(filepath.Join(config, "profiles", "work.yaml"))
+	if err != nil || !strings.Contains(string(source), "Subscription Node") || strings.Contains(string(source), "17891") {
+		t.Fatalf("work source = %q, %v", source, err)
+	}
+}
