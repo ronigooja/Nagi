@@ -14,6 +14,22 @@ type fakeRunner struct {
 	results map[string]Result
 }
 
+type sequenceRunner struct {
+	calls   [][]string
+	results map[string][]Result
+}
+
+func (f *sequenceRunner) Run(_ context.Context, args []string) Result {
+	f.calls = append(f.calls, append([]string(nil), args...))
+	key := strings.Join(args, " ")
+	queue := f.results[key]
+	if len(queue) == 0 {
+		return Result{}
+	}
+	f.results[key] = queue[1:]
+	return queue[0]
+}
+
 func (f *fakeRunner) Run(_ context.Context, args []string) Result {
 	f.calls = append(f.calls, append([]string(nil), args...))
 	if result, ok := f.results[strings.Join(args, " ")]; ok {
@@ -81,5 +97,62 @@ func TestSelectPaginates(t *testing.T) {
 	choice, err := s.Select("Names", choices)
 	if err != nil || choice != "eleven" {
 		t.Fatalf("choice %q, err %v", choice, err)
+	}
+}
+
+func TestRootShowsAllTenSectionsAndPaginates(t *testing.T) {
+	fake := &fakeRunner{}
+	var out bytes.Buffer
+	Run(context.Background(), NewSession(fake, strings.NewReader("10\nb\nq\n"), &out))
+	for _, entry := range rootEntries {
+		if !strings.Contains(out.String(), entry.label) {
+			t.Fatalf("root section %q absent: %s", entry.label, out.String())
+		}
+	}
+	if !strings.Contains(out.String(), "Diagnostics and recovery\n") || !strings.Contains(out.String(), "\nDiagnostics and recovery\n") {
+		t.Fatalf("tenth section was not selectable: %s", out.String())
+	}
+}
+
+func TestFailedRefreshDropsStaleChoices(t *testing.T) {
+	fake := &sequenceRunner{results: map[string][]Result{
+		"profile list": {
+			{Data: map[string]any{"profiles": []string{"old"}}},
+			{Code: 1, Error: &CLIError{Code: "profile_error", Message: "fetch failed: https://secret.example/token"}},
+		},
+	}}
+	var out bytes.Buffer
+	Run(context.Background(), NewSession(fake, strings.NewReader("3\n1\nr\n3\nq\n"), &out))
+	if !strings.Contains(out.String(), "Data unavailable. Refresh or go back.") || !strings.Contains(out.String(), "Choose a listed number") {
+		t.Fatalf("failed refresh did not clear stale choices: %s", out.String())
+	}
+	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "[redacted URL]") {
+		t.Fatalf("refresh error URL was not hidden: %s", out.String())
+	}
+}
+
+func TestReturningToParentRefreshesList(t *testing.T) {
+	fake := &sequenceRunner{results: map[string][]Result{
+		"profile list": {
+			{Data: map[string]any{"profiles": []string{"old"}}},
+			{Data: map[string]any{"profiles": []string{"new"}}},
+		},
+	}}
+	var out bytes.Buffer
+	Run(context.Background(), NewSession(fake, strings.NewReader("3\n1\n3\nb\nq\n"), &out))
+	if !strings.Contains(out.String(), "3. new") {
+		t.Fatalf("parent list not refreshed after back: %s", out.String())
+	}
+}
+
+func TestCommandErrorHidesURL(t *testing.T) {
+	fake := &fakeRunner{results: map[string]Result{
+		"status": {Data: map[string]any{"running": false}},
+		"start":  {Code: 1, Error: &CLIError{Message: "failed https://secret.example/token"}},
+	}}
+	var out bytes.Buffer
+	Run(context.Background(), NewSession(fake, strings.NewReader("1\n2\nq\n"), &out))
+	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "Error: failed [redacted URL]") {
+		t.Fatalf("command error URL was not hidden: %s", out.String())
 	}
 }

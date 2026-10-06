@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/ronigooja/Nagi/internal/output"
 )
 
 func (s *Session) Printf(format string, args ...any) { fmt.Fprintf(s.out, format, args...) }
@@ -48,7 +50,7 @@ func (s *Session) showResult(result Result) {
 		if result.Error != nil {
 			message = result.Error.Message
 		}
-		fmt.Fprintf(s.out, "Error: %s\n", message)
+		fmt.Fprintf(s.out, "Error: %s\n", output.RedactError(message))
 		return
 	}
 	if result.Data == nil {

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"github.com/ronigooja/Nagi/internal/output"
 )
 
 type Session struct {
@@ -104,9 +106,12 @@ func Run(ctx context.Context, s *Session) int {
 			if current.page.Load != nil {
 				view, err := current.page.Load(ctx, s)
 				if err != nil {
-					s.Printf("Error refreshing %s: %s\n", current.page.Title, err)
-					if len(current.view.Items) == 0 {
-						current.view = view
+					s.Printf("Error refreshing %s: %s\n", current.page.Title, output.RedactError(err.Error()))
+					// A failed refresh invalidates the old choices. Keeping them can
+					// dispatch an action against a resource that no longer exists.
+					current.view = view
+					if current.view.Empty == "" && len(current.view.Items) == 0 {
+						current.view.Empty = "Data unavailable. Refresh or go back."
 					}
 				} else {
 					current.view = view
@@ -138,6 +143,7 @@ func Run(ctx context.Context, s *Session) int {
 		case "b":
 			if len(stack) > 1 {
 				stack = stack[:len(stack)-1]
+				stack[len(stack)-1].loaded = false
 			} else {
 				s.WriteLine("Already at the main menu.")
 			}
@@ -203,7 +209,7 @@ func Run(ctx context.Context, s *Session) int {
 			if err := item.Action(ctx, s); errors.Is(err, ErrQuit) {
 				return 0
 			} else if err != nil && !errors.Is(err, ErrBack) {
-				s.Printf("Error: %s\n", err)
+				s.Printf("Error: %s\n", output.RedactError(err.Error()))
 			}
 		} else if len(item.Args) > 0 {
 			s.Run(ctx, item.Args...)
