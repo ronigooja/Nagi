@@ -8,7 +8,7 @@ This document describes the current `nagi menu` page structure, command boundary
 
 The menu is a line-oriented terminal interface that preserves scrollback. It owns page navigation, numeric selection, input prompts, confirmation, pagination, and display. `internal/command` still owns operations and validates command arguments. The menu does not read profile files, call mihomo, or change OS settings directly.
 
-The `internal/command` entry point checks syntax, rejects `--json menu`, and requires terminal input and output before creating a menu session. The menu invokes ordinary commands through a runner that supplies `--json` and decodes their success or failure envelope. Most commands run in process. `logs follow` and `traffic watch` run in a child Nagi process so Ctrl-C can cancel the stream and return to the menu. The menu prints stream text directly.
+The `internal/command` entry point checks syntax, rejects `--json menu`, and requires terminal input and output before creating a menu session. The menu invokes ordinary commands through a runner that supplies `--json` and decodes their success or failure envelope. Most commands run in process. `logs follow` and `traffic watch` run in a child Nagi process so Ctrl-C can cancel the stream and return to the menu. The menu prints stream text directly. The user-mode mihomo process starts in a separate process group, so the terminal's Ctrl-C does not signal it when a stream is canceled.
 
 The macOS app continues to invoke ordinary CLI commands with JSON. The menu is not a separate business API. The command syntax, data fields, errors, and operation effects are defined in the [CLI reference](../reference/cli.md).
 

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/platform"
@@ -143,6 +144,9 @@ func (m *Manager) Start(ctx context.Context) (Status, error) {
 		}
 		cmd := exec.Command(binary, "-f", m.options.ConfigPath, "-d", filepath.Dir(m.options.ConfigPath), "-ext-ctl-unix", m.options.Paths.SocketPath)
 		cmd.Stdout, cmd.Stderr = log, log
+		// Keep the engine out of the terminal menu's foreground process group.
+		// Ctrl-C should cancel a stream without interrupting the engine.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		// Clear inherited controller overrides; mihomo receives the explicit Unix path above.
 		cmd.Env = filteredEnv(os.Environ())
 		if err := cmd.Start(); err != nil {

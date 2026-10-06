@@ -26,6 +26,8 @@ Service definitions are replaced through a temporary file. On installation failu
 
 The macOS menu bar app invokes a fixed `/usr/local/bin/nagi` path through `Process` with `--json`. It does not read runtime files or contact mihomo itself. On launch it calls `start`, accepting `already_running`, and on Quit it calls `quit` before terminating. Failed startup and cleanup remain visible in the menu. It polls status through short-lived commands and reads one-second mihomo traffic samples through `traffic watch` NDJSON. Stream interruption clears stale rates and triggers reconnection while the engine is running. The app stores only its traffic display choice in UserDefaults. The independent login service remains managed through CLI commands.
 
+The user-mode mihomo process starts in a separate process group from its CLI parent. A terminal Ctrl-C during menu stream cancellation therefore does not signal mihomo. Lifecycle shutdown still targets the recorded mihomo PID with SIGTERM, followed by SIGKILL after the timeout.
+
 ## Rules and subscription persistence
 
 Nagi stores user-owned rules in a separate mode `0600` `rules.yaml` file. The selected profile is parsed with this document's enabled rules prepended; imported sets become inline `nagi-*` rule providers. Profile overrides and custom rules are combined before mihomo validation. A failed effective configuration validation or runtime reload restores the prior rules file. Subscription refresh and apply write profile data independently and therefore retain this rules file. A later profile reload regenerates the effective temporary YAML from the source profile, profile override, and enabled custom rules.

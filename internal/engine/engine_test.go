@@ -90,6 +90,13 @@ func TestLifecycle(t *testing.T) {
 	if !started.Running || started.PID <= 0 {
 		t.Fatalf("start: %+v", started)
 	}
+	group, err := syscall.Getpgid(started.PID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if group != started.PID {
+		t.Fatalf("mihomo process group = %d, want isolated group %d", group, started.PID)
+	}
 	if _, err := manager.Start(ctx); err != ErrAlreadyRunning {
 		t.Fatalf("duplicate start: %v", err)
 	}
@@ -109,6 +116,13 @@ func TestLifecycle(t *testing.T) {
 	}
 	if _, err := manager.Stop(ctx); err != ErrNotRunning {
 		t.Fatalf("second stop: %v", err)
+	}
+	restarted, err := manager.Restart(ctx)
+	if err != nil || !restarted.Running {
+		t.Fatalf("restart: %+v %v", restarted, err)
+	}
+	if _, err := manager.Stop(ctx); err != nil {
+		t.Fatalf("stop after restart: %v", err)
 	}
 }
 
