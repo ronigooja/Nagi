@@ -42,7 +42,7 @@ func TestProfileListAndFileAction(t *testing.T) {
 func TestSubscriptionPreviewBeforeApplyAndURLRedaction(t *testing.T) {
 	ctx := context.Background()
 	runner := &featureRunner{results: map[string]Result{
-		"subscription\x00preview\x00feed": {Data: map[string]any{"name": "feed", "added": []string{"Node A", "https://secret.example/token"}, "removed": []string{"Old"}, "changed": []string{"Changed"}}},
+		"subscription\x00preview\x00feed": {Data: map[string]any{"name": "feed", "added": []string{"Node A", "HTTPS://secret.example/token", "trojan://password@secret.example:443"}, "removed": []string{"Old"}, "changed": []string{"Changed"}}},
 	}}
 	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
 	view, err := subscriptionDetailPage("feed").Load(ctx, s)
@@ -57,6 +57,30 @@ func TestSubscriptionPreviewBeforeApplyAndURLRedaction(t *testing.T) {
 	}
 	if view.Items[2].Confirm == "" || view.Items[3].Confirm == "" {
 		t.Fatal("subscription apply and remove must require confirmation")
+	}
+}
+
+func TestSubscriptionApplyUnavailableWithoutSuccessfulPreview(t *testing.T) {
+	for _, result := range []Result{
+		{Code: 1, Error: &CLIError{Code: "subscription_error", Message: "cache missing at https://secret.example/token"}},
+		{Code: 0, Error: &CLIError{Code: "subscription_error", Message: "preview unavailable"}},
+	} {
+		runner := &featureRunner{results: map[string]Result{"subscription\x00preview\x00feed": result}}
+		view, err := subscriptionDetailPage("feed").Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range view.Items {
+			if item.Label == "Apply cached subscription" {
+				t.Fatalf("apply offered after failed preview: %+v", result)
+			}
+		}
+		if len(view.Items) != 3 || view.Items[2].Label != "Remove subscription and cache" {
+			t.Fatalf("recovery actions missing: %+v", view.Items)
+		}
+		if !strings.Contains(view.Context, "Preview unavailable") || strings.Contains(view.Context, "secret.example") {
+			t.Fatalf("preview failure or URL redaction missing: %q", view.Context)
+		}
 	}
 }
 
@@ -77,5 +101,19 @@ func TestSubscriptionAddDoesNotPrintURL(t *testing.T) {
 	want := []string{"subscription", "add", "feed", url}
 	if !reflect.DeepEqual(runner.calls[0], want) {
 		t.Fatalf("add args = %#v, want %#v", runner.calls[0], want)
+	}
+}
+
+func TestSubscriptionUpdateRedactsURLInNodeChanges(t *testing.T) {
+	runner := &featureRunner{results: map[string]Result{
+		"subscription\x00update\x00feed": {Data: map[string]any{"name": "feed", "bytes": 42, "preview": map[string]any{"name": "feed", "added": []string{"trojan://private@secret.example:443"}}}},
+	}}
+	var out bytes.Buffer
+	s := NewSession(runner, strings.NewReader(""), &out)
+	if err := updateSubscription(context.Background(), s, "feed"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "[redacted URL]") || !strings.Contains(out.String(), "42 bytes") {
+		t.Fatalf("update summary: %q", out.String())
 	}
 }

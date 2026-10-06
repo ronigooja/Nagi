@@ -61,7 +61,7 @@ func menuNames(value any, field string) []string {
 
 func menuSelectName(ctx context.Context, s *Session, command []string, field, label string) (string, error) {
 	result := s.Fetch(ctx, command...)
-	if result.Code != 0 {
+	if result.Code != 0 || result.Error != nil {
 		s.showResult(result)
 		return "", nil
 	}

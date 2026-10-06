@@ -106,6 +106,18 @@ func TestMenuNamesFromCLIData(t *testing.T) {
 	}
 }
 
+func TestMenuSelectNameDisplaysCLIError(t *testing.T) {
+	runner := &featureRunner{results: map[string]Result{"rules\x00custom": {Error: &CLIError{Code: "rule_error", Message: "rules file unreadable"}}}}
+	var out bytes.Buffer
+	name, err := menuSelectName(context.Background(), NewSession(runner, strings.NewReader(""), &out), []string{"rules", "custom"}, "entries", "Rule")
+	if err != nil || name != "" {
+		t.Fatalf("name=%q, err=%v", name, err)
+	}
+	if !strings.Contains(out.String(), "rules file unreadable") || strings.Contains(out.String(), "No custom rules") {
+		t.Fatalf("wrong error presentation: %q", out.String())
+	}
+}
+
 func TestOperationPromptCommands(t *testing.T) {
 	tests := []struct {
 		page         *Page

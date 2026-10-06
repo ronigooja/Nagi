@@ -30,7 +30,7 @@ type menuPreview struct {
 	Changed []string `json:"changed"`
 }
 
-var menuURLPattern = regexp.MustCompile(`https?://[^\s,;]+`)
+var menuURLPattern = regexp.MustCompile(`(?i)[a-z][a-z0-9+.-]*://[^\s<>"']+`)
 
 func init() { RegisterPage("profile", ProfilePage) }
 
@@ -208,27 +208,37 @@ func subscriptionDetailPage(name string) *Page {
 		view := PageView{Context: "No cached preview available. Update this subscription first.", Items: []Item{
 			{Label: "Update cache and show node changes", Action: func(ctx context.Context, s *Session) error { return updateSubscription(ctx, s, name) }},
 			{Label: "Preview changes against profile", Action: func(ctx context.Context, s *Session) error { return previewSubscription(ctx, s, name) }},
-			{Label: "Apply cached subscription", Args: []string{"subscription", "apply", name}, Confirm: "Apply cached subscription as a profile?"},
-			{Label: "Remove subscription and cache", Args: []string{"subscription", "remove", name}, Confirm: "Remove this subscription and its cache?"},
 		}}
 		var preview menuPreview
 		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "preview", name), &preview); err == nil {
 			view.Context = strings.Join(previewLines(preview), "\n")
+			view.Items = append(view.Items, Item{Label: "Apply cached subscription", Args: []string{"subscription", "apply", name}, Confirm: "Apply cached subscription as a profile?"})
+		} else {
+			view.Context = "Preview unavailable: " + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ". Update the cache or retry preview before applying."
 		}
+		view.Items = append(view.Items, Item{Label: "Remove subscription and cache", Args: []string{"subscription", "remove", name}, Confirm: "Remove this subscription and its cache?"})
 		return view, nil
 	}}
 }
 
 func updateSubscription(ctx context.Context, s *Session, name string) error {
-	result := s.Run(ctx, "subscription", "update", name)
+	result := s.Fetch(ctx, "subscription", "update", name)
 	if result.Code != 0 || result.Error != nil {
+		s.showResult(result)
 		return nil
 	}
 	var data struct {
+		Bytes   int         `json:"bytes"`
 		Preview menuPreview `json:"preview"`
 	}
-	if err := decodeMenuResult(result, &data); err == nil {
+	if err := decodeMenuResult(result, &data); err != nil {
+		return err
+	}
+	s.Printf("Updated cache for %s (%d bytes).\n", name, data.Bytes)
+	if data.Preview.Name != "" {
 		printMenuPreview(s, data.Preview)
+	} else {
+		s.WriteLine("Update succeeded; open Preview changes to inspect the cache against the profile.")
 	}
 	s.WriteLine("Review the preview before applying the cached subscription.")
 	return nil
