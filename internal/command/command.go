@@ -1313,11 +1313,15 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		} else if !errors.Is(showErr, os.ErrNotExist) {
 			return nil, fail("subscription_error", showErr)
 		}
+		incoming, err = subscription.NormalizeChecked(incoming)
+		if err != nil {
+			return nil, fail("subscription_error", err)
+		}
 		preview := subscription.Compare(args[2], format, incoming, existing)
 		if args[1] == "preview" {
 			return preview, nil
 		}
-		merged, err := subscription.Encode(subscription.Normalize(incoming))
+		merged, err := subscription.Encode(incoming)
 		if err != nil {
 			return nil, fail("subscription_error", err)
 		}

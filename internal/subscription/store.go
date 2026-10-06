@@ -245,9 +245,16 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 		if err != nil {
 			return zero, err
 		}
+		incoming, err = NormalizeChecked(incoming)
+		if err != nil {
+			return zero, err
+		}
 		var previous map[string]any
 		if old, readErr := os.ReadFile(s.cachePath(name)); readErr == nil {
 			previous, _, _ = Document(old)
+			if previous != nil {
+				previous, _ = NormalizeChecked(previous)
+			}
 		}
 		preview := Compare(name, format, incoming, previous)
 		entries[i].ExpiresAt, entries[i].Upload, entries[i].Download, entries[i].Total = parseUserInfo(resp.Header.Get("Subscription-Userinfo"))

@@ -590,6 +590,22 @@ func writePreview(w io.Writer, p subscription.Preview) error {
 			return err
 		}
 	}
+	if err := line(w, "Configuration changes:"); err != nil {
+		return err
+	}
+	if len(p.Changes) == 0 {
+		if err := line(w, "  none"); err != nil {
+			return err
+		}
+	}
+	for _, change := range p.Changes {
+		if err := line(w, "  "+change.Kind+" "+change.Path+": "+change.Behavior); err != nil {
+			return err
+		}
+	}
+	if !p.RemoteNodesCompared {
+		return line(w, "Remote provider nodes were not compared.")
+	}
 	return nil
 }
 

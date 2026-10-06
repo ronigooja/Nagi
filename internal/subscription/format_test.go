@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -119,5 +120,90 @@ func TestRefreshMetadataAndRejectInvalidWithoutReplacingCache(t *testing.T) {
 	data, _ := os.ReadFile(s.indexPath())
 	if strings.Contains(string(data), "invalid subscription") {
 		t.Fatal("bad response persisted")
+	}
+}
+
+func TestGeneratedGroupsUseNodesAndProviders(t *testing.T) {
+	for _, source := range []string{
+		"proxies:\n  - name: Subscription\n    type: direct\n  - name: Subscription Auto\n    type: direct\nproxy-providers:\n  remote:\n    type: http\n    url: https://example.invalid/list\n",
+		"proxy-providers:\n  remote:\n    type: http\n    url: https://example.invalid/list\n",
+	} {
+		doc, _, err := Document([]byte(source))
+		if err != nil {
+			t.Fatal(err)
+		}
+		groups := sliceValue(doc["proxy-groups"])
+		if len(groups) != 5 {
+			t.Fatalf("groups: %#v", groups)
+		}
+		if strings.Contains(source, "Subscription Auto") {
+			if groups[0].(map[string]any)["name"] != "Subscription Auto-2" || groups[3].(map[string]any)["name"] != "Subscription-2" {
+				t.Fatalf("name collisions: %#v", groups)
+			}
+		}
+		auto := groups[0].(map[string]any)
+		if auto["type"] != "url-test" || auto["url"] != "https://www.gstatic.com/generate_204" || auto["interval"] != 300 || auto["tolerance"] != 0 || !reflect.DeepEqual(auto["use"], []any{"remote"}) {
+			t.Fatalf("auto: %#v", auto)
+		}
+		manual := groups[3].(map[string]any)
+		if sliceValue(manual["proxies"])[0] != auto["name"] || sliceValue(manual["proxies"])[len(sliceValue(manual["proxies"]))-1] != "DIRECT" {
+			t.Fatalf("manual: %#v", manual)
+		}
+		if groups[4].(map[string]any)["proxies"].([]any)[0] != manual["name"] {
+			t.Fatalf("GLOBAL: %#v", groups[4])
+		}
+		if sliceValue(doc["rules"])[0] != "MATCH,"+manual["name"].(string) {
+			t.Fatalf("rules: %#v", doc["rules"])
+		}
+	}
+}
+
+func TestExistingGroupsKeepRulesAndMissingRulesGetFallback(t *testing.T) {
+	source := "proxies:\n  - name: A\n    type: direct\nproxy-groups:\n  - name: Choice\n    type: select\n    proxies: [A, DIRECT]\n"
+	doc, _, err := Document([]byte(source))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sliceValue(doc["proxy-groups"])) != 1 || sliceValue(doc["rules"])[0] != "MATCH,Choice" {
+		t.Fatalf("document: %#v", doc)
+	}
+	doc, _, err = Document([]byte(source + "rules: ['MATCH,REJECT']\n"))
+	if err != nil || sliceValue(doc["rules"])[0] != "MATCH,REJECT" {
+		t.Fatalf("rules: %#v %v", doc, err)
+	}
+}
+
+func TestNormalizeIndependentListenersAndPreviewRedaction(t *testing.T) {
+	doc, _, err := Document([]byte("proxies:\n  - name: A\n    type: direct\ndns:\n  listen: 0.0.0.0:5353\n  nameserver: [https://secret.invalid/query]\nlisteners:\n  - name: extra\n    type: socks\n    listen: 0.0.0.0\n    port: 1080\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err = NormalizeChecked(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc["dns"].(map[string]any)["listen"] != "127.0.0.1:5353" || sliceValue(doc["listeners"])[0].(map[string]any)["listen"] != "127.0.0.1" {
+		t.Fatalf("listeners: %#v", doc)
+	}
+	p := Compare("test", "mihomo-yaml", doc, nil)
+	data, err := json.Marshal(p.Changes)
+	if err != nil || strings.Contains(string(data), "secret.invalid") || len(p.Changes) == 0 {
+		t.Fatalf("preview: %s %v", data, err)
+	}
+	if p.RemoteNodesCompared != true {
+		t.Fatalf("unexpected provider marker: %+v", p)
+	}
+	withProvider := map[string]any{"proxy-providers": map[string]any{"remote": map[string]any{"type": "http"}}}
+	if Compare("test", "mihomo-yaml", withProvider, nil).RemoteNodesCompared {
+		t.Fatal("remote nodes marked compared")
+	}
+	for _, bad := range []string{"dns:\n  listen: invalid\n", "listeners:\n  - type: socks\n    listen: 127.0.0.1:1080\n"} {
+		invalid, _, err := Document([]byte("proxies:\n  - name: A\n    type: direct\n" + bad))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NormalizeChecked(invalid); err == nil {
+			t.Fatalf("accepted: %s", bad)
+		}
 	}
 }
