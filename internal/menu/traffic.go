@@ -34,7 +34,7 @@ func TrafficPage() *Page {
 				{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Confirm: "Restore the OS proxy settings saved by Nagi?"},
 			}, items...)
 		}
-		return PageView{Context: "TUN enabled and adapter up are reported states; neither proves route ownership, DNS capture, or traffic interception. Runtime TUN and LAN changes reset on reload or restart.", Items: items}, nil
+		return PageView{Items: items}, nil
 	}}
 }
 
