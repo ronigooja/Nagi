@@ -519,7 +519,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err := arity(args, 1); err != nil {
 			return nil, err
 		}
-		if trafficManager.Managed() {
+		if runtime.GOOS == "darwin" && trafficManager.Managed() {
 			if _, e := trafficManager.Disable(ctx); e != nil {
 				return nil, fail("system_proxy_error", e)
 			}
@@ -536,7 +536,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err != nil {
 			return nil, err
 		}
-		if trafficManager.Managed() {
+		if runtime.GOOS == "darwin" && trafficManager.Managed() {
 			if _, e := trafficManager.Disable(ctx); e != nil {
 				return nil, fail("system_proxy_error", e)
 			}
@@ -561,7 +561,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err != nil {
 			return nil, err
 		}
-		if !status.Running {
+		if runtime.GOOS == "darwin" && !status.Running {
 			if e := trafficManager.RestoreIfStopped(ctx, 0); e != nil {
 				return nil, fail("system_proxy_error", e)
 			}
@@ -1011,7 +1011,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				reachable = client.Get(ctx, "/version", &v) == nil
 			}
 			result := map[string]any{"checked": true, "running": st.Running, "control_api": reachable}
-			if st.Running && reachable {
+			if runtime.GOOS == "darwin" && st.Running && reachable {
 				proxyCheck, checkErr := trafficManager.Recheck(ctx, st.PID)
 				result["system_proxy"] = proxyCheck
 				if checkErr != nil {

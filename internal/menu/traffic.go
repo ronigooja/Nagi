@@ -2,6 +2,7 @@ package menu
 
 import (
 	"context"
+	"runtime"
 	"strings"
 )
 
@@ -12,11 +13,12 @@ func init() {
 }
 
 func TrafficPage() *Page {
-	return &Page{Title: "Traffic access", Help: []string{"system-proxy"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
-		return PageView{Context: "TUN enabled and adapter up are reported states; neither proves route ownership, DNS capture, or traffic interception. Runtime TUN and LAN changes reset on reload or restart.", Items: []Item{
-			{Label: "System proxy status", Args: []string{"system-proxy", "status"}},
-			{Label: "Enable system proxy", Args: []string{"system-proxy", "enable"}},
-			{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Confirm: "Restore the OS proxy settings saved by Nagi?"},
+	help := []string{"tun"}
+	if runtime.GOOS == "darwin" {
+		help = []string{"system-proxy"}
+	}
+	return &Page{Title: "Traffic access", Help: help, Load: func(_ context.Context, _ *Session) (PageView, error) {
+		items := []Item{
 			{Label: "TUN status", Args: []string{"tun", "status"}},
 			{Label: "Enable TUN", Args: []string{"tun", "enable"}},
 			{Label: "Disable TUN", Args: []string{"tun", "disable"}, Confirm: "Disable runtime TUN?"},
@@ -24,7 +26,15 @@ func TrafficPage() *Page {
 			{Label: "LAN access status", Args: []string{"lan", "status"}},
 			{Label: "Enable LAN access", Action: enableLAN},
 			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Confirm: "Disable LAN access and bind listeners to loopback?"},
-		}}, nil
+		}
+		if runtime.GOOS == "darwin" {
+			items = append([]Item{
+				{Label: "System proxy status", Args: []string{"system-proxy", "status"}},
+				{Label: "Enable system proxy", Args: []string{"system-proxy", "enable"}},
+				{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Confirm: "Restore the OS proxy settings saved by Nagi?"},
+			}, items...)
+		}
+		return PageView{Context: "TUN enabled and adapter up are reported states; neither proves route ownership, DNS capture, or traffic interception. Runtime TUN and LAN changes reset on reload or restart.", Items: items}, nil
 	}}
 }
 

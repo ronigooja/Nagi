@@ -23,7 +23,7 @@ The root page reads `status` for a short mihomo and selected-profile summary. If
 | Profiles and subscriptions | Profile list/import and per-profile use, export, backup, restore, diff, override show/set/clear, and removal; subscription list/add and per-subscription update, preview, apply, and removal. |
 | DNS | Status, configuration/API check, direct or proxy DoH upstreams, exception add/remove, TUN DNS on/off, query, and cache flush. |
 | Rules | Active rules/providers, custom rules, conflict report, matched connection rule, add/remove/enable/disable, local and remote imports. |
-| Traffic access | System proxy, TUN, listener ports, and LAN status or changes. |
+| Traffic access | TUN, listener ports, and LAN status or changes; system proxy controls appear on macOS only. |
 | Connections | List, show one, close one, or close all. |
 | Logs and traffic | Recent logs, follow logs, and watch traffic. |
 | Service and startup | Service install/uninstall/status, startup status/enable/disable/check, and stale-marker recovery. |

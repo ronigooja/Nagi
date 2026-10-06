@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -55,18 +56,41 @@ func TestOperationPageStaticCommands(t *testing.T) {
 		{DNSPage(), "Show DNS status", []string{"dns", "status"}, false},
 		{DNSPage(), "Check DNS configuration", []string{"dns", "check"}, false},
 		{DNSPage(), "Disable TUN DNS interception", []string{"dns", "tun", "off"}, true},
-		{TrafficPage(), "System proxy status", []string{"system-proxy", "status"}, false},
-		{TrafficPage(), "Disable system proxy", []string{"system-proxy", "disable"}, true},
 		{TrafficPage(), "TUN status", []string{"tun", "status"}, false},
 		{TrafficPage(), "Listener ports", []string{"ports", "status"}, false},
 		{TrafficPage(), "Disable LAN access", []string{"lan", "disable"}, true},
 		{ConnectionsPage(), "Close all connections", []string{"connections", "close-all"}, true},
 		{RulesPage(), "List active rule providers", []string{"rules", "providers"}, false},
 	}
+	if runtime.GOOS == "darwin" {
+		item := operationItem(t, TrafficPage(), "System proxy status")
+		if !reflect.DeepEqual(item.Args, []string{"system-proxy", "status"}) {
+			t.Errorf("system proxy status args=%v", item.Args)
+		}
+		item = operationItem(t, TrafficPage(), "Disable system proxy")
+		if !reflect.DeepEqual(item.Args, []string{"system-proxy", "disable"}) || item.Confirm == "" {
+			t.Errorf("disable system proxy: args=%v confirm=%q", item.Args, item.Confirm)
+		}
+	}
 	for _, tt := range tests {
 		item := operationItem(t, tt.page, tt.label)
 		if !reflect.DeepEqual(item.Args, tt.args) || (item.Confirm != "") != tt.confirm {
 			t.Errorf("%s: args=%v confirm=%q", tt.label, item.Args, item.Confirm)
+		}
+	}
+}
+
+func TestLinuxTrafficMenuOmitsSystemProxy(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux menu only")
+	}
+	view, err := TrafficPage().Load(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range view.Items {
+		if len(item.Args) > 0 && item.Args[0] == "system-proxy" {
+			t.Fatalf("unsupported Linux system proxy action: %q", item.Label)
 		}
 	}
 }

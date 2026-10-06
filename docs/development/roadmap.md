@@ -34,7 +34,7 @@ The CLI implements the items below as defined in the [CLI reference](../referenc
 
 Implemented CLI commands and scope are in the [CLI reference](../reference/cli.md#traffic-access). TUN status checks an explicitly named OS adapter when mihomo exposes one, but an up adapter does not prove traffic capture. The remaining platform and interception limits are documented there and in the [traffic access guide](../guides/traffic-access.md).
 
-- Enable, disable, and report the system proxy.
+- Enable, disable, and report the macOS system proxy.
 - Enable, disable, and report TUN mode.
 - Show HTTP, HTTPS, and SOCKS port status.
 - Provide an explicit LAN access switch and listening address.

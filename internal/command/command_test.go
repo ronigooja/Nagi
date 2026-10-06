@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -381,6 +382,35 @@ func TestTrafficCommandHelpAndUsage(t *testing.T) {
 		if code := Run(args, &out, &errs, "test", "commit"); code != 2 || !strings.Contains(errs.String(), `"code":"usage"`) {
 			t.Fatalf("usage %v: %d %s", args, code, errs.String())
 		}
+	}
+}
+
+func TestLinuxSystemProxyCommandsAreUnsupported(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux only")
+	}
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
+	for _, subcommand := range []string{"status", "enable", "disable"} {
+		var out, errs bytes.Buffer
+		code := Run([]string{"--json", "system-proxy", subcommand}, &out, &errs, "test", "commit")
+		if code != 1 || !strings.Contains(errs.String(), `"code":"system_proxy_error"`) || !strings.Contains(errs.String(), "unsupported on Linux") {
+			t.Errorf("system-proxy %s: exit=%d stdout=%s stderr=%s", subcommand, code, out.String(), errs.String())
+		}
+	}
+	stateDir := filepath.Join(root, "state", "nagi")
+	if err := os.MkdirAll(stateDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, "system-proxy-restore.json"), []byte("legacy journal"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errs bytes.Buffer
+	if code := Run([]string{"--json", "status"}, &out, &errs, "test", "commit"); code != 0 {
+		t.Fatalf("legacy Linux journal blocked status: exit=%d stderr=%s", code, errs.String())
 	}
 }
 
