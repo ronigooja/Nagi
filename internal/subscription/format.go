@@ -73,7 +73,8 @@ func completeGroups(doc map[string]any, proxies []any) {
 		used[item.(map[string]any)["name"].(string)] = true
 	}
 	if sources, ok := doc["proxy-providers"].(map[string]any); ok {
-		for _, raw := range sources {
+		for providerName, raw := range sources {
+			used[providerName] = true
 			provider, ok := raw.(map[string]any)
 			if !ok || provider["type"] != "inline" {
 				continue
@@ -99,6 +100,7 @@ func completeGroups(doc map[string]any, proxies []any) {
 		}
 	}
 	names := []any{}
+	alias := ""
 	for _, item := range proxies {
 		proxy := item.(map[string]any)
 		name := proxy["name"].(string)
@@ -107,8 +109,12 @@ func completeGroups(doc map[string]any, proxies []any) {
 			// selectable without colliding with the generated GLOBAL group.
 			name = unique("GLOBAL")
 			proxy["name"] = name
+			alias = name
 		}
 		names = append(names, name)
+	}
+	if alias != "" {
+		rewriteGlobalReferences(doc, alias)
 	}
 	providers := []any{}
 	if source, ok := doc["proxy-providers"].(map[string]any); ok {
@@ -147,6 +153,89 @@ func completeGroups(doc map[string]any, proxies []any) {
 	if _, ok := doc["rules"]; !ok {
 		doc["rules"] = []any{"MATCH," + manual}
 	}
+}
+
+// Rewrite only fields that mihomo interprets as proxy references. Downloaded
+// rule text and unrelated strings remain untouched.
+func rewriteGlobalReferences(doc map[string]any, alias string) {
+	for _, item := range sliceValue(doc["proxies"]) {
+		if node, ok := item.(map[string]any); ok && node["dialer-proxy"] == "GLOBAL" {
+			node["dialer-proxy"] = alias
+		}
+	}
+	if providers, ok := doc["proxy-providers"].(map[string]any); ok {
+		for _, raw := range providers {
+			if provider, ok := raw.(map[string]any); ok {
+				if override, ok := provider["override"].(map[string]any); ok && override["dialer-proxy"] == "GLOBAL" {
+					override["dialer-proxy"] = alias
+				}
+			}
+		}
+	}
+	rewriteRules := func(raw any) {
+		for i, item := range sliceValue(raw) {
+			rule, ok := item.(string)
+			if !ok {
+				continue
+			}
+			parts := strings.Split(rule, ",")
+			last := len(parts) - 1
+			if last > 0 && strings.TrimSpace(parts[last]) == "no-resolve" {
+				last--
+			}
+			if last > 0 && strings.TrimSpace(parts[last]) == "GLOBAL" {
+				parts[last] = alias
+				sliceValue(raw)[i] = strings.Join(parts, ",")
+			}
+		}
+	}
+	rewriteRules(doc["rules"])
+	if subrules, ok := doc["sub-rules"].(map[string]any); ok {
+		for _, rules := range subrules {
+			rewriteRules(rules)
+		}
+	}
+	if dns, ok := doc["dns"].(map[string]any); ok {
+		for _, field := range []string{"nameserver", "fallback", "default-nameserver", "proxy-server-nameserver", "direct-nameserver"} {
+			rewriteDNSBindings(dns[field], alias)
+		}
+		for _, field := range []string{"nameserver-policy", "proxy-server-nameserver-policy"} {
+			if policy, ok := dns[field].(map[string]any); ok {
+				for key, value := range policy {
+					if server, ok := value.(string); ok {
+						policy[key] = rewriteDNSBinding(server, alias)
+					} else {
+						rewriteDNSBindings(value, alias)
+					}
+				}
+			}
+		}
+	}
+}
+
+func rewriteDNSBindings(raw any, alias string) {
+	for i, item := range sliceValue(raw) {
+		value, ok := item.(string)
+		if !ok {
+			continue
+		}
+		sliceValue(raw)[i] = rewriteDNSBinding(value, alias)
+	}
+}
+
+func rewriteDNSBinding(value, alias string) string {
+	prefix, binding, found := strings.Cut(value, "#")
+	if !found {
+		return value
+	}
+	name, rest, hasInterface := strings.Cut(binding, "&")
+	if name != "GLOBAL" {
+		return value
+	}
+	if hasInterface {
+		return prefix + "#" + alias + "&" + rest
+	}
+	return prefix + "#" + alias
 }
 
 func stringValue(v any) string { s, _ := v.(string); return s }

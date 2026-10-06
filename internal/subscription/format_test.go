@@ -192,6 +192,66 @@ func TestGeneratedGroupsKeepGlobalNodeSelectable(t *testing.T) {
 	}
 }
 
+func TestGeneratedGlobalAliasPreservesDownloadedReferences(t *testing.T) {
+	source := `proxies:
+  - name: GLOBAL
+    type: direct
+  - name: Relay
+    type: direct
+    dialer-proxy: GLOBAL
+proxy-providers:
+  Subscription Auto:
+    type: inline
+    override:
+      dialer-proxy: GLOBAL
+    payload:
+      - name: ProviderNode
+        type: direct
+rules:
+  - DOMAIN,example.com,GLOBAL
+  - MATCH,GLOBAL
+sub-rules:
+  extra:
+    - DOMAIN,example.org,GLOBAL,no-resolve
+dns:
+  nameserver: ["https://dns.example/dns-query#GLOBAL", "https://dns.example/other#DIRECT"]
+  nameserver-policy:
+    example.com: "https://dns.example/dns-query#GLOBAL&eth0"
+`
+	doc, _, err := Document([]byte(source))
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias := sliceValue(doc["proxies"])[0].(map[string]any)["name"]
+	if alias != "GLOBAL-2" {
+		t.Fatalf("alias: %v", alias)
+	}
+	if sliceValue(doc["proxies"])[1].(map[string]any)["dialer-proxy"] != alias {
+		t.Fatal("node dialer reference was not updated")
+	}
+	provider := doc["proxy-providers"].(map[string]any)["Subscription Auto"].(map[string]any)
+	if provider["override"].(map[string]any)["dialer-proxy"] != alias {
+		t.Fatal("provider dialer reference was not updated")
+	}
+	if sliceValue(doc["proxy-groups"])[0].(map[string]any)["name"] != "Subscription Auto-2" {
+		t.Fatal("generated group collided with provider")
+	}
+	if !reflect.DeepEqual(doc["rules"], []any{"DOMAIN,example.com,GLOBAL-2", "MATCH,GLOBAL-2"}) {
+		t.Fatalf("rules: %v", doc["rules"])
+	}
+	if !reflect.DeepEqual(doc["sub-rules"].(map[string]any)["extra"], []any{"DOMAIN,example.org,GLOBAL-2,no-resolve"}) {
+		t.Fatalf("sub-rules: %v", doc["sub-rules"])
+	}
+	dns := doc["dns"].(map[string]any)
+	if sliceValue(dns["nameserver"])[0] != "https://dns.example/dns-query#GLOBAL-2" || sliceValue(dns["nameserver"])[1] != "https://dns.example/other#DIRECT" {
+		t.Fatalf("dns: %v", dns)
+	}
+	if dns["nameserver-policy"].(map[string]any)["example.com"] != "https://dns.example/dns-query#GLOBAL-2&eth0" {
+		t.Fatalf("dns policy: %v", dns)
+	}
+	validateGeneratedWithMihomo(t, doc)
+}
+
 func containsChoice(group map[string]any, name string) bool {
 	for _, item := range sliceValue(group["proxies"]) {
 		if item == name {
