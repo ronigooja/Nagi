@@ -32,8 +32,6 @@ func (s *Session) render(page *Page, view PageView, index int, depth int) {
 	}
 	if depth > 1 {
 		fmt.Fprintln(s.out, "b. Back")
-	} else {
-		fmt.Fprintln(s.out, "0. Exit")
 	}
 	if end < len(view.Items) {
 		fmt.Fprintln(s.out, "n. Next")

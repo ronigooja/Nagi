@@ -136,10 +136,6 @@ func Run(ctx context.Context, s *Session) int {
 			continue
 		case "q":
 			return 0
-		case "0":
-			if len(stack) == 1 {
-				return 0
-			}
 		case "b":
 			if len(stack) > 1 {
 				stack = stack[:len(stack)-1]
