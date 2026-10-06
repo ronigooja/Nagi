@@ -50,6 +50,9 @@ func TestSelectChecksMembership(t *testing.T) {
 	if f.path != "/proxies/Group%20A" || f.selected != "Node B" {
 		t.Fatalf("path=%q selected=%q", f.path, f.selected)
 	}
+	if err := s.Select(context.Background(), "Group A", "Node A"); err != nil || f.selected != "Node A" {
+		t.Fatalf("explicit choice matching current node must reach mihomo: %v, selected=%q", err, f.selected)
+	}
 }
 
 func TestDelayEscapesQueryAndCloseMode(t *testing.T) {

@@ -14,9 +14,11 @@ import (
 type roadmapClient struct {
 	selected map[string]string
 	fail     map[string]bool
+	gets     []string
 }
 
 func (f *roadmapClient) Get(_ context.Context, path string, out any) error {
+	f.gets = append(f.gets, path)
 	switch {
 	case path == "/proxies":
 		return json.Unmarshal([]byte(`{"proxies":{"Choice":{"type":"Selector","all":["Slow","Fast","Missing"],"now":"Missing","alive":false},"Other":{"type":"Selector","all":["Fast"],"now":"Fast","alive":true}}}`), out)
@@ -76,6 +78,9 @@ func TestSelectionsPersistAndReportRemoved(t *testing.T) {
 	if err := store.Save("work", "Old", "Gone"); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.Save("work", "Other", "Fast"); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Save("other", "Choice", "Slow"); err != nil {
 		t.Fatal(err)
 	}
@@ -84,8 +89,8 @@ func TestSelectionsPersistAndReportRemoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(result.Restored, []string{"Choice -> Fast"}) || !reflect.DeepEqual(result.Unavailable, []string{"Old -> Gone"}) || client.selected["/proxies/Choice"] != "Fast" {
-		t.Fatalf("restore: %+v, selections=%v", result, client.selected)
+	if !reflect.DeepEqual(result.Restored, []string{"Choice -> Fast", "Other -> Fast"}) || !reflect.DeepEqual(result.Unavailable, []string{"Old -> Gone"}) || client.selected["/proxies/Choice"] != "Fast" || len(client.selected) != 1 || !reflect.DeepEqual(client.gets, []string{"/proxies"}) {
+		t.Fatalf("restore: %+v, selections=%v, queries=%v", result, client.selected, client.gets)
 	}
 	info, err := os.Stat(path)
 	if err != nil || info.Mode().Perm() != 0600 {

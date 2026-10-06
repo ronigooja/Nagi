@@ -115,7 +115,7 @@ func (s SelectionStore) Restore(ctx context.Context, profile string, service *Se
 			result.Unavailable = append(result.Unavailable, group+" -> "+node)
 			continue
 		}
-		if err := service.Select(ctx, group, node); err != nil {
+		if _, err := service.SelectKnown(ctx, g, node); err != nil {
 			result.Unavailable = append(result.Unavailable, group+" -> "+node)
 			continue
 		}

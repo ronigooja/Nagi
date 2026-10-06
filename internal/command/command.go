@@ -1306,7 +1306,12 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		}
 		var selected []proxy.Group
 		if current, currentErr := profiles.Current(); currentErr == nil && current == args[2] && proxies != nil {
-			selected, _ = proxies.Groups(ctx)
+			groups, _ := proxies.Groups(ctx)
+			for _, group := range groups {
+				if group.LiveSelection() != "" {
+					selected = append(selected, group)
+				}
+			}
 		}
 		merged, err := subscription.Encode(subscription.Merge(incoming, existing))
 		if err != nil {
@@ -1316,9 +1321,20 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 			return nil, fail("subscription_error", err)
 		}
 		restored := 0
-		for _, group := range selected {
-			if group.Now != "" && proxies.Select(ctx, group.Name, group.Now) == nil {
-				restored++
+		if len(selected) > 0 {
+			if groups, err := proxies.Groups(ctx); err == nil {
+				available := make(map[string]proxy.Group, len(groups))
+				for _, group := range groups {
+					available[group.Name] = group
+				}
+				for _, before := range selected {
+					if after, ok := available[before.Name]; ok {
+						changed, err := proxies.SelectKnown(ctx, after, before.LiveSelection())
+						if err == nil && changed {
+							restored++
+						}
+					}
+				}
 			}
 		}
 		return map[string]any{"name": args[2], "profile": args[2], "applied": true, "preview": preview, "selections_restored": restored}, nil

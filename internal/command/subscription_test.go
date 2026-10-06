@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -11,8 +12,70 @@ import (
 	"testing"
 
 	"github.com/ronigooja/Nagi/internal/profile"
+	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/subscription"
 )
+
+type subscriptionSelectionClient struct {
+	reloaded bool
+	gets     []string
+	puts     map[string]string
+}
+
+func (c *subscriptionSelectionClient) Get(_ context.Context, path string, out any) error {
+	c.gets = append(c.gets, path)
+	if path != "/proxies" {
+		return errors.New("unexpected per-group query")
+	}
+	before := `{"proxies":{"Manual":{"type":"Selector","now":"B","all":["A","B"]},"Unchanged":{"type":"Selector","now":"C","all":["C"]},"Auto":{"type":"URLTest","now":"X","all":["X","Y"]},"Pinned":{"type":"URLTest","now":"Y","fixed":"Y","all":["X","Y"]},"Fallback":{"type":"Fallback","now":"Y","fixed":"Y","all":["X","Y"]}}}`
+	after := `{"proxies":{"Manual":{"type":"Selector","now":"A","all":["A","B"]},"Unchanged":{"type":"Selector","now":"C","all":["C"]},"Auto":{"type":"URLTest","now":"X","all":["X","Y"]},"Pinned":{"type":"URLTest","now":"X","fixed":"X","all":["X","Y"]},"Fallback":{"type":"Fallback","now":"X","fixed":"X","all":["X","Y"]}}}`
+	if c.reloaded {
+		return json.Unmarshal([]byte(after), out)
+	}
+	return json.Unmarshal([]byte(before), out)
+}
+
+func (c *subscriptionSelectionClient) Put(_ context.Context, path string, body any, _ any) error {
+	if c.puts == nil {
+		c.puts = map[string]string{}
+	}
+	c.puts[path] = body.(map[string]string)["name"]
+	return nil
+}
+
+func TestSubscriptionApplyRestoresOnlyChangedManualChoices(t *testing.T) {
+	ctx := context.Background()
+	source := []byte("proxies:\n  - name: A\n    type: direct\nproxy-groups:\n  - name: Manual\n    type: select\n    proxies: [A, DIRECT]\n")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(source) }))
+	defer server.Close()
+	dir := t.TempDir()
+	cache := subscription.NewStore(dir, filepath.Join(dir, "cache"), nil)
+	if err := cache.Add("work", server.URL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cache.Refresh(ctx, "work"); err != nil {
+		t.Fatal(err)
+	}
+	validator := func([]byte) error { return nil }
+	if err := profile.NewStore(dir, validator, nil).Apply(ctx, "work", source); err != nil {
+		t.Fatal(err)
+	}
+	client := &subscriptionSelectionClient{}
+	profiles := profile.NewStore(dir, validator, func(context.Context) error { client.reloaded = true; return nil })
+	result, err := subscriptionCommand(ctx, []string{"subscription", "apply", "work"}, cache, profiles, proxy.NewService(client))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.(map[string]any)["selections_restored"] != 3 {
+		t.Fatalf("result: %+v", result)
+	}
+	if len(client.gets) != 2 || client.gets[0] != "/proxies" || client.gets[1] != "/proxies" {
+		t.Fatalf("unexpected queries: %v", client.gets)
+	}
+	if len(client.puts) != 3 || client.puts["/proxies/Manual"] != "B" || client.puts["/proxies/Pinned"] != "Y" || client.puts["/proxies/Fallback"] != "Y" {
+		t.Fatalf("unexpected selections: %v", client.puts)
+	}
+}
 
 func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
 	source := "mixed-port: 7890\nrules:\n  - MATCH,Proxy\nproxies:\n  - name: New\n    type: direct\nproxy-groups:\n  - name: Proxy\n    type: select\n    proxies: [New, DIRECT]\n"

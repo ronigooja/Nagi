@@ -25,6 +25,7 @@ type Group struct {
 	Name           string   `json:"name"`
 	Type           string   `json:"type"`
 	Now            string   `json:"now,omitempty"`
+	Fixed          string   `json:"fixed,omitempty"`
 	All            []string `json:"all,omitempty"`
 	Alive          bool     `json:"alive"`
 	SelectedStatus string   `json:"selected_status,omitempty"`
@@ -242,6 +243,37 @@ func (s *Service) Select(ctx context.Context, group, node string) error {
 	if err != nil {
 		return err
 	}
+	_, err = s.selectKnown(ctx, g, node, false)
+	return err
+}
+
+// LiveSelection returns a selector choice or an explicitly fixed automatic
+// choice. Now on an unfixed automatic group is a computed result; writing it
+// back would pin that group to a node.
+func (g Group) LiveSelection() string {
+	switch g.Type {
+	case "Selector":
+		return g.Now
+	case "URLTest", "Fallback":
+		return g.Fixed
+	default:
+		return ""
+	}
+}
+
+// SelectKnown uses a fresh group snapshot instead of querying the same group
+// again. mihomo validates membership when it handles the PUT as well.
+func (s *Service) SelectKnown(ctx context.Context, g Group, node string) (bool, error) {
+	return s.selectKnown(ctx, g, node, true)
+}
+
+func (s *Service) selectKnown(ctx context.Context, g Group, node string, skipCurrent bool) (bool, error) {
+	if s == nil || s.Client == nil {
+		return false, errors.New("proxy control client unavailable")
+	}
+	if g.Name == "" || node == "" {
+		return false, errors.New("proxy group and node required")
+	}
 	found := false
 	for _, candidate := range g.All {
 		if candidate == node {
@@ -250,9 +282,15 @@ func (s *Service) Select(ctx context.Context, group, node string) error {
 		}
 	}
 	if !found {
-		return errors.New("node is unavailable or was removed from the proxy group; run `nagi proxy show GROUP` to see current nodes")
+		return false, errors.New("node is unavailable or was removed from the proxy group; run `nagi proxy show GROUP` to see current nodes")
 	}
-	return s.Client.Put(ctx, "/proxies/"+url.PathEscape(group), map[string]string{"name": node}, nil)
+	if skipCurrent && g.LiveSelection() == node {
+		return false, nil
+	}
+	if err := s.Client.Put(ctx, "/proxies/"+url.PathEscape(g.Name), map[string]string{"name": node}, nil); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *Service) Connections(ctx context.Context) ([]Connection, error) {
