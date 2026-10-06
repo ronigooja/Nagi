@@ -16,6 +16,7 @@ type commandSpec struct {
 
 // Keep command syntax and help in one place. Group entries have maxArgs -1.
 var commandSpecs = []commandSpec{
+	{"menu", "menu", "Open the interactive terminal menu", "Browse and run common commands using a line-oriented menu. Requires terminal input and output; use ordinary commands or --json for automation.", "nagi menu", "", 0, 0},
 	{"start", "start", "Start mihomo", "Starts mihomo with the selected profile; creates the default profile if needed.", "nagi start", "", 0, 0},
 	{"stop", "stop", "Stop mihomo", "Records an explicit stop so the login monitor leaves mihomo stopped; restores system proxy settings managed by Nagi.", "nagi stop", "", 0, 0},
 	{"quit", "quit", "Quit Nagi for this login session", "Stops the login monitor and mihomo, restores Nagi-managed system proxy settings, and preserves the next-login startup preference. A later start resumes the monitor.", "nagi quit", "", 0, 0},

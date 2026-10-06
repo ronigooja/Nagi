@@ -22,6 +22,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
+	"github.com/ronigooja/Nagi/internal/menu"
 	"github.com/ronigooja/Nagi/internal/output"
 	privilegedserver "github.com/ronigooja/Nagi/internal/privileged/server"
 	privilegedservice "github.com/ronigooja/Nagi/internal/privileged/service"
@@ -109,6 +110,21 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 	if err := validateInvocation(filtered); err != nil {
 		output.WriteError(stderr, jsonMode, "usage", err.Error())
 		return 2
+	}
+	if len(filtered) == 1 && filtered[0] == "menu" {
+		if jsonMode || !menu.IsTerminal(os.Stdin) {
+			output.WriteError(stderr, jsonMode, "usage", "menu requires interactive terminal input and output; use an ordinary command or --json for automation")
+			return 2
+		}
+		outFile, ok := stdout.(*os.File)
+		if !ok || !menu.IsTerminal(outFile) {
+			output.WriteError(stderr, jsonMode, "usage", "menu requires interactive terminal input and output; use an ordinary command or --json for automation")
+			return 2
+		}
+		runner := menu.NewCommandRunner(func(argv []string, out, errOut io.Writer) int {
+			return Run(argv, out, errOut, version, commit)
+		})
+		return menu.Run(context.Background(), menu.NewSession(runner, os.Stdin, stdout))
 	}
 	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
 		return runTrafficWatch(stdout, stderr, jsonMode)
