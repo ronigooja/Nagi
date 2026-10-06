@@ -14,7 +14,7 @@ enum TrafficDisplay: String, CaseIterable {
     case both, icon
     var title: String {
         switch self {
-        case .both: return "Upload and download"
+        case .both: return "Traffic rates"
         case .icon: return "Icon only"
         }
     }
@@ -116,7 +116,8 @@ enum EngineState { case starting, running, stopped, unavailable }
         }
         await refreshMenuData()
     }
-    func refreshMenuData() async {
+    @discardableResult func refreshMenuData() async -> Bool {
+        var subscriptionsRefreshed = false
         do {
             let value = try await cli.run(["profile", "list"])
             profiles = value["profiles"]?.array.compactMap { $0.string ?? $0["name"]?.string } ?? []
@@ -129,6 +130,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                 guard let name = item["name"]?.string else { return nil }
                 return Subscription(name: name)
             } ?? []
+            subscriptionsRefreshed = true
         } catch { errorMessage = error.localizedDescription }
         do {
             let service = try await cli.run(["service", "status"])
@@ -153,6 +155,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             } catch { tun = nil; tunAdapter = nil; errorMessage = error.localizedDescription }
         } else { groups = []; mode = nil; systemProxy = nil; tun = nil; tunAdapter = nil }
         notify()
+        return subscriptionsRefreshed
     }
     func perform(_ arguments: [String]) {
         guard !busy && !quitting else { return }
@@ -185,6 +188,70 @@ enum EngineState { case starting, running, stopped, unavailable }
                 await refresh()
             } catch {
                 errorMessage = "Subscription updated, but apply failed: \(error.localizedDescription)"
+            }
+        }
+    }
+    func addAndDownloadSubscription(_ name: String, url: String) {
+        guard !busy && !quitting else { return }
+        busy = true
+        applyingSetting = true
+        notice = nil
+        Task {
+            defer { applyingSetting = false; busy = false }
+            do {
+                _ = try await cli.run(["subscription", "add", name, url])
+            } catch {
+                errorMessage = "Subscription add failed: \(error.localizedDescription)"
+                return
+            }
+            do {
+                _ = try await cli.run(["subscription", "update", name])
+                errorMessage = nil
+                await refresh()
+                notice = "Subscription saved and downloaded. Apply it to activate the cache."
+            } catch {
+                await refreshMenuData()
+                errorMessage = "Subscription saved, but download failed: \(error.localizedDescription). Retry the download from the CLI."
+            }
+        }
+    }
+    func applySubscription(_ name: String) {
+        guard !busy && !quitting else { return }
+        busy = true
+        applyingSetting = true
+        notice = nil
+        Task {
+            defer { applyingSetting = false; busy = false }
+            do {
+                _ = try await cli.run(["subscription", "apply", name])
+                errorMessage = nil
+                await refresh()
+                notice = "Cached subscription applied."
+            } catch {
+                errorMessage = "Subscription apply failed: \(error.localizedDescription)"
+            }
+        }
+    }
+    func removeSubscription(_ name: String) {
+        guard !busy && !quitting else { return }
+        busy = true
+        applyingSetting = true
+        notice = nil
+        Task {
+            defer { applyingSetting = false; busy = false }
+            do {
+                _ = try await cli.run(["subscription", "remove", name])
+                errorMessage = nil
+                await refreshMenuData()
+                notice = "Subscription removed."
+            } catch {
+                let listRefreshed = await refreshMenuData()
+                let detail = error.localizedDescription
+                if !listRefreshed || subscriptions.contains(where: { $0.name == name }) {
+                    errorMessage = "Subscription removal failed: \(detail)"
+                } else {
+                    errorMessage = "Subscription record removed, but cache cleanup failed: \(detail)"
+                }
             }
         }
     }

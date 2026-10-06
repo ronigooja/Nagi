@@ -213,15 +213,24 @@ import AppKit
         addSubmenu("Profiles", profileMenu, enabled: !model.profiles.isEmpty)
 
         let subscriptionMenu = NSMenu()
-        if model.subscriptions.isEmpty { disabled("No subscriptions · Add one with the CLI", to: subscriptionMenu) }
+        add("Download Subscription…", action: #selector(downloadSubscription), enabled: !model.busy, to: subscriptionMenu)
+        if model.subscriptions.isEmpty { disabled("No saved subscriptions", to: subscriptionMenu) }
+        else { subscriptionMenu.addItem(.separator()) }
         for subscription in model.subscriptions {
             let actions = NSMenu()
-            let item = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
-                           enabled: !model.busy, to: actions)
-            item.representedObject = subscription.name
+            let apply = add("Apply", action: #selector(applySubscription(_:)),
+                            enabled: !model.busy, to: actions)
+            apply.representedObject = subscription.name
+            let updateAndApply = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
+                                     enabled: !model.busy, to: actions)
+            updateAndApply.representedObject = subscription.name
+            actions.addItem(.separator())
+            let delete = add("Delete Subscription…", action: #selector(deleteSubscription(_:)),
+                             enabled: !model.busy, to: actions)
+            delete.representedObject = subscription.name
             addSubmenu(subscription.name, actions, to: subscriptionMenu)
         }
-        addSubmenu("Subscriptions", subscriptionMenu, enabled: !model.subscriptions.isEmpty)
+        addSubmenu("Subscriptions", subscriptionMenu)
         menu.addItem(.separator())
 
         let displayMenu = NSMenu()
@@ -272,6 +281,74 @@ import AppKit
     @objc private func updateAndApplySubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         model.updateAndApplySubscription(name)
+    }
+    @objc private func applySubscription(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        model.applySubscription(name)
+    }
+    @objc private func downloadSubscription() {
+        let alert = NSAlert()
+        alert.messageText = "Download Subscription"
+        alert.informativeText = "Enter a name and the subscription URL."
+        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Cancel")
+
+        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 70))
+        let nameLabel = NSTextField(labelWithString: "Name")
+        nameLabel.frame = NSRect(x: 0, y: 42, width: 55, height: 22)
+        accessory.addSubview(nameLabel)
+        let nameField = NSTextField(frame: NSRect(x: 60, y: 42, width: 300, height: 22))
+        nameField.placeholderString = "Subscription name"
+        accessory.addSubview(nameField)
+        let urlLabel = NSTextField(labelWithString: "URL")
+        urlLabel.frame = NSRect(x: 0, y: 8, width: 55, height: 22)
+        accessory.addSubview(urlLabel)
+        let urlField = NSTextField(frame: NSRect(x: 60, y: 8, width: 300, height: 22))
+        urlField.placeholderString = "https://example.com/subscription"
+        accessory.addSubview(urlField)
+        alert.accessoryView = accessory
+        alert.window.initialFirstResponder = nameField
+        NSApp.activate(ignoringOtherApps: true)
+
+        while alert.runModal() == .alertFirstButtonReturn {
+            let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let url = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard name.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil else {
+                alert.informativeText = "Name must be 1–128 ASCII letters, numbers, underscores, or hyphens."
+                alert.window.initialFirstResponder = nameField
+                continue
+            }
+            guard !model.subscriptions.contains(where: { $0.name == name }) else {
+                alert.informativeText = "A subscription with this name already exists. Choose another name."
+                alert.window.initialFirstResponder = nameField
+                continue
+            }
+            guard let components = URLComponents(string: url),
+                  ["http", "https"].contains(components.scheme?.lowercased() ?? ""),
+                  components.host?.isEmpty == false else {
+                alert.informativeText = "Enter a valid HTTP or HTTPS URL."
+                alert.window.initialFirstResponder = urlField
+                continue
+            }
+            guard components.user == nil && components.password == nil else {
+                alert.informativeText = "Remove the username and password from the URL."
+                alert.window.initialFirstResponder = urlField
+                continue
+            }
+            model.addAndDownloadSubscription(name, url)
+            return
+        }
+    }
+    @objc private func deleteSubscription(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        let alert = NSAlert()
+        alert.messageText = "Delete subscription “\(name)”?"
+        alert.informativeText = "This removes the subscription record and cached download. Any profile already applied from this subscription is kept."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete Subscription")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn { model.removeSubscription(name) }
     }
     @objc private func retryStart() { model.retryStart() }
     @objc private func setDisplay(_ sender: NSMenuItem) {
