@@ -15,6 +15,8 @@ import AppKit
     private let menu = NSMenu()
     private var pulse: Timer?
     private var menuRefreshTask: Task<Void, Never>?
+    private var menuTracking = false
+    private var deferredMenuRebuild = false
     private var loadingTimer: Timer?
     private var loadingFrame = 0
 
@@ -46,9 +48,9 @@ import AppKit
         guard let button = statusItem?.button else { return }
         if model.busy {
             menu.cancelTracking()
-            statusItem.menu = nil
+            if statusItem.menu != nil { statusItem.menu = nil }
         } else {
-            statusItem.menu = menu
+            if statusItem.menu !== menu { statusItem.menu = menu }
         }
         if model.applyingSetting {
             if loadingTimer == nil {
@@ -134,12 +136,31 @@ import AppKit
 
     func menuShouldOpen(_ menu: NSMenu) -> Bool { !model.busy }
 
-    func menuNeedsUpdate(_ menu: NSMenu) {
+    func menuWillOpen(_ menu: NSMenu) {
+        // Build the initial tree before AppKit starts tracking submenu items.
         rebuildMenu()
+        menuTracking = true
+        deferredMenuRebuild = false
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        menuTracking = false
+        if deferredMenuRebuild {
+            deferredMenuRebuild = false
+            rebuildMenu()
+        }
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        if !menuTracking { rebuildMenu() }
         guard menuRefreshTask == nil else { return }
         menuRefreshTask = Task {
             await model.refreshMenuData()
-            rebuildMenu()
+            if menuTracking {
+                deferredMenuRebuild = true
+            } else {
+                rebuildMenu()
+            }
             menuRefreshTask = nil
         }
     }
