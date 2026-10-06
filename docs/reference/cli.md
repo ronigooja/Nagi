@@ -101,6 +101,8 @@ Overrides live in `config/overrides/NAME.yaml`, separate from `config/profiles/N
 
 ## DNS policy and checks
 
+A DNS leak occurs when a domain lookup is sent outside the resolver or network path intended by the user, exposing the queried domain to an unintended party.
+
 New default profiles enable mihomo DNS, IPv6, and fake IP mode. They listen only on `127.0.0.1:1053` and use `https://1.1.1.1/dns-query` and `https://8.8.8.8/dns-query` as both primary and bootstrap DoH servers. Existing profiles are not rewritten. No system resolver or TUN routing is changed by creating a default profile, so applications that do not send traffic through mihomo can still use their own DNS.
 
 `dns set` writes DNS settings into the selected profile's separate local override, preserving them across source imports and subscription application. URLs must use HTTPS, include a path, and contain no credentials, query, or fragment. Multiple URLs are given to mihomo as primary upstreams. If all are unavailable, resolution fails; Nagi does not configure a plaintext or system DNS fallback. Direct mode connects to the DoH servers directly. Proxy mode appends mihomo's `#NODE` binding to each upstream and requires `NODE` to name a non-direct proxy in the source profile. If that node disappears, activation fails rather than silently using a network interface as fallback. Node provider entries are not accepted for this binding. Bootstrap and proxy-node hostname resolution still use the two fixed direct DoH servers, even in proxy mode. The DNS override enables both root and DNS IPv6 settings, clears source fallback and direct nameservers, and replaces source DNS server policies.
