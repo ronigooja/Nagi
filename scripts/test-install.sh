@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# Exercise the installer against isolated artifacts and a writable temporary prefix.
+set -euo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+installer=${INSTALLER_SCRIPT:-$script_dir/install.sh}
+[[ -f "$installer" ]] || { printf 'installer not found: %s\n' "$installer" >&2; exit 1; }
+
+test_dir=$(mktemp -d)
+trap 'rm -rf -- "$test_dir"' EXIT
+prefix=$test_dir/prefix
+artifact_v1=$test_dir/artifact-v1
+artifact_v2=$test_dir/artifact-v2
+log=$test_dir/installer.log
+mkdir -p "$artifact_v1" "$artifact_v2"
+
+make_artifact() {
+    local dir=$1 version=$2
+    cat > "$dir/nagi" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "${1:-}" == --json ]] || exit 2
+case "${2:-}" in
+    version)
+        if [[ "${NAGI_TEST_FAIL_INSTALLED_VERSION:-0}" == 1 && "$0" == */bin/nagi ]]; then exit 17; fi
+        printf '{"ok":true,"nagi":"fixture","mihomo_commit":"fixture"}\n'
+        ;;
+    status)
+        if [[ "${NAGI_TEST_RUNNING:-0}" == 1 ]]; then
+            printf '{"ok":true,"running":true}\n'
+        else
+            printf '{"ok":true,"running":false}\n'
+        fi
+        ;;
+    service)
+        [[ "${3:-}" == status ]] || exit 2
+        if [[ "${NAGI_TEST_SERVICE_ACTIVE:-0}" == 1 ]]; then
+            printf '{"ok":true,"installed":true,"active":true}\n'
+        elif [[ "${NAGI_TEST_SERVICE_INSTALLED:-0}" == 1 ]]; then
+            printf '{"ok":true,"installed":true,"active":false}\n'
+        else
+            printf '{"ok":true,"installed":false,"active":false}\n'
+        fi
+        ;;
+    privileged-helper)
+        [[ "${3:-}" == status ]] || exit 2
+        printf '{"ok":true,"installed":false,"active":false}\n'
+        ;;
+    *) exit 2 ;;
+esac
+SH
+    printf '# fixture-version: %s\n' "$version" >> "$dir/nagi"
+    cat > "$dir/mihomo" <<'SH'
+#!/usr/bin/env bash
+[[ "${1:-}" == -v ]] || exit 2
+printf 'mihomo fixture\n'
+SH
+    printf '# fixture-version: %s\n' "$version" >> "$dir/mihomo"
+    chmod 0755 "$dir/nagi" "$dir/mihomo"
+}
+
+fail_test() { printf 'test-install: %s\n' "$*" >&2; exit 1; }
+expect_failure() {
+    local expected=$1
+    shift
+    if "$@" > "$log" 2>&1; then
+        fail_test "command unexpectedly succeeded: $*"
+    fi
+    if ! grep -Fq -- "$expected" "$log"; then
+        cat "$log" >&2
+        fail_test "expected error containing: $expected"
+    fi
+}
+assert_installed_from() {
+    local dir=$1
+    cmp -s "$dir/nagi" "$prefix/bin/nagi" || fail_test 'nagi content changed unexpectedly'
+    cmp -s "$dir/mihomo" "$prefix/bin/mihomo" || fail_test 'mihomo content changed unexpectedly'
+    [[ $(sed -n '1p' "$prefix/share/nagi/install-state") == nagi-installer-v3 ]] || fail_test 'installer record changed unexpectedly'
+    [[ $(sed -n '2p' "$prefix/share/nagi/install-state") == app= ]] || fail_test 'unexpected App record'
+}
+
+make_artifact "$artifact_v1" v1
+make_artifact "$artifact_v2" v2
+
+# An existing executable without an installer record belongs to someone else.
+mkdir -p "$prefix/bin"
+printf 'unmanaged\n' > "$prefix/bin/nagi"
+expect_failure 'unmanaged executables' bash "$installer" install --artifact-dir "$artifact_v1" --prefix "$prefix"
+[[ $(cat "$prefix/bin/nagi") == unmanaged ]] || fail_test 'unmanaged executable was overwritten'
+rm "$prefix/bin/nagi"
+
+# Invalid artifacts must be rejected before writing an installation record.
+invalid=$test_dir/invalid
+mkdir "$invalid"
+cp "$artifact_v1/nagi" "$invalid/nagi"
+expect_failure 'missing regular executable' bash "$installer" install --artifact-dir "$invalid" --prefix "$prefix"
+[[ ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'invalid artifact created an installer record'
+
+bash "$installer" install --artifact-dir "$artifact_v1" --prefix "$prefix" > "$log"
+assert_installed_from "$artifact_v1"
+expect_failure 'already installed' bash "$installer" install --artifact-dir "$artifact_v2" --prefix "$prefix"
+# A manually changed binary must not be overwritten or removed by the installer.
+printf '# outside modification\n' >> "$prefix/bin/mihomo"
+expect_failure 'installed file changed outside the installer' bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
+cmp -s "$artifact_v1/nagi" "$prefix/bin/nagi" || fail_test 'nagi changed after rejected update'
+cp "$artifact_v1/mihomo" "$prefix/bin/mihomo"
+
+invalid_version=$test_dir/invalid-version
+mkdir "$invalid_version"
+cp "$artifact_v1/mihomo" "$invalid_version/mihomo"
+printf '#!/usr/bin/env bash\nprintf "invalid version response\\n"\n' > "$invalid_version/nagi"
+chmod 0755 "$invalid_version/nagi"
+expect_failure 'invalid version response' bash "$installer" update --artifact-dir "$invalid_version" --prefix "$prefix"
+assert_installed_from "$artifact_v1"
+
+# Files outside the managed binary and record paths represent user data.
+mkdir -p "$prefix/share/nagi/profiles" "$test_dir/user-data"
+printf 'user profile\n' > "$prefix/share/nagi/profiles/default.yaml"
+printf 'user subscription\n' > "$test_dir/user-data/subscription.yaml"
+
+expect_failure 'mihomo is running' env NAGI_TEST_RUNNING=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
+assert_installed_from "$artifact_v1"
+expect_failure 'login service is active' env NAGI_TEST_SERVICE_ACTIVE=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
+assert_installed_from "$artifact_v1"
+
+# A failed post-install version check must restore both previous binaries.
+expect_failure 'installed nagi failed its version check' env NAGI_TEST_FAIL_INSTALLED_VERSION=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
+assert_installed_from "$artifact_v1"
+
+bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix" > "$log"
+assert_installed_from "$artifact_v2"
+[[ $(cat "$prefix/share/nagi/profiles/default.yaml") == 'user profile' ]] || fail_test 'update changed user profile'
+
+expect_failure 'login service is installed' env NAGI_TEST_SERVICE_INSTALLED=1 bash "$installer" uninstall --prefix "$prefix"
+assert_installed_from "$artifact_v2"
+
+bash "$installer" uninstall --prefix "$prefix" > "$log"
+[[ ! -e "$prefix/bin/nagi" && ! -e "$prefix/bin/mihomo" && ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'uninstall left managed files behind'
+[[ $(cat "$prefix/share/nagi/profiles/default.yaml") == 'user profile' ]] || fail_test 'uninstall removed user profile'
+[[ $(cat "$test_dir/user-data/subscription.yaml") == 'user subscription' ]] || fail_test 'uninstall removed user subscription'
+
+printf 'installer integration tests passed\n'

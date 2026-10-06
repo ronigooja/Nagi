@@ -31,6 +31,7 @@ Without `MIHOMO_DIR`, the build script fetches the repository and exact commit i
 - [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Development](docs/development/build-and-test.md): locked builds and tests.
+- [Local installation](docs/development/install.md): installing, updating, and removing built artifacts for development and future release workflows.
 - [Linux privileged helper scaffold](docs/development/privileged-linux.md): system service boundary and current availability.
 - [macOS privileged TUN helper](docs/reference/cli.md#traffic-access): installation and backend selection for TUN access.
 - [Feature roadmap](docs/development/roadmap.md): planned user-facing capabilities.
