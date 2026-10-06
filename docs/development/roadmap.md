@@ -2,23 +2,9 @@
 
 This document audits the daily-use capability targets. The [CLI reference](../reference/cli.md) is authoritative for implemented commands and their limits. Items explicitly labeled remaining below are not implemented.
 
-## TUI
-
-The terminal dashboard is implemented through `nagi tui`; the [guide](../guides/terminal-dashboard.md) defines keys and current behavior. It covers:
-
-- current engine status, selected profile, proxy mode, and DNS status;
-- proxy group and node browsing;
-- node search, filtering, latency tests, and selection;
-- system proxy and TUN controls;
-- subscription update and apply actions;
-- logs, errors, loading states, and empty states;
-- refresh, navigation, and exit key bindings.
-
-The existing CLI remains the interface for scripts, automation, and the macOS app.
-
 ## Subscription management
 
-Implemented CLI behavior covers the actions below within the formats and preservation limits in the [CLI reference](../reference/cli.md). The TUI can update and apply a selected subscription.
+Implemented CLI behavior covers the actions below within the formats and preservation limits in the [CLI reference](../reference/cli.md).
 
 - Add, remove, update, and apply subscriptions.
 - Support mihomo YAML subscriptions containing `proxies` or `proxy-providers`.
@@ -35,7 +21,7 @@ The CLI supports source profile import, export, switch, remove, validation, back
 
 ## Proxy groups and nodes
 
-The CLI implements the items below as defined in the [CLI reference](../reference/cli.md); the TUI also browses groups and nodes, searches and tests nodes, and selects them.
+The CLI implements the items below as defined in the [CLI reference](../reference/cli.md).
 
 - List groups, nodes, and the current selection.
 - Search nodes and provide dynamic completion.
@@ -75,7 +61,7 @@ Implemented CLI commands and persistence behavior are in the [CLI reference](../
 
 ## Runtime control
 
-The CLI implements the runtime-control items below as defined in the [CLI reference](../reference/cli.md). The TUI also cycles the runtime mode.
+The CLI implements the runtime-control items below as defined in the [CLI reference](../reference/cli.md).
 
 - Switch between `rule`, `global`, and `direct` modes.
 - Distinguish temporary runtime changes from persistent settings.
@@ -113,11 +99,11 @@ Implemented checks and redaction are documented in the [CLI reference](../refere
 
 Implemented CLI envelope, generated shell completion, local-name candidates, and error handling are specified in the [CLI reference](../reference/cli.md) and [CLI usability rules](cli-usability.md).
 
-- Expose core operations through CLI commands as well as the TUI.
+- Expose core operations through CLI commands.
 - Keep the `--json` interface stable for scripts and the macOS app.
 - Provide shell completion for supported commands and local resources.
 - Keep errors, exit codes, recovery steps, and sensitive-data handling consistent.
 
 ## Scope guidance
 
-The TUI, subscription flow, node selection, traffic access, DNS protection, rules, persistence, startup recovery, and diagnostics form the core daily-use scope. Notifications, multi-instance management, scheduled benchmarking, complex network scenes, and detailed traffic graphs can be considered after this scope is complete.
+The subscription flow, node selection, traffic access, DNS protection, rules, persistence, startup recovery, and diagnostics form the core daily-use scope. Notifications, multi-instance management, scheduled benchmarking, complex network scenes, and detailed traffic graphs can be considered after this scope is complete.

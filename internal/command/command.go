@@ -110,13 +110,6 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		output.WriteError(stderr, jsonMode, "usage", err.Error())
 		return 2
 	}
-	if len(filtered) == 1 && filtered[0] == "tui" {
-		if jsonMode {
-			output.WriteError(stderr, true, "usage", "tui is interactive; omit --json and use the CLI commands for automation")
-			return 2
-		}
-		return runTUI(stdout, stderr, version, commit)
-	}
 	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
 		return runTrafficWatch(stdout, stderr, jsonMode)
 	}
