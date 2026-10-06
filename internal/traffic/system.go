@@ -157,27 +157,6 @@ func (m *Manager) Recheck(ctx context.Context, pid int) (RecheckResult, error) {
 			return nil
 		}
 		switch current.Backend {
-		case "gnome-gsettings":
-			if sameGNOME(current, j.Applied) {
-				result.Status = "current"
-				return nil
-			}
-			if !sameGNOME(current, j.Before) {
-				result.Conflicts = append(result.Conflicts, "GNOME proxy settings changed outside Nagi")
-				result.Status = "attention"
-				return nil
-			}
-			if err := m.apply(ctx, j.Applied); err != nil {
-				return fmt.Errorf("reassert GNOME proxy settings: %w", err)
-			}
-			verified, err := m.current(ctx)
-			if err != nil {
-				return err
-			}
-			if !sameGNOME(verified, j.Applied) {
-				return errors.New("GNOME did not retain reasserted proxy settings")
-			}
-			result.Reasserted = append(result.Reasserted, "GNOME")
 		case "macos-networksetup":
 			for _, name := range current.Services {
 				if _, ok := j.Applied.PerService[name]; !ok {
@@ -236,11 +215,6 @@ func (m *Manager) Recheck(ctx context.Context, pid int) (RecheckResult, error) {
 	return result, err
 }
 
-func sameGNOME(a, b State) bool {
-	return a.Mode == b.Mode && a.HTTP.Host == b.HTTP.Host && a.HTTP.Port == b.HTTP.Port &&
-		a.HTTPS.Host == b.HTTPS.Host && a.HTTPS.Port == b.HTTPS.Port &&
-		a.SOCKS.Host == b.SOCKS.Host && a.SOCKS.Port == b.SOCKS.Port
-}
 func macTargetMatches(actual, target ServiceSettings) bool {
 	return targetSettingMatches(actual.HTTP, target.HTTP) && targetSettingMatches(actual.HTTPS, target.HTTPS) && targetSettingMatches(actual.SOCKS, target.SOCKS)
 }
@@ -397,7 +371,7 @@ func (m *Manager) current(ctx context.Context) (State, error) {
 	case "darwin":
 		return m.macCurrent(ctx)
 	case "linux":
-		return m.gnomeCurrent(ctx)
+		return State{}, errors.New("system proxy is unsupported on Linux; configure applications to use the mihomo listener")
 	default:
 		return State{}, fmt.Errorf("system proxy is unsupported on %s", m.OS)
 	}
@@ -407,7 +381,7 @@ func (m *Manager) apply(ctx context.Context, s State) error {
 	case "macos-networksetup":
 		return m.macApply(ctx, s)
 	case "gnome-gsettings":
-		return m.gnomeApply(ctx, s)
+		return errors.New("system proxy is unsupported on Linux; saved GNOME settings cannot be changed")
 	default:
 		return errors.New("unknown system proxy backend")
 	}
@@ -487,52 +461,4 @@ func (m *Manager) macApply(ctx context.Context, s State) error {
 		}
 	}
 	return nil
-}
-func (m *Manager) gnomeCurrent(ctx context.Context) (State, error) {
-	mode, e := m.call(ctx, "gsettings", "get", "org.gnome.system.proxy", "mode")
-	if e != nil {
-		return State{}, errors.New("GNOME gsettings is unavailable; Linux system proxy requires an active GNOME desktop session")
-	}
-	s := State{Backend: "gnome-gsettings", Mode: strings.Trim(mode, "' "), Enabled: strings.Trim(mode, "' ") == "manual"}
-	for _, item := range []struct {
-		name string
-		dest *Setting
-	}{{"http", &s.HTTP}, {"https", &s.HTTPS}, {"socks", &s.SOCKS}} {
-		schema := "org.gnome.system.proxy." + item.name
-		host, e := m.call(ctx, "gsettings", "get", schema, "host")
-		if e != nil {
-			return s, e
-		}
-		port, e := m.call(ctx, "gsettings", "get", schema, "port")
-		if e != nil {
-			return s, e
-		}
-		item.dest.Host = strings.Trim(host, "' ")
-		item.dest.Port, _ = strconv.Atoi(port)
-		item.dest.Enabled = s.Enabled && item.dest.Port > 0
-	}
-	return s, nil
-}
-func (m *Manager) gnomeApply(ctx context.Context, s State) error {
-	for _, item := range []struct {
-		name  string
-		value Setting
-	}{{"http", s.HTTP}, {"https", s.HTTPS}, {"socks", s.SOCKS}} {
-		schema := "org.gnome.system.proxy." + item.name
-		if _, e := m.call(ctx, "gsettings", "set", schema, "host", item.value.Host); e != nil {
-			return e
-		}
-		if _, e := m.call(ctx, "gsettings", "set", schema, "port", strconv.Itoa(item.value.Port)); e != nil {
-			return e
-		}
-	}
-	mode := s.Mode
-	if mode == "" {
-		mode = "none"
-	}
-	if s.Enabled {
-		mode = "manual"
-	}
-	_, e := m.call(ctx, "gsettings", "set", "org.gnome.system.proxy", "mode", mode)
-	return e
 }

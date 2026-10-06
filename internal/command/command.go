@@ -754,6 +754,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return nil, usage("connections list|show ID|close ID|close-all")
 		}
 	case "system-proxy":
+		if runtime.GOOS == "linux" {
+			return nil, fail("system_proxy_error", errors.New("system proxy is unsupported on Linux; configure applications to use the mihomo listener"))
+		}
 		if args[1] == "status" {
 			state, e := trafficManager.Status(ctx)
 			if e != nil {
