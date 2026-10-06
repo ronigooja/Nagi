@@ -207,3 +207,37 @@ func TestNormalizeIndependentListenersAndPreviewRedaction(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeOtherIndependentInbounds(t *testing.T) {
+	doc, _, err := Document([]byte("proxies:\n  - name: A\n    type: direct\ntuic-server:\n  enable: true\n  listen: '[::]:443'\ntunnels:\n  - network: [tcp]\n    address: '0.0.0.0:8080'\n    target: 'example.com:80'\n  - 'udp,0.0.0.0:5353,example.com:53'\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err = NormalizeChecked(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc["tuic-server"].(map[string]any)["listen"] != "127.0.0.1:443" {
+		t.Fatalf("tuic: %#v", doc["tuic-server"])
+	}
+	items := sliceValue(doc["tunnels"])
+	if items[0].(map[string]any)["address"] != "127.0.0.1:8080" || items[1] != "udp,127.0.0.1:5353,example.com:53" {
+		t.Fatalf("tunnels: %#v", items)
+	}
+	for _, tc := range []struct{ field, source string }{
+		{"dns.listen", "dns:\n  listen: 'tcp://0.0.0.0:53'\n"},
+		{"tuic-server.listen", "tuic-server:\n  enable: true\n  listen: invalid\n"},
+		{"tunnels[0].address", "tunnels:\n  - 'tcp,invalid,example.com:80'\n"},
+		{"ss-config", "ss-config: /tmp/server.json\n"},
+		{"vmess-config", "vmess-config: /tmp/server.json\n"},
+	} {
+		bad, _, err := Document([]byte("proxies:\n  - name: A\n    type: direct\n" + tc.source))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = NormalizeChecked(bad)
+		if err == nil || !strings.Contains(err.Error(), tc.field) {
+			t.Fatalf("%s: %v", tc.field, err)
+		}
+	}
+}

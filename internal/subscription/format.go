@@ -143,6 +143,68 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 	}
 	incoming["allow-lan"] = false
 	incoming["bind-address"] = "127.0.0.1"
+	for _, field := range []string{"ss-config", "vmess-config"} {
+		if raw, exists := incoming[field]; exists && raw != nil && raw != "" {
+			return nil, fmt.Errorf("%s defines an inbound from an external file and cannot be bound to loopback", field)
+		}
+	}
+	if raw, exists := incoming["tuic-server"]; exists {
+		server, ok := raw.(map[string]any)
+		if !ok {
+			return nil, errors.New("tuic-server must be a mapping")
+		}
+		if address, exists := server["listen"]; exists {
+			value, ok := address.(string)
+			if !ok {
+				return nil, errors.New("tuic-server.listen must be a host:port address")
+			}
+			if value != "" {
+				local, err := loopbackAddress(value, "tuic-server.listen")
+				if err != nil {
+					return nil, err
+				}
+				server["listen"] = local
+			} else if server["enable"] == true {
+				return nil, errors.New("tuic-server.listen is required when tuic-server.enable is true")
+			}
+		} else if server["enable"] == true {
+			return nil, errors.New("tuic-server.listen is required when tuic-server.enable is true")
+		}
+	}
+	if raw, exists := incoming["tunnels"]; exists {
+		items, ok := raw.([]any)
+		if !ok {
+			return nil, errors.New("tunnels must be a list")
+		}
+		for i, item := range items {
+			field := fmt.Sprintf("tunnels[%d].address", i)
+			switch tunnel := item.(type) {
+			case map[string]any:
+				address, ok := tunnel["address"].(string)
+				if !ok {
+					return nil, fmt.Errorf("%s must be a host:port address", field)
+				}
+				local, err := loopbackAddress(address, field)
+				if err != nil {
+					return nil, err
+				}
+				tunnel["address"] = local
+			case string:
+				parts := strings.Split(tunnel, ",")
+				if len(parts) != 3 && len(parts) != 4 {
+					return nil, fmt.Errorf("tunnels[%d] must have network,address,target[,proxy]", i)
+				}
+				local, err := loopbackAddress(strings.TrimSpace(parts[1]), field)
+				if err != nil {
+					return nil, err
+				}
+				parts[1] = local
+				items[i] = strings.Join(parts, ",")
+			default:
+				return nil, fmt.Errorf("tunnels[%d] must be a mapping or string", i)
+			}
+		}
+	}
 	if listeners, exists := incoming["listeners"]; exists {
 		items, ok := listeners.([]any)
 		if !ok {
@@ -183,22 +245,11 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 				return nil, errors.New("dns.listen must be a host:port address")
 			}
 			if address != "" {
-				scheme := ""
-				if prefix, rest, found := strings.Cut(address, "://"); found {
-					if prefix != "udp" && prefix != "tcp" {
-						return nil, errors.New("dns.listen has unsupported protocol")
-					}
-					scheme, address = prefix+"://", rest
-				}
-				_, port, err := net.SplitHostPort(address)
+				local, err := loopbackAddress(address, "dns.listen")
 				if err != nil {
-					return nil, errors.New("dns.listen must be a host:port address")
+					return nil, err
 				}
-				n, err := strconv.Atoi(port)
-				if err != nil || n < 1 || n > 65535 {
-					return nil, errors.New("dns.listen has invalid port")
-				}
-				dns["listen"] = scheme + net.JoinHostPort("127.0.0.1", port)
+				dns["listen"] = local
 			}
 		}
 	}
@@ -213,6 +264,21 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 		incoming["mixed-port"] = 17890
 	}
 	return incoming, nil
+}
+
+func loopbackAddress(address, field string) (string, error) {
+	if strings.Contains(address, "://") {
+		return "", fmt.Errorf("%s has unsupported protocol; expected host:port", field)
+	}
+	_, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", fmt.Errorf("%s must be a host:port address", field)
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil || n < 1 || n > 65535 {
+		return "", fmt.Errorf("%s has invalid port", field)
+	}
+	return net.JoinHostPort("127.0.0.1", port), nil
 }
 func sliceValue(v any) []any { s, _ := v.([]any); return s }
 
@@ -256,7 +322,7 @@ func Compare(name, format string, incoming, existing map[string]any) Preview {
 	sort.Strings(result.Added)
 	sort.Strings(result.Removed)
 	sort.Strings(result.Changed)
-	for _, category := range []string{"proxy-groups", "proxy-providers", "rules", "rule-providers", "dns", "tun", "listeners", "mode", "port", "socks-port", "mixed-port", "redir-port", "tproxy-port", "bind-address", "allow-lan"} {
+	for _, category := range []string{"proxy-groups", "proxy-providers", "rules", "rule-providers", "dns", "tun", "listeners", "tunnels", "tuic-server", "mode", "port", "socks-port", "mixed-port", "redir-port", "tproxy-port", "bind-address", "allow-lan"} {
 		var before, after any
 		var oldExists, newExists bool
 		if existing != nil {
@@ -286,7 +352,7 @@ func Compare(name, format string, incoming, existing map[string]any) Preview {
 			behavior = "DNS resolution or upstream routing may change."
 		case "tun":
 			behavior = "TUN traffic interception may change."
-		case "listeners", "port", "socks-port", "mixed-port", "redir-port", "tproxy-port", "bind-address", "allow-lan":
+		case "listeners", "tunnels", "tuic-server", "port", "socks-port", "mixed-port", "redir-port", "tproxy-port", "bind-address", "allow-lan":
 			behavior = "Local listening behavior may change."
 		case "mode":
 			behavior = "Default traffic routing mode may change."
@@ -371,7 +437,7 @@ func appendDetailedChanges(out *[]ConfigChange, path string, before, after any, 
 
 func safePreviewField(field string) bool {
 	switch field {
-	case "name", "type", "proxies", "use", "url", "interval", "tolerance", "strategy", "filter", "exclude-filter", "rules", "enable", "listen", "port", "nameserver", "fallback", "default-nameserver", "proxy-server-nameserver", "direct-nameserver", "nameserver-policy", "ipv6", "enhanced-mode", "fake-ip-range", "dns-hijack", "auto-route", "strict-route", "auto-detect-interface", "stack", "device", "gateway", "mtu", "include-interface", "exclude-interface":
+	case "name", "type", "proxies", "use", "url", "interval", "tolerance", "strategy", "filter", "exclude-filter", "rules", "enable", "listen", "port", "address", "network", "target", "nameserver", "fallback", "default-nameserver", "proxy-server-nameserver", "direct-nameserver", "nameserver-policy", "ipv6", "enhanced-mode", "fake-ip-range", "dns-hijack", "auto-route", "strict-route", "auto-detect-interface", "stack", "device", "gateway", "mtu", "include-interface", "exclude-interface":
 		return true
 	}
 	return false
