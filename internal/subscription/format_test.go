@@ -252,6 +252,57 @@ dns:
 	validateGeneratedWithMihomo(t, doc)
 }
 
+func TestGeneratedGlobalAliasKeepsSubRuleNamespaceAndRuleParameters(t *testing.T) {
+	source := `proxies:
+  - name: GLOBAL
+    type: direct
+proxy-providers:
+  remote:
+    type: inline
+    proxy: GLOBAL
+    dialer-proxy: GLOBAL
+    payload:
+      - name: node
+        type: direct
+        dialer-proxy: GLOBAL
+rule-providers:
+  remote:
+    type: inline
+    behavior: classical
+    proxy: GLOBAL
+    payload: []
+rules:
+  - SUB-RULE,(DOMAIN,example.com),GLOBAL
+  - DOMAIN,example.org,GLOBAL,no-resolve
+sub-rules:
+  GLOBAL:
+    - MATCH,GLOBAL
+`
+	doc, _, err := Document([]byte(source))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := doc["rules"]; !reflect.DeepEqual(got, []any{"SUB-RULE,(DOMAIN,example.com),GLOBAL", "DOMAIN,example.org,GLOBAL-2,no-resolve"}) {
+		t.Fatalf("rules: %#v", got)
+	}
+	if got := doc["sub-rules"].(map[string]any)["GLOBAL"]; !reflect.DeepEqual(got, []any{"MATCH,GLOBAL-2"}) {
+		t.Fatalf("sub-rules: %#v", got)
+	}
+	provider := doc["proxy-providers"].(map[string]any)["remote"].(map[string]any)
+	for _, field := range []string{"proxy", "dialer-proxy"} {
+		if provider[field] != "GLOBAL-2" {
+			t.Fatalf("provider %s: %#v", field, provider[field])
+		}
+	}
+	if node := sliceValue(provider["payload"])[0].(map[string]any); node["dialer-proxy"] != "GLOBAL-2" {
+		t.Fatalf("inline node: %#v", node)
+	}
+	if got := doc["rule-providers"].(map[string]any)["remote"].(map[string]any)["proxy"]; got != "GLOBAL-2" {
+		t.Fatalf("rule provider proxy: %#v", got)
+	}
+	validateGeneratedWithMihomo(t, doc)
+}
+
 func containsChoice(group map[string]any, name string) bool {
 	for _, item := range sliceValue(group["proxies"]) {
 		if item == name {

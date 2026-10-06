@@ -158,17 +158,36 @@ func completeGroups(doc map[string]any, proxies []any) {
 // Rewrite only fields that mihomo interprets as proxy references. Downloaded
 // rule text and unrelated strings remain untouched.
 func rewriteGlobalReferences(doc map[string]any, alias string) {
+	rewriteProxyField := func(m map[string]any, field string) {
+		if m[field] == "GLOBAL" {
+			m[field] = alias
+		}
+	}
 	for _, item := range sliceValue(doc["proxies"]) {
-		if node, ok := item.(map[string]any); ok && node["dialer-proxy"] == "GLOBAL" {
-			node["dialer-proxy"] = alias
+		if node, ok := item.(map[string]any); ok {
+			rewriteProxyField(node, "dialer-proxy")
 		}
 	}
 	if providers, ok := doc["proxy-providers"].(map[string]any); ok {
 		for _, raw := range providers {
 			if provider, ok := raw.(map[string]any); ok {
-				if override, ok := provider["override"].(map[string]any); ok && override["dialer-proxy"] == "GLOBAL" {
-					override["dialer-proxy"] = alias
+				rewriteProxyField(provider, "proxy")
+				rewriteProxyField(provider, "dialer-proxy")
+				if override, ok := provider["override"].(map[string]any); ok {
+					rewriteProxyField(override, "dialer-proxy")
 				}
+				for _, item := range sliceValue(provider["payload"]) {
+					if node, ok := item.(map[string]any); ok {
+						rewriteProxyField(node, "dialer-proxy")
+					}
+				}
+			}
+		}
+	}
+	if providers, ok := doc["rule-providers"].(map[string]any); ok {
+		for _, raw := range providers {
+			if provider, ok := raw.(map[string]any); ok {
+				rewriteProxyField(provider, "proxy")
 			}
 		}
 	}
@@ -179,12 +198,19 @@ func rewriteGlobalReferences(doc map[string]any, alias string) {
 				continue
 			}
 			parts := strings.Split(rule, ",")
-			last := len(parts) - 1
-			if last > 0 && strings.TrimSpace(parts[last]) == "no-resolve" {
-				last--
+			kind := strings.ToUpper(strings.TrimSpace(parts[0]))
+			if kind == "SUB-RULE" {
+				continue
 			}
-			if last > 0 && strings.TrimSpace(parts[last]) == "GLOBAL" {
-				parts[last] = alias
+			target := 2
+			switch kind {
+			case "MATCH":
+				target = 1
+			case "NOT", "OR", "AND", "DOMAIN-REGEX", "PROCESS-NAME-REGEX", "PROCESS-PATH-REGEX":
+				target = len(parts) - 1
+			}
+			if target > 0 && target < len(parts) && strings.TrimSpace(parts[target]) == "GLOBAL" {
+				parts[target] = alias
 				sliceValue(raw)[i] = strings.Join(parts, ",")
 			}
 		}
