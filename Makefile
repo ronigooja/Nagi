@@ -1,4 +1,4 @@
-GO ?= $(firstword $(shell command -v go 2>/dev/null) $(wildcard $(HOME)/environment/go*/bin/go))
+GO ?= $(firstword $(shell command -v go 2>/dev/null) $(wildcard $(HOME)/environment/go*/bin/go) $(wildcard /opt/homebrew/bin/go /usr/local/go/bin/go))
 
 .PHONY: build cli app release test clean
 build:

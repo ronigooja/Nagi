@@ -48,7 +48,7 @@ if [[ -z "$go_bin" ]]; then
     go_bin="$(command -v go || true)"
 fi
 if [[ -z "$go_bin" ]]; then
-    for candidate in "$HOME"/environment/go*/bin/go; do
+    for candidate in "$HOME"/environment/go*/bin/go /opt/homebrew/bin/go /usr/local/go/bin/go; do
         if [[ -x "$candidate" ]]; then
             go_bin="$candidate"
             break

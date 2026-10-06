@@ -88,6 +88,29 @@ elif (( artifact_dir_given )); then
 fi
 
 exists() { [[ -e "$1" || -L "$1" ]]; }
+orphan_removed=0
+helper_was_installed=0
+helper_was_privileged=0
+remove_orphan_helper() {
+    local helper_cli=$1 helper_status
+    if [[ ! -f "$helper_cli" || ! -x "$helper_cli" || -L "$helper_cli" ]]; then
+        if [[ -e /Library/LaunchDaemons/io.nagi.privileged-helper.plist || -L /Library/LaunchDaemons/io.nagi.privileged-helper.plist ]] || /bin/launchctl print system/io.nagi.privileged-helper >/dev/null 2>&1; then
+            fail "build bin/nagi before removing an orphaned privileged helper"
+        fi
+        return 0
+    fi
+    helper_status=$("$helper_cli" --json privileged-helper status) || fail "cannot inspect privileged helper"
+    [[ "$helper_status" == *'"ok":true'* ]] || fail "cannot inspect privileged helper"
+    if [[ "$helper_status" == *'"installed":true'* || "$helper_status" == *'"active":true'* ]]; then
+        command -v sudo >/dev/null || fail "sudo is required to remove the orphaned privileged helper"
+        sudo -n true 2>/dev/null || sudo -v || fail "administrator authorization failed"
+        if [[ "$helper_status" == *'"selected_backend":"privileged"'* ]]; then
+            "$helper_cli" privileged-helper disable >/dev/null || fail "cannot select the user backend before removing the orphaned privileged helper"
+        fi
+        sudo "$helper_cli" privileged-helper uninstall >/dev/null || fail "cannot remove orphaned privileged helper"
+        orphan_removed=1
+    fi
+}
 command -v shasum >/dev/null || fail "shasum is required to record and verify installed files"
 hash_file() { shasum -a 256 "$1" | cut -d ' ' -f 1; }
 valid_hash() { [[ "$1" =~ ^[0-9a-f]{64}$ ]]; }
@@ -130,13 +153,17 @@ if [[ "$action" == install ]]; then
     fi
     if (( manage_helper )); then
         helper=$("$artifact_dir/nagi" --json privileged-helper status) || fail "cannot inspect privileged helper"
-        [[ "$helper" != *'"installed":true'* ]] || fail "privileged helper definition already exists without an installer record; run 'sudo \"$artifact_dir/nagi\" privileged-helper uninstall' and retry"
-        [[ "$helper" != *'"active":true'* ]] || fail "privileged helper launchd job remains active without an installer record; run 'sudo \"$artifact_dir/nagi\" privileged-helper uninstall' and retry"
+        [[ "$helper" == *'"ok":true'* ]] || fail "cannot inspect privileged helper"
     fi
 else
     if ! exists "$state"; then
         if [[ "$action" == uninstall && ! -e "$nagi" && ! -e "$mihomo" ]]; then
-            printf 'Nagi is not installed at %s\n' "$prefix"
+            if (( manage_helper )); then remove_orphan_helper "$script_dir/../bin/nagi"; fi
+            if (( orphan_removed )); then
+                printf 'Nagi uninstall complete at %s\n' "$prefix"
+            else
+                printf 'Nagi is not installed at %s\n' "$prefix"
+            fi
             exit 0
         fi
         fail "no installer record at $state; refusing to change unmanaged files"
@@ -185,8 +212,6 @@ else
     [[ "$service" != *'"installed":true'* ]] || fail "login service is installed; run '$nagi service uninstall' before changing its executable"
     if [[ "$platform" == Darwin ]]; then
         helper=$("$nagi" --json privileged-helper status) || fail "cannot inspect privileged helper; stop it and retry"
-        helper_was_installed=0
-        helper_was_privileged=0
         [[ "$helper" != *'"installed":true'* ]] || helper_was_installed=1
         [[ "$helper" != *'"selected_backend":"privileged"'* ]] || helper_was_privileged=1
         if (( helper_was_installed && ! manage_helper )); then
@@ -213,6 +238,9 @@ fi
 if (( needs_sudo || manage_helper )) && (( EUID != 0 )); then
     command -v sudo >/dev/null || fail "sudo is required to write the installation destination"
     sudo -n true 2>/dev/null || sudo -v || fail "administrator authorization failed"
+fi
+if [[ "$action" == install ]] && (( manage_helper )); then
+    remove_orphan_helper "$artifact_dir/nagi"
 fi
 write_fs() {
     if (( needs_sudo )) && (( EUID != 0 )); then sudo "$@"; else "$@"; fi
@@ -252,8 +280,6 @@ profile_stage=
 helper_removed=0
 helper_added=0
 helper_switched=0
-helper_was_installed=0
-helper_was_privileged=0
 cleanup() {
     local result=$?
     trap - EXIT
