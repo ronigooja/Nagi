@@ -36,6 +36,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     private var trafficTask: Task<Void, Never>?
     private var trafficStream: TrafficStream?
     private var trafficGeneration = 0
+    private var settingsGeneration = 0
     private var lastSample = Date.distantPast
     private var streamStartedAt = Date.distantPast
     private var sleeping = false
@@ -111,69 +112,154 @@ enum EngineState { case starting, running, stopped, unavailable }
         catch { state = .unavailable; errorMessage = "Start failed: \(error.localizedDescription)" }
     }
     func refresh() async {
+        let generation = settingsGeneration
         do {
             let value = try await cli.run(["status"])
+            guard generation == settingsGeneration else { return }
             state = value["running"]?.bool == true ? .running : .stopped
             profile = value["profile"]?.string
             if errorMessage?.hasPrefix("Status unavailable:") == true { errorMessage = nil }
             if state == .running { if trafficTask == nil && !sleeping { startTraffic() } }
             else { stopTraffic() }
         } catch {
+            guard generation == settingsGeneration else { return }
             state = .unavailable; stopTraffic()
             errorMessage = "Status unavailable: \(error.localizedDescription)"
         }
         await refreshMenuData()
     }
     @discardableResult func refreshMenuData() async -> Bool {
-        var subscriptionsRefreshed = false
+        let generation = settingsGeneration
+        await refreshProfiles()
+        guard generation == settingsGeneration else { return false }
+        let subscriptionsRefreshed = await refreshSubscriptions()
+        guard generation == settingsGeneration else { return false }
+        do {
+            let service = try await cli.run(["service", "status"])
+            guard generation == settingsGeneration else { return false }
+            serviceInstalled = service["installed"]?.bool
+        } catch {
+            guard generation == settingsGeneration else { return false }
+            serviceInstalled = nil
+        }
+        await refreshRuntimeSettings()
+        guard generation == settingsGeneration else { return false }
+        if state == .running {
+            do {
+                let value = try await cli.run(["system-proxy", "status"])
+                guard generation == settingsGeneration else { return false }
+                systemProxy = value["enabled"]?.bool
+            } catch {
+                guard generation == settingsGeneration else { return false }
+                systemProxy = nil; errorMessage = error.localizedDescription
+            }
+        } else { systemProxy = nil }
+        notify()
+        return subscriptionsRefreshed
+    }
+    private func refreshProfiles() async {
+        let generation = settingsGeneration
         do {
             let value = try await cli.run(["profile", "list"])
+            guard generation == settingsGeneration else { return }
             profiles = value["profiles"]?.array.compactMap { $0.string ?? $0["name"]?.string } ?? []
             profile = value["current"]?.string
             if let problem = value["current_error"]?.string { errorMessage = "Profile selection unavailable: \(problem)" }
-        } catch { errorMessage = error.localizedDescription }
+        } catch {
+            guard generation == settingsGeneration else { return }
+            errorMessage = error.localizedDescription
+        }
+    }
+    @discardableResult private func refreshSubscriptions() async -> Bool {
+        let generation = settingsGeneration
         do {
             let value = try await cli.run(["subscription", "list"])
+            guard generation == settingsGeneration else { return false }
             subscriptions = value["subscriptions"]?.array.compactMap { item in
                 guard let name = item["name"]?.string else { return nil }
                 return Subscription(name: name)
             } ?? []
-            subscriptionsRefreshed = true
-        } catch { errorMessage = error.localizedDescription }
-        do {
-            let service = try await cli.run(["service", "status"])
-            serviceInstalled = service["installed"]?.bool
-        } catch { serviceInstalled = nil }
+            return true
+        } catch {
+            guard generation == settingsGeneration else { return false }
+            errorMessage = error.localizedDescription; return false
+        }
+    }
+    private func refreshRuntimeSettings() async {
+        let generation = settingsGeneration
         if state == .running {
             do {
                 let value = try await cli.run(["proxy", "groups"])
+                guard generation == settingsGeneration else { return }
                 groups = value["groups"]?.array.compactMap { item in
                     guard let name = item["name"]?.string else { return nil }
                     return ProxyGroup(name: name, kind: item["type"]?.string ?? "", selected: item["now"]?.string ?? "",
                                       nodes: item["all"]?.array.compactMap(\.string) ?? [])
                 } ?? []
-            } catch { groups = []; errorMessage = error.localizedDescription }
-            do { mode = try await cli.run(["mode"])["mode"]?.string }
-            catch { mode = nil; errorMessage = error.localizedDescription }
-            do { systemProxy = try await cli.run(["system-proxy", "status"])["enabled"]?.bool }
-            catch { systemProxy = nil; errorMessage = error.localizedDescription }
+            } catch {
+                guard generation == settingsGeneration else { return }
+                groups = []; errorMessage = error.localizedDescription
+            }
+            do {
+                let value = try await cli.run(["mode"])
+                guard generation == settingsGeneration else { return }
+                mode = value["mode"]?.string
+            } catch {
+                guard generation == settingsGeneration else { return }
+                mode = nil; errorMessage = error.localizedDescription
+            }
             do {
                 let value = try await cli.run(["tun", "status"])
+                guard generation == settingsGeneration else { return }
                 tun = value["enabled"]?.bool; tunAdapter = value["adapter_status"]?.string
-            } catch { tun = nil; tunAdapter = nil; errorMessage = error.localizedDescription }
-        } else { groups = []; mode = nil; systemProxy = nil; tun = nil; tunAdapter = nil }
-        notify()
-        return subscriptionsRefreshed
+            } catch {
+                guard generation == settingsGeneration else { return }
+                tun = nil; tunAdapter = nil; errorMessage = error.localizedDescription
+            }
+        } else { groups = []; mode = nil; tun = nil; tunAdapter = nil }
     }
     func perform(_ arguments: [String]) {
         guard !busy && !quitting else { return }
+        settingsGeneration += 1
         busy = true
         applyingSetting = true
         notice = nil
         Task {
             defer { applyingSetting = false; busy = false }
-            do { _ = try await cli.run(arguments); errorMessage = nil; await refresh() }
-            catch { errorMessage = error.localizedDescription }
+            do {
+                let result = try await cli.run(arguments)
+                settingsGeneration += 1
+                errorMessage = nil
+                if arguments.count >= 2 {
+                    switch (arguments[0], arguments[1]) {
+                    case ("system-proxy", _): systemProxy = result["enabled"]?.bool
+                    case ("tun", _):
+                        tun = result["enabled"]?.bool
+                        tunAdapter = result["adapter_status"]?.string
+                    case ("mode", _): mode = result["mode"]?.string
+                    case ("proxy", "select"):
+                        if arguments.count == 4 {
+                            groups = groups.map { group in
+                                guard group.name == arguments[2] else { return group }
+                                return ProxyGroup(name: group.name, kind: group.kind, selected: arguments[3], nodes: group.nodes)
+                            }
+                        }
+                    case ("service", "install"): serviceInstalled = true
+                    case ("service", "uninstall"): serviceInstalled = false
+                    case ("profile", "use"):
+                        profile = result["current"]?.string
+                        await refreshRuntimeSettings()
+                    case ("profile", "override"):
+                        await refreshRuntimeSettings()
+                    default: await refreshMenuData()
+                    }
+                }
+                notify()
+            }
+            catch {
+                settingsGeneration += 1
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -190,6 +276,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
     func updateAndApplySubscription(_ name: String) {
         guard !busy && !quitting else { return }
+        settingsGeneration += 1
         busy = true
         applyingSetting = true
         notice = nil
@@ -198,21 +285,28 @@ enum EngineState { case starting, running, stopped, unavailable }
             do {
                 _ = try await cli.run(["subscription", "update", name])
             } catch {
+                settingsGeneration += 1
                 errorMessage = "Subscription update failed: \(error.localizedDescription)"
                 return
             }
             do {
-                _ = try await cli.run(["subscription", "apply", name])
+                let result = try await cli.run(["subscription", "apply", name])
+                settingsGeneration += 1
                 errorMessage = nil
                 notice = "Subscription updated and applied."
-                await refresh()
+                profile = result["profile"]?.string
+                await refreshProfiles()
+                await refreshRuntimeSettings()
+                notify()
             } catch {
+                settingsGeneration += 1
                 errorMessage = "Subscription updated, but apply failed: \(error.localizedDescription)"
             }
         }
     }
     func addAndDownloadSubscription(_ name: String, url: String) {
         guard !busy && !quitting else { return }
+        settingsGeneration += 1
         busy = true
         applyingSetting = true
         notice = nil
@@ -220,40 +314,51 @@ enum EngineState { case starting, running, stopped, unavailable }
             defer { applyingSetting = false; busy = false }
             do {
                 _ = try await cli.run(["subscription", "add", name, url])
+                settingsGeneration += 1
+                subscriptions.append(Subscription(name: name))
+                subscriptions.sort { $0.name < $1.name }
             } catch {
+                settingsGeneration += 1
                 errorMessage = "Subscription add failed: \(error.localizedDescription)"
                 return
             }
             do {
                 _ = try await cli.run(["subscription", "update", name])
+                settingsGeneration += 1
                 errorMessage = nil
-                await refresh()
                 notice = "Subscription saved and downloaded. Apply it to activate the cache."
             } catch {
-                await refreshMenuData()
+                settingsGeneration += 1
                 errorMessage = "Subscription saved, but download failed: \(error.localizedDescription). Retry the download from the CLI."
             }
         }
     }
     func applySubscription(_ name: String) {
         guard !busy && !quitting else { return }
+        settingsGeneration += 1
         busy = true
         applyingSetting = true
         notice = nil
         Task {
             defer { applyingSetting = false; busy = false }
             do {
-                _ = try await cli.run(["subscription", "apply", name])
+                let result = try await cli.run(["subscription", "apply", name])
+                settingsGeneration += 1
                 errorMessage = nil
-                await refresh()
+                profile = result["profile"]?.string
+                await refreshProfiles()
+                await refreshRuntimeSettings()
                 notice = "Cached subscription applied."
+                notify()
             } catch {
+                settingsGeneration += 1
                 errorMessage = "Subscription apply failed: \(error.localizedDescription)"
             }
         }
     }
     func removeSubscription(_ name: String) {
         guard !busy && !quitting else { return }
+        settingsGeneration += 1
         busy = true
         applyingSetting = true
         notice = nil
@@ -261,11 +366,13 @@ enum EngineState { case starting, running, stopped, unavailable }
             defer { applyingSetting = false; busy = false }
             do {
                 _ = try await cli.run(["subscription", "remove", name])
+                settingsGeneration += 1
                 errorMessage = nil
-                await refreshMenuData()
+                subscriptions.removeAll { $0.name == name }
                 notice = "Subscription removed."
             } catch {
-                let listRefreshed = await refreshMenuData()
+                settingsGeneration += 1
+                let listRefreshed = await refreshSubscriptions()
                 let detail = error.localizedDescription
                 if !listRefreshed || subscriptions.contains(where: { $0.name == name }) {
                     errorMessage = "Subscription removal failed: \(detail)"
