@@ -116,7 +116,8 @@ private final class BoundedOutput {
     func snapshot() -> (Data, Data, Bool) { lock.lock(); defer { lock.unlock() }; return (stdout, stderr, overflow) }
 }
 
-final class TrafficStream {
+// Worker queues share this stream; the lock guards failure/stopped, and semaphores coordinate completion.
+final class TrafficStream: @unchecked Sendable {
     private let process = Process()
     private let done = DispatchSemaphore(value: 0)
     private let stderrDone = DispatchSemaphore(value: 0)
