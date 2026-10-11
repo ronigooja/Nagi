@@ -209,8 +209,6 @@ import AppKit
                     image.size = NSSize(width: 14, height: 14)
                     groupItem.image = image
                 }
-            } else {
-                groupItem.image = groupIcons.image(forGroupName: group.name)
             }
         }
         addSubmenu("Proxy Groups", groupsMenu, enabled: model.state == .running)

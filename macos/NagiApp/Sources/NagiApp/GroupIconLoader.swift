@@ -1,51 +1,13 @@
 import AppKit
 import Foundation
 
-/// Presentation-only images from group metadata returned by `proxy groups`.
+/// Presentation-only images from the icon string returned by `proxy groups`.
 @MainActor final class GroupIconLoader {
     private let cache = NSCache<NSString, NSImage>()
     private let failures = NSCache<NSString, NSNumber>()
     private var pending: [String: [(NSImage?) -> Void]] = [:]
 
     init() { cache.countLimit = 64; failures.countLimit = 64 }
-
-    func image(forGroupName name: String) -> NSImage? {
-        let words = name.lowercased().split { !$0.isLetter }
-        guard name.contains("台湾") || name.contains("台灣") || name.contains("🇹🇼") ||
-                words.contains("taiwan") || words.contains("tw") else { return nil }
-        return Self.taiwanFlag
-    }
-
-    // Draw the flag directly: emoji rendering depends on the host's locale.
-    private static let taiwanFlag = NSImage(size: NSSize(width: 14, height: 14), flipped: false) { _ in
-        let height = CGFloat(14) * 2 / 3
-        let bottom = (14 - height) / 2
-        NSColor(srgbRed: 0.996, green: 0, blue: 0, alpha: 1).setFill()
-        NSBezierPath(rect: NSRect(x: 0, y: bottom, width: 14, height: height)).fill()
-        NSColor(srgbRed: 0, green: 0, blue: 0.584, alpha: 1).setFill()
-        NSBezierPath(rect: NSRect(x: 0, y: 7, width: 7, height: height / 2)).fill()
-        let center = NSPoint(x: 3.5, y: 7 + height / 4)
-        let radius = height * 3 / 16
-        let sun = NSBezierPath()
-        for point in 0..<24 {
-            let angle = CGFloat(point) * .pi / 12
-            let length = point.isMultiple(of: 2) ? radius : radius / 2
-            let vertex = NSPoint(x: center.x + cos(angle) * length, y: center.y + sin(angle) * length)
-            if point == 0 { sun.move(to: vertex) } else { sun.line(to: vertex) }
-        }
-        sun.close()
-        NSColor.white.setFill()
-        sun.fill()
-        NSColor(srgbRed: 0, green: 0, blue: 0.584, alpha: 1).setFill()
-        let ringRadius = radius * 0.6
-        NSBezierPath(ovalIn: NSRect(x: center.x - ringRadius, y: center.y - ringRadius,
-                                  width: ringRadius * 2, height: ringRadius * 2)).fill()
-        NSColor.white.setFill()
-        let diskRadius = radius / 2
-        NSBezierPath(ovalIn: NSRect(x: center.x - diskRadius, y: center.y - diskRadius,
-                                  width: diskRadius * 2, height: diskRadius * 2)).fill()
-        return true
-    }
 
     func image(for value: String, completion: @escaping (NSImage?) -> Void) -> NSImage? {
         if value.hasPrefix("system:") {
