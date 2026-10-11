@@ -2,47 +2,64 @@
 
 **Status:** implemented.
 
-This document describes the current `nagi menu` page structure, command boundary, and failure behavior. The [CLI reference](../reference/cli.md#terminal-menu) defines its user-visible keys, terminal requirements, and exit codes.
+This document describes `nagi menu` responsibilities, navigation, input lifecycle, and failure handling. The [CLI reference](../reference/cli.md#terminal-menu) defines keys, effects, terminal requirements, and exit codes.
 
-## Responsibility and boundary
+## Responsibility and command boundary
 
-The menu is a line-oriented terminal interface that preserves scrollback. It owns page navigation, numeric selection, input prompts, confirmation, pagination, and display. `internal/command` still owns operations and validates command arguments. The menu does not read profile files, call mihomo, or change OS settings directly.
+The menu is a line-oriented interface that preserves terminal scrollback. It owns input, forms, navigation, resource filtering and pagination, and presentation. Existing CLI commands own business operations, validation, persistence, and activation. The menu does not read profile files, call mihomo, or change OS settings directly. The CLI remains the complete interface for advanced arguments and automation.
 
-The `internal/command` entry point checks syntax, rejects `--json menu`, and requires terminal input and output before creating a menu session. The menu invokes ordinary commands through a runner that supplies `--json` and decodes their success or failure envelope. Most commands run in process. `logs follow` and `traffic watch` run in a child Nagi process with an interruptible context. Ctrl-C cancels the child stream and returns to the menu page. The menu prints stream text directly. The user-mode mihomo process starts in a separate process group, so the terminal's Ctrl-C does not signal it when a stream is canceled.
+`internal/command` rejects `--json menu` and nonterminal input/output before starting a session. The menu runner invokes ordinary commands with `--json` and decodes their existing result envelope. The menu presentation adapter accepts command arguments and result data, renders readable state and bounded lists, and preserves raw configuration and logs. Ordinary CLI output, JSON fields, syntax, and exit codes are unchanged.
 
-The macOS app continues to invoke ordinary CLI commands with JSON. The menu is not a separate business API. The command syntax, data fields, errors, and operation effects are defined in the [CLI reference](../reference/cli.md).
+Most commands run in process. The session shows the executing action and then its result or error. An ordinary operation already submitted can finish; input cancellation does not imply cancellation or rollback of the business operation. Log following and traffic watching use a child Nagi process with a cancelable context. Ctrl-C cancels that stream and returns to the same page. User-mode mihomo runs in a separate process group, so canceling a stream does not stop it.
 
-## Page structure
+## Page inventory
 
-The root page reads `status` for a short mihomo and selected-profile summary. If that read fails, it shows the error and continues to offer its ten categories. All ten fit on the first page with the current page size.
+The home page shows mihomo state and the selected profile. Failed reads show unknown/unavailable state without hiding controls.
 
-| Root category | Implemented menu flows |
+| Home category | Flows |
 | --- | --- |
-| Runtime status | Status, start, stop, restart, configuration show/validate/reload, temporary and saved routing mode, full `quit`. |
-| Proxies and groups | Group list and detail, numbered node selection, name search, node and group latency checks, saved selection restore. |
-| Profiles and subscriptions | Profile list/import and per-profile use, export, backup, restore, diff, override show/set/clear, and removal; subscription list/add and per-subscription update, preview, apply, and removal. |
-| DNS | Status, configuration/API check, direct or proxy DoH upstreams, exception add/remove, TUN DNS on/off, query, and cache flush. |
-| Rules | Active rules/providers, custom rules, conflict report, matched connection rule, add/remove/enable/disable, local and remote imports. |
-| Traffic access | TUN, listener ports, and LAN status or changes; system proxy controls appear on macOS only. |
-| Connections | List, show one, close one, or close all. |
-| Logs and traffic | Recent logs, follow logs, and watch traffic. |
-| Service and startup | Service install/uninstall/status, startup status/enable/disable/check, and stale-marker recovery. |
-| Diagnostics and recovery | Doctor, redacted diagnostics and export, version, macOS privileged-helper operations, and a shell completion page for Bash/Zsh/Fish scripts and candidate discovery. |
+| Runtime controls | Status, start, stop, restart, configuration show/validate/reload, runtime and persistent mode, session quit. |
+| Proxy groups | Groups and current nodes, direct node switching, filtering, details, node/group latency, automatic selection, saved selection restore. |
+| Subscriptions | List/add, detail metadata, cache download, change summaries and paginated names, apply, remove. |
+| Local profiles | List/import, use, export, backup/restore, diff, override show/set/clear, remove. |
+| Traffic access | TUN, listener ports, LAN status and changes; macOS system proxy controls. |
+| Diagnostics | Doctor, redacted diagnostics/export, version, shell completion. |
+| Advanced functions | DNS, rules, connections, logs/traffic, service/startup, and supported privileged-helper operations. |
 
-The menu does not currently expose every argument variant of every command. The CLI remains the complete interface for advanced configuration and automation. For example, the proxy latency menu uses the command's default URL and timeout; users can supply custom values with `nagi proxy delay` or `nagi proxy delays`.
+Every existing menu operation retains an entry. The menu does not expose every command argument variant; for example custom latency URLs and timeouts remain available through ordinary commands. DNS checks inspect configuration and mihomo's API, without claiming system-wide DNS leak verification.
 
-Profile, subscription, proxy group, node, rule, and connection choices come from existing read commands. Proxy group choices follow the selected effective profile's group order as returned by `proxy groups`; node choices keep mihomo's order. Dynamic items are selected by number, so names with spaces remain one argument to the underlying command. Inputs for a new name, file, URL, domain, address, or rule value are prompted as text and then validated by the command layer. Subscription lists omit URLs. The detail page shows the cached preview's added, removed, and changed node names and offers Apply only when the preview read succeeds. A failed preview leaves Update, Preview, and Remove available. Update prints the downloaded byte count and cache changes; URL-shaped node names in previews and updates are replaced with `[redacted URL]`. The DNS page states that `dns check` covers configuration and mihomo's API; the Traffic access page lists its actions without additional context text.
+## Input and page state
 
-## Navigation and state
+A session owns a single buffered reader. Terminal reads wait for canonical input using platform readiness polling in the same goroutine, checking already buffered data first. There are no per-prompt reading goroutines left behind after cancellation. The session receives interrupt signals while active; completed commands and streams discard their consumed interrupt signals before returning to input.
 
-Each page loads a view when opened, after an action, on `r`, or when returning to it with `b`. The view contains context text, numbered items, and an optional empty-state explanation. Lists display ten items per page; `n` and `p` change the visible slice, and numbering restarts at `1` on each slice. `b` pops the current page; `q` leaves from any page. A blank choice repeats the page, while an invalid choice prints a correction and retains the page. `h` runs the ordinary help command associated with the page. Text prompts accept `b` to cancel that flow and `q` to leave the menu.
+Each stack frame keeps its page, latest view, page index, filter, and redraw state. A view separates numbered resources (`Items`) from fixed letter operations (`Actions`). Resource names drive case-insensitive filtering, independently of labels containing status metadata. Fixed actions do not participate in filtering or pagination. Reserved keys are never assigned to actions.
 
-Broad or destructive actions such as stopping mihomo, restoring a profile backup, applying or removing a subscription, removing a rule, disabling traffic access, and closing all connections require the literal answer `yes`. Another answer cancels the action. The menu keeps `quit` separate from leaving the menu: `quit` stops this session's login monitor and mihomo after confirmation, while `q` only closes the interactive interface.
+A view reloads on entry, refresh, operation completion, and return from a child. Filter and page survive reload; page indices clamp to the last valid page. Changing a filter resets the index. Blank and invalid choices leave the rendered page intact and repeat the prompt. Navigation and operations trigger rendering. Help describes the current page's entries and navigation.
 
-On a command failure, the runner returns the CLI error message. The page displays it and remains available, then refreshes its read data. A failed page load replaces the prior view, clearing stale numbered choices; it displays an error and, when there are no items, an unavailable-data message. The user can retry with `r` or return with `b`. URL-shaped text in menu errors is replaced with `[redacted URL]`. A failed menu action does not become the menu process's exit status. Unexpected input errors exit `1`; ordinary exit and prompt interruption exit `0`. The exact terminal and usage contract is in the [CLI reference](../reference/cli.md#terminal-menu).
+An item can open a child, dispatch existing command arguments, run a custom flow, or return a navigation result. Navigation results distinguish staying and refreshing, opening a detail page, and returning to the parent. They take effect only after a successful flow.
 
-## Implementation and verification
+Text prompts accept `b` and `q` as literal content. Ctrl-C cancels the current form and returns to its page; during page selection it returns to the parent, or exits at home. EOF exits. Forms validate fields as entered and retain other values. After a failed command, users can edit a field and explicitly resubmit. There is no automatic retry of mutations and no second confirmation; operation effects are displayed beside entries.
 
-`internal/menu/menu.go` owns the session loop, page stack, root registration, terminal check, and interruption. `input.go` owns prompts, confirmations, and numeric selection; `render.go` prints pages and command results; `runner.go` adapts command JSON envelopes and child streams. Feature files (`status.go`, `proxy.go`, `profile.go`, `dns.go`, `rules.go`, `traffic.go`, and `diagnostics.go`) build page views and command arguments. The diagnostics page includes the service, startup, helper, and completion flows. Privileged-helper actions are registered there only on macOS.
+## Proxy flow
 
-Menu tests use an injected runner and input/output buffers to check command mapping, navigation, pagination, confirmation, failed refreshes, subscription preview gating, and URL redaction without a live mihomo process. Command tests cover terminal rejection and help. A real-terminal check started user-mode mihomo from the menu, canceled both `logs follow` and `traffic watch` with Ctrl-C, confirmed the menu returned to the Logs and traffic page and mihomo was still running, then stopped it from the menu. Ordinary command tests remain authoritative for profile, mihomo, and OS operation effects.
+Selecting Proxies at home loads groups directly, including current nodes. Selecting a group opens its node list. Selecting a node dispatches `proxy select GROUP NODE` once, then refreshes the current marker while staying in the list. Names containing spaces remain one argument. The ordinary path takes three selections from home.
+
+Details, latency tests, restoring saved choices, and returning an automatic group to automatic selection are fixed actions. Ordinary nodes, filtered nodes, and latency-ranked nodes all switch with the same numeric action. A group page retains its last measurements and ordering across selections and refreshes, pruning records for nodes absent from the refreshed group. Automatic groups show fixed or automatic state. Latency actions disclose possible release of a fixed choice and preserve underlying errors about partial completion or unknown state.
+
+## Subscription and profile flows
+
+Successful subscription creation opens its detail page. Cache download stays there and never implicitly applies, starts mihomo, or enables traffic access. Details show available update time, quota, expiry, and cache-versus-target change counts. Missing metadata remains explicitly unknown. Complete added/removed/changed names are shown only on request in paginated lists.
+
+Download results compare the new cache with the previous cache. Apply previews compare the cache with the target profile. These baselines are labeled separately. Apply is always present: a preview failure shows its reason but cannot block a valid cache from repairing a damaged target profile. Existing command validation and activation remain authoritative. The apply entry explains configuration replacement and clearing of local overrides and saved selections.
+
+Successful removal returns to the parent list; failure stays in detail. Profile imports and other multi-field flows reuse retained-value forms. Local profile operations keep their existing CLI effects.
+
+## Failure handling and verification
+
+Failed reads replace old resources, preventing selection of stale targets. Views can retain fixed recovery actions and state unknown/unavailable explicitly. Command failures display existing messages and known resulting state; the menu never infers successful saving, activation, or rollback. URLs in errors, page context, and list labels are redacted. Raw requested configuration and log content retain their ordinary command content.
+
+Action failures leave the menu usable and do not determine its exit status. Ordinary exit is `0`; unrecoverable input errors return `1`. Terminal/usage rejection returns `2` as defined in the reference.
+
+Framework and feature tests inject runners to verify dispatch, filtering, pagination, retained forms, navigation, bounded results, redaction, and stale-resource invalidation. Ordinary command tests remain authoritative for persistence, activation, and mihomo effects. Real PTY checks cover repeated interruption, buffered input, EOF, and stream return while mihomo remains running. Darwin cross-compilation checks compilation only; Linux PTY results do not establish macOS runtime acceptance.
+
+The October 2026 verification passed the full Go suite, menu race tests, Linux PTY journeys (three-selection proxy switching with spaces, repeated form cancellation, literal text keys, both streams, EOF, and exit without stopping mihomo), and Darwin compilation. These PTY journeys used the available development mihomo executable, which supports the CLI's existing `--check-json` validation flag. The repository binary and source at `engine.lock` do not support that flag, so startup against the pinned engine failed before menu runtime checks could proceed. The lock and business commands were left unchanged; pinned-engine integration and macOS runtime acceptance remain unverified.

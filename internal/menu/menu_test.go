@@ -57,7 +57,7 @@ func TestMenuRuntimeNavigation(t *testing.T) {
 			return
 		}
 	}
-	t.Fatalf("confirmed stop not dispatched: %#v", fake.calls)
+	t.Fatalf("stop not dispatched: %#v", fake.calls)
 }
 
 func TestRuntimeModeMapping(t *testing.T) {
@@ -122,7 +122,7 @@ func TestFailedRefreshDropsStaleChoices(t *testing.T) {
 		},
 	}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("4\nr\n3\nq\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("4\nr\n1\nq\n"), &out))
 	if !strings.Contains(out.String(), "Data unavailable. Refresh or go back.") || !strings.Contains(out.String(), "Choose a listed number") {
 		t.Fatalf("failed refresh did not clear stale choices: %s", out.String())
 	}
@@ -135,12 +135,13 @@ func TestReturningToParentRefreshesList(t *testing.T) {
 	fake := &sequenceRunner{results: map[string][]Result{
 		"profile list": {
 			{Data: map[string]any{"profiles": []string{"old"}}},
+			{Data: map[string]any{"profiles": []string{"old"}}},
 			{Data: map[string]any{"profiles": []string{"new"}}},
 		},
 	}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("4\n3\nb\nq\n"), &out))
-	if !strings.Contains(out.String(), "3. new") {
+	Run(context.Background(), NewSession(fake, strings.NewReader("4\n1\nb\nq\n"), &out))
+	if !strings.Contains(out.String(), "1. new") {
 		t.Fatalf("parent list not refreshed after back: %s", out.String())
 	}
 }

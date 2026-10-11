@@ -27,15 +27,19 @@ This document defines development and review rules for Nagi's command-line inter
 
 ## Terminal menu interactions
 
-- Keep menu pages line-oriented and preserve terminal scrollback. Put the page title, current state or an actionable read error, numbered actions, and available navigation keys in the output.
-- Accept `b` for the parent page, `r` to refresh, `h` for page command help, and `q` to leave the menu. A blank choice repeats the page; an invalid choice leaves it open with a correction. Paginate lists in groups of ten with `n` and `p` when available. Numbering restarts on each page.
-- Let people select known profiles, groups, nodes, rules, and connection IDs by number from read-only command results. Prompt for new names, file paths, domains, addresses, and URLs; pass each answer as one command argument.
-- Require an explicit `yes` for actions marked as broad or destructive. Treat other answers as cancellation. Do not imply that leaving the menu stops mihomo; the `quit` command is a separate confirmed action.
-- Use existing commands for reads and mutations. Preserve their errors and resulting state. An unavailable status summary must leave recovery actions accessible. Handle Ctrl-C in a log or traffic stream by returning to its menu page.
+- Keep pages line-oriented and preserve scrollback. Show the title, a state summary or explicit unknown/read error, resource choices, fixed actions, and navigation.
+- Use numbers for resources, ten per page, and letters for fixed actions that remain visible across pagination. Reserve `b/r/h/q/n/p` for navigation and `/` for case-insensitive name filtering. Preserve filter and page after operations and refreshes; clamp an invalid page to the last valid page. Blank or invalid input repeats only the prompt.
+- Present effects beside actions and dispatch once without a second confirmation. Explain that `q` leaves the menu while mihomo keeps running; stopping the engine is a separate action.
+- Pass known resource names as single command arguments. Text prompts treat `b/q` literally. Ctrl-C cancels a form or returns to the parent page, and exits at home; EOF exits. Use one session input mechanism without abandoned readers.
+- Validate required fields locally, retaining other values. Preserve form values after command failure and offer explicit editing and resubmission; never retry a mutation automatically.
+- Keep direct selection consistent in ordinary, filtered, and latency node lists. Show automatic/fixed group state and disclose that latency testing may release fixed selection. Preserve partial-completion and unknown-state errors.
+- Keep subscription download and apply separate. Show concise metadata and change counts by default, identifying the comparison baseline. Offer full change names on demand. A preview failure must not hide Apply; cache validation and activation remain command responsibilities.
+- Use existing commands for reads and mutations. Keep menu presentation separate from ordinary CLI and JSON contracts; preserve raw configuration/log output and redact errors and resource context. Clear stale choices after failed reads and leave recovery actions accessible.
+- Cancel child log and traffic streams with Ctrl-C and return to the same page. Do not promise cancellation of an ordinary operation already submitted.
 
 ## Review and verification
 
-For affected behavior, verify help, missing and invalid arguments, normal and empty output, and actionable failures. Test help with unavailable or invalid runtime configuration. Check JSON success and failure compatibility independently of text formatting. When validation changes, verify that diagnostics do not reveal sensitive configuration values. For menu changes, also check redirected input and output, `--json menu`, navigation, pagination, confirmation, stale or empty data, and interrupted streams.
+For affected behavior, verify help, missing and invalid arguments, normal and empty output, and actionable failures. Test help with unavailable or invalid runtime configuration. Check JSON success and failure compatibility independently of text formatting. When validation changes, verify that diagnostics do not reveal sensitive configuration values. For menu changes, also check redirected input and output, `--json menu`, navigation, filtering, pagination, single-dispatch actions, retained forms, stale or empty data, and interrupted streams.
 
 Update the CLI reference and affected guides in the same change. Test representative user journeys rather than only matching renderer internals. Use isolated runtime directories for checks that change profiles, subscriptions, or process state; see [Build and test](build-and-test.md).
 

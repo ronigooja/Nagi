@@ -18,7 +18,7 @@ func (s *Session) render(page *Page, view PageView, index int, depth int) {
 		fmt.Fprintln(s.out, output.RedactError(view.Context))
 	}
 	if len(view.Items) == 0 && view.Empty != "" {
-		fmt.Fprintln(s.out, view.Empty)
+		fmt.Fprintln(s.out, output.RedactError(view.Empty))
 	}
 	start := index * pageSize
 	end := start + pageSize
@@ -31,7 +31,7 @@ func (s *Session) render(page *Page, view PageView, index int, depth int) {
 	for _, item := range fixedActions(view) {
 		fmt.Fprintf(s.out, "%s. %s", item.Key, output.RedactError(item.Label))
 		if item.Impact != "" {
-			fmt.Fprintf(s.out, " — %s", output.RedactError(impactDescription(item.Impact)))
+			fmt.Fprintf(s.out, " — %s", output.RedactError(item.Impact))
 		}
 		fmt.Fprintln(s.out)
 	}
@@ -87,7 +87,7 @@ func (s *Session) ShowResult(args []string, result Result) {
 		return
 	}
 	data := menuObject(result.Data)
-	if len(args) >= 2 && args[0] == "config" && args[1] == "show" {
+	if (len(args) >= 2 && args[0] == "config" && args[1] == "show") || (len(args) >= 3 && args[0] == "profile" && args[1] == "override" && args[2] == "show") {
 		for _, key := range []string{"content", "config", "yaml"} {
 			var text string
 			if json.Unmarshal(data[key], &text) == nil {
@@ -112,6 +112,29 @@ func (s *Session) ShowResult(args []string, result Result) {
 			}
 		}
 	}
+	if len(args) >= 2 && args[0] == "subscription" && (args[1] == "update" || args[1] == "apply") {
+		baseline := "Changes against previous cache"
+		if args[1] == "apply" {
+			baseline = "Changes against target profile"
+		}
+		if preview := data["preview"]; len(preview) > 0 && string(preview) != "null" {
+			var counts struct {
+				Added   []string          `json:"added"`
+				Removed []string          `json:"removed"`
+				Changed []string          `json:"changed"`
+				Changes []json.RawMessage `json:"changes"`
+			}
+			if json.Unmarshal(preview, &counts) == nil {
+				s.Printf("%s: %d added, %d removed, %d changed; %d configuration changes.\n", baseline, len(counts.Added), len(counts.Removed), len(counts.Changed), len(counts.Changes))
+				delete(data, "preview")
+			}
+		}
+		if args[1] == "update" {
+			s.WriteLine("Cache downloaded. Apply is a separate action; full changes are available from this detail page.")
+		} else {
+			s.WriteLine("Cached subscription applied. Starting mihomo and enabling traffic access are separate actions.")
+		}
+	}
 	keys := make([]string, 0, len(data))
 	for key := range data {
 		keys = append(keys, key)
@@ -127,6 +150,7 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 	if json.Unmarshal(raw, &value) != nil {
 		return
 	}
+	label = output.RedactError(label)
 	indent := strings.Repeat("  ", depth)
 	switch v := value.(type) {
 	case map[string]any:
@@ -159,9 +183,4 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 		}
 		s.Printf("%s%s: %s\n", indent, label, output.RedactError(fmt.Sprint(value)))
 	}
-}
-
-func impactDescription(text string) string {
-	text = strings.ReplaceAll(text, " Type yes to confirm.", "")
-	return strings.TrimSuffix(text, "?")
 }

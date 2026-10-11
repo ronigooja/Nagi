@@ -221,7 +221,6 @@ func subscriptionDetailPage(name string) *Page {
 					return err
 				}
 				download = data.Preview
-				s.WriteLine("Cache downloaded. Apply separately when ready.")
 				return nil
 			}},
 			{Key: "v", Label: "View application changes against target profile", Next: func() *Page { return subscriptionPreviewPage(name) }},

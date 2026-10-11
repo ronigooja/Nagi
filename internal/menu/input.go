@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ronigooja/Nagi/internal/output"
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/ronigooja/Nagi/internal/output"
 )
 
 var ErrQuit = errors.New("quit menu")
@@ -31,10 +32,6 @@ func (s *Session) readLine(label string) (string, error) {
 func (s *Session) Prompt(label string) (string, error) {
 	return s.readLine(label + " (Ctrl-C cancels): ")
 }
-
-// Confirm is retained for legacy feature flows, but never reads or confirms.
-// Effects belong beside their action on the page.
-func (s *Session) Confirm(_ string) (bool, error) { return true, nil }
 
 func (s *Session) Select(label string, choices []string) (string, error) {
 	if len(choices) == 0 {

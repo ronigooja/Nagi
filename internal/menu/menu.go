@@ -85,12 +85,6 @@ func RootPage() *Page {
 		for _, entry := range rootEntries {
 			entry := entry
 			factory := registered[entry.key]
-			if entry.key == "subscription" && factory == nil {
-				factory = subscriptionListPage
-			}
-			if entry.key == "profile" {
-				factory = profileListPage
-			}
 			if factory == nil {
 				continue
 			}
@@ -140,11 +134,9 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			if current.page.Load != nil {
 				view, err := current.page.Load(ctx, s)
 				if err != nil {
-					s.Printf("Error refreshing %s: %s\n", current.page.Title, output.RedactError(err.Error()))
+					s.Printf("Error refreshing %s: %s\n", output.RedactError(current.page.Title), output.RedactError(err.Error()))
 					view.Items = nil // Failed reads cannot leave stale resources selectable.
-					if view.Empty == "" {
-						view.Empty = "Data unavailable. Refresh or go back."
-					}
+					view.Empty = "Data unavailable. Refresh or go back."
 				}
 				current.view = view
 			}
@@ -209,7 +201,7 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			for _, item := range fixedActions(current.view) {
 				s.Printf("%s: %s", item.Key, output.RedactError(item.Label))
 				if item.Impact != "" {
-					s.Printf(" — %s", output.RedactError(impactDescription(item.Impact)))
+					s.Printf(" — %s", output.RedactError(item.Impact))
 				}
 				s.WriteLine("")
 			}

@@ -90,7 +90,7 @@ func TestActionNavigationAndNoConfirmation(t *testing.T) {
 	var out bytes.Buffer
 	calls := 0
 	child := &Page{Title: "Child", Load: func(context.Context, *Session) (PageView, error) {
-		return PageView{Actions: []Item{{Key: "d", Label: "Delete", Impact: "Delete resource?", Navigate: func(context.Context, *Session) (Navigation, error) { calls++; return Navigation{Back: true}, nil }}}}, nil
+		return PageView{Actions: []Item{{Key: "d", Label: "Delete", Impact: "Deletes the resource", Navigate: func(context.Context, *Session) (Navigation, error) { calls++; return Navigation{Back: true}, nil }}}}, nil
 	}}
 	root := &Page{Title: "Parent", Load: func(context.Context, *Session) (PageView, error) {
 		return PageView{Items: []Item{{Label: "Child", Next: func() *Page { return child }}}}, nil
