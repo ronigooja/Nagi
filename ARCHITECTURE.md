@@ -39,14 +39,14 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/rules` | Persistent custom rules, imported rule sets, effective overlays, and conflict reports. |
 | `internal/diagnostic` | Read-only health, connectivity, permission, exposure, and redacted export checks. |
 | `internal/service` | Per-user launchd and systemd service installation and status. |
-| `internal/traffic` | OS proxy settings, restore journal, and engine exit watcher. |
+| `internal/traffic` | OS proxy and macOS TUN DNS settings, restore journals, and engine exit recovery. |
 | `internal/menu` | Terminal input, pages, command result presentation, and stream cancellation. |
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
 On macOS, an optional root LaunchDaemon helper can own mihomo for TUN access. The CLI still owns user operations and selects the backend explicitly. The helper authenticates the CLI over a Unix socket, snapshots validated configuration, and mediates a restricted set of mihomo controller calls. Its controller socket and log remain root-private. The user-mode backend remains the default. The [CLI reference](docs/reference/cli.md#traffic-access) defines installation and switching.
 
-DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception is a mihomo configuration option. `dns check` inspects the selected configuration and queries mihomo through its private control API. It does not verify operating-system routes, resolver capture, or external DNS leaks. See the [DNS reference](docs/reference/cli.md#dns-policy-and-checks).
+DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception and optional local resolution of proxy destinations are mihomo capabilities. On macOS, Nagi also points network-service DNS settings at the running TUN's DNS endpoints and restores their prior settings when TUN or the engine stops. The privileged backend keeps this restore journal and performs network-service changes inside the authenticated helper. `dns check` inspects the selected configuration and queries mihomo through its private control API. It does not verify operating-system routes, resolver capture, or external DNS leaks. See the [DNS reference](docs/reference/cli.md#dns-policy-and-checks) and the [system DNS decision](docs/decisions/0004-macos-tun-dns.md).
 
 ## Interfaces and data
 

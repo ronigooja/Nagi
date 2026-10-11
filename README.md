@@ -52,3 +52,4 @@ The `default` profile is the built-in configuration template; installation and u
 - [Release process](docs/development/release.md): version rules, release checks, and release note requirements.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
 - [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
+- [macOS TUN DNS decision](docs/decisions/0004-macos-tun-dns.md): system DNS ownership, restoration, and proxy destination resolution.

@@ -60,11 +60,9 @@ func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Reque
 		if h.orphaned {
 			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
 		}
-		resp := h.status()
-		if h.dnsError != nil {
-			return privileged.Response{}, h.dnsError
-		}
-		return resp, nil
+		// DNS recovery errors must not hide process liveness or its PID.
+		// The dedicated DNS status operation reports those failures separately.
+		return h.status(), nil
 	case privileged.Control:
 		if h.child == nil {
 			return privileged.Response{}, errors.New("privileged mihomo is not running")
