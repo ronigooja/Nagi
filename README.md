@@ -1,55 +1,100 @@
-# Nagi
+# Nagi — Proxy Client for macOS and Linux
 
-Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, scheduled refresh, optional age-encrypted subscription feeds, and encrypted DNS policy. It provides proxy search, saved selections, provider creation, inspection, and updates, latency checks, connection controls, runtime routing modes, TUN controls, listener/LAN status, and macOS system proxy controls. Profile export, backup, restore, and comparison support local configuration work. An interactive, line-oriented terminal menu, read-only diagnostics, and Bash, Zsh, and Fish completion support terminal use. A macOS menu bar app calls the CLI for common operations.
+Nagi is a proxy client for macOS and Linux with a native macOS menu bar app, an interactive terminal menu, and a command-line interface (CLI). Switch proxy nodes, manage subscriptions and profiles, configure routing rules and DNS, and control TUN access from one tool.
 
-## Quick start
+Use the macOS menu bar app for daily controls and live traffic rates. Use the CLI for advanced configuration, automation, diagnostics, and recovery on either platform.
 
-Requirements: Go 1.20 or newer, Git, and a matching executable at `bin/mihomo`. To build mihomo from the pinned source for the first time, run `./scripts/build.sh` with a checkout at the commit in [`engine.lock`](engine.lock), or let that script fetch it.
+[Install Nagi](#installation) · [Quick start](#quick-start) · [User guides](#user-guides) · [CLI reference](docs/reference/cli.md)
 
-```sh
-make build cli
-./bin/nagi --json version
-./bin/nagi start
-./bin/nagi status
-./bin/nagi menu
-```
+## Features
 
-### Published installation
+- **macOS menu bar app:** engine status, proxy selection, system proxy and TUN controls, profiles, subscriptions, and live upload/download rates.
+- **Terminal menu and CLI:** step-by-step operations, JSON output for scripts and applications, and Bash, Zsh, and Fish completion.
+- **Proxy selection:** search nodes, compare latency, save group selections, and add or refresh proxy providers.
+- **Subscription management:** cached updates, previews of node changes, scheduled refresh, and optional age-encrypted feeds.
+- **Configuration profiles:** import, switch, export, back up, restore, and compare profiles; apply local overrides separately from source configuration.
+- **Routing and DNS:** custom rules, imported rule sets, rule/global/direct modes, DNS-over-HTTPS (DoH) policy, and domain-specific DNS exceptions.
+- **Traffic access:** macOS system proxy settings, TUN controls on macOS and Linux, and proxy listener and LAN access settings.
+- **Monitoring and recovery:** connection inspection and closure, live logs, read-only diagnostics, and login startup services.
 
-Install the CLI directly from GitHub Releases:
+The CLI supports macOS and Linux on AMD64 and ARM64. The optional menu bar app requires macOS 13 or newer. See the [traffic access guide](docs/guides/traffic-access.md) for platform permissions and routing behavior.
+
+## Installation
+
+Install the CLI from [GitHub Releases](https://github.com/ronigooja/Nagi/releases):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
 ```
 
-On macOS, append `-s -- --app` to install the optional unsigned menu bar App. Run the same command again to update, or pass `update` explicitly. See the [installation workflow](docs/development/install.md#online-install-and-update) for options and release asset requirements.
+On macOS, install the optional menu bar app through the CLI:
 
-For local development, build the CLI with `make build cli` on Linux or macOS; build the macOS App separately with `make build app`. Install, update, or uninstall existing artifacts with `./scripts/installer.sh install`, `./scripts/installer.sh update`, or `./scripts/installer.sh uninstall`. `./scripts/sync_to_mac.sh` copies the source tree to the macair checkout while preserving its local build artifacts. The CLI build does not rebuild mihomo; prepare a matching `bin/mihomo` separately. For a full locked CLI and mihomo build, run `./scripts/build.sh` with `MIHOMO_DIR` pointing to the pinned checkout, or let that script fetch the pinned source. The first `start` creates a `default` profile with DoH resolvers and TUN DNS interception settings, but TUN is disabled until you run `nagi tun enable` (which requires OS permissions). Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
+```sh
+nagi app install
+```
 
-The `default` profile is the built-in configuration template; installation and updates replace it with the installed version's defaults. Use another name for personal profiles and subscriptions. See the [installation workflow](docs/development/install.md#install-update-and-remove) for details.
+Use `nagi update` to update the CLI, mihomo, and any installed App, `nagi app uninstall` to remove only the App, or `nagi uninstall` to remove Nagi while preserving user data.
 
-`nagi menu` opens a step-by-step menu when both input and output are terminals. Choose numbered resources and actions; use `0` to return from a submenu or leave the home menu while mihomo keeps running. Common operations appear first, and state reloads after operations and when returning to a page. Actions execute without a second confirmation; their effects appear beside the entry. Use ordinary commands with `--json` for scripts and applications. See the [CLI reference](docs/reference/cli.md#terminal-menu) for the full interaction contract.
+Release downloads are verified against their archive checksum. The macOS app is unsigned and unnotarized; its first launch may require choosing **Open** from the Finder context menu. See the [installation and update instructions](docs/development/install.md#installed-cli-maintenance) for permissions and update behavior.
+
+## Quick start
+
+After installation, start the engine, check its status, and open the terminal menu:
+
+```sh
+nagi start
+nagi status
+nagi menu
+```
+
+The initial `default` profile has no proxy nodes and routes traffic directly. [Import your own configuration or apply a subscription](docs/guides/getting-started.md) to use proxy nodes. Starting the engine leaves OS system proxy settings unchanged; enable macOS system proxy or TUN access using the [traffic access guide](docs/guides/traffic-access.md). TUN requires OS permissions.
+
+Use a name such as `work` for personal profiles and subscriptions; installation and updates refresh the `default` profile template. See the [default profile behavior](docs/development/install.md#install-update-and-remove).
+
+`nagi menu` requires terminal input and output. Use `nagi --help` to explore commands or `nagi --json status` for structured output. See the [terminal menu reference](docs/reference/cli.md#terminal-menu) for interaction details.
+
+## Build from source
+
+Requirements: Go 1.20 or newer and Git. Build the CLI and its pinned proxy engine from the repository root:
+
+```sh
+./scripts/build.sh
+./bin/nagi --json version
+```
+
+If a matching `bin/mihomo` is already available, `make build cli` builds only the CLI. On macOS, `make build app` builds the menu bar app separately. See [Build and test](docs/development/build-and-test.md) for pinned checkout selection and [Installation](docs/development/install.md#install-update-and-remove) for local artifact installation.
+
+Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS resolution, routing, and traffic forwarding. Nagi manages configuration and process lifecycle through a private Unix Socket control API. The matching source commit is recorded in [`engine.lock`](engine.lock); `NAGI_MIHOMO_BIN` overrides the runtime executable.
 
 ## Documentation
 
-- [Architecture](ARCHITECTURE.md): system boundaries and module relationships.
-- [macOS menu app](macos/NagiApp/README.md): menu controls, traffic display, installation, and packaging.
+### User guides
+
 - [Getting started](docs/guides/getting-started.md): initial configuration and operation.
-- [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
-- [Proxy providers](docs/guides/proxy-providers.md): add a node source, attach it to a group, and refresh its nodes.
+- [macOS menu bar app](macos/NagiApp/README.md): menu controls, traffic display, installation, and packaging.
 - [Traffic access](docs/guides/traffic-access.md): system proxy, TUN, listener ports, and LAN access.
+- [Proxy providers](docs/guides/proxy-providers.md): add a node source, attach it to a group, and refresh its nodes.
+- [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
 - [Startup and recovery](docs/guides/startup.md): login service, stale state, and rechecks.
 - [Diagnostics](docs/guides/diagnostics.md): redacted health and security checks.
+
+### Reference and design
+
 - [CLI reference](docs/reference/cli.md): commands, output, and exit codes.
+- [DNS configuration](docs/reference/cli.md#dns-policy-and-checks): DoH policy, domain exceptions, and configuration checks.
+- [macOS privileged TUN helper](docs/reference/cli.md#traffic-access): installation and backend selection for TUN access.
+- [Architecture](ARCHITECTURE.md): system boundaries and module relationships.
 - [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
-- [Development](docs/development/build-and-test.md): locked builds and tests.
-- [Installation](docs/development/install.md): GitHub Release installation, local artifacts, updating, and removal.
-- [Linux privileged helper scaffold](docs/development/privileged-linux.md): system service boundary and current availability.
-- [macOS privileged TUN helper](docs/reference/cli.md#traffic-access): installation and backend selection for TUN access.
-- [Feature roadmap](docs/development/roadmap.md): planned user-facing capabilities.
-- [CLI usability rules](docs/development/cli-usability.md): command help, human output, actionable errors, and compatibility checks.
-- [Release process](docs/development/release.md): version rules, release checks, and release note requirements.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
 - [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
 - [macOS TUN DNS decision](docs/decisions/0004-macos-tun-dns.md): system DNS ownership, restoration, and proxy destination resolution.
+
+### Development and releases
+
+- [Build and test](docs/development/build-and-test.md): locked builds and tests.
+- [Installation and updates](docs/development/install.md): GitHub Release installation, local artifacts, updating, and removal.
+- [CLI usability rules](docs/development/cli-usability.md): command help, human output, actionable errors, and compatibility checks.
+- [Release process](docs/development/release.md): version rules, release checks, and release note requirements.
+- [Linux privileged helper scaffold](docs/development/privileged-linux.md): system service boundary and current availability.
+- [Feature roadmap](docs/development/roadmap.md): planned user-facing capabilities.
