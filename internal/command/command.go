@@ -92,7 +92,10 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		if e != nil {
 			return 1
 		}
-		traffic.New(paths.StateDir).Watch(context.Background(), pid)
+		if e := runExitWatcher(context.Background(), paths, pid); e != nil {
+			output.WriteError(stderr, false, "traffic_recovery_error", e.Error())
+			return 1
+		}
 		return 0
 	}
 	jsonMode := false
@@ -536,7 +539,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err != nil {
 			return nil, err
 		}
-		result, err := startAndVerify(ctx, m, client, configPath, profileName)
+		result, err := startWithTUNDNS(ctx, paths, m, client, configPath, profileName)
 		if err == nil {
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies)
@@ -549,6 +552,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		if err := arity(args, 1); err != nil {
 			return nil, err
+		}
+		if backendMode != privilegedBackend {
+			if e := restoreTUNDNS(ctx, paths); e != nil {
+				return nil, fail("tun_error", fmt.Errorf("system DNS restoration failed; engine remains running; retry `nagi stop`: %w", e))
+			}
 		}
 		if runtime.GOOS == "darwin" && trafficManager.Managed() {
 			if _, e := trafficManager.Disable(ctx); e != nil {
@@ -567,6 +575,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err != nil {
 			return nil, err
 		}
+		if backendMode != privilegedBackend {
+			if e := restoreTUNDNS(ctx, paths); e != nil {
+				return nil, fail("tun_error", fmt.Errorf("system DNS restoration failed; engine remains running; retry `nagi stop`: %w", e))
+			}
+		}
 		if runtime.GOOS == "darwin" && trafficManager.Managed() {
 			if _, e := trafficManager.Disable(ctx); e != nil {
 				return nil, fail("system_proxy_error", e)
@@ -575,7 +588,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if _, err := m.Stop(ctx); err != nil && !errors.Is(err, engine.ErrNotRunning) {
 			return nil, err
 		}
-		result, err := startAndVerify(ctx, m, client, configPath, profileName)
+		result, err := startWithTUNDNS(ctx, paths, m, client, configPath, profileName)
 		if err == nil {
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies)
@@ -593,12 +606,27 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err != nil {
 			return nil, err
 		}
+		if !status.Running {
+			if e := restoreTUNDNS(ctx, paths); e != nil {
+				return nil, fail("tun_error", e)
+			}
+		}
 		if runtime.GOOS == "darwin" && !status.Running {
 			if e := trafficManager.RestoreIfStopped(ctx, 0); e != nil {
 				return nil, fail("system_proxy_error", e)
 			}
 		}
 		data := map[string]any{"running": status.Running, "socket_path": status.SocketPath, "log_path": status.LogPath}
+		if tunDNSOS == "darwin" {
+			state, dnsErr := statusTUNDNS(ctx, paths)
+			data["system_dns"] = state
+			if dnsErr != nil {
+				data["system_dns_error"] = output.RedactError(dnsErr.Error())
+			}
+		}
+		if recoveryError, e := os.ReadFile(dnsRecoveryErrorPath(paths)); e == nil {
+			data["system_dns_recovery_error"] = output.RedactError(string(recoveryError))
+		}
 		if profileErr == nil {
 			data["profile"] = profileName
 		}
@@ -844,19 +872,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if e != nil {
 			return nil, fail("system_proxy_error", e)
 		}
-		exe, e := os.Executable()
-		if e == nil {
-			watch := exec.Command(exe, "__traffic-watch", strconv.Itoa(engineStatus.PID))
-			watch.Stdin = nil
-			watch.Stdout = io.Discard
-			watch.Stderr = io.Discard
-			if e = watch.Start(); e == nil {
-				_ = watch.Process.Release()
-			}
-		}
-		if e != nil {
-			_, _ = trafficManager.Disable(ctx)
-			return nil, fail("system_proxy_error", fmt.Errorf("cannot start exit recovery watcher: %w", e))
+		if e := startExitWatcher(paths, engineStatus.PID); e != nil {
+			_, restoreErr := trafficManager.Disable(ctx)
+			return nil, fail("system_proxy_error", errors.Join(fmt.Errorf("cannot start exit recovery watcher: %w", e), restoreErr))
 		}
 		return state, nil
 	case "tun":
@@ -868,6 +886,13 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		enabled, _ := tun["enable"].(bool)
 		if args[1] == "status" {
 			result := map[string]any{"enabled": enabled, "settings": tun}
+			if tunDNSOS == "darwin" {
+				state, dnsErr := statusTUNDNS(ctx, paths)
+				result["system_dns"] = state
+				if dnsErr != nil {
+					result["system_dns_error"] = output.RedactError(dnsErr.Error())
+				}
+			}
 			for key, value := range tunAdapterReport(tun, net.Interfaces) {
 				result[key] = value
 			}
@@ -878,20 +903,23 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if requested {
 			payload["auto-route"] = true
 			payload["auto-detect-interface"] = true
+			payload["strict-route"] = true
+			payload["dns-hijack"] = tunDNSHijack(tun["dns-hijack"])
 		}
-		if e := client.Patch(ctx, "/configs", map[string]any{"tun": payload}, nil); e != nil {
-			return nil, e
-		}
-		cfg, e = trafficConfig(ctx, client)
+		cfg, e = changeRuntimeTUN(ctx, paths, client, tun, payload)
 		if e != nil {
-			return nil, e
+			return nil, fail("tun_error", e)
 		}
 		tun, _ = cfg["tun"].(map[string]any)
 		enabled, _ = tun["enable"].(bool)
-		if enabled != requested {
-			return nil, fail("tun_error", errors.New("mihomo did not report the requested TUN state; inspect `nagi logs` and OS TUN permissions"))
-		}
 		result := map[string]any{"enabled": enabled, "settings": tun}
+		if tunDNSOS == "darwin" {
+			state, dnsErr := statusTUNDNS(ctx, paths)
+			result["system_dns"] = state
+			if dnsErr != nil {
+				result["system_dns_error"] = output.RedactError(dnsErr.Error())
+			}
+		}
 		for key, value := range tunAdapterReport(tun, net.Interfaces) {
 			result[key] = value
 		}
@@ -1041,6 +1069,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if e != nil {
 				return nil, e
 			}
+			if !st.Running {
+				if e := restoreTUNDNS(ctx, paths); e != nil {
+					return nil, fail("tun_error", e)
+				}
+			}
 			if st.StalePID != 0 && backendMode == userBackend {
 				rec, e := getManager()
 				if e != nil {
@@ -1059,6 +1092,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 			result := map[string]any{"checked": true, "running": st.Running, "control_api": reachable}
 			if runtime.GOOS == "darwin" && st.Running && reachable {
+				dnsState, dnsErr := syncTUNDNS(ctx, paths, client, st.PID)
+				result["system_dns"] = dnsState
+				if dnsErr != nil {
+					result["system_dns_error"] = output.RedactError(dnsErr.Error())
+				}
 				proxyCheck, checkErr := trafficManager.Recheck(ctx, st.PID)
 				result["system_proxy"] = proxyCheck
 				if checkErr != nil {

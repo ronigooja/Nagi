@@ -519,6 +519,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				return err
 			}
 		}
+		if err := printSystemDNS(w, v); err != nil {
+			return err
+		}
 		if v["unexpected_exit"] == true {
 			return line(w, "The previous mihomo process exited unexpectedly. Inspect logs with `nagi logs`.")
 		}
@@ -534,6 +537,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			kind = "LAN access"
 		}
 		if err := line(w, kind+": "+label); err != nil {
+			return err
+		}
+		if err := printSystemDNS(w, v); err != nil {
 			return err
 		}
 		if status, ok := v["adapter_status"].(string); ok {
@@ -766,4 +772,25 @@ func WriteError(w io.Writer, jsonMode bool, code, message string) {
 	if code == "usage" {
 		_, _ = io.WriteString(w, "Run `nagi --help` for usage.\n")
 	}
+}
+
+func printSystemDNS(w io.Writer, data map[string]any) error {
+	if state, ok := data["system_dns"].(traffic.DNSState); ok && state.Supported {
+		if err := line(w, "System DNS: "+state.Status); err != nil {
+			return err
+		}
+		if len(state.Targets) > 0 {
+			if err := line(w, "DNS targets: "+strings.Join(state.Targets, ", ")); err != nil {
+				return err
+			}
+		}
+	}
+	for _, key := range []string{"system_dns_error", "system_dns_recovery_error"} {
+		if message, ok := data[key].(string); ok && message != "" {
+			if err := line(w, "System DNS needs attention: "+RedactError(message)+". Inspect `nagi tun status` or retry `nagi stop`."); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

@@ -79,6 +79,9 @@ func startupWatchStep(ctx context.Context, call func(...string) (any, error)) er
 		if check["control_api"] != true {
 			return errors.New("mihomo is running but its control API is unavailable; inspect `nagi logs`")
 		}
+		if message, ok := check["system_dns_error"].(string); ok && message != "" {
+			return fmt.Errorf("system DNS recheck failed: %s; inspect `nagi startup check`", message)
+		}
 		if message, ok := check["system_proxy_error"].(string); ok && message != "" {
 			return fmt.Errorf("system proxy recheck failed: %s; inspect `nagi startup check`", message)
 		}

@@ -12,6 +12,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/service"
 	"github.com/ronigooja/Nagi/internal/subscription"
+	"github.com/ronigooja/Nagi/internal/traffic"
 )
 
 func TestHumanSuccessShapes(t *testing.T) {
@@ -144,5 +145,31 @@ func TestErrorRedactsURLsInBothModes(t *testing.T) {
 		if strings.Contains(out.String(), "password") || strings.Contains(out.String(), "token=abc") || !strings.Contains(out.String(), "[redacted URL]") {
 			t.Fatalf("mode=%v: %s", jsonMode, out.String())
 		}
+	}
+}
+
+func TestTUNDNSHumanAndJSONResults(t *testing.T) {
+	data := map[string]any{"enabled": true, "settings": map[string]any{"enable": true}, "adapter_status": "up", "adapter_name": "utun9", "system_dns": traffic.DNSState{Supported: true, Managed: true, Status: "managed", Targets: []string{"198.18.0.2", "fdfe:dcba:9876::2"}}, "system_dns_error": "restore conflict"}
+	var human, encoded bytes.Buffer
+	if err := Write(&human, false, data); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"TUN: enabled", "System DNS: managed", "198.18.0.2", "Adapter utun9: up", "System DNS needs attention: restore conflict"} {
+		if !strings.Contains(human.String(), value) {
+			t.Fatalf("missing %q in %q", value, human.String())
+		}
+	}
+	if err := Write(&encoded, true, data); err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		OK   bool           `json:"ok"`
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(encoded.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK || result.Data["enabled"] != true || result.Data["settings"].(map[string]any)["enable"] != true || result.Data["system_dns"].(map[string]any)["managed"] != true {
+		t.Fatalf("JSON=%s", encoded.String())
 	}
 }

@@ -214,7 +214,7 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 		return nil, err
 	}
 	client := mutationClient(paths)
-	beforeID, _, activeErr := configID(ctx, client)
+	beforeID, beforeCfg, activeErr := configID(ctx, client)
 	var oldEffective []byte
 	var oldErr error
 	if activeErr == nil {
@@ -261,6 +261,9 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 				}
 			}
 		}
+		if actionErr == nil && activeErr == nil {
+			_, actionErr = synchronizeTUNDNS(ctx, paths, client, 0)
+		}
 		if actionErr == nil {
 			if activeErr == nil {
 				store := profile.NewStore(paths.ConfigDir, nil, nil)
@@ -288,6 +291,9 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration unconfirmed: %w", checkErr))
 	}
 	if currentID == beforeID {
+		if _, dnsErr := synchronizeTUNDNS(recoveryCtx, paths, client, 0); dnsErr != nil {
+			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("prior runtime unchanged but DNS restoration failed: %w", dnsErr))
+		}
 		if errors.Is(actionErr, errActivationMayStillApply) {
 			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: observed activation ID %q matches the prior configuration, but the original PUT may still apply later; after it settles, inspect `nagi status` and retry `nagi config reload`", currentID))
 		}
@@ -312,6 +318,13 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 	if e != nil {
 		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration failed; current state is uncertain: %w", e))
 	}
+	if tunDNSOS == "darwin" {
+		if priorTUN, ok := beforeCfg["tun"].(map[string]any); ok {
+			if e := restoreRuntimeTUN(recoveryCtx, client, priorTUN); e != nil {
+				return nil, errors.Join(actionErr, fileErr, fmt.Errorf("configuration restored but prior temporary TUN settings could not be restored: %w", e))
+			}
+		}
+	}
 	if runtime.GOOS == "darwin" {
 		_, cfg, e := configID(recoveryCtx, client)
 		if e == nil {
@@ -327,6 +340,9 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 			}
 			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restored but system proxy restoration failed: %w", e))
 		}
+	}
+	if _, dnsErr := synchronizeTUNDNS(recoveryCtx, paths, client, 0); dnsErr != nil {
+		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restored but system DNS restoration failed: %w", dnsErr))
 	}
 	if errors.Is(actionErr, errActivationMayStillApply) {
 		observedID, _, observeErr := configID(recoveryCtx, client)
