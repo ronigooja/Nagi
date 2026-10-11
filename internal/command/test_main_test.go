@@ -26,6 +26,8 @@ func TestMain(m *testing.M) {
 		"XDG_DATA_HOME":   filepath.Join(root, "data"),
 		"XDG_STATE_HOME":  filepath.Join(root, "state"),
 		"XDG_RUNTIME_DIR": filepath.Join(root, "run"),
+		// Tests that need validation must explicitly supply a fixture binary.
+		"NAGI_MIHOMO_BIN": filepath.Join(root, "missing-mihomo"),
 	} {
 		if err := os.Setenv(key, path); err != nil {
 			fmt.Fprintln(os.Stderr, err)

@@ -154,6 +154,88 @@ func TestProxyFailedReadsKeepRecoveryActionsAndUnknownState(t *testing.T) {
 	}
 }
 
+func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status Result
+		state  string
+		hint   string
+	}{
+		{"stopped", Result{Data: map[string]any{"running": false}}, "Mihomo: stopped |", "Start mihomo through Start / Stop"},
+		{"unexpected exit", Result{Data: map[string]any{"running": false, "unexpected_exit": true}}, "stopped (unexpected exit)", "`nagi recover`"},
+		{"running", Result{Data: map[string]any{"running": true}}, "Mihomo: running |", "Inspect `nagi logs` and `nagi status`"},
+		{"status failure", Result{Code: 1, Error: &CLIError{Message: "status failed: https://private.example/token"}}, "Mihomo: unknown |", "Run `nagi status`"},
+		{"missing running field", Result{Data: map[string]any{}}, "Mihomo: unknown |", "Run `nagi status`"},
+		{"null running field", Result{Data: map[string]any{"running": nil}}, "Mihomo: unknown |", "Run `nagi status`"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runner := &featureRunner{results: map[string]Result{
+				"proxy\x00groups": {Code: 1, Error: &CLIError{Message: "mihomo control unavailable: https://private.example/token: socket missing"}},
+				"status":          tc.status,
+			}}
+			var out bytes.Buffer
+			if code := RunPage(context.Background(), NewSession(runner, strings.NewReader("0\n"), &out), ProxyPage()); code != 0 {
+				t.Fatalf("exit=%d", code)
+			}
+			for _, want := range []string{tc.state, tc.hint, "Restore saved selections", "Proxy Providers", "3. Start / Stop", "mihomo control unavailable:", "socket missing"} {
+				if !strings.Contains(out.String(), want) {
+					t.Fatalf("missing %q: %s", want, out.String())
+				}
+			}
+			if strings.Contains(out.String(), "private.example") || strings.Contains(out.String(), "Data unavailable. Return to the parent page") {
+				t.Fatalf("unsafe or misleading guidance: %s", out.String())
+			}
+			if !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}, {"status"}}) {
+				t.Fatalf("reads must not start or retry the engine: %v", runner.calls)
+			}
+		})
+	}
+}
+
+func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
+	runner := &sequenceRunner{results: map[string][]Result{
+		"proxy groups": {
+			{Code: 1, Error: &CLIError{Message: "mihomo control unavailable: socket missing"}},
+			{Data: map[string]any{"groups": []any{map[string]any{"name": "World Select"}}}},
+		},
+		"status": {
+			{Data: map[string]any{"running": false}},
+			{Data: map[string]any{"running": false}},
+			{Data: map[string]any{"running": true}},
+		},
+		"start": {{Data: map[string]any{"running": true}}},
+		"proxy show World Select": {
+			{Data: map[string]any{"name": "World Select", "all": []string{"Node A"}}},
+			{Data: map[string]any{"name": "World Select", "all": []string{"Node A"}, "now": "Node A"}},
+		},
+		"proxy select World Select Node A": {{Data: map[string]any{"group": "World Select", "node": "Node A"}}},
+	}}
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("3\n1\n0\n1\n1\n0\n0\n"), &out), ProxyPage())
+	for _, want := range [][]string{{"start"}, {"proxy", "select", "World Select", "Node A"}} {
+		count := 0
+		for _, call := range runner.calls {
+			if reflect.DeepEqual(call, want) {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("%v dispatched %d times: %v; output=%s", want, count, runner.calls, out.String())
+		}
+	}
+	if !strings.Contains(out.String(), "World Select") || !strings.Contains(out.String(), "Node A") {
+		t.Fatal(out.String())
+	}
+}
+
+func TestProxyGroupsSuccessfulReadDoesNotQueryRuntime(t *testing.T) {
+	runner := &featureRunner{results: map[string]Result{"proxy\x00groups": {Data: map[string]any{"groups": []any{}}}}}
+	view, err := ProxyPage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+	if err != nil || len(view.Actions) != 2 || !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}}) {
+		t.Fatalf("view=%#v err=%v calls=%v", view, err, runner.calls)
+	}
+}
+
 func TestProxyBatchErrorsRetainUnderlyingStateExplanation(t *testing.T) {
 	message := "measurement failed; fixed-node reset is unknown; run proxy show Auto"
 	runner := &featureRunner{results: map[string]Result{

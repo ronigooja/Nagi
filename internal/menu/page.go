@@ -9,10 +9,11 @@ type Page struct {
 }
 
 type PageView struct {
-	Context string
-	Items   []Item // Resources, paginated ten at a time.
-	Actions []Item // Actions, visible after resources on every page.
-	Empty   string
+	Context       string
+	Items         []Item // Resources, paginated ten at a time.
+	Actions       []Item // Actions, visible after resources on every page.
+	Empty         string
+	ReadErrorHint string // Recovery guidance used instead of Empty after a failed read.
 }
 
 type Navigation struct {

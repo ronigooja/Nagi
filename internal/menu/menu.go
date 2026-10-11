@@ -124,7 +124,10 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 				if err != nil {
 					s.pending += fmt.Sprintf("Error reading %s: %s\n", output.RedactError(current.page.Title), output.RedactError(err.Error()))
 					view.Items = nil // Failed reads cannot leave stale resources selectable.
-					view.Empty = "Data unavailable. Return to the parent page and reopen to try again."
+					view.Empty = view.ReadErrorHint
+					if view.Empty == "" {
+						view.Empty = "Data unavailable. Return to the parent page and reopen to try again."
+					}
 				}
 				current.view = view
 			}

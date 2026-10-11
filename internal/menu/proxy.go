@@ -49,7 +49,28 @@ func proxyGroupsPage() *Page {
 			Groups []menuProxyGroup `json:"groups"`
 		}
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "groups"), &data); err != nil {
-			view.Context = "Proxy group state: unknown"
+			view.Context = "Mihomo: unknown | Proxy group state: unknown"
+			view.ReadErrorHint = "Run `nagi status` and inspect `nagi logs`, or open Troubleshooting from the home page. After resolving the error, reopen Select Node."
+			view.Actions = append(view.Actions, Item{Label: "Start / Stop", Next: RuntimePage})
+			var status struct {
+				Running        *bool `json:"running"`
+				UnexpectedExit bool  `json:"unexpected_exit"`
+			}
+			if statusErr := decodeMenuResult(s.Fetch(ctx, "status"), &status); statusErr != nil {
+				view.Context += "\nStatus unavailable: " + statusErr.Error()
+			} else if status.Running != nil {
+				switch {
+				case *status.Running:
+					view.Context = "Mihomo: running | Proxy group state: unknown"
+					view.ReadErrorHint = "Proxy groups could not be read while mihomo is running. Inspect `nagi logs` and `nagi status`; use Start / Stop if a restart is needed, then reopen Select Node."
+				case status.UnexpectedExit:
+					view.Context = "Mihomo: stopped (unexpected exit) | Proxy group state: unavailable"
+					view.ReadErrorHint = "Inspect `nagi logs`, run `nagi recover` to clean stale runtime records, then start mihomo through Start / Stop or `nagi start` and reopen Select Node."
+				default:
+					view.Context = "Mihomo: stopped | Proxy group state: unavailable"
+					view.ReadErrorHint = "Start mihomo through Start / Stop or `nagi start`, then return to Select Node. Reopening this page alone cannot load groups while mihomo is stopped."
+				}
+			}
 			return view, err
 		}
 		for _, group := range data.Groups {

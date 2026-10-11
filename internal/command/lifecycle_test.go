@@ -231,8 +231,14 @@ func TestStartWaitsForWholeQuitTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
-	case <-startDone:
+	case err := <-startDone:
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("start should reach the missing fixture binary after quit releases its lock: %v", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("start did not proceed after quit lock released")
+	}
+	if _, err := os.Stat(paths.PIDPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("lock test must not launch mihomo or leave a PID marker: %v", err)
 	}
 }
