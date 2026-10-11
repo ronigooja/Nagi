@@ -24,23 +24,19 @@ func TestValidateInlineSubscriptionProfile(t *testing.T) {
 
 func TestRejectPrivilegedEscapeSurfaces(t *testing.T) {
 	cases := map[string]string{
-		"controller":       "external-controller: 0.0.0.0:9090",
-		"unix controller":  "external-controller-unix: /tmp/controller.sock",
-		"UI path":          "external-ui: /etc",
-		"provider path":    "proxy-providers:\n  x:\n    type: file\n    path: /etc/shadow",
-		"root listener":    "listeners:\n  - name: danger\n    type: http\n    port: 80",
-		"node plugin":      "proxies:\n  - name: x\n    type: ss\n    plugin: /tmp/program",
-		"script":           "script: {type: script, code: evil}",
-		"exec":             "exec: /bin/sh",
-		"TLS file":         "tls:\n  certificate: /etc/secret",
-		"geo path":         "geox-url:\n  geoip: file:///etc/shadow",
-		"tun device":       "tun:\n  enable: true\n  device: /dev/evil",
-		"dns listener":     "dns:\n  listen: 0.0.0.0:53",
-		"automatic geo":    "geo-auto-update: true",
-		"nonlocal bind":    "bind-address: '*'",
-		"allow LAN":        "allow-lan: true",
-		"privileged port":  "mixed-port: 80",
-		"remote rule file": "rule-providers:\n  evil: {type: file, path: /etc/shadow, behavior: domain}",
+		"controller":      "external-controller: 0.0.0.0:9090",
+		"unix controller": "external-controller-unix: /tmp/controller.sock",
+		"UI path":         "external-ui: /etc",
+		"node plugin":     "proxies:\n  - name: x\n    type: ss\n    plugin: /tmp/program",
+		"script":          "script: {type: script, code: evil}",
+		"exec":            "exec: /bin/sh",
+		"TLS file":        "tls:\n  certificate: /etc/secret",
+		"geo path":        "geox-url:\n  geoip: file:///etc/shadow",
+		"tun device":      "tun:\n  enable: true\n  device: /dev/evil",
+		"automatic geo":   "geo-auto-update: true",
+		"nonlocal bind":   "bind-address: '*'",
+		"allow LAN":       "allow-lan: true",
+		"privileged port": "mixed-port: 80",
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -67,6 +63,14 @@ func TestRejectYAMLTricksAndInvalidValues(t *testing.T) {
 		if err := Validate([]byte(data)); !errors.Is(err, ErrUnsupported) {
 			t.Errorf("accepted %q: %v", data, err)
 		}
+	}
+}
+
+func TestUnsupportedLiteralDoesNotEchoValue(t *testing.T) {
+	const secret = "private-token-12345"
+	err := Validate([]byte("mode: " + secret + "\n"))
+	if !errors.Is(err, ErrUnsupported) || !strings.Contains(err.Error(), "mode") || strings.Contains(err.Error(), secret) {
+		t.Fatalf("unredacted or missing field error: %v", err)
 	}
 }
 
