@@ -3,8 +3,8 @@ package menu
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"regexp"
-	"strings"
 )
 
 type menuProfiles struct {
@@ -28,32 +28,36 @@ type menuPreview struct {
 	Added   []string `json:"added"`
 	Removed []string `json:"removed"`
 	Changed []string `json:"changed"`
+	Changes []struct {
+		Path     string `json:"path"`
+		Kind     string `json:"kind"`
+		Behavior string `json:"behavior"`
+	} `json:"changes"`
+	RemoteNodesCompared bool `json:"remote_nodes_compared"`
 }
+
+var menuNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 var menuURLPattern = regexp.MustCompile(`(?i)[a-z][a-z0-9+.-]*://[^\s<>"']+`)
 
-func init() { RegisterPage("profile", ProfilePage) }
-
-// ProfilePage groups local profile and subscription operations.
-func ProfilePage() *Page {
-	return &Page{Title: "Profiles and subscriptions", Help: []string{"profile"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
-		return PageView{Items: []Item{
-			{Label: "Profiles", Next: profileListPage},
-			{Label: "Subscriptions", Next: subscriptionListPage},
-		}}, nil
-	}}
+func init() {
+	RegisterPage("profile", ProfilePage)
+	RegisterPage("subscription", subscriptionListPage)
 }
+
+// ProfilePage is the direct entry to local profiles.
+func ProfilePage() *Page { return profileListPage() }
 
 func profileListPage() *Page {
 	return &Page{Title: "Profiles", Help: []string{"profile", "list"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Empty: "No profiles found. Choose Import a profile.", Actions: []Item{
+			{Key: "i", Label: "Import a profile", Navigate: importProfile},
+		}}
 		var data menuProfiles
 		if err := decodeMenuResult(s.Fetch(ctx, "profile", "list"), &data); err != nil {
-			return PageView{}, err
+			view.Context = "Selected profile: unknown"
+			return view, err
 		}
-		view := PageView{Empty: "No profiles found. Import one with `nagi profile import NAME FILE`.", Items: []Item{
-			{Label: "List profiles", Args: []string{"profile", "list"}},
-			{Label: "Import a profile", Action: importProfile},
-		}}
 		if data.CurrentError != "" {
 			view.Context = "Selected profile unavailable: " + data.CurrentError
 		} else if data.Current != "" {
@@ -68,47 +72,57 @@ func profileListPage() *Page {
 			if name == data.Current {
 				label += " (selected)"
 			}
-			view.Items = append(view.Items, Item{Label: label, Next: func() *Page { return profileDetailPage(name) }})
+			view.Items = append(view.Items, Item{Name: name, Label: label, Next: func() *Page { return profileDetailPage(name) }})
 		}
 		return view, nil
 	}}
 }
 
 func profileDetailPage(name string) *Page {
-	return &Page{Title: "Profile: " + name, Help: []string{"profile", "use"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
-		return PageView{Items: []Item{
+	return &Page{Title: "Profile: " + name, Help: []string{"profile", "use"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Actions: []Item{
 			{Label: "Use profile", Args: []string{"profile", "use", name}},
 			{Label: "Export source YAML", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "export", name) }},
 			{Label: "Back up source YAML", Args: []string{"profile", "backup", name}},
-			{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Impact: "Replace this profile with its backup?"},
+			{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Impact: "Replaces source YAML; reloads when selected and running"},
 			{Label: "Compare with backup or another profile", Action: func(ctx context.Context, s *Session) error { return diffProfile(ctx, s, name) }},
 			{Label: "Show local override", Args: []string{"profile", "override", "show", name}},
 			{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }},
-			{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Clear this profile's local override?"},
-			{Label: "Remove profile", Args: []string{"profile", "remove", name}, Impact: "Remove this profile? Its backup will remain."},
-		}}, nil
+			{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Restores source settings; reloads when selected and running"},
+			{Label: "Remove profile", Navigate: removeResource("profile", name), Impact: "Deletes source YAML; backup and override remain"},
+		}}
+		var data menuProfiles
+		if err := decodeMenuResult(s.Fetch(ctx, "profile", "list"), &data); err != nil {
+			view.Context = "Selected profile: unknown (" + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ")"
+		} else if data.CurrentError != "" {
+			view.Context = "Selected profile: unknown (" + menuURLPattern.ReplaceAllString(data.CurrentError, "[redacted URL]") + ")"
+		} else if data.Current != "" {
+			view.Context = "Selected profile: " + data.Current
+		} else {
+			view.Context = "Selected profile: none"
+		}
+		return view, nil
 	}}
 }
 
-func importProfile(ctx context.Context, s *Session) error {
-	name, err := s.Prompt("New profile name (letters, digits, _ or -)")
-	if err != nil {
-		return err
+func validateMenuName(value string) error {
+	if len(value) > 128 || !menuNamePattern.MatchString(value) {
+		return fmt.Errorf("use 1–128 letters, digits, _ or -")
 	}
-	if strings.TrimSpace(name) == "" {
-		s.WriteLine("A profile name is required.")
-		return nil
-	}
-	file, err := s.Prompt("Local YAML file")
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(file) == "" {
-		s.WriteLine("A local YAML file is required.")
-		return nil
-	}
-	s.Run(ctx, "profile", "import", name, file)
 	return nil
+}
+
+func nameField(label string) Field {
+	return Field{Key: "name", Label: label, Required: true, Validate: validateMenuName}
+}
+
+func importProfile(ctx context.Context, s *Session) (Navigation, error) {
+	values := map[string]string{}
+	_, err := s.Form(ctx, []Field{nameField("New profile name"), {Key: "file", Label: "Local YAML file", Required: true}}, values, func(v map[string]string) Result { return s.Run(ctx, "profile", "import", v["name"], v["file"]) })
+	if err != nil {
+		return Navigation{}, err
+	}
+	return Navigation{Next: profileDetailPage(values["name"])}, nil
 }
 
 func profileFileAction(ctx context.Context, s *Session, operation, name string) error {
@@ -116,20 +130,20 @@ func profileFileAction(ctx context.Context, s *Session, operation, name string) 
 	if operation == "override" {
 		label = "Local override YAML file"
 	}
-	file, err := s.Prompt(label)
-	if err != nil {
-		return err
+	_, err := s.Form(ctx, []Field{{Key: "file", Label: label, Required: true}}, nil, func(v map[string]string) Result {
+		if operation == "override" {
+			return s.Run(ctx, "profile", "override", "set", name, v["file"])
+		}
+		return s.Run(ctx, "profile", "export", name, v["file"])
+	})
+	return err
+}
+
+func removeResource(kind, name string) func(context.Context, *Session) (Navigation, error) {
+	return func(ctx context.Context, s *Session) (Navigation, error) {
+		result := s.Run(ctx, kind, "remove", name)
+		return Navigation{Back: result.Code == 0 && result.Error == nil}, nil
 	}
-	if strings.TrimSpace(file) == "" {
-		s.WriteLine("A file path is required.")
-		return nil
-	}
-	if operation == "override" {
-		s.Run(ctx, "profile", "override", "set", name, file)
-	} else {
-		s.Run(ctx, "profile", "export", name, file)
-	}
-	return nil
 }
 
 func diffProfile(ctx context.Context, s *Session, name string) error {
@@ -155,127 +169,149 @@ func diffProfile(ctx context.Context, s *Session, name string) error {
 
 func subscriptionListPage() *Page {
 	return &Page{Title: "Subscriptions", Help: []string{"subscription", "list"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Empty: "No subscriptions configured. Choose Add subscription.", Actions: []Item{{Key: "a", Label: "Add subscription", Navigate: addSubscription}}}
 		var data struct {
 			Subscriptions []menuSubscription `json:"subscriptions"`
 		}
 		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "list"), &data); err != nil {
-			return PageView{}, err
-		}
-		view := PageView{Empty: "No subscriptions configured. Add one with `nagi subscription add NAME URL`.", Items: []Item{
-			{Label: "List subscriptions", Args: []string{"subscription", "list"}},
-			{Label: "Add subscription", Action: addSubscription},
-		}}
-		if len(data.Subscriptions) == 0 {
-			view.Context = "No subscriptions configured. Add one with `nagi subscription add NAME URL`."
+			return view, err
 		}
 		for _, entry := range data.Subscriptions {
 			entry := entry
 			label := entry.Name
 			if entry.UpdatedAt == "" {
-				label += " (never updated)"
+				label += " (never downloaded)"
 			} else {
 				label += " (updated " + entry.UpdatedAt + ")"
 			}
-			view.Items = append(view.Items, Item{Label: label, Next: func() *Page { return subscriptionDetailPage(entry.Name) }})
+			view.Items = append(view.Items, Item{Name: entry.Name, Label: label, Next: func() *Page { return subscriptionDetailPage(entry.Name) }})
 		}
 		return view, nil
 	}}
 }
 
-func addSubscription(ctx context.Context, s *Session) error {
-	name, err := s.Prompt("New subscription name (letters, digits, _ or -)")
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(name) == "" {
-		s.WriteLine("A subscription name is required.")
+func addSubscription(ctx context.Context, s *Session) (Navigation, error) {
+	values := map[string]string{}
+	_, err := s.Form(ctx, []Field{nameField("New subscription name"), {Key: "url", Label: "Subscription HTTP(S) URL", Required: true, Validate: func(raw string) error {
+		u, err := url.Parse(raw)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil {
+			return fmt.Errorf("enter an HTTP(S) URL without user credentials")
+		}
 		return nil
-	}
-	url, err := s.Prompt("Subscription HTTP(S) URL")
+	}}}, values, func(v map[string]string) Result { return s.Run(ctx, "subscription", "add", v["name"], v["url"]) })
 	if err != nil {
-		return err
+		return Navigation{}, err
 	}
-	if strings.TrimSpace(url) == "" {
-		s.WriteLine("A subscription URL is required.")
-		return nil
-	}
-	s.Run(ctx, "subscription", "add", name, url)
-	return nil
+	return Navigation{Next: subscriptionDetailPage(values["name"])}, nil
 }
 
 func subscriptionDetailPage(name string) *Page {
+	var download *menuPreview
 	return &Page{Title: "Subscription: " + name, Help: []string{"subscription", "preview"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: "No cached preview available. Update this subscription first.", Items: []Item{
-			{Label: "Update cache and show node changes", Action: func(ctx context.Context, s *Session) error { return updateSubscription(ctx, s, name) }},
-			{Label: "Preview changes against profile", Action: func(ctx context.Context, s *Session) error { return previewSubscription(ctx, s, name) }},
+		view := PageView{Actions: []Item{
+			{Key: "d", Label: "Download cache", Impact: "Downloads only; does not apply, start mihomo or enable traffic access", Action: func(ctx context.Context, s *Session) error {
+				result := s.Run(ctx, "subscription", "update", name)
+				if result.Code != 0 || result.Error != nil {
+					return nil
+				}
+				var data struct {
+					Preview *menuPreview `json:"preview"`
+				}
+				if err := decodeMenuResult(result, &data); err != nil {
+					return err
+				}
+				download = data.Preview
+				s.WriteLine("Cache downloaded. Apply separately when ready.")
+				return nil
+			}},
+			{Key: "v", Label: "View application changes against target profile", Next: func() *Page { return subscriptionPreviewPage(name) }},
+			{Key: "a", Label: "Apply cached subscription", Args: []string{"subscription", "apply", name}, Impact: "Replaces target source configuration, clears local overrides and saved node selections; does not start mihomo or enable traffic access"},
+			{Key: "x", Label: "Remove subscription and cache", Navigate: removeResource("subscription", name), Impact: "Deletes subscription record and downloaded cache; keeps local profile"},
 		}}
-		var preview menuPreview
-		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "preview", name), &preview); err == nil {
-			view.Context = strings.Join(previewLines(preview), "\n")
-			view.Items = append(view.Items, Item{Label: "Apply cached subscription", Args: []string{"subscription", "apply", name}, Impact: "Apply cached subscription as a profile?"})
-		} else {
-			view.Context = "Preview unavailable: " + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ". Update the cache or retry preview before applying."
+		var data struct {
+			Subscriptions []menuSubscription `json:"subscriptions"`
 		}
-		view.Items = append(view.Items, Item{Label: "Remove subscription and cache", Args: []string{"subscription", "remove", name}, Impact: "Remove this subscription and its cache?"})
+		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "list"), &data); err != nil {
+			view.Context = "Subscription metadata: unknown (" + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ")"
+		} else {
+			view.Context = "Subscription metadata: unknown (record unavailable)"
+			for _, entry := range data.Subscriptions {
+				if entry.Name == name {
+					view.Context = subscriptionMetadata(entry)
+					break
+				}
+			}
+		}
+		var preview menuPreview
+		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "preview", name), &preview); err != nil {
+			view.Context += "\nApplication preview unavailable: " + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ". Apply can still validate and use a valid cache to repair the target profile."
+		} else {
+			view.Context += "\nApplication changes (cache vs target profile): " + previewSummary(preview)
+		}
+		if download != nil {
+			view.Context += "\nLast download changes (new cache vs previous cache): " + previewSummary(*download)
+			snapshot := *download
+			view.Actions = append(view.Actions, Item{Key: "c", Label: "View last download changes against previous cache", Next: func() *Page { return previewNamesPage("Download changes vs previous cache", snapshot) }})
+		}
 		return view, nil
 	}}
 }
 
-func updateSubscription(ctx context.Context, s *Session, name string) error {
-	result := s.Fetch(ctx, "subscription", "update", name)
-	if result.Code != 0 || result.Error != nil {
-		s.showResult(result)
-		return nil
+func subscriptionMetadata(entry menuSubscription) string {
+	updated, expiry := entry.UpdatedAt, entry.ExpiresAt
+	if updated == "" {
+		updated = "never downloaded"
 	}
-	var data struct {
-		Bytes   int         `json:"bytes"`
-		Preview menuPreview `json:"preview"`
+	if expiry == "" {
+		expiry = "unknown"
 	}
-	if err := decodeMenuResult(result, &data); err != nil {
-		return err
+	quota := "unknown"
+	if entry.Total > 0 {
+		remaining := entry.Total - entry.Upload - entry.Download
+		if remaining < 0 {
+			remaining = 0
+		}
+		quota = fmt.Sprintf("%d bytes available / %d bytes total (%d uploaded, %d downloaded)", remaining, entry.Total, entry.Upload, entry.Download)
 	}
-	s.Printf("Updated cache for %s (%d bytes).\n", name, data.Bytes)
-	if data.Preview.Name != "" {
-		printMenuPreview(s, data.Preview)
-	} else {
-		s.WriteLine("Update succeeded; open Preview changes to inspect the cache against the profile.")
-	}
-	s.WriteLine("Review the preview before applying the cached subscription.")
-	return nil
+	return "Updated: " + updated + "\nQuota: " + quota + "\nExpires: " + expiry
 }
 
-func previewSubscription(ctx context.Context, s *Session, name string) error {
-	var preview menuPreview
-	if err := decodeMenuResult(s.Fetch(ctx, "subscription", "preview", name), &preview); err != nil {
-		return err
-	}
-	printMenuPreview(s, preview)
-	return nil
+func subscriptionPreviewPage(name string) *Page {
+	return &Page{Title: "Application changes vs target profile: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		var preview menuPreview
+		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "preview", name), &preview); err != nil {
+			return PageView{}, err
+		}
+		return previewView(preview), nil
+	}}
+}
+
+func previewNamesPage(title string, preview menuPreview) *Page {
+	return &Page{Title: title, Load: func(context.Context, *Session) (PageView, error) { return previewView(preview), nil }}
 }
 
 func previewSummary(preview menuPreview) string {
-	return fmt.Sprintf("Cached preview: %d added, %d removed, %d changed. Choose Preview changes to see names before applying.", len(preview.Added), len(preview.Removed), len(preview.Changed))
+	return fmt.Sprintf("%d nodes added, %d removed, %d changed; %d configuration changes. Open the changes list for names and paths.", len(preview.Added), len(preview.Removed), len(preview.Changed), len(preview.Changes))
 }
 
-func printMenuPreview(s *Session, preview menuPreview) {
-	for _, line := range previewLines(preview) {
-		s.WriteLine(line)
+func previewView(preview menuPreview) PageView {
+	view := PageView{Context: previewSummary(preview), Empty: "No changes."}
+	if !preview.RemoteNodesCompared {
+		view.Context += "\nRemote provider nodes are not compared."
 	}
-}
-
-func previewLines(preview menuPreview) []string {
-	lines := []string{previewSummary(preview)}
 	for _, category := range []struct {
 		name  string
 		items []string
 	}{{"Added", preview.Added}, {"Removed", preview.Removed}, {"Changed", preview.Changed}} {
-		if len(category.items) == 0 {
-			lines = append(lines, category.name+": none")
-			continue
-		}
+		category := category
 		for _, name := range category.items {
-			lines = append(lines, category.name+": "+menuURLPattern.ReplaceAllString(name, "[redacted URL]"))
+			safe := menuURLPattern.ReplaceAllString(name, "[redacted URL]")
+			view.Items = append(view.Items, Item{Name: safe, Label: category.name + ": " + safe, Action: func(_ context.Context, s *Session) error { s.WriteLine(category.name + ": " + safe); return nil }})
 		}
 	}
-	return lines
+	for _, change := range preview.Changes {
+		label := menuURLPattern.ReplaceAllString(change.Kind+": "+change.Path+" — "+change.Behavior, "[redacted URL]")
+		view.Items = append(view.Items, Item{Name: label, Label: label, Action: func(_ context.Context, s *Session) error { s.WriteLine(label); return nil }})
+	}
+	return view
 }
