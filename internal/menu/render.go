@@ -23,12 +23,13 @@ func (s *Session) render(page *Page, view PageView, index int, depth int) {
 	for n, choice := range numberedChoices(view, index) {
 		item := choice.Item
 		label := output.RedactError(item.Label)
+		style := styleChoice
 		if item.Selected {
-			label = s.styled(styleSelected, label)
+			style = styleSelected
 		}
-		fmt.Fprintf(s.out, "%d. %s", n+1, label)
+		fmt.Fprintf(s.out, "%d. %s", n+1, s.styled(style, label))
 		if item.Impact != "" {
-			fmt.Fprintf(s.out, " — %s", output.RedactError(item.Impact))
+			fmt.Fprint(s.out, s.styled(styleImpact, " — "+output.RedactError(item.Impact)))
 		}
 		fmt.Fprintln(s.out)
 	}
@@ -218,5 +219,9 @@ func (s *Session) writeFeedback(kind feedbackKind, text string) {
 }
 
 func (s *Session) writeChoice(number int, label string) {
-	s.Printf("%d. %s\n", number, output.RedactError(label))
+	label = output.RedactError(label)
+	if number > 0 {
+		label = s.styled(styleChoice, label)
+	}
+	s.Printf("%d. %s\n", number, label)
 }

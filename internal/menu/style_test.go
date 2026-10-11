@@ -41,6 +41,11 @@ func assertMenuStyled(t *testing.T, rendered, text string, attributes ...string)
 			t.Errorf("%q lacks SGR %s: %q", text, attribute, rendered)
 		}
 	}
+	for _, code := range codes {
+		if code == "1" {
+			t.Errorf("%q must use regular weight: %q", text, rendered)
+		}
+	}
 	if !strings.HasPrefix(rendered[start+len(text):], "\x1b[0m") {
 		t.Errorf("%q lacks immediate style reset: %q", text, rendered)
 	}
@@ -77,15 +82,18 @@ func TestMenuStyleRenderPreservesTextAndScopesHighlights(t *testing.T) {
 	if menuSGR.ReplaceAllString(got, "") != plain.String() {
 		t.Fatalf("styles changed visible menu text: %q vs %q", got, plain.String())
 	}
-	assertMenuStyled(t, got, "Nodes", "1", "33")
-	assertMenuStyled(t, got, "Mihomo: running", "1")
-	assertMenuStyled(t, got, "Actual (selected)", "1", "32")
+	assertMenuStyled(t, got, "Nodes", "33")
+	assertMenuStyled(t, got, "Ordinary (selected)", "94")
+	assertMenuStyled(t, got, "Actual (selected)", "32")
+	assertMenuStyled(t, got, "Replace configuration", "94")
+	assertMenuStyled(t, got, " — Clears saved selections", "2")
 	for _, line := range []string{
-		"\n1. Ordinary (selected)\n", "\n2. \x1b[1;32mActual (selected)\x1b[0m\n",
-		"\n3. Replace configuration — Clears saved selections\n", "\n0. Exit menu (mihomo keeps running)\n",
+		"\nMihomo: running\n",
+		"\n1. \x1b[94mOrdinary (selected)\x1b[0m\n", "\n2. \x1b[32mActual (selected)\x1b[0m\n",
+		"\n3. \x1b[94mReplace configuration\x1b[0m\x1b[2m — Clears saved selections\x1b[0m\n", "\n0. Exit menu (mihomo keeps running)\n",
 	} {
 		if !strings.Contains(got, line) {
-			t.Errorf("plain numbering, ordinary labels or impacts changed: missing %q in %q", line, got)
+			t.Errorf("incorrect style boundary or numbering: missing %q in %q", line, got)
 		}
 	}
 	if strings.Contains(plain.String(), "\x1b") {
@@ -97,7 +105,7 @@ func TestMenuStyleRenderPreservesTextAndScopesHighlights(t *testing.T) {
 	}
 	s.render(page, view, 0, 2)
 	s.render(page, view, 1, 2)
-	for _, line := range []string{"\n12. Next page\n", "\n3. Previous page\n", "\n0. Back\n"} {
+	for _, line := range []string{"\n12. \x1b[94mNext page\x1b[0m\n", "\n3. \x1b[94mPrevious page\x1b[0m\n", "\n0. Back\n", "\nPage 1/2\n", "\nPage 2/2\n"} {
 		if !strings.Contains(colored.String(), line) {
 			t.Errorf("navigation numbering gained styling: missing %q in %q", line, colored.String())
 		}
@@ -116,11 +124,11 @@ func TestMenuStyledPageRedactsBeforeApplyingHighlights(t *testing.T) {
 	if strings.Contains(got, "secret.example") || strings.Count(got, "[redacted URL]") != 4 {
 		t.Fatalf("highlighted page leaked URL: %q", got)
 	}
-	assertMenuStyled(t, got, "Title [redacted URL]", "1", "33")
-	assertMenuStyled(t, got, "State [redacted URL]", "1")
-	assertMenuStyled(t, got, "Node [redacted URL]", "1", "32")
-	if !strings.Contains(got, "\x1b[0m — Effect [redacted URL]\n") {
-		t.Fatalf("redacted impact should remain plain: %q", got)
+	assertMenuStyled(t, got, "Title [redacted URL]", "33")
+	assertMenuStyled(t, got, "Node [redacted URL]", "32")
+	assertMenuStyled(t, got, " — Effect [redacted URL]", "2")
+	if !strings.Contains(got, "\nState [redacted URL]\n") {
+		t.Fatalf("redacted context should remain plain: %q", got)
 	}
 }
 
@@ -219,7 +227,9 @@ func TestMenuInvalidChoicesAndFormValidationAreYellow(t *testing.T) {
 	s.styles = true
 	RunPage(context.Background(), s, actionPage("Actions", Item{Label: "Action"}))
 	assertMenuStyled(t, out.String(), "Choose a listed number.", "33")
-	assertMenuStyled(t, out.String(), "Choice: ", "1")
+	if s.styled(stylePrompt, "Choice: ") != "Choice: " || !strings.HasSuffix(out.String(), "\x1b[0m\nChoice: ") {
+		t.Fatalf("prompt must remain plain after the warning resets: %q", out.String())
+	}
 	out.Reset()
 	s = NewSession(&fakeRunner{}, strings.NewReader("\ninvalid\nvalid\n0\n"), &out)
 	s.styles = true
@@ -234,11 +244,12 @@ func TestMenuInvalidChoicesAndFormValidationAreYellow(t *testing.T) {
 	}
 	assertMenuStyled(t, out.String(), "This field is required.", "33")
 	assertMenuStyled(t, out.String(), "Invalid value: choose valid", "33")
-	for _, line := range []string{"\n1. Name\n", "\n2. Submit again\n", "\n0. Cancel\n"} {
+	for _, line := range []string{"\n1. \x1b[94mName\x1b[0m\n", "\n2. \x1b[94mSubmit again\x1b[0m\n", "\n0. Cancel\n"} {
 		if !strings.Contains(out.String(), line) {
 			t.Errorf("form numbering gained styling: missing %q in %q", line, out.String())
 		}
 	}
+	assertMenuStyled(t, out.String(), "Submit again", "94")
 }
 
 func TestMenuStyledRequestedRawOutputIsUnchanged(t *testing.T) {
