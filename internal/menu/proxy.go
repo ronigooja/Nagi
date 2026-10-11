@@ -43,7 +43,7 @@ func proxyGroupsPage() *Page {
 	return &Page{Title: "Proxies and groups", Help: []string{"proxy", "groups"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Context: "Choose a group, then a node to switch immediately. /word filters group names.", Empty: "No proxy groups returned. Start mihomo and run `nagi proxy groups` to inspect the configuration.", Actions: []Item{
 			{Key: "s", Label: "Search node names across groups", Navigate: searchProxyNodes},
-			{Key: "p", Label: "Manage proxy providers", Next: func() *Page { return providerListPage() }},
+			{Key: "v", Label: "Manage proxy providers", Next: func() *Page { return providerListPage() }},
 			{Key: "a", Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
 		}}
 		var data struct {

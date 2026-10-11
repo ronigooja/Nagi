@@ -88,21 +88,67 @@ struct NagiCLIClient {
     }
 }
 
+enum WatchExit {
+    case stopped, duplicate, failed(Error)
+}
+
 final class SubscriptionWatch: @unchecked Sendable {
     private let process: Process
+    private let stdout: Pipe
+    private let stderr: Pipe
     private let lock = NSLock()
     private var stopped = false
-    private var stderr = Data()
-    private var duplicate = false
+    private var announced = false
+    private var outputError: Error?
+    private let readers = DispatchGroup()
     init(executable: URL) throws {
-        process = Process(); process.executableURL = executable; process.arguments = ["--json", "subscription", "watch"]
-        let out = Pipe(), err = Pipe(); process.standardOutput = out; process.standardError = err
+        process = Process(); process.executableURL = executable
+        process.arguments = ["--json", "subscription", "watch"]
+        stdout = Pipe(); stderr = Pipe()
+        process.standardOutput = stdout; process.standardError = stderr
         do { try process.run() } catch { throw CLIError.launch(error.localizedDescription) }
-        out.fileHandleForReading.readabilityHandler = { handle in _ = try? handle.read(upToCount: 64 * 1024) }
-        err.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            guard let self, let data = try? handle.read(upToCount: 64 * 1024), !data.isEmpty else { return }
-            self.lock.lock(); if self.stderr.count < 64 * 1024 { self.stderr.append(data) }; self.duplicate = String(data: self.stderr, encoding: .utf8)?.contains("already running") == true; self.lock.unlock()
+        stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
+        readers.enter()
+        DispatchQueue.global(qos: .utility).async { [self] in
+            readLines(stdout.fileHandleForReading, isError: false)
+            readers.leave()
         }
+        readers.enter()
+        DispatchQueue.global(qos: .utility).async { [self] in
+            readLines(stderr.fileHandleForReading, isError: true)
+            readers.leave()
+        }
+    }
+    private func readLines(_ handle: FileHandle, isError: Bool) {
+        var pending = Data()
+        var total = 0
+        while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty { break }
+            total += chunk.count
+            if total > 65_536 || chunk.count > 65_536 {
+                lock.lock(); outputError = CLIError.invalidJSON("Scheduler output exceeded 64 KiB."); lock.unlock()
+                stop(); break
+            }
+            pending.append(chunk)
+            while let newline = pending.firstIndex(of: 10) {
+                let line = Data(pending.prefix(upTo: newline))
+                pending.removeSubrange(...newline)
+                guard !line.isEmpty else { continue }
+                parse(line, isError: isError)
+            }
+            if pending.count > 65_536 { lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock(); stop(); break }
+        }
+        if !pending.isEmpty { parse(pending, isError: isError) }
+    }
+    private func parse(_ data: Data, isError: Bool) {
+        guard let envelope = try? JSONDecoder().decode(CLIEnvelope.self, from: data) else {
+            lock.lock(); outputError = CLIError.invalidJSON("Scheduler returned invalid JSON."); lock.unlock()
+            return
+        }
+        lock.lock(); defer { lock.unlock() }
+        if !isError && envelope.ok && envelope.data?["scheduler_running"]?.bool == true { announced = true }
+        if isError, let error = envelope.error { outputError = CLIError.command(error.code, error.message) }
     }
     func stop() {
         lock.lock(); stopped = true; lock.unlock()
@@ -112,12 +158,18 @@ final class SubscriptionWatch: @unchecked Sendable {
             if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
         }
     }
-    func wait() async -> Bool {
+    func wait() async -> WatchExit {
         await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                self.process.waitUntilExit(); self.process.standardOutput = nil; self.process.standardError = nil
-                self.lock.lock(); let intentional = self.stopped || self.duplicate; self.lock.unlock()
-                continuation.resume(returning: intentional || self.process.terminationStatus == 0)
+            DispatchQueue.global(qos: .utility).async { [self] in
+                process.waitUntilExit()
+                readers.wait()
+                lock.lock(); let intentional = stopped, started = announced, failure = outputError; lock.unlock()
+                if intentional { continuation.resume(returning: .stopped) }
+                else if case CLIError.command(let code, _) = failure, code == "scheduler_already_running" {
+                    continuation.resume(returning: .duplicate)
+                } else if let failure { continuation.resume(returning: .failed(failure)) }
+                else if !started { continuation.resume(returning: .failed(CLIError.invalidJSON("Scheduler exited before announcing readiness."))) }
+                else { continuation.resume(returning: .failed(CLIError.invalidJSON("Scheduler exited unexpectedly."))) }
             }
         }
     }

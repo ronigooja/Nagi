@@ -35,10 +35,11 @@ func providerDetailPage(p menuProvider) *Page {
 	return &Page{Title: "Provider: " + p.Name, Load: func(context.Context, *Session) (PageView, error) {
 		view := PageView{Context: fmt.Sprintf("Type: %s; nodes: %d", p.Type, len(p.Nodes)), Actions: []Item{
 			{Key: "u", Label: "Update provider", Args: []string{"proxy", "provider", "update", p.Name}},
-			{Key: "h", Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", p.Name}},
+			{Key: "c", Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", p.Name}},
 		}}
 		for _, node := range p.Nodes {
-			view.Items = append(view.Items, Item{Name: node, Label: node})
+			// Make numbered provider nodes useful: invoke the canonical CLI latency check.
+			view.Items = append(view.Items, Item{Name: node, Label: node + " (measure latency)", Args: []string{"proxy", "delay", node}})
 		}
 		return view, nil
 	}}

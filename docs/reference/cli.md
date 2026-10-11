@@ -45,7 +45,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `dns flush` | Clear the running mihomo DNS cache. |
 | `dns check` | Audit the selected configuration and query mihomo DNS through its control API. |
 | `subscription list` | List names, refresh and schedule state, cache/application metadata, and available expiry and traffic metadata without URLs. |
-| `subscription watch` | Run the foreground scheduler until interrupted; the installed login service hosts the same scheduler. A duplicate host exits with `subscription_error`. |
+| `subscription watch` | Run the foreground scheduler until interrupted; the installed login service hosts the same scheduler. A duplicate host exits with structured error code `scheduler_already_running`. |
 | `subscription schedule NAME SECONDS\|off` | Persist an update interval from 1 through 31,536,000 seconds, or disable scheduling with `off`; a running scheduler refreshes when due and applies only the selected associated profile. |
 | `subscription add NAME URL` | Save an HTTP or HTTPS subscription URL. |
 | `subscription key NAME FILE\|clear` | Copy a local age identity file for a saved subscription, or clear its identity. |
@@ -209,7 +209,7 @@ To inspect mihomo's own diagnostics locally, use `mihomo -t -f FILE -d DIRECTORY
 
 ## JSON and exit codes
 
-JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `not_running`, `lifecycle_busy`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `proxy_provider_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
+JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `scheduler_already_running`, `not_running`, `lifecycle_busy`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `proxy_provider_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
 
 Additional success payloads are defined below; all appear in `data`:
 
