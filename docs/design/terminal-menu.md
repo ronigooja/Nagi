@@ -19,7 +19,7 @@ The home page shows mihomo state and the selected profile. Failed reads show unk
 | Home category | Flows |
 | --- | --- |
 | Runtime controls | Status, start, stop, restart, configuration show/validate/reload, runtime and persistent mode, session quit. |
-| Proxy groups | Groups and current nodes, direct node switching, filtering, details, node/group latency, automatic selection, saved selection restore, and redacted provider update/healthcheck (c) actions. Hidden native groups are omitted while icon metadata is retained for labels. |
+| Proxy groups | Groups and current nodes, direct node switching, filtering, details, node/group latency, automatic selection, saved selection restore, and redacted provider update/healthcheck actions. Hidden native groups are omitted while icon metadata is retained for labels. |
 | Subscriptions | List/add, detail metadata, cache download, change summaries and paginated names, apply, remove, schedule interval, encryption-key set/clear, pause/failure state, quota and expiry. |
 | Local profiles | List/import, use, export, backup/restore, diff, override show/set/clear, remove. |
 | Traffic access | TUN, listener ports, LAN status and changes; macOS system proxy controls. |
