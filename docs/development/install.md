@@ -1,10 +1,48 @@
-# Install and update from local artifacts
+# Install and update
 
-This document defines the local artifact layout and installation workflow shared by development builds and future release workflows. The installer uses files already on disk; it does not download, build, sign, or notarize them.
+This document defines the end-user GitHub Releases workflow and the local artifact workflow used by development builds. The online wrapper downloads and verifies a release archive, then delegates installation to `scripts/installer.sh`. Neither workflow builds, signs, or notarizes files.
+
+## Online install and update
+
+Published releases use fixed GitHub asset names. The online wrapper selects the
+matching operating system and architecture, downloads the archive and
+`SHA256SUMS` from the latest release, verifies the archive, and invokes the
+local installer. GitHub is the distribution service; no Nagi download server is
+required.
+
+Install the CLI with the repository's raw script:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
+```
+
+On macOS, request the optional unsigned menu bar App:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash -s -- --app
+```
+
+Run the same command again to update an existing installation, or make the
+operation explicit:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash -s -- update
+```
+
+The wrapper accepts `--version vX.Y.Z`, `--repo OWNER/REPOSITORY`, and
+`--prefix DIR`. A fresh macOS installation is CLI-only unless `--app` is
+provided. An update keeps an App that was already installed; `--no-app` keeps
+the same behavior explicitly. Updating and uninstalling still use the local
+installer's preflight checks: stop mihomo, quit Nagi.app, and remove the login
+service before replacing managed executables.
+
+The macOS App is unsigned and unnotarized. macOS may require the user to
+right-click the App and choose **Open** on its first launch. This does not
+change the CLI or mihomo installation path.
 
 ## Prepare artifacts
 
-Place matching executable `nagi` and `mihomo` files in one directory. On macOS, an optional `Nagi.app` bundle in the same directory is installed when present. `--app-dest` changes its destination. `make build cli` creates `bin/nagi`; on macOS, `make build app` creates `bin/Nagi.app`. Both leave an existing `bin/mihomo` untouched. Use `./scripts/build.sh` when the pinned mihomo also needs to be built. Check the files and their architecture before installation. A future release workflow should include this version of `scripts/installer.sh` in its published archive alongside the binaries. A download workflow can verify the archive, then invoke the included installer on its artifact directory; the installer does not fetch releases or verify their provenance.
+Place matching executable `nagi` and `mihomo` files in one directory. On macOS, an optional `Nagi.app` bundle in the same directory is installed when present. `--app-dest` changes its destination. `make build cli` creates `bin/nagi`; on macOS, `make build app` creates `bin/Nagi.app`. Both leave an existing `bin/mihomo` untouched. Use `./scripts/build.sh` when the pinned mihomo also needs to be built. Check the files and their architecture before installation. Release archives created by `make release` include this version of `scripts/installer.sh` beside the binaries. A download workflow can verify the archive, then invoke the included installer on its artifact directory; the installer does not fetch releases or verify their provenance.
 
 ## Install, update, and remove
 
@@ -32,4 +70,11 @@ The macOS app invokes `/usr/local/bin/nagi` directly. Keep the default prefix wh
 
 The installer stores hashes for the two binaries and, if installed, the entire App bundle content and layout in `<prefix>/share/nagi/install-state`. It refuses to change files whose recorded hashes no longer match; resolve a manually changed installation before retrying. It stages replacements and attempts to restore the previous files if an operation fails. A failed operation restores the previous default profile; after a successful operation, the temporary rollback copy is deleted. Other user profiles, subscriptions, settings, and logs are preserved. Uninstall preserves the installed default profile along with other user data; it does not remove user login service definitions. Updating and uninstalling require removing any installed login service first. On macOS with `/usr/local`, the installer manages the privileged helper using `sudo`; run it as the intended user, not as root. Stop mihomo before update or uninstall. Uninstall leaves the user backend selected. If the helper was present before an update, its backend selection is restored; if it was absent, the update installs and selects it. TUN itself remains a runtime setting and must be enabled again after mihomo restarts. On macOS, disable the App login item before uninstalling the App. A privileged helper requires a root-owned, non-symlink `/usr/local/bin/nagi` and root-controlled parent directories. The installer does not change parent-directory ownership or permissions; check them before installation, especially on machines where `/usr/local` is user-writable.
 
-The installer does not provide an online updater. A publishing workflow will be able to reuse this interface after artifacts, download locations, and integrity checks are defined. Local Linux testing covers the CLI artifact flow. The macOS helper lifecycle must be checked on a macOS host.
+The online wrapper requires Bash, `curl`, `tar`, and `shasum`. It expects each GitHub
+Release to contain `nagi-linux-amd64.tar.gz`, `nagi-linux-arm64.tar.gz`,
+`nagi-macos-amd64.tar.gz`, `nagi-macos-arm64.tar.gz`, and `SHA256SUMS` for the
+assets that were built. Each archive also contains the matching `installer.sh`.
+macOS archives may also contain `Nagi.app`; the release script includes it when
+an App was built for the release host architecture.
+Local Linux testing covers the CLI artifact flow. The macOS helper lifecycle
+and unsigned App launch must be checked on a macOS host.

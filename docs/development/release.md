@@ -1,8 +1,9 @@
 # Release process
 
-This document defines the versioning and release rules for Nagi. It covers the
-CLI and mihomo binaries produced by `make release`; the macOS SwiftUI app is not
-packaged by the current release script.
+This document defines the versioning and release rules for Nagi and the GitHub
+Release assets consumed by `scripts/install.sh`. `make release` builds the CLI
+and mihomo archives for Linux and macOS. If `bin/Nagi.app` exists, the release
+script includes it in the archive matching the macOS host architecture.
 
 ## Version numbers
 
@@ -68,14 +69,17 @@ completed manually.
    git push origin vX.Y.Z
    ```
 
-5. Check out the tag in a clean workspace, run `./scripts/build.sh`, and then run
-   `make release`. Inspect every target under `dist/` and verify executable
-   permissions. Run the version check above for targets that can execute on the
-   release host; for other targets, verify the embedded version from the build
-   output or with a binary inspection tool.
-6. Publish the release using the release notes prepared in the next section and
-   attach only artifacts produced from the tagged commit. The current repository
-   does not automate Git hosting publication.
+5. Check out the tag in a clean workspace. On a macOS release host, run
+   `make build app` first when the release should offer the optional App. Then
+   run `make release`. Inspect every target under `dist/`, including the four
+   `nagi-*.tar.gz` archives and `SHA256SUMS`, and verify executable permissions.
+   Run the version check above for targets that can execute on the release host;
+   for other targets, verify the embedded version from the build output or with
+   a binary inspection tool.
+6. Push the tag. The [`publish release`](../../.github/workflows/release.yml)
+   workflow builds the archives, verifies `SHA256SUMS`, generates release
+   notes, and creates the GitHub Release with the tagged artifacts. Review the
+   created release before announcing it.
 
 ## Release notes requirement
 
@@ -123,6 +127,9 @@ omit that category rather than implying that it was reviewed incompletely.
 - [ ] `make test` passed.
 - [ ] Locked `./scripts/build.sh` passed.
 - [ ] `make release` artifacts were inspected.
+- [ ] `dist/SHA256SUMS` matches every uploaded archive.
+- [ ] GitHub Release assets use the fixed names expected by the online installer.
+- [ ] The tag-triggered publish workflow completed and the created release was reviewed.
 - [ ] `./bin/nagi --json version` reports the release tag and locked mihomo
       commit.
 - [ ] Release notes include compatibility or migration information where

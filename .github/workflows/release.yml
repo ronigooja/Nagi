@@ -1,0 +1,95 @@
+name: publish release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: macos-14
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      - name: Verify release tag
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          case "$RELEASE_TAG" in
+            v*) ;;
+            *) echo "release must use a v-prefixed tag: $RELEASE_TAG" >&2; exit 1 ;;
+          esac
+          [[ "$(git describe --tags --exact-match "$GITHUB_SHA")" == "$RELEASE_TAG" ]]
+          [[ -z "$(git status --porcelain)" ]]
+
+      - name: Run tests
+        run: make test
+
+      - name: Build unsigned macOS App
+        run: make build app
+
+      - name: Build release archives
+        env:
+          APPLE_SIGN_IDENTITY: ''
+          APPLE_NOTARY_PROFILE: ''
+        run: make release
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for asset in \
+            dist/nagi-linux-amd64.tar.gz \
+            dist/nagi-linux-arm64.tar.gz \
+            dist/nagi-macos-amd64.tar.gz \
+            dist/nagi-macos-arm64.tar.gz \
+            dist/SHA256SUMS; do
+            test -f "$asset"
+          done
+          (cd dist && shasum -a 256 -c SHA256SUMS)
+
+      - name: Prepare release notes
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          previous=$(git tag --list 'v*' --sort=-version:refname | awk -v tag="$RELEASE_TAG" '$0 != tag { print; exit }')
+          {
+            printf '# Nagi %s\n\n' "$RELEASE_TAG"
+            if [[ -n "$previous" ]]; then
+              printf 'Changes since [%s]:\n`%s..%s`\n\n' "$previous" "$previous" "$RELEASE_TAG"
+              printf '## Changed\n\n'
+              git log --format='- %s' "$previous..$RELEASE_TAG"
+            else
+              printf 'Changes in the first published release.\n\n## Changed\n\n'
+              git log --format='- %s' "$RELEASE_TAG"
+            fi
+            printf '\n## Artifacts\n\n- Linux and macOS archives\n- SHA256SUMS\n'
+          } > release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Nagi $GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            dist/nagi-linux-amd64.tar.gz \
+            dist/nagi-linux-arm64.tar.gz \
+            dist/nagi-macos-amd64.tar.gz \
+            dist/nagi-macos-arm64.tar.gz \
+            dist/SHA256SUMS

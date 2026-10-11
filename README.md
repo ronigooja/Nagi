@@ -14,7 +14,17 @@ make build cli
 ./bin/nagi menu
 ```
 
-Build the CLI with `make build cli` on Linux or macOS; build the macOS App separately with `make build app`. Install, update, or uninstall existing artifacts with `./scripts/installer.sh install`, `./scripts/installer.sh update`, or `./scripts/installer.sh uninstall`. `./scripts/sync_to_mac.sh` copies the source tree to the macair checkout while preserving its local build artifacts. The CLI build does not rebuild mihomo; prepare a matching `bin/mihomo` separately. For a full locked CLI and mihomo build, run `./scripts/build.sh` with `MIHOMO_DIR` pointing to the pinned checkout, or let that script fetch the pinned source. The first `start` creates a `default` profile with DoH resolvers and TUN DNS interception settings, but TUN is disabled until you run `nagi tun enable` (which requires OS permissions). Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
+### Published installation
+
+Install the CLI directly from GitHub Releases:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
+```
+
+On macOS, append `-s -- --app` to install the optional unsigned menu bar App. Run the same command again to update, or pass `update` explicitly. See the [installation workflow](docs/development/install.md#online-install-and-update) for options and release asset requirements.
+
+For local development, build the CLI with `make build cli` on Linux or macOS; build the macOS App separately with `make build app`. Install, update, or uninstall existing artifacts with `./scripts/installer.sh install`, `./scripts/installer.sh update`, or `./scripts/installer.sh uninstall`. `./scripts/sync_to_mac.sh` copies the source tree to the macair checkout while preserving its local build artifacts. The CLI build does not rebuild mihomo; prepare a matching `bin/mihomo` separately. For a full locked CLI and mihomo build, run `./scripts/build.sh` with `MIHOMO_DIR` pointing to the pinned checkout, or let that script fetch the pinned source. The first `start` creates a `default` profile with DoH resolvers and TUN DNS interception settings, but TUN is disabled until you run `nagi tun enable` (which requires OS permissions). Set `NAGI_MIHOMO_BIN` to use a different mihomo executable at runtime. macOS and Linux are supported; the menu bar app requires macOS 13 or newer.
 
 The `default` profile is the built-in configuration template; installation and updates replace it with the installed version's defaults. Use another name for personal profiles and subscriptions. See the [installation workflow](docs/development/install.md#install-update-and-remove) for details.
 
@@ -34,7 +44,7 @@ The `default` profile is the built-in configuration template; installation and u
 - [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Development](docs/development/build-and-test.md): locked builds and tests.
-- [Local installation](docs/development/install.md): installing, updating, and removing built artifacts for development and future release workflows.
+- [Installation](docs/development/install.md): GitHub Release installation, local artifacts, updating, and removal.
 - [Linux privileged helper scaffold](docs/development/privileged-linux.md): system service boundary and current availability.
 - [macOS privileged TUN helper](docs/reference/cli.md#traffic-access): installation and backend selection for TUN access.
 - [Feature roadmap](docs/development/roadmap.md): planned user-facing capabilities.
