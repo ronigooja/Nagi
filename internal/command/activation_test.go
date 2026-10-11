@@ -333,7 +333,11 @@ func TestRollbackFailureReportsUnconfirmedRuntime(t *testing.T) {
 func TestLateCandidateAfterConfirmedRollbackReportsUncertainRuntime(t *testing.T) {
 	dir := t.TempDir()
 	config := filepath.Join(dir, "config")
-	run := filepath.Join(dir, "run")
+	run, err := os.MkdirTemp("", "nagi-run-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(run) })
 	if err := os.MkdirAll(filepath.Join(config, "profiles"), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +418,7 @@ func TestLateCandidateAfterConfirmedRollbackReportsUncertainRuntime(t *testing.T
 			<-lateDone
 		}
 	}()
-	paths := nagiruntime.Paths{ConfigDir: config, RuntimeDir: run, SocketPath: socket}
+	paths := nagiruntime.Paths{ConfigDir: config, RuntimeDir: run, StateDir: filepath.Join(dir, "state"), SocketPath: socket}
 	_, err = applyTransaction(context.Background(), paths, []string{"profile", "import"}, func() (any, error) {
 		if e := os.WriteFile(source, []byte("mixed-port: 17900\n"), 0600); e != nil {
 			return nil, e
@@ -472,7 +476,11 @@ func TestLateCandidateAfterConfirmedRollbackReportsUncertainRuntime(t *testing.T
 func TestSettledApplyFailureConfirmsRuntimeRestoration(t *testing.T) {
 	dir := t.TempDir()
 	config := filepath.Join(dir, "config")
-	run := filepath.Join(dir, "run")
+	run, err := os.MkdirTemp("", "nagi-run-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(run) })
 	if err := os.MkdirAll(filepath.Join(config, "profiles"), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -513,7 +521,7 @@ func TestSettledApplyFailureConfirmsRuntimeRestoration(t *testing.T) {
 	})}
 	go server.Serve(listener)
 	defer server.Close()
-	paths := nagiruntime.Paths{ConfigDir: config, RuntimeDir: run, SocketPath: socket}
+	paths := nagiruntime.Paths{ConfigDir: config, RuntimeDir: run, StateDir: filepath.Join(dir, "state"), SocketPath: socket}
 	_, err = applyTransaction(context.Background(), paths, []string{"profile", "import"}, func() (any, error) {
 		if e := os.WriteFile(source, []byte("mixed-port: 17900\n"), 0600); e != nil {
 			return nil, e

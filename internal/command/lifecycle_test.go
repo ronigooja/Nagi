@@ -15,8 +15,7 @@ import (
 )
 
 func TestExplicitStopIntentSuppressesMonitorStart(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	isolatedTestPaths(t, t.TempDir())
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		t.Fatal(err)
@@ -45,8 +44,7 @@ func TestExplicitStopIntentSuppressesMonitorStart(t *testing.T) {
 }
 
 func TestStopRecordsIntentWhenAlreadyStopped(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	isolatedTestPaths(t, t.TempDir())
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		t.Fatal(err)
@@ -74,8 +72,7 @@ func TestIntentDefaultsToRunningAndRejectsCorruption(t *testing.T) {
 }
 
 func TestFreshMonitorResumesCompletedQuitButPreservesExplicitStop(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	isolatedTestPaths(t, t.TempDir())
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		t.Fatal(err)
@@ -98,8 +95,7 @@ func TestFreshMonitorResumesCompletedQuitButPreservesExplicitStop(t *testing.T) 
 }
 
 func TestFailedQuitLeavesRecoverableStoppedIntent(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	isolatedTestPaths(t, t.TempDir())
 	previous := pauseMonitor
 	pauseMonitor = func() error { return errors.New("service manager unavailable") }
 	t.Cleanup(func() { pauseMonitor = previous })
@@ -117,8 +113,7 @@ func TestFailedQuitLeavesRecoverableStoppedIntent(t *testing.T) {
 }
 
 func TestQuitReturnsSuccessAfterCleanupAndResumesAtNextLogin(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	isolatedTestPaths(t, t.TempDir())
 	previous := pauseMonitor
 	pauseMonitor = func() error { return nil }
 	t.Cleanup(func() { pauseMonitor = previous })
@@ -145,8 +140,7 @@ func TestQuitReturnsSuccessAfterCleanupAndResumesAtNextLogin(t *testing.T) {
 }
 
 func TestQuitReleasesConfigLockWhileMonitorStops(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	isolatedTestPaths(t, t.TempDir())
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		t.Fatal(err)
@@ -180,8 +174,7 @@ func TestQuitRollbackErrorExplainsRecovery(t *testing.T) {
 }
 
 func TestInterruptedQuitCanBeRetried(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	isolatedTestPaths(t, t.TempDir())
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		t.Fatal(err)
@@ -206,8 +199,7 @@ func TestInterruptedQuitCanBeRetried(t *testing.T) {
 }
 
 func TestStartWaitsForWholeQuitTransaction(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	isolatedTestPaths(t, t.TempDir())
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		t.Fatal(err)

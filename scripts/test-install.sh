@@ -8,7 +8,13 @@ installer=${INSTALLER_SCRIPT:-$script_dir/installer.sh}
 
 test_dir=$(mktemp -d)
 trap 'rm -rf -- "$test_dir"' EXIT
+export HOME=$test_dir/home
 export XDG_CONFIG_HOME=$test_dir/xdg-config
+if [[ $(uname -s) == Darwin ]]; then
+    profile_dir=$HOME/Library/Application\ Support/Nagi/config/profiles
+else
+    profile_dir=$XDG_CONFIG_HOME/nagi/profiles
+fi
 prefix=$test_dir/prefix
 artifact_v1=$test_dir/artifact-v1
 artifact_v2=$test_dir/artifact-v2
@@ -102,15 +108,15 @@ expect_failure 'missing regular executable' bash "$installer" install --artifact
 [[ ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'invalid artifact created an installer record'
 
 # A failed first install must leave the destination and the existing default profile intact.
-mkdir -p "$XDG_CONFIG_HOME/nagi/profiles"
-printf 'local default\n' > "$XDG_CONFIG_HOME/nagi/profiles/default.yaml"
+mkdir -p "$profile_dir"
+printf 'local default\n' > "$profile_dir/default.yaml"
 expect_failure 'installed nagi failed its version check' env NAGI_TEST_FAIL_INSTALLED_VERSION=1 bash "$installer" install --artifact-dir "$artifact_v1" --prefix "$prefix"
 [[ ! -e "$prefix/bin/nagi" && ! -e "$prefix/bin/mihomo" && ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'failed install left managed files behind'
-[[ $(cat "$XDG_CONFIG_HOME/nagi/profiles/default.yaml") == 'local default' ]] || fail_test 'failed install changed default profile'
+[[ $(cat "$profile_dir/default.yaml") == 'local default' ]] || fail_test 'failed install changed default profile'
 
 bash "$installer" install --artifact-dir "$artifact_v1" --prefix "$prefix" > "$log"
 assert_installed_from "$artifact_v1"
-[[ $(cat "$XDG_CONFIG_HOME/nagi/profiles/default.yaml") == 'mode: v1' ]] || fail_test 'install did not write default profile'
+[[ $(cat "$profile_dir/default.yaml") == 'mode: v1' ]] || fail_test 'install did not write default profile'
 expect_failure 'already installed' bash "$installer" install --artifact-dir "$artifact_v2" --prefix "$prefix"
 # A manually changed binary must not be overwritten or removed by the installer.
 printf '# outside modification\n' >> "$prefix/bin/mihomo"
@@ -130,7 +136,7 @@ assert_installed_from "$artifact_v1"
 mkdir -p "$prefix/share/nagi/profiles" "$test_dir/user-data"
 printf 'user profile\n' > "$prefix/share/nagi/profiles/default.yaml"
 printf 'user subscription\n' > "$test_dir/user-data/subscription.yaml"
-printf 'local default\n' > "$XDG_CONFIG_HOME/nagi/profiles/default.yaml"
+printf 'local default\n' > "$profile_dir/default.yaml"
 
 expect_failure 'mihomo is running' env NAGI_TEST_RUNNING=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
 assert_installed_from "$artifact_v1"
@@ -140,11 +146,11 @@ assert_installed_from "$artifact_v1"
 # A failed post-install version check must restore both previous binaries.
 expect_failure 'installed nagi failed its version check' env NAGI_TEST_FAIL_INSTALLED_VERSION=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
 assert_installed_from "$artifact_v1"
-[[ $(cat "$XDG_CONFIG_HOME/nagi/profiles/default.yaml") == 'local default' ]] || fail_test 'failed update changed default profile'
+[[ $(cat "$profile_dir/default.yaml") == 'local default' ]] || fail_test 'failed update changed default profile'
 
 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix" > "$log"
 assert_installed_from "$artifact_v2"
-[[ $(cat "$XDG_CONFIG_HOME/nagi/profiles/default.yaml") == 'mode: v2' ]] || fail_test 'update did not replace default profile'
+[[ $(cat "$profile_dir/default.yaml") == 'mode: v2' ]] || fail_test 'update did not replace default profile'
 [[ $(cat "$prefix/share/nagi/profiles/default.yaml") == 'user profile' ]] || fail_test 'update changed user profile'
 
 expect_failure 'login service is installed' env NAGI_TEST_SERVICE_INSTALLED=1 bash "$installer" uninstall --prefix "$prefix"
@@ -153,7 +159,7 @@ assert_installed_from "$artifact_v2"
 bash "$installer" uninstall --prefix "$prefix" > "$log"
 [[ ! -e "$prefix/bin/nagi" && ! -e "$prefix/bin/mihomo" && ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'uninstall left managed files behind'
 [[ $(cat "$prefix/share/nagi/profiles/default.yaml") == 'user profile' ]] || fail_test 'uninstall removed user profile'
-[[ $(cat "$XDG_CONFIG_HOME/nagi/profiles/default.yaml") == 'mode: v2' ]] || fail_test 'uninstall removed default profile'
+[[ $(cat "$profile_dir/default.yaml") == 'mode: v2' ]] || fail_test 'uninstall removed default profile'
 [[ $(cat "$test_dir/user-data/subscription.yaml") == 'user subscription' ]] || fail_test 'uninstall removed user subscription'
 
 # Running the installer directly should find artifacts beside its scripts directory.
