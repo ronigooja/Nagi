@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+ <linearGradient id="sea" x1=".18" y1="0" x2=".76" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#4FD7C9"/><stop offset=".48" stop-color="#168FAD"/><stop offset="1" stop-color="#18476E"/></linearGradient>
+ <linearGradient id="rim" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".48"/><stop offset=".6" stop-color="#FFFFFF" stop-opacity=".06"/><stop offset="1" stop-color="#052C4A" stop-opacity=".26"/></linearGradient>
+ <linearGradient id="porcelain" x1="0" y1="0" x2=".6" y2="1"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#E5F9F5"/></linearGradient>
+</defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sea)"/>
+<rect x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="url(#rim)" stroke-width="4"/>
+<path d="M 328 680 V 394 C 328 320 387 301 432 370 L 592 646 C 637 715 696 696 696 622 V 336" fill="none" stroke="url(#porcelain)" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

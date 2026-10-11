@@ -15,8 +15,10 @@ swift build --package-path "$project_dir" -c release
 bin_dir=$(swift build --package-path "$project_dir" -c release --show-bin-path)
 app_dir="$repo_dir/bin/Nagi.app"
 rm -rf -- "$app_dir"
-mkdir -p "$app_dir/Contents/MacOS"
+mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 cp "$bin_dir/NagiApp" "$app_dir/Contents/MacOS/NagiApp"
+cp -R "$bin_dir/NagiApp_NagiApp.bundle" "$app_dir/Contents/Resources/"
+cp "$project_dir/Resources/Nagi.icns" "$app_dir/Contents/Resources/Nagi.icns"
 cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -26,6 +28,7 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>com.nagi.menuapp</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>Nagi</string>
+  <key>CFBundleIconFile</key><string>Nagi.icns</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>

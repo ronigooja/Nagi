@@ -6,7 +6,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [.executable(name: "NagiApp", targets: ["NagiApp"])],
     targets: [
-        .executableTarget(name: "NagiApp"),
+        .executableTarget(name: "NagiApp", resources: [.copy("Resources/NagiMenuTemplate.pdf")]),
         .testTarget(name: "NagiAppTests", dependencies: ["NagiApp"])
     ]
 )
