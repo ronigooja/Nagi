@@ -150,27 +150,17 @@ func (s *Session) presentResult(args []string, result Result) {
 			}
 		}
 	}
-	if len(args) >= 2 && args[0] == "subscription" && (args[1] == "update" || args[1] == "apply") {
-		baseline := "Changes against previous cache"
-		if args[1] == "apply" {
-			baseline = "Changes against target profile"
-		}
-		if preview := data["preview"]; len(preview) > 0 && string(preview) != "null" {
-			var counts struct {
-				Added   []string          `json:"added"`
-				Removed []string          `json:"removed"`
-				Changed []string          `json:"changed"`
-				Changes []json.RawMessage `json:"changes"`
-			}
-			if json.Unmarshal(preview, &counts) == nil {
-				s.Printf("%s: %d added, %d removed, %d changed; %d configuration changes.\n", baseline, len(counts.Added), len(counts.Removed), len(counts.Changed), len(counts.Changes))
-				delete(data, "preview")
-			}
-		}
-		if args[1] == "update" {
-			s.writeFeedback(feedbackSuccess, "Cache downloaded. Apply is a separate action; full changes are available from this detail page.")
-		} else {
+	if len(args) >= 2 && args[0] == "subscription" {
+		switch args[1] {
+		case "add":
+			s.writeFeedback(feedbackSuccess, "Subscription saved.")
+			return
+		case "update":
+			s.writeFeedback(feedbackSuccess, "Cache downloaded.")
+			return
+		case "apply":
 			s.writeFeedback(feedbackSuccess, "Cached subscription applied. Starting mihomo and enabling traffic access are separate actions.")
+			return
 		}
 	}
 	keys := make([]string, 0, len(data))

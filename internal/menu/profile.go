@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
+	"time"
 )
 
 type menuProfiles struct {
@@ -26,20 +28,6 @@ type menuSubscription struct {
 	Upload            int64  `json:"upload"`
 	Download          int64  `json:"download"`
 	Total             int64  `json:"total"`
-}
-
-type menuPreview struct {
-	Name    string   `json:"name"`
-	Format  string   `json:"format"`
-	Added   []string `json:"added"`
-	Removed []string `json:"removed"`
-	Changed []string `json:"changed"`
-	Changes []struct {
-		Path     string `json:"path"`
-		Kind     string `json:"kind"`
-		Behavior string `json:"behavior"`
-	} `json:"changes"`
-	RemoteNodesCompared bool `json:"remote_nodes_compared"`
 }
 
 var menuNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -171,7 +159,7 @@ func diffProfile(ctx context.Context, s *Session, name string) error {
 
 func subscriptionListPage() *Page {
 	return &Page{Title: "Subscriptions", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Empty: "No subscriptions configured. Choose Add subscription.", Actions: []Item{{Label: "Add subscription", Navigate: addSubscription}}}
+		view := PageView{Empty: "No subscriptions configured. Choose Add and Apply subscription.", Actions: []Item{{Label: "Add and Apply subscription", Impact: subscriptionApplyImpact, Navigate: addSubscription}}}
 		var data struct {
 			Subscriptions []menuSubscription `json:"subscriptions"`
 		}
@@ -187,7 +175,7 @@ func subscriptionListPage() *Page {
 			if entry.UpdatedAt == "" {
 				label += " (never downloaded)"
 			} else {
-				label += " (updated " + entry.UpdatedAt + ")"
+				label += " (updated " + subscriptionTime(entry.UpdatedAt) + ")"
 			}
 			view.Items = append(view.Items, Item{Name: entry.Name, Label: label, Next: func() *Page { return subscriptionDetailPage(entry.Name) }})
 		}
@@ -207,6 +195,7 @@ func addSubscription(ctx context.Context, s *Session) (Navigation, error) {
 	if err != nil {
 		return Navigation{}, err
 	}
+	updateAndApplySubscription(ctx, s, values["name"], true)
 	return Navigation{Next: subscriptionDetailPage(values["name"])}, nil
 }
 
@@ -226,32 +215,38 @@ func subscriptionKey(ctx context.Context, s *Session, name string) error {
 	return err
 }
 
-func subscriptionDetailPage(name string) *Page {
-	var download *menuPreview
-	return &Page{Title: "Subscription: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		changes := []Item{{Label: "Compare with target profile", Next: func() *Page { return subscriptionPreviewPage(name) }}}
-		if download != nil {
-			snapshot := *download
-			changes = append([]Item{{Label: "Compare with previous download", Next: func() *Page { return previewNamesPage("Download changes vs previous cache", snapshot) }}}, changes...)
-		}
+const subscriptionApplyImpact = "Replaces target configuration; clears local overrides and saved node selections"
 
+// Each successful stage is kept if a later stage fails. Creation forms submit
+// only add; download/apply failures return to the saved subscription's details.
+func updateAndApplySubscription(ctx context.Context, s *Session, name string, added bool) {
+	defer s.discardInterrupts()
+	result := s.Fetch(ctx, "subscription", "update", name)
+	if result.Code != 0 || result.Error != nil {
+		state := "Download failed; apply was not attempted."
+		if added {
+			state = "Subscription saved, but download failed; apply was not attempted."
+		}
+		s.feedback(feedbackWarning, state)
+		s.ShowResult([]string{"subscription", "update", name}, result)
+		return
+	}
+	result = s.Fetch(ctx, "subscription", "apply", name)
+	if result.Code != 0 || result.Error != nil {
+		s.feedback(feedbackWarning, "Download completed, but apply failed; the new cache remains available. Retry Update and Apply, or use `nagi subscription apply NAME` to retry the cache.")
+		s.ShowResult([]string{"subscription", "apply", name}, result)
+		return
+	}
+	s.feedback(feedbackSuccess, "Subscription updated and applied.")
+}
+
+func subscriptionDetailPage(name string) *Page {
+	return &Page{Title: "Subscription: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Actions: []Item{
-			{Label: "Download subscription", Impact: "Downloads only; does not apply, start mihomo or enable traffic access", Action: func(ctx context.Context, s *Session) error {
-				result := s.Run(ctx, "subscription", "update", name)
-				if result.Code != 0 || result.Error != nil {
-					return nil
-				}
-				var data struct {
-					Preview *menuPreview `json:"preview"`
-				}
-				if err := decodeMenuResult(result, &data); err != nil {
-					return err
-				}
-				download = data.Preview
+			{Label: "Update and Apply", Impact: subscriptionApplyImpact, Action: func(ctx context.Context, s *Session) error {
+				updateAndApplySubscription(ctx, s, name, false)
 				return nil
 			}},
-			{Label: "Apply downloaded subscription", Args: []string{"subscription", "apply", name}, Impact: "Replaces target configuration; clears local overrides and saved node selections"},
-			submenu(actionPage("View Changes", changes...)),
 			{Label: "Automatic Updates", Next: func() *Page {
 				return actionPage("Automatic Updates",
 					Item{Label: "Set update interval", Action: func(ctx context.Context, s *Session) error { return subscriptionSchedule(ctx, s, name) }},
@@ -262,7 +257,7 @@ func subscriptionDetailPage(name string) *Page {
 					Item{Label: "Set identity file", Action: func(ctx context.Context, s *Session) error { return subscriptionKey(ctx, s, name) }},
 					Item{Label: "Clear encryption key", Args: []string{"subscription", "key", name, "clear"}})
 			}},
-			{Label: "Remove subscription and cache", Navigate: removeResource("subscription", name), Impact: "Deletes subscription record and downloaded cache; keeps local profile"},
+			{Label: "Remove subscription and cache", Navigate: removeResource("subscription", name)},
 		}}
 		var data struct {
 			Subscriptions []menuSubscription `json:"subscriptions"`
@@ -284,26 +279,14 @@ func subscriptionDetailPage(name string) *Page {
 				}
 			}
 		}
-		var preview menuPreview
-		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "preview", name), &preview); err != nil {
-			view.Context += "\nApplication preview unavailable: " + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ". Apply can still validate and use a valid cache to repair the target profile."
-		} else {
-			view.Context += "\nApplication changes (cache vs target profile): " + previewSummary(preview)
-		}
-		if download != nil {
-			view.Context += "\nLast download changes (new cache vs previous cache): " + previewSummary(*download)
-		}
 		return view, nil
 	}}
 }
 
 func subscriptionMetadata(entry menuSubscription) string {
-	updated, expiry := entry.UpdatedAt, entry.ExpiresAt
-	if updated == "" {
+	updated, expiry := subscriptionTime(entry.UpdatedAt), subscriptionTime(entry.ExpiresAt)
+	if entry.UpdatedAt == "" {
 		updated = "never downloaded"
-	}
-	if expiry == "" {
-		expiry = "unknown"
 	}
 	quota := "unknown"
 	if entry.Total > 0 {
@@ -311,50 +294,33 @@ func subscriptionMetadata(entry menuSubscription) string {
 		if remaining < 0 {
 			remaining = 0
 		}
-		quota = fmt.Sprintf("%d bytes available / %d bytes total (%d uploaded, %d downloaded)", remaining, entry.Total, entry.Upload, entry.Download)
+		quota = fmt.Sprintf("%s available / %s total (%s uploaded, %s downloaded)", subscriptionBytes(remaining), subscriptionBytes(entry.Total), subscriptionBytes(entry.Upload), subscriptionBytes(entry.Download))
 	}
 	return "Updated: " + updated + "\nQuota: " + quota + "\nExpires: " + expiry
 }
 
-func subscriptionPreviewPage(name string) *Page {
-	return &Page{Title: "Application changes vs target profile: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		var preview menuPreview
-		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "preview", name), &preview); err != nil {
-			return PageView{}, err
-		}
-		return previewView(preview), nil
-	}}
+// subscriptionTime formats command timestamps only at the menu boundary.
+func subscriptionTime(raw string) string {
+	value, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		return "unknown"
+	}
+	return value.Local().Format("2006-01-02 15:04")
 }
 
-func previewNamesPage(title string, preview menuPreview) *Page {
-	return &Page{Title: title, Load: func(context.Context, *Session) (PageView, error) { return previewView(preview), nil }}
-}
-
-func previewSummary(preview menuPreview) string {
-	return fmt.Sprintf("%d nodes added, %d removed, %d changed; %d configuration changes. Open the changes list for names and paths.", len(preview.Added), len(preview.Removed), len(preview.Changed), len(preview.Changes))
-}
-
-func previewView(preview menuPreview) PageView {
-	view := PageView{Context: previewSummary(preview), Empty: "No changes."}
-	if !preview.RemoteNodesCompared {
-		view.Context += "\nRemote provider nodes are not compared."
+func subscriptionBytes(bytes int64) string {
+	if bytes < 0 {
+		return "unknown"
 	}
-	for _, category := range []struct {
-		name  string
-		items []string
-	}{{"Added", preview.Added}, {"Removed", preview.Removed}, {"Changed", preview.Changed}} {
-		category := category
-		for _, name := range category.items {
-			safe := menuURLPattern.ReplaceAllString(name, "[redacted URL]")
-			view.Items = append(view.Items, Item{Name: safe, Label: category.name + ": " + safe, Action: func(_ context.Context, s *Session) error {
-				s.ShowResult(nil, Result{Data: category.name + ": " + safe})
-				return nil
-			}})
-		}
+	if bytes < 1024 {
+		return fmt.Sprintf("%d B", bytes)
 	}
-	for _, change := range preview.Changes {
-		label := menuURLPattern.ReplaceAllString(change.Kind+": "+change.Path+" — "+change.Behavior, "[redacted URL]")
-		view.Items = append(view.Items, Item{Name: label, Label: label, Action: func(_ context.Context, s *Session) error { s.ShowResult(nil, Result{Data: label}); return nil }})
+	units := []string{"KiB", "MiB", "GiB", "TiB", "PiB", "EiB"}
+	value := float64(bytes) / 1024
+	unit := 0
+	for value >= 1024 && unit < len(units)-1 {
+		value /= 1024
+		unit++
 	}
-	return view
+	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.2f", value), "0"), ".") + " " + units[unit]
 }

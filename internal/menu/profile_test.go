@@ -3,10 +3,10 @@ package menu
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func profileAction(t *testing.T, view PageView, label string) Item {
@@ -51,65 +51,91 @@ func TestProfileListAndFileAction(t *testing.T) {
 	}
 }
 
-func TestSubscriptionPreviewSummaryAndPaginatedNames(t *testing.T) {
-	nodes := []string{"Node A", "HTTPS://secret.example/token", "trojan://password@secret.example:443"}
-	for i := 0; i < 20; i++ {
-		nodes = append(nodes, fmt.Sprintf("node %02d", i))
-	}
+func TestSubscriptionMetadataWithoutPreview(t *testing.T) {
+	local := time.Local
+	time.Local = time.FixedZone("menu test", -7*60*60)
+	t.Cleanup(func() { time.Local = local })
 	runner := &featureRunner{results: map[string]Result{
-		"subscription\x00list":            {Data: map[string]any{"subscriptions": []map[string]any{{"name": "feed", "updated_at": "2026-10-10T00:00:00Z", "expires_at": "2027-01-01T00:00:00Z", "upload": 10, "download": 20, "total": 100}}}},
-		"subscription\x00preview\x00feed": {Data: map[string]any{"name": "feed", "added": nodes, "removed": []string{"Old"}, "changed": []string{"Changed"}, "changes": []map[string]any{{"path": "rules", "kind": "changed", "behavior": "routing policy"}}}},
+		"subscription\x00list": {Data: map[string]any{"subscriptions": []map[string]any{{"name": "feed", "updated_at": "2026-10-10T00:15:42.123456789Z", "expires_at": "2027-01-01T00:00:00Z", "upload": 1073741824, "download": 536870912, "total": 3221225472}}}},
 	}}
-	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader("11\n0\n"), &out)
-	view, err := subscriptionDetailPage("feed").Load(context.Background(), s)
+	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
+	list, err := subscriptionListPage().Load(context.Background(), s)
+	if err != nil || list.Items[0].Label != "feed (updated 2026-10-09 17:15)" {
+		t.Fatalf("list: %+v %v", list, err)
+	}
+	view, err := list.Items[0].Next().Load(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(view.Context, "23 nodes added, 1 removed, 1 changed; 1 configuration changes") || strings.Contains(view.Context, "Node A") || strings.Contains(view.Context, "secret.example") {
-		t.Fatalf("summary: %q", view.Context)
+	if view.Context != "Updated: 2026-10-09 17:15\nQuota: 1.5 GiB available / 3 GiB total (1 GiB uploaded, 512 MiB downloaded)\nExpires: 2026-12-31 17:00" {
+		t.Fatal(view.Context)
 	}
-	if !strings.Contains(view.Context, "70 bytes available") || !strings.Contains(view.Context, "2027-01-01") {
-		t.Fatalf("metadata: %s", view.Context)
+	if !reflect.DeepEqual(runner.calls, [][]string{{"subscription", "list"}, {"subscription", "list"}}) {
+		t.Fatalf("unexpected preview: %v", runner.calls)
 	}
-	changes, _ := profileAction(t, view, "View Changes").Next().Load(context.Background(), s)
-	preview := profileAction(t, changes, "Compare with target profile").Next()
-	previewView, err := preview.Load(context.Background(), s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(previewView.Items) != 26 || strings.Contains(previewView.Items[1].Label, "secret.example") || !strings.Contains(previewView.Items[1].Label, "[redacted URL]") {
-		t.Fatalf("complete redacted changes: %+v", previewView.Items)
-	}
-	if code := RunPage(context.Background(), s, preview); code != 0 {
-		t.Fatal(code)
-	}
-	if !strings.Contains(out.String(), "Page 2/3") || strings.Contains(out.String(), "secret.example") {
-		t.Fatalf("pagination: %s", &out)
+	if !strings.Contains(profileAction(t, view, "Update and Apply").Impact, "clears local overrides and saved node selections") {
+		t.Fatal("missing apply disclosure")
 	}
 }
 
-func TestSubscriptionApplyAvailableAfterPreviewFailure(t *testing.T) {
-	for _, result := range []Result{{Code: 1, Error: &CLIError{Message: "cache missing at https://secret.example/token"}}, {Error: &CLIError{Message: "target corrupt"}}} {
-		runner := &featureRunner{results: map[string]Result{"subscription\x00preview\x00feed": result}}
-		view, err := subscriptionDetailPage("feed").Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
-		if err != nil {
-			t.Fatal(err)
-		}
-		item := profileAction(t, view, "Apply downloaded subscription")
-		if !reflect.DeepEqual(item.Args, []string{"subscription", "apply", "feed"}) || !strings.Contains(item.Impact, "clears local overrides and saved node selections") {
-			t.Fatalf("apply: %+v", item)
-		}
-		if !strings.Contains(view.Context, "preview unavailable") || strings.Contains(view.Context, "secret.example") {
-			t.Fatalf("failure: %s", view.Context)
+func TestSubscriptionUpdateAndApplyStages(t *testing.T) {
+	for _, added := range []bool{false, true} {
+		for _, stage := range []string{"success", "update", "apply"} {
+			t.Run(fmtStage(added, stage), func(t *testing.T) {
+				runner := &featureRunner{results: map[string]Result{"subscription\x00add\x00feed\x00https://example.invalid/feed": {}, "subscription\x00update\x00feed": {}, "subscription\x00apply\x00feed": {}}}
+				if stage != "success" {
+					runner.results["subscription\x00"+stage+"\x00feed"] = Result{Code: 1, Error: &CLIError{Message: "failed https://secret.example/token"}}
+				}
+				var out bytes.Buffer
+				s := NewSession(runner, strings.NewReader("feed\nhttps://example.invalid/feed\n"), &out)
+				if added {
+					nav, err := addSubscription(context.Background(), s)
+					if err != nil || nav.Next == nil || nav.Next.Title != "Subscription: feed" {
+						t.Fatalf("saved record not reachable: %+v %v", nav, err)
+					}
+				} else {
+					updateAndApplySubscription(context.Background(), s, "feed", false)
+				}
+				want := [][]string{}
+				if added {
+					want = append(want, []string{"subscription", "add", "feed", "https://example.invalid/feed"})
+				}
+				want = append(want, []string{"subscription", "update", "feed"})
+				if stage != "update" {
+					want = append(want, []string{"subscription", "apply", "feed"})
+				}
+				if !reflect.DeepEqual(runner.calls, want) {
+					t.Fatalf("stage order: %v", runner.calls)
+				}
+				feedback := "updated and applied"
+				if stage == "update" {
+					feedback = "download failed"
+					if added {
+						feedback = "saved, but download failed"
+					}
+				}
+				if stage == "apply" {
+					feedback = "apply failed; the new cache remains"
+				}
+				if !strings.Contains(strings.ToLower(out.String()), feedback) || strings.Contains(out.String(), "secret.example") {
+					t.Fatal(out.String())
+				}
+			})
 		}
 	}
+}
+
+func fmtStage(added bool, stage string) string {
+	if added {
+		return "add/" + stage
+	}
+	return "existing/" + stage
 }
 
 func TestSubscriptionAddNavigatesAndRetriesRetainedFields(t *testing.T) {
 	const url = "https://secret.example/feed?token=abc"
 	runner := &featureRunner{results: map[string]Result{
-		"subscription\x00add\x00q\x00" + url: {}, "subscription\x00add\x00b\x00" + url: {Code: 1, Error: &CLIError{Message: "already exists"}},
+		"subscription\x00add\x00q\x00" + url: {}, "subscription\x00update\x00q": {}, "subscription\x00apply\x00q": {}, "subscription\x00add\x00b\x00" + url: {Code: 1, Error: &CLIError{Message: "already exists"}},
 	}}
 	var out bytes.Buffer
 	s := NewSession(runner, strings.NewReader("\nbad name\nb\ninvalid\n"+url+"\n1\nq\n3\n"), &out)
@@ -120,7 +146,7 @@ func TestSubscriptionAddNavigatesAndRetriesRetainedFields(t *testing.T) {
 	if nav.Next == nil || nav.Next.Title != "Subscription: q" {
 		t.Fatalf("navigation: %+v", nav)
 	}
-	want := [][]string{{"subscription", "add", "b", url}, {"subscription", "add", "q", url}}
+	want := [][]string{{"subscription", "add", "b", url}, {"subscription", "add", "q", url}, {"subscription", "update", "q"}, {"subscription", "apply", "q"}}
 	if !reflect.DeepEqual(runner.calls, want) {
 		t.Fatalf("retry lost values or dispatched more than once: %#v", runner.calls)
 	}
@@ -138,44 +164,6 @@ func TestProfileImportLiteralNamesAndPaths(t *testing.T) {
 	}
 	if !reflect.DeepEqual(runner.calls, [][]string{{"profile", "import", "b", "q"}}) {
 		t.Fatalf("literal fields: %v", runner.calls)
-	}
-}
-
-func TestSubscriptionDownloadStaysAndDistinguishesCacheComparison(t *testing.T) {
-	runner := &featureRunner{results: map[string]Result{
-		"subscription\x00preview\x00feed": {Data: map[string]any{"name": "feed", "added": []string{"target change"}}},
-		"subscription\x00update\x00feed":  {Data: map[string]any{"name": "feed", "bytes": 42, "preview": map[string]any{"name": "feed", "removed": []string{"cache change"}}}},
-	}}
-	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader(""), &out)
-	page := subscriptionDetailPage("feed")
-	view, err := page.Load(context.Background(), s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	runner.calls = nil
-	action := profileAction(t, view, "Download subscription")
-	if action.Navigate != nil || action.Next != nil {
-		t.Fatal("download navigates")
-	}
-	if err := action.Action(context.Background(), s); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(runner.calls, [][]string{{"subscription", "update", "feed"}}) {
-		t.Fatalf("download applied/started: %v", runner.calls)
-	}
-	view, err = page.Load(context.Background(), s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(view.Context, "Application changes (cache vs target profile): 1 nodes added") || !strings.Contains(view.Context, "Last download changes (new cache vs previous cache): 0 nodes added, 1 removed") {
-		t.Fatalf("comparisons: %s", view.Context)
-	}
-	changes, _ := profileAction(t, view, "View Changes").Next().Load(context.Background(), s)
-	old := profileAction(t, changes, "Compare with previous download").Next()
-	snapshot, _ := old.Load(context.Background(), s)
-	if len(snapshot.Items) != 1 || snapshot.Items[0].Label != "Removed: cache change" {
-		t.Fatalf("download snapshot: %+v", snapshot)
 	}
 }
 
@@ -208,21 +196,21 @@ func TestSubscriptionMenuAddAndRemoveJourney(t *testing.T) {
 		"subscription\x00list": {Data: map[string]any{"subscriptions": []any{}}},
 		"subscription\x00add\x00feed\x00https://example.invalid/feed": {},
 		"subscription\x00preview\x00feed":                             {Error: &CLIError{Message: "target profile damaged"}},
-		"subscription\x00apply\x00feed":                               {},
-		"subscription\x00remove\x00feed":                              {},
+		"subscription\x00apply\x00feed":                               {}, "subscription\x00update\x00feed": {},
+		"subscription\x00remove\x00feed": {},
 	}}
 	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader("1\nfeed\nhttps://example.invalid/feed\n2\n6\n0\n"), &out)
+	s := NewSession(runner, strings.NewReader("1\nfeed\nhttps://example.invalid/feed\n4\n0\n"), &out)
 	if code := RunPage(context.Background(), s, subscriptionListPage()); code != 0 {
 		t.Fatal(code)
 	}
 	var writes [][]string
 	for _, args := range runner.calls {
-		if len(args) > 1 && (args[1] == "add" || args[1] == "apply" || args[1] == "remove") {
+		if len(args) > 1 && (args[1] == "add" || args[1] == "update" || args[1] == "apply" || args[1] == "remove") {
 			writes = append(writes, args)
 		}
 	}
-	want := [][]string{{"subscription", "add", "feed", "https://example.invalid/feed"}, {"subscription", "apply", "feed"}, {"subscription", "remove", "feed"}}
+	want := [][]string{{"subscription", "add", "feed", "https://example.invalid/feed"}, {"subscription", "update", "feed"}, {"subscription", "apply", "feed"}, {"subscription", "remove", "feed"}}
 	if !reflect.DeepEqual(writes, want) {
 		t.Fatalf("writes: %v", writes)
 	}
@@ -236,5 +224,29 @@ func TestProfileFailedReadPreservesImportAndClearsResources(t *testing.T) {
 	view, err := profileListPage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
 	if err == nil || len(view.Items) != 0 || len(view.Actions) != 1 || view.Actions[0].Navigate == nil {
 		t.Fatalf("view=%+v err=%v", view, err)
+	}
+}
+
+func TestSubscriptionMissingAndInvalidMetadata(t *testing.T) {
+	for _, timestamp := range []string{"", "invalid https://secret.example/token"} {
+		runner := &featureRunner{results: map[string]Result{
+			"subscription\x00list": {Data: map[string]any{"subscriptions": []map[string]any{{"name": "feed", "updated_at": timestamp, "expires_at": timestamp}}}},
+		}}
+		s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
+		list, err := subscriptionListPage().Load(context.Background(), s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		detail, err := list.Items[0].Next().Load(context.Background(), s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		updated := "unknown"
+		if timestamp == "" {
+			updated = "never downloaded"
+		}
+		if !strings.Contains(list.Items[0].Label, updated) || !strings.Contains(detail.Context, "Updated: "+updated+"\nQuota: unknown\nExpires: unknown") || strings.Contains(detail.Context+list.Items[0].Label, "secret.example") {
+			t.Fatalf("missing/invalid metadata: list=%+v, detail=%+v", list, detail)
+		}
 	}
 }

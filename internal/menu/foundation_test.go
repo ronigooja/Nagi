@@ -108,7 +108,7 @@ func TestMenuResultSummaryRedactsAndRawConfiguration(t *testing.T) {
 	for i := range entries {
 		entries[i] = "https://secret.example/token"
 	}
-	s.ShowResult([]string{"subscription", "update", "work"}, Result{Data: map[string]any{"added": entries}})
+	s.ShowResult([]string{"example", "list"}, Result{Data: map[string]any{"added": entries}})
 	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "100 entries") || strings.Count(out.String(), "[redacted URL]") != 10 {
 		t.Fatal(out.String())
 	}

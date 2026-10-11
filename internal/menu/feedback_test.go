@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestSubscriptionResultIdentifiesComparisonWithoutNames(t *testing.T) {
-	for _, test := range []struct{ operation, baseline string }{
-		{"update", "Changes against previous cache"},
-		{"apply", "Changes against target profile"},
+func TestSubscriptionResultIsConciseWithoutPreview(t *testing.T) {
+	for _, test := range []struct{ operation, feedback string }{
+		{"update", "Cache downloaded."},
+		{"apply", "Cached subscription applied."},
 	} {
 		var out bytes.Buffer
 		s := NewSession(&fakeRunner{}, strings.NewReader(""), &out)
@@ -18,7 +18,7 @@ func TestSubscriptionResultIdentifiesComparisonWithoutNames(t *testing.T) {
 			names[i] = "secret-node-name"
 		}
 		s.ShowResult([]string{"subscription", test.operation, "work"}, Result{Data: map[string]any{"preview": map[string]any{"added": names}, "name": "work"}})
-		if !strings.Contains(out.String(), test.baseline+": 300 added") || strings.Contains(out.String(), "secret-node-name") {
+		if !strings.Contains(out.String(), test.feedback) || strings.Contains(out.String(), "secret-node-name") || strings.Contains(out.String(), "preview") || strings.Contains(out.String(), "name:") {
 			t.Fatalf("%s result: %s", test.operation, out.String())
 		}
 	}

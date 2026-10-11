@@ -56,9 +56,11 @@ Details, latency tests, restoring saved choices, and returning an automatic grou
 
 ## Subscription and profile flows
 
-Successful subscription creation opens its detail page. Cache download stays there and never implicitly applies, starts mihomo, or enables traffic access. Details show available update time, quota, expiry, and cache-versus-target change counts. Missing metadata remains explicitly unknown. Complete added/removed/changed names are shown only on request in paginated lists.
+Add and Apply subscription saves the record, downloads its cache, and applies it through the existing commands in that order, then opens its detail page. Update and Apply downloads and then applies an existing subscription. A failed download prevents apply; a newly saved record remains available in the detail page. A failed apply keeps the new cache. Creation forms retry only the add stage; later failures never resubmit add. Encrypted feeds can be retried by setting an identity file in Encryption Settings and choosing Update and Apply.
 
-Download results compare the new cache with the previous cache. Apply previews compare the cache with the target profile. View Changes labels these baselines separately. Previous-download comparison appears only when this detail-page instance holds a successful download comparison; it is not persisted by the menu. Apply is always present: a preview failure shows its reason but cannot block a valid cache from repairing a damaged target profile. Existing command validation and activation remain authoritative. The apply entry explains configuration replacement and clearing of local overrides and saved selections.
+Details show available update time, quota, and expiry, with missing metadata explicitly unknown. Subscription time and byte formatting belongs to the menu presentation adapter; the [CLI reference](../reference/cli.md#terminal-menu) defines its display rules. Quota comes from the latest provider response metadata rather than live mihomo traffic. Daily pages do not request previews or display change counts or lists; ordinary subscription preview, update, and apply commands remain available.
+
+The combined action discloses that applying replaces the target source configuration and clears local overrides and saved selections. Existing command validation and the apply transaction remain authoritative. The flow does not implicitly start mihomo or enable traffic access. Feedback states successful completion or the failed stage and its known resulting state, without dumping command metadata.
 
 Successful removal returns to the parent list; failure stays in detail. Profile imports and other multi-field flows reuse retained-value forms. Local profile operations keep their existing CLI effects.
 

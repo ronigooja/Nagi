@@ -260,6 +260,40 @@ func TestMenuStyledRequestedRawOutputIsUnchanged(t *testing.T) {
 	}
 }
 
+func TestMenuStyledSubscriptionCompletionAndPartialFailure(t *testing.T) {
+	for _, stage := range []string{"success", "update", "apply"} {
+		t.Run(stage, func(t *testing.T) {
+			runner := &featureRunner{results: map[string]Result{
+				"subscription\x00update\x00feed": {}, "subscription\x00apply\x00feed": {},
+			}}
+			if stage != "success" {
+				runner.results["subscription\x00"+stage+"\x00feed"] = Result{Code: 1, Error: &CLIError{Message: "stage failed"}}
+			}
+			var out bytes.Buffer
+			s := NewSession(runner, strings.NewReader(""), &out)
+			s.styles, s.active = true, true
+			updateAndApplySubscription(context.Background(), s, "feed", true)
+			if out.Len() != 0 {
+				t.Fatal("active operation rendered feedback before page refresh")
+			}
+			s.flushResult()
+			if stage == "success" {
+				assertMenuStyled(t, out.String(), "Subscription updated and applied.", "32")
+				return
+			}
+			state := "Subscription saved, but download failed; apply was not attempted."
+			if stage == "apply" {
+				state = "Download completed, but apply failed; the new cache remains available. Retry Update and Apply, or use `nagi subscription apply NAME` to retry the cache."
+			}
+			assertMenuStyled(t, out.String(), state, "33")
+			assertMenuStyled(t, out.String(), "Error: stage failed", "31")
+			if strings.Contains(out.String(), "\x1b[32m") {
+				t.Fatal("partial or failed operation presented as successful")
+			}
+		})
+	}
+}
+
 func TestMenuStyledProfileComparisonPreservesContent(t *testing.T) {
 	var out bytes.Buffer
 	s := NewSession(&fakeRunner{}, strings.NewReader(""), &out)

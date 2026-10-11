@@ -41,7 +41,7 @@ func TestAllPagesUseNumericChoices(t *testing.T) {
 			}
 		}
 	}
-	for _, title := range []string{"Current Configuration", "Backup & Restore", "Local Overrides", "Servers", "Domain Exceptions", "TUN DNS Interception", "Checks & Queries", "View Rules", "Manage Custom Rules", "Import Rule Sets", "Start at Login", "View Changes", "Automatic Updates", "Encryption Settings", "For this session", "Save for future starts"} {
+	for _, title := range []string{"Current Configuration", "Backup & Restore", "Local Overrides", "Servers", "Domain Exceptions", "TUN DNS Interception", "Checks & Queries", "View Rules", "Manage Custom Rules", "Import Rule Sets", "Start at Login", "Automatic Updates", "Encryption Settings", "For this session", "Save for future starts"} {
 		if !seen[title] {
 			t.Errorf("unreachable page: %s", title)
 		}
@@ -140,19 +140,19 @@ func TestRawOutputWaitsBeforeRedisplayingPage(t *testing.T) {
 	}
 }
 
-func TestSubscriptionDetailOrderAndUnavailableDownloadComparison(t *testing.T) {
+func TestSubscriptionDetailOrderWithoutPreview(t *testing.T) {
 	s := NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{})
 	view, _ := subscriptionDetailPage("feed").Load(context.Background(), s)
 	labels := []string{}
 	for _, item := range view.Actions {
 		labels = append(labels, item.Label)
 	}
-	want := []string{"Download subscription", "Apply downloaded subscription", "View Changes", "Automatic Updates", "Encryption Settings", "Remove subscription and cache"}
+	want := []string{"Update and Apply", "Automatic Updates", "Encryption Settings", "Remove subscription and cache"}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatal(labels)
 	}
-	changes, _ := view.Actions[2].Next().Load(context.Background(), s)
-	if len(changes.Actions) != 1 || changes.Actions[0].Label != "Compare with target profile" {
-		t.Fatal(changes)
+	if view.Actions[3].Impact != "" {
+		t.Fatal("remove impact must be absent")
 	}
+
 }
