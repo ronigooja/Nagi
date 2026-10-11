@@ -160,13 +160,14 @@ func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
 		status Result
 		state  string
 		hint   string
+		err    bool
 	}{
-		{"stopped", Result{Data: map[string]any{"running": false}}, "Mihomo: stopped |", "Start mihomo through Start / Stop"},
-		{"unexpected exit", Result{Data: map[string]any{"running": false, "unexpected_exit": true}}, "stopped (unexpected exit)", "`nagi recover`"},
-		{"running", Result{Data: map[string]any{"running": true}}, "Mihomo: running |", "Inspect `nagi logs` and `nagi status`"},
-		{"status failure", Result{Code: 1, Error: &CLIError{Message: "status failed: https://private.example/token"}}, "Mihomo: unknown |", "Run `nagi status`"},
-		{"missing running field", Result{Data: map[string]any{}}, "Mihomo: unknown |", "Run `nagi status`"},
-		{"null running field", Result{Data: map[string]any{"running": nil}}, "Mihomo: unknown |", "Run `nagi status`"},
+		{"stopped", Result{Data: map[string]any{"running": false}}, "Mihomo: stopped |", "Start mihomo through Start / Stop", false},
+		{"unexpected exit", Result{Data: map[string]any{"running": false, "unexpected_exit": true}}, "stopped (unexpected exit)", "`nagi recover`", true},
+		{"running", Result{Data: map[string]any{"running": true}}, "Mihomo: running |", "Inspect `nagi logs` and `nagi status`", true},
+		{"status failure", Result{Code: 1, Error: &CLIError{Message: "status failed: https://private.example/token"}}, "Mihomo: unknown |", "Run `nagi status`", true},
+		{"missing running field", Result{Data: map[string]any{}}, "Mihomo: unknown |", "Run `nagi status`", true},
+		{"null running field", Result{Data: map[string]any{"running": nil}}, "Mihomo: unknown |", "Run `nagi status`", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := &featureRunner{results: map[string]Result{
@@ -177,10 +178,13 @@ func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
 			if code := RunPage(context.Background(), NewSession(runner, strings.NewReader("0\n"), &out), ProxyPage()); code != 0 {
 				t.Fatalf("exit=%d", code)
 			}
-			for _, want := range []string{tc.state, tc.hint, "Restore saved selections", "Proxy Providers", "3. Start / Stop", "mihomo control unavailable:", "socket missing"} {
+			for _, want := range []string{tc.state, tc.hint, "Restore saved selections", "Proxy Providers", "3. Start / Stop"} {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("missing %q: %s", want, out.String())
 				}
+			}
+			if strings.Contains(out.String(), "mihomo control unavailable:") != tc.err || strings.Contains(out.String(), "socket missing") != tc.err {
+				t.Fatalf("read error visibility=%v output=%s", tc.err, out.String())
 			}
 			if strings.Contains(out.String(), "private.example") || strings.Contains(out.String(), "Data unavailable. Return to the parent page") {
 				t.Fatalf("unsafe or misleading guidance: %s", out.String())

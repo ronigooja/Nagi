@@ -69,6 +69,8 @@ func proxyGroupsPage() *Page {
 				default:
 					view.Context = "Mihomo: stopped | Proxy group state: unavailable"
 					view.ReadErrorHint = "Start mihomo through Start / Stop or `nagi start`, then return to Select Node. Reopening this page alone cannot load groups while mihomo is stopped."
+					view.Empty = view.ReadErrorHint
+					return view, nil
 				}
 			}
 			return view, err
