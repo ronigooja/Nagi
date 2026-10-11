@@ -373,6 +373,25 @@ enum EngineState { case starting, running, stopped, unavailable }
         perform(ProfileCommands.useDefault)
     }
 
+    func updateNagi(_ readyToQuit: @escaping () -> Void) {
+        guard !busy && !quitting else { return }
+        busy = true
+        Task {
+            do {
+                let result = try await cli.run(["update", "--terminal"])
+                guard result["scheduled"]?.bool == true else {
+                    throw CLIError.invalidJSON("The CLI did not schedule an update.")
+                }
+                errorMessage = nil
+                busy = false
+                readyToQuit()
+            } catch {
+                errorMessage = "Update could not start: \(error.localizedDescription)"
+                busy = false
+            }
+        }
+    }
+
     func applyDefaultOverrideToCurrentProfile() {
         guard let profile, !profile.isEmpty else {
             errorMessage = "No current profile is selected."

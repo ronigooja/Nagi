@@ -70,6 +70,9 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `mode [rule\|global\|direct\|save MODE\|saved]` | Read or change temporary runtime mode, or explicitly persist/read the selected profile's mode. |
 | `service install`, `service uninstall` | Manage a per-user launchd Agent or systemd service. |
 | `privileged-helper status\|install\|uninstall\|enable\|disable` | Inspect or manage the macOS privileged TUN helper and selected engine backend. |
+| `app status\|install [TAG]\|update [TAG]\|uninstall` | Inspect, install, or remove the macOS App; App update updates the whole managed installation. |
+| `update [TAG\|--terminal]` | Update the managed CLI, mihomo, and any installed App; macOS terminal mode waits for the App to quit and reopens it after success. |
+| `uninstall` | Stop Nagi and remove its managed executables and services, preserving user data. |
 | `version` | Report Nagi version, mihomo version and pinned commit, OS, and architecture. |
 | `completion bash\|zsh\|fish` | Print a shell completion script without reading runtime configuration. |
 
@@ -94,7 +97,7 @@ The optional `Subscription-Userinfo` response header supplies `upload`, `downloa
 | 5 | Proxy Mode | For this session or Save for future starts; each offers Rule (routing rules), Global (GLOBAL group), and Direct (without a proxy). |
 | 6 | System Proxy & TUN (macOS), TUN & LAN (Linux) | Separate system proxy (macOS), TUN, and LAN settings pages, plus listener ports. |
 | 7 | Troubleshooting | Basic checks, detailed diagnostics, export, logs and traffic, startup repair, stale runtime record cleanup, and version. |
-| 8 | Settings & Maintenance | Current Configuration (show, validate, reload), DNS, Routing Rules, Connections, Start at Login, and the macOS privileged helper. |
+| 8 | Settings & Maintenance | Current Configuration (show, validate, reload), DNS, Routing Rules, Connections, Start at Login, the macOS privileged helper, and Nagi App & Updates on macOS. |
 | 0 | Exit menu | Leaves mihomo running. |
 
 Menu styling enables automatically only when output is a terminal, `TERM` is nonempty and is not `dumb`, and `NO_COLOR` is absent or empty. A nonempty `NO_COLOR` disables color and dimming. Otherwise the menu uses plain text with the same labels and numbers; no color option is required. The menu adds no bold styling in either mode. Input and output must still be terminals to open the menu.
@@ -361,6 +364,60 @@ TUN disable, engine stop, quit, restart, and unexpected engine exit restore the 
 On macOS, an installed privileged helper can run mihomo with permission to create the TUN adapter. Install it from a root-owned `/usr/local/bin/nagi` using `sudo /usr/local/bin/nagi privileged-helper install`. Stop the user engine, run `nagi privileged-helper enable`, then `nagi start`. `privileged-helper status` reports `service` (`path`, `manager`, `installed`, `active`, `executable`), `selected_backend` (`user` or `privileged`), and `available`. `enable` and `disable` return `selected_backend` and `changed`. Switching is refused while the outgoing backend's mihomo process is running. The selected backend is persisted in the private `engine-backend` file in Nagi's configuration directory; an absent file means `user`. The app continues to use the same CLI commands. In privileged mode, lifecycle, logs, traffic samples, and control operations use the authenticated helper socket; mihomo's root-only controller is not exposed to the user. Privileged starts and reloads accept inline proxies and providers, HTTP providers, and file providers or proxy TLS files located under the session user's Nagi configuration directory. Relative file references resolve beside the source profile. The helper copies those files into root-private snapshots, runs mihomo restricted-policy validation, and rejects unsupported fields and unsafe paths before activation. A reload requires a 32-character lowercase hexadecimal `activation_id`; if its request times out, activation state may remain uncertain until queried through `/configs`. The helper retains snapshots until the child exits. A matching restricted-policy mihomo executable is required.
 
 On macOS, JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolean), `backend`, and `http`, `https`, and `socks` objects with `enabled`, optional `host`, and optional `port`. `tun status|enable|disable` include `enabled` (boolean), `settings` (mihomo TUN object), `adapter_status` (string), and optional `adapter_name` (string). `lan status|enable|disable` include `enabled` and `bind_address`. `ports status` includes integer `http`, `https`, `socks`, and `mixed`, plus `bind_address` and `allow_lan`. The `http` and `https` values are the same because mihomo uses one HTTP proxy listener for both schemes. On macOS, TUN results also include `system_dns` and an optional `system_dns_error` when inspection fails. `system_dns` contains `supported` and `managed` booleans, `status` (`unmanaged`, `managed`, `attention`, or `stale`), optional `targets` (DNS address list), `services` (service names mapped to their static DNS lists; an empty list means DHCP), and optional `conflicts` (service names). Non-macOS DNS management reports `unsupported`. All use the usual success/error envelope and exit codes. `system_proxy_error` and `tun_error` indicate failed traffic operations. macOS `status` and `startup check` also expose `system_dns` and optional `system_dns_error`; `status` can report `system_dns_recovery_error` from an unsuccessful user-mode exit watcher. These errors do not replace the process's `running` state or PID.
+
+## Installation maintenance
+
+These commands require an installation record created by the release/local
+artifact installer. They find the prefix from the running `PREFIX/bin/nagi`;
+they do not use `NAGI_MIHOMO_BIN` to select files for replacement. They do not
+require a valid active profile merely to display help or manage the App.
+
+| Command | Release selection and effect |
+| --- | --- |
+| `app status` | macOS only. Read the managed App path and report whether that directory exists; no download. |
+| `app install [TAG]` | macOS only; requires `/usr/local/bin/nagi` and no recorded App. Without TAG, download the release matching this CLI's version. Install only `/Applications/Nagi.app` and update its installer record. CLI, mihomo, profiles, engine state, and engine login service are preserved. A development CLI without a release version requires an explicit TAG. |
+| `app update [TAG]` | macOS only; requires a recorded App. Run the same whole-installation operation as `update`. |
+| `app uninstall` | macOS only; remove only the recorded App and clear its installer record fields. Keep the managed CLI and mihomo and user data. An absent recorded App is a successful no-op. No download. |
+| `update [TAG]` | Download latest by default, or the specified release. Verify the platform archive checksum and current installation and candidate executables, stop Nagi, temporarily remove its engine login service, and update the CLI, mihomo, and any recorded App. Refresh the built-in default profile. Restore engine login service installation/enabled preferences and restart an engine that was running before preparation. A CLI-only installation remains CLI-only. |
+| `update --terminal` | macOS only; requires a recorded App. Open Terminal and schedule `nagi update` after the App exits; reopen its recorded path after success. Wait at most 60 seconds for App exit. Returns after launching Terminal; the caller must quit the App. No tag argument can accompany this option. |
+| `uninstall` | Stop Nagi and remove its engine login service, managed CLI, mihomo, App, privileged helper, and installation record. Preserve user profiles, subscriptions, settings, and logs. No download. |
+
+TAG accepts `vX.Y.Z` or `X.Y.Z`, with an optional alphanumeric/dot/hyphen release
+suffix introduced by `-` or `+`. Invalid arguments exit `2` with `usage`.
+Downloads use `nagi-OS-ARCH.tar.gz` (`OS` is `linux` or `macos`; `ARCH` is
+`amd64` or `arm64`) and `SHA256SUMS` from `ronigooja/Nagi` GitHub Releases.
+An installed/requested App requires an App in that release archive. Archive
+paths escaping extraction, duplicate files, links, and special files are
+rejected. Compressed and extracted archives are each limited to 512 MiB.
+
+Quit the App before updating or removing it; disable its App login item before
+removal. Run as the intended user rather than through `sudo`. The installer
+requests administrator authorization when required, so use a terminal when
+credentials must be entered. The App's About Nagi panel offers Update Nagi, which launches terminal
+mode and then uses ordinary quit cleanup. It keeps the App available if launch
+or quit fails. A scheduled result confirms only Terminal launch; later update
+success/failure appears in Terminal.
+
+Success exits `0` and uses the standard JSON envelope. `app status` returns
+`app` (recorded path or empty string), `installed` (directory exists), and
+`managed: true`. App install/uninstall return `action` (`app-install` or
+`app-uninstall`), `completed: true`, and `app` (destination/removed path or empty
+string for an absent App). Whole updates return `action: "update"`,
+`completed: true`, and `engine_restarted` (boolean). Whole removal returns
+`action: "uninstall"` and `completed: true`. Terminal launch returns
+`action: "update"`, `scheduled: true`, and `terminal: true`.
+
+Operational failures exit `1` with `installation_error`, including unsupported
+platforms, missing installation records, modified managed files, download or
+checksum failures, authorization/installer failures, running Apps, and another
+maintenance operation for the same user. Download and preflight failures occur
+before stopping Nagi. After preparation, a failed transaction leaves the engine
+stopped and attempts to restore engine login preferences; errors include the
+installer's rollback details and any restoration failure. A successful file
+update followed by a service/restart failure is reported as partial completion
+with a recovery command. See the [installation workflow](../development/install.md#installed-cli-maintenance)
+and [maintenance design](../design/installation.md) for recovery and runtime
+setting implications.
 
 ## Startup and background operation
 

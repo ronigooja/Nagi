@@ -140,6 +140,11 @@ extension LifecycleTests {
           printf '{"ok":false,"error":{"code":"subscription_error","message":"fixture stage failed"}}\\n' >&2; exit 1
         fi
         case "$*" in
+          '--json update --terminal')
+            if [ -f '\(directory.appendingPathComponent("updatefail").path)' ]; then
+              printf '{"ok":false,"error":{"code":"installation_error","message":"Terminal unavailable"}}\\n' >&2; exit 1
+            fi
+            printf '{"ok":true,"data":{"scheduled":true,"terminal":true}}\\n' ;;
           '--json status') printf '{"ok":true,"data":{"running":false}}\\n' ;;
           '--json profile list') printf '{"ok":true,"data":{"profiles":[]}}\\n' ;;
           '--json subscription list') printf '{"ok":true,"data":{"subscriptions":[],"scheduler_running":false}}\\n' ;;
@@ -154,6 +159,34 @@ extension LifecycleTests {
 
     private func lines(_ url: URL) -> [String] {
         ((try? String(contentsOf: url)) ?? "").split(separator: "\n").map(String.init)
+    }
+
+    func testUpdateRequestsCLIThenAllowsQuitOnlyAfterScheduling() async throws {
+        let (dir, cli, log) = try modelFixture()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let model = AppModel(cli: NagiCLIClient(executable: cli))
+        var ready = false
+        model.updateNagi { ready = true }
+        await expectUntil { ready }
+        XCTAssertFalse(model.busy)
+        XCTAssertEqual(lines(log), ["--json update --terminal"])
+        var quit = false
+        model.quit { quit = $0 }
+        await expectUntil { quit }
+        XCTAssertEqual(lines(log), ["--json update --terminal", "--json quit"])
+    }
+
+    func testUpdateLauncherFailureKeepsAppAvailable() async throws {
+        let (dir, cli, log) = try modelFixture()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try "fail".write(to: dir.appendingPathComponent("updatefail"), atomically: true, encoding: .utf8)
+        let model = AppModel(cli: NagiCLIClient(executable: cli))
+        var ready = false
+        model.updateNagi { ready = true }
+        await expectUntil { model.errorMessage != nil && !model.busy }
+        XCTAssertFalse(ready)
+        XCTAssertTrue(model.errorMessage?.contains("Terminal unavailable") == true)
+        XCTAssertEqual(lines(log), ["--json update --terminal"])
     }
 
     func testHostRetrySleepWakeAndQuitOwnership() async throws {

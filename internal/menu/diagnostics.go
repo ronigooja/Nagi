@@ -68,9 +68,19 @@ func advancedPageForOS(goos string) *Page {
 		}
 		if goos == "darwin" {
 			items = append(items, Item{Label: "Privileged helper", Next: func() *Page { return helperPageForOS(goos) }})
+			items = append(items, Item{Label: "Nagi App & Updates", Next: AppPage})
 		}
 		return PageView{Actions: items}, nil
 	}}
+}
+
+func AppPage() *Page {
+	return statePage("Nagi App & Updates", []string{"app", "status"}, []string{"installed", "app"},
+		Item{Label: "Install menu bar App", Args: []string{"app", "install"}, Impact: "Installs only the App matching this CLI release; may require administrator authorization"},
+		Item{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates CLI, mihomo, and any installed App; quit the App first; refreshes the default profile"},
+		Item{Label: "Uninstall menu bar App", Args: []string{"app", "uninstall"}, Impact: "Removes only the App; quit it and disable its login item first"},
+		Item{Label: "Uninstall Nagi", Args: []string{"uninstall"}, Impact: "Stops Nagi and removes managed executables, App, and services; preserves user data"},
+	)
 }
 
 func helperPageForOS(goos string) *Page {

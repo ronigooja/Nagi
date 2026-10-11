@@ -280,6 +280,27 @@ func writeProvider(w io.Writer, p proxy.Provider) error {
 }
 
 func writeHumanMap(w io.Writer, v map[string]any) error {
+	if action, ok := v["action"].(string); ok && (v["completed"] == true || v["scheduled"] == true) {
+		if v["scheduled"] == true {
+			return line(w, "Update opened in Terminal. Quit Nagi.app to continue; it will reopen after a successful update.")
+		}
+		switch action {
+		case "app-install":
+			return line(w, "Installed Nagi.app. Open it from Applications.")
+		case "app-uninstall":
+			return line(w, "Removed Nagi.app. The CLI and user data are preserved.")
+		case "uninstall":
+			return line(w, "Removed Nagi. User profiles, subscriptions, settings, and logs are preserved.")
+		case "update":
+			return line(w, "Updated Nagi CLI, mihomo, and any installed App. The default profile was refreshed.")
+		}
+	}
+	if app, ok := v["app"].(string); ok && v["managed"] == true {
+		if v["installed"] == true {
+			return line(w, "Managed Nagi App: "+app)
+		}
+		return line(w, "Nagi App is not installed. Run `nagi app install`.")
+	}
 	if v["quit"] == true {
 		return line(w, "Nagi stopped for this login session. Login startup preference is unchanged.")
 	}

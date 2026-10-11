@@ -68,6 +68,12 @@ Successful removal returns to the parent list; failure stays in detail. Profile 
 
 ## Failure handling and verification
 
+On macOS, Settings & Maintenance also contains Nagi App & Updates. Its state
+comes from `app status`; actions dispatch `app install`, `update`, `app uninstall`,
+and `uninstall`. Effects disclose administrator authorization, whole-installation
+replacement, and App quit requirements. The menu does not download or install
+files itself; the [maintenance design](installation.md) defines those operations.
+
 Failed reads replace old resources, preventing selection of stale targets. Views can retain fixed recovery actions and state unknown/unavailable explicitly. Command failures display existing messages and known resulting state; the menu never infers successful saving, activation, or rollback. URLs in errors, page context, and list labels are redacted. Raw requested configuration and log content retain their ordinary command content.
 
 Action failures leave the menu usable and do not determine its exit status. Ordinary exit is `0`; unrecoverable input errors return `1`. Terminal/usage rejection returns `2` as defined in the reference.

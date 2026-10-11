@@ -16,20 +16,20 @@ Install the CLI with the repository's raw script:
 curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
 ```
 
-On macOS, request the optional unsigned menu bar App:
+After installing the CLI on macOS, add the optional unsigned menu bar App:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash -s -- --app
+nagi app install
 ```
 
 Run the same command again to update an existing installation, or make the
 operation explicit:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash -s -- update
+nagi update
 ```
 
-The wrapper accepts `--version vX.Y.Z`, `--repo OWNER/REPOSITORY`, and
+The online wrapper accepts `--version vX.Y.Z`, `--repo OWNER/REPOSITORY`, and
 `--prefix DIR`. A fresh macOS installation is CLI-only unless `--app` is
 provided. An update keeps an App that was already installed; `--no-app` keeps
 the same behavior explicitly. Updating and uninstalling still use the local
@@ -39,6 +39,54 @@ service before replacing managed executables.
 The macOS App is unsigned and unnotarized. macOS may require the user to
 right-click the App and choose **Open** on its first launch. This does not
 change the CLI or mihomo installation path.
+
+## Installed CLI maintenance
+
+Use the release-managed CLI to install or remove the menu bar App and update or
+remove the whole installation. The [CLI reference](../reference/cli.md#installation-maintenance)
+defines syntax, release selection, JSON results, and errors. Local development
+binaries without an installer record must use the local artifact workflow below.
+
+On macOS, `nagi app install` downloads the release matching the CLI version and
+installs only the App. It leaves mihomo running and preserves the CLI, engine,
+login service, and profiles. The CLI must be installed at `/usr/local/bin/nagi`,
+the path compiled into the App. Open the installed App from Applications.
+The terminal menu offers these operations under **Settings & Maintenance →
+Nagi App & Updates**.
+
+`nagi update` downloads the latest matching platform release and verifies its
+checksum, current managed files, and candidate executables before stopping
+anything. It updates the CLI, mihomo, and an already installed App together.
+It refreshes the `default` profile, preserves other user data, temporarily
+removes an installed engine login service, and restores its installed/enabled
+preferences afterward. A previously running engine is restarted after success.
+OS settings managed by Nagi are restored when the engine stops; runtime TUN,
+system proxy, and other temporary settings must be enabled again as needed.
+`nagi app update` invokes the same whole-installation update and requires an
+installed App.
+
+Quit the App before a terminal update. Alternatively, choose **About Nagi → Update Nagi…**
+in the App: the CLI opens Terminal, the App completes its normal quit cleanup,
+and Terminal runs the update, showing administrator authorization and errors.
+After success, it opens the updated App, whose normal launch starts Nagi. If
+the App fails to quit within 60 seconds, the terminal operation is cancelled.
+If Terminal cannot open, the App remains available and displays the error.
+
+Use `nagi app uninstall` to remove only the App, or `nagi uninstall` to stop Nagi
+and remove its managed CLI, mihomo, App, login service, and privileged helper.
+Both preserve user profiles, subscriptions, settings, and logs. Before removing
+the App, disable **Open menu bar app at login** and quit it. Removal does not
+download a release.
+
+Run maintenance as the intended user, not with `sudo`; the installer requests
+administrator authorization for protected files and the macOS helper. Terminal
+access is required when authorization is needed. Modified managed files are
+refused. A failed download or preflight leaves the running engine and services
+untouched. A failed installation reports installer rollback details and leaves
+the engine stopped; login service preferences are restored when possible.
+After resolving the reported failure, inspect `nagi status` and run `nagi start`.
+If files were updated but service restoration or restart failed, the error says
+which step needs recovery. See the [maintenance design](../design/installation.md).
 
 ## Prepare artifacts
 

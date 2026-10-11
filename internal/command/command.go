@@ -22,6 +22,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
+	"github.com/ronigooja/Nagi/internal/installation"
 	"github.com/ronigooja/Nagi/internal/menu"
 	"github.com/ronigooja/Nagi/internal/output"
 	privilegedserver "github.com/ronigooja/Nagi/internal/privileged/server"
@@ -227,6 +228,30 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		binary = filepath.Join(filepath.Dir(exe), "mihomo")
 	}
 	command := args[0]
+	if command == "app" || command == "update" || command == "uninstall" {
+		manager, err := installation.New(version)
+		if err != nil {
+			return nil, fail("installation_error", err)
+		}
+		action, tag := command, ""
+		if command == "app" {
+			action = "app-" + args[1]
+			if len(args) == 3 {
+				tag = args[2]
+			}
+		} else if len(args) == 2 {
+			if args[1] == "--terminal" {
+				action = "terminal-update"
+			} else {
+				tag = args[1]
+			}
+		}
+		result, err := manager.Manage(ctx, action, tag)
+		if err != nil {
+			return nil, fail("installation_error", err)
+		}
+		return result, nil
+	}
 	if command == "completion" {
 		if len(args) >= 2 && args[1] == "candidates" {
 			if len(args) == 3 && (args[2] == "profile" || args[2] == "subscription") {

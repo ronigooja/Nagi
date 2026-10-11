@@ -46,6 +46,10 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 		{helperPageForOS("darwin"), "Uninstall privileged helper", []string{"privileged-helper", "uninstall"}, true},
 		{helperPageForOS("darwin"), "Select privileged backend", []string{"privileged-helper", "enable"}, true},
 		{helperPageForOS("darwin"), "Select user backend", []string{"privileged-helper", "disable"}, true},
+		{AppPage(), "Install menu bar App", []string{"app", "install"}, true},
+		{AppPage(), "Update Nagi", []string{"update"}, true},
+		{AppPage(), "Uninstall menu bar App", []string{"app", "uninstall"}, true},
+		{AppPage(), "Uninstall Nagi", []string{"uninstall"}, true},
 	}
 	for _, tt := range tests {
 		item := diagnosticItem(t, tt.page, tt.label)
@@ -113,7 +117,7 @@ func TestAdvancedRetainsAllFeatureEntrypoints(t *testing.T) {
 		}
 		want := []string{"Current Configuration", "DNS", "Routing Rules", "Connections", "Start at Login"}
 		if goos == "darwin" {
-			want = append(want, "Privileged helper")
+			want = append(want, "Privileged helper", "Nagi App & Updates")
 		}
 		if len(view.Items) != 0 || len(view.Actions) != len(want) {
 			t.Fatalf("%s: %+v", goos, view)

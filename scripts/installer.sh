@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'USAGE'
-Usage: scripts/installer.sh install|update|uninstall [--artifact-dir DIR] [--prefix DIR] [--app-dest DIR]
+Usage: scripts/installer.sh install|update|uninstall|app-install|app-uninstall [--artifact-dir DIR] [--prefix DIR] [--app-dest DIR]
   install/update use bin/ beside this script by default, containing nagi and mihomo;
   on macOS it may also contain Nagi.app. The default prefix is /usr/local.
   App installation requires --prefix /usr/local; its default destination is
@@ -12,19 +12,27 @@ Usage: scripts/installer.sh install|update|uninstall [--artifact-dir DIR] [--pre
   On macOS with the default prefix, install selects the privileged TUN helper;
   update reinstalls it and preserves any existing backend selection. Uninstall
   removes it. No network access is performed.
+  app-install/app-uninstall change only the App and its installation record.
 USAGE
 }
 fail() { printf 'nagi installer: %s\n' "$*" >&2; exit 1; }
 [[ $# -gt 0 ]] || { usage >&2; exit 2; }
 action=$1
 shift
-case "$action" in install|update|uninstall) ;; *) usage >&2; exit 2 ;; esac
+app_only=
+case "$action" in
+    install|update|uninstall) ;;
+    app-install) app_only=install; action=update ;;
+    app-uninstall) app_only=uninstall; action=uninstall ;;
+    *) usage >&2; exit 2 ;;
+esac
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 artifact_dir=$script_dir/../bin
 artifact_dir_given=0
 prefix=/usr/local
 app_dest=/Applications/Nagi.app
 app_dest_given=0
+verify_only=0
 while (( $# )); do
     case "$1" in
         --artifact-dir|--prefix|--app-dest)
@@ -35,6 +43,7 @@ while (( $# )); do
                 --app-dest) app_dest=$2; app_dest_given=1 ;;
             esac
             shift 2 ;;
+        --verify) verify_only=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) fail "unknown option: $1" ;;
     esac
@@ -56,6 +65,10 @@ mihomo=$bin_dir/mihomo
 platform=$(uname -s)
 manage_helper=0
 if [[ "$platform" == Darwin && "$prefix" == /usr/local ]]; then manage_helper=1; fi
+if [[ -n "$app_only" ]]; then
+    [[ "$platform" == Darwin ]] || fail 'App management is supported only on macOS'
+    manage_helper=0
+fi
 if (( manage_helper && EUID == 0 )); then fail "run as the intended macOS user, not root; the installer uses sudo for the helper"; fi
 if [[ "$platform" == Darwin ]]; then
     profile_dir=$HOME/Library/Application\ Support/Nagi/config/profiles
@@ -199,6 +212,76 @@ else
         elif [[ -n "$source_app" ]]; then
             ! exists "$app_dest" || fail "App destination already exists outside the installer: $app_dest"
         fi
+    fi
+    if (( verify_only )); then exit 0; fi
+    if [[ -n "$app_only" ]]; then
+        if [[ "$app_only" == install ]]; then
+            [[ -z "$recorded_app" ]] || fail 'App is already installed; use nagi update'
+            [[ -n "$source_app" ]] || fail 'release does not contain Nagi.app'
+        elif [[ -z "$recorded_app" ]]; then
+            printf 'Nagi App is not installed\n'
+            exit 0
+        fi
+        if pgrep -x NagiApp >/dev/null 2>&1; then fail 'quit Nagi.app before changing it'; fi
+        # Keep the binary digests and update only the App portion of v3 state.
+        app_needs_sudo=0
+        [[ -w "$state_dir" && -w "$(dirname "$app_dest")" ]] || app_needs_sudo=1
+        if (( app_needs_sudo && EUID != 0 )); then
+            sudo -n true 2>/dev/null || sudo -v || fail 'administrator authorization failed'
+        fi
+        app_write() {
+            if (( app_needs_sudo && EUID != 0 )); then sudo "$@"; else "$@"; fi
+        }
+        app_stage=$(app_write mktemp -d "$(dirname "$app_dest")/.nagi-app.XXXXXXXX")
+        app_write chmod 0755 "$app_stage"
+        state_stage=$(app_write mktemp -d "$state_dir/.nagi-app.XXXXXXXX")
+        app_changed=0
+        state_changed=0
+        app_committed=0
+        app_cleanup() {
+            local result=$? rollback_failed=0
+            trap - EXIT
+            if (( ! app_committed )); then
+                if (( state_changed )); then app_write cp -- "$state_stage/old-state" "$state" || rollback_failed=1; fi
+                if (( app_changed )); then
+                    if [[ "$app_only" == install ]]; then
+                        app_write rm -R -- "$app_dest" || rollback_failed=1
+                    else
+                        app_write mv -- "$app_stage/old-app" "$app_dest" || rollback_failed=1
+                    fi
+                fi
+            fi
+            if (( rollback_failed )); then
+                printf 'nagi installer: App rollback incomplete; backups retained at %s %s\n' "$app_stage" "$state_stage" >&2
+                exit 1
+            fi
+            app_write rm -R -- "$app_stage" "$state_stage" || true
+            exit "$result"
+        }
+        trap app_cleanup EXIT
+        trap 'exit 130' INT TERM
+        app_write cp -- "$state" "$state_stage/old-state"
+        new_app_hash=
+        new_app_path=
+        if [[ "$app_only" == install ]]; then
+            app_write cp -R -- "$source_app" "$app_stage/new-app"
+            new_app_hash=$(app_hash "$app_stage/new-app")
+            valid_hash "$new_app_hash" || fail 'cannot hash staged App'
+            new_app_path=$app_dest
+        fi
+        printf 'nagi-installer-v3\napp=%s\nnagi_sha256=%s\nmihomo_sha256=%s\napp_sha256=%s\n' \
+            "$new_app_path" "$recorded_nagi" "$recorded_mihomo" "$new_app_hash" \
+            | app_write tee "$state_stage/new-state" >/dev/null
+        app_write chmod 0644 "$state_stage/new-state"
+        if [[ "$app_only" == install ]]; then
+            app_write mv -- "$app_stage/new-app" "$app_dest"; app_changed=1
+        else
+            app_write mv -- "$app_dest" "$app_stage/old-app"; app_changed=1
+        fi
+        app_write mv -- "$state_stage/new-state" "$state"; state_changed=1
+        app_committed=1
+        printf 'Nagi App %s complete\n' "$app_only"
+        exit 0
     fi
     # A user service records the exact executable path. Never replace it under a
     # running monitor or mihomo process; the user can resume them afterward.
