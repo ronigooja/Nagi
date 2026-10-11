@@ -66,7 +66,7 @@ Use each location as follows:
 - Mark planned architecture and unimplemented designs with their status and scope at the beginning. Update the description to current behavior only after implementation is complete.
 - Name architecture decisions `NNNN-topic.md`, using four-digit decimal numbers starting at `0001` in creation order. Never reuse a number. Each decision must record its status, context, alternatives, decision, and consequences. Status must be `proposed`, `accepted`, `superseded`, or `deprecated`. When superseded, keep the original record and link to the replacement.
 - Keep examples accurate and self-consistent. Mark placeholder parameters clearly, and never include real credentials or subscription URLs.
-- Prefer relative paths, environment variables, or generic examples. Local paths such as `/root/Nagi` and `/root/mihomo` may appear only as explicitly labeled development examples, never as architecture constraints.
+- Prefer relative paths, environment variables, or generic examples. Local checkout and source paths may appear only as explicitly labeled development examples, never as architecture constraints.
 - Use short, clear, lowercase English filenames with hyphens under `docs/`, and repository-relative links. When a category becomes difficult to navigate, add a `README.md` index containing only navigation and brief descriptions.
 
 ## Documentation Maintenance and Verification
