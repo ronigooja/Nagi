@@ -28,6 +28,11 @@ struct NagiCLIClient {
         return try TrafficStream(executable: Self.executable, sample: sample)
     }
 
+    func subscriptionWatch() throws -> SubscriptionWatch {
+        guard FileManager.default.isExecutableFile(atPath: Self.executable.path) else { throw CLIError.missingCLI(Self.executable.path) }
+        return try SubscriptionWatch(executable: Self.executable)
+    }
+
     private func runBlocking(_ arguments: [String], holder: ProcessHolder) throws -> JSONValue {
         let process = Process()
         process.executableURL = Self.executable
@@ -80,6 +85,41 @@ struct NagiCLIClient {
             else { overflow = true }
         }
         return (bytes, overflow)
+    }
+}
+
+final class SubscriptionWatch: @unchecked Sendable {
+    private let process: Process
+    private let lock = NSLock()
+    private var stopped = false
+    private var stderr = Data()
+    private var duplicate = false
+    init(executable: URL) throws {
+        process = Process(); process.executableURL = executable; process.arguments = ["--json", "subscription", "watch"]
+        let out = Pipe(), err = Pipe(); process.standardOutput = out; process.standardError = err
+        do { try process.run() } catch { throw CLIError.launch(error.localizedDescription) }
+        out.fileHandleForReading.readabilityHandler = { handle in _ = try? handle.read(upToCount: 64 * 1024) }
+        err.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            guard let self, let data = try? handle.read(upToCount: 64 * 1024), !data.isEmpty else { return }
+            self.lock.lock(); if self.stderr.count < 64 * 1024 { self.stderr.append(data) }; self.duplicate = String(data: self.stderr, encoding: .utf8)?.contains("already running") == true; self.lock.unlock()
+        }
+    }
+    func stop() {
+        lock.lock(); stopped = true; lock.unlock()
+        guard process.isRunning else { return }
+        process.terminate()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) { [process] in
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+        }
+    }
+    func wait() async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                self.process.waitUntilExit(); self.process.standardOutput = nil; self.process.standardError = nil
+                self.lock.lock(); let intentional = self.stopped || self.duplicate; self.lock.unlock()
+                continuation.resume(returning: intentional || self.process.terminationStatus == 0)
+            }
+        }
     }
 }
 

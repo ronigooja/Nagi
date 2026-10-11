@@ -245,7 +245,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `proxy provider update` | `provider` and `updated: true`. |
 | `proxy provider healthcheck` | `provider` and `healthcheck_started: true`. |
 | `proxy delays` | `group`, `url`, `timeout_ms`, `results` array of `proxy`, optional `delay_ms` or `error`. Uses mihomo’s native group test. For URLTest and Fallback, a confirmed handler run clears the fixed node and Nagi removes the saved choice. The `url` field records the requested URL. In the pinned mihomo version, URLTest uses its configured test URL despite the request’s `url` parameter; other group types use the supplied or default URL. Successful automatic-group tests add `automatic_reset: true` and `saved_selection_removed: true`. |
-| `proxy search` | `query`, `groups` array with the same group fields as `proxy groups`. |
+| `proxy groups`, `proxy show`, `proxy search` | Group objects include `name`, `type`, `now`, `fixed` for explicitly pinned automatic groups, `all`, `alive`, `selected_status`, and additive native `hidden` and `icon` metadata. Nagi menus omit hidden groups; URLs and credentials are never included. |
 | `proxy restore` | `restored` and `unavailable` string arrays of `GROUP -> NODE`. |
 | `connections close ID` | `id` (string), `closed: true` (request accepted, including an already absent connection). |
 | `connections close-all` | `closed: true` (request accepted; no count). |
