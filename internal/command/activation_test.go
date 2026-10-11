@@ -96,6 +96,50 @@ func TestFailedMutationRestoresFilesButDoesNotClaimInvalidPriorRuntime(t *testin
 	}
 }
 
+func TestProfileRemoveRestoresAssociationWhenIndexWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "config")
+	profiles := filepath.Join(config, "profiles")
+	if err := os.MkdirAll(profiles, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(profiles, "default.yaml"), []byte("mixed-port: 17890\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	oldPath := filepath.Join(profiles, "old.yaml")
+	if err := os.WriteFile(oldPath, []byte("mixed-port: 17891\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(config, "settings.yaml"), []byte("profile: default\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	index := `{"subscriptions":[{"name":"work","url":"https://example.com/sub","profile":"old"}]}`
+	if err := os.WriteFile(filepath.Join(config, "subscriptions.yaml"), []byte(index), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// DetachProfile reads the index, then fails while replacing its backup.
+	// This leaves the profile removed unless the outer transaction restores it.
+	if err := os.Mkdir(filepath.Join(config, "subscriptions.yaml.bak"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	paths := nagiruntime.Paths{ConfigDir: config, RuntimeDir: filepath.Join(dir, "runtime"), SocketPath: filepath.Join(dir, "runtime", "mihomo.sock")}
+	profilesStore := profile.NewStore(config, nil, nil)
+	subs := subscription.NewStore(config, filepath.Join(dir, "cache"), nil)
+	_, err := applyTransaction(context.Background(), paths, []string{"profile", "remove", "old"}, func() (any, error) {
+		return profileCommand(context.Background(), []string{"profile", "remove", "old"}, profilesStore, subs)
+	})
+	if err == nil {
+		t.Fatal("expected association write failure")
+	}
+	if got, readErr := os.ReadFile(oldPath); readErr != nil || string(got) != "mixed-port: 17891\n" {
+		t.Fatalf("profile was not restored: %q, %v", got, readErr)
+	}
+	entries, listErr := subs.List()
+	if listErr != nil || len(entries) != 1 || entries[0].Profile != "old" {
+		t.Fatalf("association was not restored: %+v, %v", entries, listErr)
+	}
+}
+
 func TestConfigLockSerializesMutations(t *testing.T) {
 	dir := t.TempDir()
 	paths := nagiruntime.Paths{RuntimeDir: dir, SocketPath: filepath.Join(dir, "socket"), PIDPath: filepath.Join(dir, "pid"), LockPath: filepath.Join(dir, "engine.lock"), LogPath: filepath.Join(dir, "logs", "mihomo.log")}
@@ -127,7 +171,7 @@ func TestConfigLockSerializesMutations(t *testing.T) {
 
 func TestProxyMutationsUseConfigurationLock(t *testing.T) {
 	for _, tc := range []struct {
-		args []string
+		args   []string
 		locked bool
 	}{
 		{[]string{"proxy", "select", "Auto", "Node"}, true},
@@ -144,6 +188,15 @@ func TestProxyMutationsUseConfigurationLock(t *testing.T) {
 		if got := configMutation(tc.args); got != tc.locked {
 			t.Errorf("configMutation(%v) = %v, want %v", tc.args, got, tc.locked)
 		}
+	}
+}
+
+func TestProfileRemoveUsesConfigurationTransaction(t *testing.T) {
+	if !configMutation([]string{"profile", "remove", "old"}) {
+		t.Fatal("profile remove must use the configuration lock")
+	}
+	if !transactionalMutation([]string{"profile", "remove", "old"}) {
+		t.Fatal("profile remove must use the configuration transaction")
 	}
 }
 

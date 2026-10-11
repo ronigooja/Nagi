@@ -62,7 +62,7 @@ func transactionalMutation(args []string) bool {
 	}
 	switch args[0] {
 	case "profile":
-		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "override"
+		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override"
 	case "subscription":
 		return args[1] == "apply"
 	case "rules":
