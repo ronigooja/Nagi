@@ -383,6 +383,52 @@ func TestNormalizeIndependentListenersAndPreviewRedaction(t *testing.T) {
 	}
 }
 
+func TestPreviewCoversEveryConfigFieldWithoutValues(t *testing.T) {
+	old := map[string]any{
+		"sniffer":             map[string]any{"enable": false},
+		"profile":             map[string]any{"store-selected": true},
+		"secret-custom-field": map[string]any{"private-token": "old-password"},
+		"removed-setting":     true,
+		"proxies":             []any{map[string]any{"name": "A", "type": "direct"}, map[string]any{"name": "B", "type": "direct"}},
+	}
+	newDoc := map[string]any{
+		"sniffer":             map[string]any{"enable": true},
+		"profile":             map[string]any{"store-selected": false},
+		"secret-custom-field": map[string]any{"private-token": "new-password"},
+		"added-setting":       "credential-value",
+		"proxies":             []any{map[string]any{"name": "B", "type": "direct"}, map[string]any{"name": "A", "type": "direct"}},
+	}
+	p := Compare("test", "mihomo-yaml", newDoc, old)
+	if len(p.Added) != 0 || len(p.Removed) != 0 || len(p.Changed) != 0 {
+		t.Fatalf("node arrays changed for order-only update: %+v", p)
+	}
+	want := map[string]string{
+		"/sniffer": "changed", "/sniffer/enable": "changed",
+		"/profile": "changed", "/proxies": "changed", "/proxies/0": "changed",
+		"/field-1": "added", "/field-4": "removed", "/field-5": "changed",
+	}
+	for _, c := range p.Changes {
+		if kind, ok := want[c.Path]; ok && kind == c.Kind {
+			delete(want, c.Path)
+		}
+		if c.Behavior == "" {
+			t.Fatalf("missing behavior: %+v", c)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing config changes %v in %+v", want, p.Changes)
+	}
+	data, err := json.Marshal(p.Changes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"secret-custom-field", "private-token", "old-password", "new-password", "credential-value", "added-setting", "removed-setting"} {
+		if strings.Contains(string(data), secret) {
+			t.Fatalf("preview exposed %q: %s", secret, data)
+		}
+	}
+}
+
 func TestNormalizeOtherIndependentInbounds(t *testing.T) {
 	doc, _, err := Document([]byte("proxies:\n  - name: A\n    type: direct\ntuic-server:\n  enable: true\n  listen: '[::]:443'\ntunnels:\n  - network: [tcp]\n    address: '0.0.0.0:8080'\n    target: 'example.com:80'\n  - 'udp,0.0.0.0:5353,example.com:53'\n"))
 	if err != nil {

@@ -459,7 +459,19 @@ func Compare(name, format string, incoming, existing map[string]any) Preview {
 	sort.Strings(result.Added)
 	sort.Strings(result.Removed)
 	sort.Strings(result.Changed)
-	for _, category := range []string{"proxy-groups", "proxy-providers", "rules", "rule-providers", "dns", "tun", "listeners", "tunnels", "tuic-server", "mode", "port", "socks-port", "mixed-port", "redir-port", "tproxy-port", "bind-address", "allow-lan"} {
+	keys := make(map[string]bool)
+	for key := range existing {
+		keys[key] = true
+	}
+	for key := range incoming {
+		keys[key] = true
+	}
+	categories := make([]string, 0, len(keys))
+	for key := range keys {
+		categories = append(categories, key)
+	}
+	sort.Strings(categories)
+	for index, category := range categories {
 		var before, after any
 		var oldExists, newExists bool
 		if existing != nil {
@@ -479,6 +491,8 @@ func Compare(name, format string, incoming, existing map[string]any) Preview {
 		}
 		behavior := "Configuration behavior may change."
 		switch category {
+		case "proxies":
+			behavior = "Proxy definitions or order may change."
 		case "proxy-groups":
 			behavior = "Proxy selection or group membership may change."
 		case "proxy-providers":
@@ -493,10 +507,16 @@ func Compare(name, format string, incoming, existing map[string]any) Preview {
 			behavior = "Local listening behavior may change."
 		case "mode":
 			behavior = "Default traffic routing mode may change."
+		case "sniffer":
+			behavior = "Traffic sniffing behavior may change."
 		}
-		result.Changes = append(result.Changes, ConfigChange{Path: "/" + category, Kind: kind, Behavior: behavior})
-		if oldExists && newExists && category != "proxy-providers" && category != "rule-providers" {
-			appendDetailedChanges(&result.Changes, "/"+category, before, after, behavior, 0)
+		path := "/" + category
+		if !safePreviewTopLevel(category) {
+			path = fmt.Sprintf("/field-%d", index+1)
+		}
+		result.Changes = append(result.Changes, ConfigChange{Path: path, Kind: kind, Behavior: behavior})
+		if oldExists && newExists {
+			appendDetailedChanges(&result.Changes, path, before, after, behavior, 0)
 		}
 	}
 	_, oldProvider := existing["proxy-providers"]
@@ -523,10 +543,7 @@ func appendDetailedChanges(out *[]ConfigChange, path string, before, after any, 
 				sorted = append(sorted, key)
 			}
 			sort.Strings(sorted)
-			for _, key := range sorted {
-				if !safePreviewField(key) {
-					continue
-				}
+			for index, key := range sorted {
 				a, oldOK := oldMap[key]
 				b, newOK := newMap[key]
 				if reflect.DeepEqual(a, b) && oldOK == newOK {
@@ -538,7 +555,11 @@ func appendDetailedChanges(out *[]ConfigChange, path string, before, after any, 
 				} else if !newOK {
 					kind = "removed"
 				}
-				child := path + "/" + key
+				field := key
+				if !safePreviewField(key) {
+					field = fmt.Sprintf("field-%d", index+1)
+				}
+				child := path + "/" + field
 				*out = append(*out, ConfigChange{Path: child, Kind: kind, Behavior: behavior})
 				if oldOK && newOK {
 					appendDetailedChanges(out, child, a, b, behavior, depth+1)
@@ -575,6 +596,14 @@ func appendDetailedChanges(out *[]ConfigChange, path string, before, after any, 
 func safePreviewField(field string) bool {
 	switch field {
 	case "name", "type", "proxies", "use", "url", "interval", "tolerance", "strategy", "filter", "exclude-filter", "rules", "enable", "listen", "port", "address", "network", "target", "nameserver", "fallback", "default-nameserver", "proxy-server-nameserver", "direct-nameserver", "nameserver-policy", "ipv6", "enhanced-mode", "fake-ip-range", "dns-hijack", "auto-route", "strict-route", "auto-detect-interface", "stack", "device", "gateway", "mtu", "include-interface", "exclude-interface":
+		return true
+	}
+	return false
+}
+
+func safePreviewTopLevel(field string) bool {
+	switch field {
+	case "proxies", "proxy-groups", "proxy-providers", "rules", "rule-providers", "dns", "tun", "listeners", "tunnels", "tuic-server", "mode", "port", "socks-port", "mixed-port", "redir-port", "tproxy-port", "bind-address", "allow-lan", "sniffer", "profile", "ipv6", "log-level", "find-process-mode", "global-client-fingerprint", "geodata-mode", "geox-url", "routing-mark", "external-ui", "external-ui-url", "keep-alive-idle", "keep-alive-interval", "unified-delay", "tcp-concurrent":
 		return true
 	}
 	return false
