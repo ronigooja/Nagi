@@ -151,7 +151,7 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 						order = append(order, measurement.Proxy)
 						measurements[measurement.Proxy] = measurement
 					}
-					s.feedback(fmt.Sprintf("Latency test completed: %d results.", len(order)))
+					s.feedback(feedbackSuccess, fmt.Sprintf("Latency test completed: %d results.", len(order)))
 					return nil
 				}},
 				Item{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
@@ -228,7 +228,7 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 			if testOnly {
 				args = []string{"proxy", "delay", node}
 			}
-			view.Items = append(view.Items, Item{Name: node, Label: label, Args: args})
+			view.Items = append(view.Items, Item{Name: node, Label: label, Selected: node == group.Now, Args: args})
 		}
 		return view, nil
 	}}

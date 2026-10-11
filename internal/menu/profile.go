@@ -78,7 +78,7 @@ func profileListPage() *Page {
 			if name == data.Current {
 				label += " (selected)"
 			}
-			view.Items = append(view.Items, Item{Name: name, Label: label, Next: func() *Page { return profileDetailPage(name) }})
+			view.Items = append(view.Items, Item{Name: name, Label: label, Selected: data.CurrentError == "" && name == data.Current, Next: func() *Page { return profileDetailPage(name) }})
 		}
 		return view, nil
 	}}
@@ -346,12 +346,15 @@ func previewView(preview menuPreview) PageView {
 		category := category
 		for _, name := range category.items {
 			safe := menuURLPattern.ReplaceAllString(name, "[redacted URL]")
-			view.Items = append(view.Items, Item{Name: safe, Label: category.name + ": " + safe, Action: func(_ context.Context, s *Session) error { s.feedback(category.name + ": " + safe); return nil }})
+			view.Items = append(view.Items, Item{Name: safe, Label: category.name + ": " + safe, Action: func(_ context.Context, s *Session) error {
+				s.ShowResult(nil, Result{Data: category.name + ": " + safe})
+				return nil
+			}})
 		}
 	}
 	for _, change := range preview.Changes {
 		label := menuURLPattern.ReplaceAllString(change.Kind+": "+change.Path+" — "+change.Behavior, "[redacted URL]")
-		view.Items = append(view.Items, Item{Name: label, Label: label, Action: func(_ context.Context, s *Session) error { s.feedback(label); return nil }})
+		view.Items = append(view.Items, Item{Name: label, Label: label, Action: func(_ context.Context, s *Session) error { s.ShowResult(nil, Result{Data: label}); return nil }})
 	}
 	return view
 }

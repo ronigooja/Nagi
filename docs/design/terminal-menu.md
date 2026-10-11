@@ -12,6 +12,14 @@ The menu is a line-oriented interface that preserves terminal scrollback. It own
 
 Most commands run in process. The session shows the result or error without echoing internal command arguments. An ordinary operation already submitted can finish; input cancellation does not imply cancellation or rollback of the business operation. Log following and traffic watching use a child Nagi process with a cancelable context. Ctrl-C cancels that stream and returns to the same page. User-mode mihomo runs in a separate process group, so canceling a stream does not stop it.
 
+## Menu presentation
+
+The session owns a semantic style renderer for menu UI text. It detects terminal styling once from its output terminal and environment; the [CLI reference](../reference/cli.md#terminal-menu) defines the enable conditions and style meanings. Plain output retains the same wording, numeric mapping, and selected markers. `Item.Selected` carries actual node or profile selection state, independently of label text; rendering does not infer selection from names or status strings.
+
+The renderer redacts menu labels, context, impacts, and feedback before applying styles. Feedback retains its success, warning, or error class while queued, then renders after the reloaded page and before its prompt. Partial completion and input validation use the warning class; command and read failures use the error class. Each styled span resets immediately, including prompts, so user input and subsequent output do not inherit menu styles.
+
+Requested configuration, overrides, profile comparisons, recent logs, and child log or traffic streams bypass menu styling. The Enter-to-return prompt is menu UI and resets before reading input. Styling changes no ordinary command output, JSON contracts, business operations, or mihomo behavior.
+
 ## Page inventory
 
 The home page shows mihomo state and the selected profile. Failed reads show unknown/unavailable state without hiding controls.

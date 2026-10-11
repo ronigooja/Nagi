@@ -97,6 +97,22 @@ The optional `Subscription-Userinfo` response header supplies `upload`, `downloa
 | 8 | Settings & Maintenance | Current Configuration (show, validate, reload), DNS, Routing Rules, Connections, Start at Login, and the macOS privileged helper. |
 | 0 | Exit menu | Leaves mihomo running. |
 
+Menu styling enables automatically only when output is a terminal, `TERM` is nonempty and is not `dumb`, and `NO_COLOR` is absent or empty. A nonempty `NO_COLOR` disables both color and bold. Otherwise the menu uses plain text with the same labels and numbers; no color option is required. Input and output must still be terminals to open the menu.
+
+| Menu text | Style when enabled |
+| --- | --- |
+| Page title | ANSI standard yellow (amber) and bold |
+| Choice numbers | Terminal default, without added styling |
+| Selected node or profile label | Green and bold, retaining the `(selected)` text marker |
+| State summary and page context | Bold |
+| Successful completion feedback | Green |
+| Warnings, partial completion, and input validation | Yellow |
+| Command and read errors | Red |
+| Action effects beside entries | Terminal default, without added styling |
+| Input prompts | Bold |
+
+Selected styling reflects the actual current node or profile; color is never the only indication of selection or failure. Styles reset immediately after each styled span, including prompts, so typed input and later output do not inherit them. Menu labels, context, effects, and errors are redacted before styling. Requested configuration, overrides, profile comparisons, recent logs, and live log or traffic streams receive no added menu styles. Ordinary CLI output and JSON remain unchanged.
+
 DNS groups operations under Servers, Domain Exceptions, TUN DNS Interception, and Checks & Queries. Routing Rules groups viewing, custom-rule management, and rule-set imports. Start at Login contains service installation, enable/disable, details, and uninstallation; recovery operations are in Troubleshooting. Shell completion and cross-group node search remain available through ordinary CLI commands only.
 
 All selectable entries use numbers. Resources show at most ten per page, followed by actions and numeric Next page/Previous page entries, with consecutive numbering across the page. Read the displayed numbers on each page: action and pagination numbers depend on the number of visible resources. `0` returns from a subpage, cancels a resource selector or failed form, and exits at home. There are no letter shortcuts, manual refresh, filtering, menu search, or page-help entries.

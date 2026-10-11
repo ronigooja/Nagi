@@ -28,6 +28,7 @@ This document defines development and review rules for Nagi's command-line inter
 ## Terminal menu interactions
 
 - Keep pages line-oriented and preserve scrollback. Show the title, a state summary or explicit unknown/read error, resource choices, fixed actions, and navigation.
+- Keep styling within the menu presentation layer and follow the [menu style contract](../reference/cli.md#terminal-menu). Detect output TTY, `TERM`, and `NO_COLOR`; plain mode must retain readable labels and selected markers. Carry actual node/profile selection and feedback severity as semantic state, redact before styling, and reset every styled span before input or other output. Do not add styles to requested raw content or live streams.
 - Use numbers for every selectable entry: up to ten resources, then actions, then pagination entries, consecutively numbered from a shared display/dispatch mapping. Use `0` for Back, Cancel, or Exit at home. Do not add letter shortcuts, refresh, filtering, search, or help entries. Reload state on entry, after operations, and on return; paginate the existing snapshot. Clamp invalid page indices after reload. Blank or invalid input repeats only the prompt.
 - Present effects beside actions and dispatch once without a second confirmation. Explain that `0` at home leaves the menu while mihomo keeps running; stopping the engine is a separate action.
 - Pass known resource names as single command arguments. Text prompts treat `0/b/q` literally. Ctrl-C cancels a form or returns to the parent page, and exits at home; EOF exits. Use one session input mechanism without abandoned readers.
@@ -40,7 +41,7 @@ This document defines development and review rules for Nagi's command-line inter
 
 ## Review and verification
 
-For affected behavior, verify help, missing and invalid arguments, normal and empty output, and actionable failures. Test help with unavailable or invalid runtime configuration. Check JSON success and failure compatibility independently of text formatting. When validation changes, verify that diagnostics do not reveal sensitive configuration values. For menu changes, also check redirected input and output, `--json menu`, numeric navigation, pagination, single-dispatch actions, retained forms, stale or empty data, and interrupted streams.
+For affected behavior, verify help, missing and invalid arguments, normal and empty output, and actionable failures. Test help with unavailable or invalid runtime configuration. Check JSON success and failure compatibility independently of text formatting. When validation changes, verify that diagnostics do not reveal sensitive configuration values. For menu changes, also check redirected input and output, `--json menu`, numeric navigation, pagination, single-dispatch actions, retained forms, stale or empty data, and interrupted streams. For styling changes, verify enabled and plain output, empty or `dumb` `TERM`, nonempty `NO_COLOR`, selected markers, feedback classes, redaction, raw-output preservation, and resets before input and after interruption.
 
 Update the CLI reference and affected guides in the same change. Test representative user journeys rather than only matching renderer internals. Use isolated runtime directories for checks that change profiles, subscriptions, or process state; see [Build and test](build-and-test.md).
 

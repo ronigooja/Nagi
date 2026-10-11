@@ -23,6 +23,7 @@ type Navigation struct {
 
 // Item opens a page, dispatches a command, or performs a custom flow.
 type Item struct {
+	Selected bool // Explicit current selection; never inferred from resource text.
 	Label    string
 	Name     string // Resource identity.
 	Args     []string

@@ -81,9 +81,9 @@ func menuSelectName(ctx context.Context, s *Session, command []string, field, la
 	names := menuNames(result.Data, field)
 	if len(names) == 0 {
 		if field == "connections" {
-			s.feedback("No active connections returned; start mihomo and run `nagi connections list`.")
+			s.feedback(feedbackWarning, "No active connections returned; start mihomo and run `nagi connections list`.")
 		} else {
-			s.feedback("No custom rules or sets returned; run `nagi rules custom`.")
+			s.feedback(feedbackWarning, "No custom rules or sets returned; run `nagi rules custom`.")
 		}
 		return "", nil
 	}

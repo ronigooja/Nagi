@@ -78,7 +78,7 @@ func addProvider(ctx context.Context, s *Session) error {
 		GroupCreated bool `json:"group_created"`
 	}
 	if decodeMenuResult(result, &added) == nil && added.GroupCreated {
-		s.feedback("New select group created with DIRECT. Routing rules are unchanged; use existing rules or Global mode to route through the group.")
+		s.feedback(feedbackWarning, "New select group created with DIRECT. Routing rules are unchanged; use existing rules or Global mode to route through the group.")
 	}
 	return nil
 }

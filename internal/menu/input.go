@@ -16,7 +16,7 @@ var ErrBack = errors.New("back")
 
 func (s *Session) readLine(label string) (string, error) {
 	if label != "" {
-		fmt.Fprint(s.out, output.RedactError(label))
+		fmt.Fprint(s.out, s.styled(stylePrompt, output.RedactError(label)))
 	}
 	line, err := s.interruptibleRead()
 	if err != nil && err != io.EOF {
@@ -61,7 +61,7 @@ func (s *Session) Select(label string, choices []string) (string, error) {
 		numbered := numberedChoices(view, page)
 		n, err := strconv.Atoi(value)
 		if err != nil || n < 1 || n > len(numbered) || strconv.Itoa(n) != value {
-			s.WriteLine("Choose a listed number.")
+			s.writeFeedback(feedbackWarning, "Choose a listed number.")
 			continue
 		}
 		choice := numbered[n-1]
@@ -109,12 +109,12 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 				value = values[field.Key]
 			}
 			if field.Required && strings.TrimSpace(value) == "" {
-				s.WriteLine("This field is required.")
+				s.writeFeedback(feedbackWarning, "This field is required.")
 				continue
 			}
 			if field.Validate != nil {
 				if err := field.Validate(value); err != nil {
-					s.Printf("Invalid value: %s\n", output.RedactError(err.Error()))
+					s.writeFeedback(feedbackWarning, "Invalid value: "+err.Error())
 					continue
 				}
 			}
@@ -129,11 +129,12 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 	}
 	result := submit(values)
 	for result.Code != 0 || result.Error != nil {
-		s.WriteLine("Submission failed. Values are retained. Choose a field to edit or submit again.")
+		s.writeFeedback(feedbackWarning, "Submission failed. Values are retained. Choose a field to edit or submit again.")
 		for i, field := range fields {
-			s.Printf("%d. %s\n", i+1, field.Label)
+			s.writeChoice(i+1, field.Label)
 		}
-		s.Printf("%d. Submit again\n0. Cancel\n", len(fields)+1)
+		s.writeChoice(len(fields)+1, "Submit again")
+		s.writeChoice(0, "Cancel")
 		s.flushResult()
 		for {
 			value, err := s.readLine("Choice: ")
@@ -155,7 +156,7 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 			}
 			n, err := strconv.Atoi(value)
 			if err != nil || n < 1 || n > len(fields) || strconv.Itoa(n) != value {
-				s.WriteLine("Choose a listed number.")
+				s.writeFeedback(feedbackWarning, "Choose a listed number.")
 				continue
 			}
 			if err := edit(fields[n-1]); err != nil {

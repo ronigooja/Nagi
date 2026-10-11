@@ -13,16 +13,20 @@ func (s *Session) Printf(format string, args ...any) { fmt.Fprintf(s.out, format
 func (s *Session) WriteLine(line string)             { fmt.Fprintln(s.out, line) }
 
 func (s *Session) render(page *Page, view PageView, index int, depth int) {
-	fmt.Fprintf(s.out, "\n%s\n", output.RedactError(page.Title))
+	fmt.Fprintf(s.out, "\n%s\n", s.styled(styleTitle, output.RedactError(page.Title)))
 	if view.Context != "" {
-		fmt.Fprintln(s.out, output.RedactError(view.Context))
+		fmt.Fprintln(s.out, s.styled(styleContext, output.RedactError(view.Context)))
 	}
 	if len(view.Items) == 0 && view.Empty != "" {
 		fmt.Fprintln(s.out, output.RedactError(view.Empty))
 	}
 	for n, choice := range numberedChoices(view, index) {
 		item := choice.Item
-		fmt.Fprintf(s.out, "%d. %s", n+1, output.RedactError(item.Label))
+		label := output.RedactError(item.Label)
+		if item.Selected {
+			label = s.styled(styleSelected, label)
+		}
+		fmt.Fprintf(s.out, "%d. %s", n+1, label)
 		if item.Impact != "" {
 			fmt.Fprintf(s.out, " — %s", output.RedactError(item.Impact))
 		}
@@ -32,11 +36,11 @@ func (s *Session) render(page *Page, view PageView, index int, depth int) {
 		fmt.Fprintf(s.out, "Page %d/%d\n", index+1, (len(view.Items)+pageSize-1)/pageSize)
 	}
 	if depth == 0 {
-		s.WriteLine("0. Cancel")
+		s.writeChoice(0, "Cancel")
 	} else if depth > 1 {
-		s.WriteLine("0. Back")
+		s.writeChoice(0, "Back")
 	} else {
-		s.WriteLine("0. Exit menu (mihomo keeps running)")
+		s.writeChoice(0, "Exit menu (mihomo keeps running)")
 	}
 
 }
@@ -47,11 +51,11 @@ func (s *Session) showResult(result Result) {
 		if result.Error != nil {
 			message = result.Error.Message
 		}
-		fmt.Fprintf(s.out, "Error: %s\n", output.RedactError(message))
+		s.writeFeedback(feedbackError, "Error: "+message)
 		return
 	}
 	if result.Data == nil {
-		fmt.Fprintln(s.out, "Done.")
+		s.writeFeedback(feedbackSuccess, "Done.")
 		return
 	}
 	switch value := result.Data.(type) {
@@ -60,7 +64,7 @@ func (s *Session) showResult(result Result) {
 	default:
 		data, err := json.MarshalIndent(value, "", "  ")
 		if err != nil {
-			fmt.Fprintln(s.out, "Done.")
+			s.writeFeedback(feedbackSuccess, "Done.")
 			return
 		}
 		fmt.Fprintln(s.out, strings.TrimSpace(string(data)))
@@ -97,8 +101,8 @@ func pausesForReading(args []string) bool {
 	return false
 }
 
-func (s *Session) feedback(text string) {
-	text = output.RedactError(text)
+func (s *Session) feedback(kind feedbackKind, text string) {
+	text = s.styled(feedbackStyle(kind), output.RedactError(text))
 	if s.active {
 		s.pending += text + "\n"
 	} else {
@@ -164,9 +168,9 @@ func (s *Session) presentResult(args []string, result Result) {
 			}
 		}
 		if args[1] == "update" {
-			s.WriteLine("Cache downloaded. Apply is a separate action; full changes are available from this detail page.")
+			s.writeFeedback(feedbackSuccess, "Cache downloaded. Apply is a separate action; full changes are available from this detail page.")
 		} else {
-			s.WriteLine("Cached subscription applied. Starting mihomo and enabling traffic access are separate actions.")
+			s.writeFeedback(feedbackSuccess, "Cached subscription applied. Starting mihomo and enabling traffic access are separate actions.")
 		}
 	}
 	keys := make([]string, 0, len(data))
@@ -217,4 +221,12 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 		}
 		s.Printf("%s%s: %s\n", indent, label, output.RedactError(fmt.Sprint(value)))
 	}
+}
+
+func (s *Session) writeFeedback(kind feedbackKind, text string) {
+	s.WriteLine(s.styled(feedbackStyle(kind), output.RedactError(text)))
+}
+
+func (s *Session) writeChoice(number int, label string) {
+	s.Printf("%d. %s\n", number, output.RedactError(label))
 }

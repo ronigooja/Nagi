@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"syscall"
 	"unsafe"
-
-	"github.com/ronigooja/Nagi/internal/output"
 )
 
 type Session struct {
@@ -25,10 +23,11 @@ type Session struct {
 	active     bool
 	pending    string
 	longResult bool
+	styles     bool
 }
 
 func NewSession(runner Runner, in io.Reader, out io.Writer) *Session {
-	s := &Session{runner: runner, in: bufio.NewReader(in), out: out}
+	s := &Session{runner: runner, in: bufio.NewReader(in), out: out, styles: shouldStyle(out)}
 	s.file, _ = in.(*os.File)
 	return s
 }
@@ -120,7 +119,7 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			if current.page.Load != nil {
 				view, err := current.page.Load(ctx, s)
 				if err != nil {
-					s.pending += fmt.Sprintf("Error reading %s: %s\n", output.RedactError(current.page.Title), output.RedactError(err.Error()))
+					s.feedback(feedbackError, fmt.Sprintf("Error reading %s: %s", current.page.Title, err.Error()))
 					view.Items = nil // Failed reads cannot leave stale resources selectable.
 					view.Empty = view.ReadErrorHint
 					if view.Empty == "" {
@@ -154,7 +153,7 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 				return 0
 			}
 		} else if err != nil {
-			s.Printf("Input error: %s\n", err)
+			s.writeFeedback(feedbackError, fmt.Sprintf("Input error: %s", err))
 			return 1
 		}
 		if value == "" {
@@ -171,7 +170,7 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 		choices := numberedChoices(current.view, current.index)
 		n, e := strconv.Atoi(value)
 		if e != nil || n < 1 || n > len(choices) || strconv.Itoa(n) != value {
-			s.WriteLine("Choose a listed number.")
+			s.writeFeedback(feedbackWarning, "Choose a listed number.")
 			continue
 		}
 		choice := choices[n-1]
@@ -198,7 +197,7 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			return 0
 		}
 		if err != nil && !errors.Is(err, ErrBack) {
-			s.pending += fmt.Sprintf("Error: %s\n", output.RedactError(err.Error()))
+			s.feedback(feedbackError, "Error: "+err.Error())
 		}
 		if s.longResult {
 			s.flushResult()
