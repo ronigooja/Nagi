@@ -32,4 +32,4 @@ The CI workflow runs tests and a full locked CLI and mihomo build on Linux and m
 
 `make release` cross compiles Nagi and mihomo into `dist/linux-amd64`, `dist/linux-arm64`, `dist/darwin-amd64`, and `dist/darwin-arm64`. On macOS it also uses `lipo` to make `dist/darwin-universal`. Set `APPLE_SIGN_IDENTITY` to sign both universal executables. With a configured notarytool keychain profile, set `APPLE_NOTARY_PROFILE` to zip and notarize them. The macOS menu app is packaged separately by its own script. Versioning, tag checks, artifact review, and release notes are defined in [Release process](release.md).
 
-The current lock points at the available fork `main` commit. A dedicated `nagi/meta` branch and upstream synchronization policy in the original plan have not yet been established in the mihomo repository.
+The current lock points at the available fork's `main` commit and includes the `--check-json`, restricted configuration policy, activation ID, and age decryption interfaces used by Nagi. A dedicated `nagi/meta` branch and upstream synchronization policy in the original plan have not yet been established in the mihomo repository.

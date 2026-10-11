@@ -12,6 +12,8 @@ Implemented CLI behavior covers the actions below within the formats and preserv
 - Show refresh time, expiry time, and traffic usage when the subscription provides them.
 - Keep the previous working configuration when an update fails.
 - Preserve user node selections, rules, and local settings after updates.
+- Schedule cache refresh and conditional application for the selected associated profile.
+- Read age-encrypted subscriptions with a privately stored identity file.
 
 ## Profiles and local configuration
 
@@ -28,6 +30,8 @@ The CLI implements the items below as defined in the [CLI reference](../referenc
 - Test multiple nodes and sort results by latency.
 - Report clearly when a selected node is unavailable or removed.
 - Persist proxy-group selections where possible.
+- Inspect and refresh proxy providers through mihomo's control API.
+- Return automatic groups to mihomo's automatic selection.
 - Show connection details, including the selected proxy chain.
 
 ## Traffic access
