@@ -144,6 +144,33 @@ func TestQuitReturnsSuccessAfterCleanupAndResumesAtNextLogin(t *testing.T) {
 	}
 }
 
+func TestQuitReleasesConfigLockWhileMonitorStops(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	paths, err := nagiruntime.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := pauseMonitor
+	pauseMonitor = func() error {
+		_, err := withNamedLock(paths, "config.lock", func() (any, error) { return nil, nil })
+		return err
+	}
+	t.Cleanup(func() { pauseMonitor = previous })
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := execute(ctx, []string{"quit"}, "test", "test"); done <- err }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("quit held config lock while waiting for monitor")
+	}
+}
+
 func TestQuitRollbackErrorExplainsRecovery(t *testing.T) {
 	cause := errors.New("monitor pause failed")
 	err := quitRollbackError(cause, errors.New("permission denied"))

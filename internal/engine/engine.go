@@ -4,6 +4,7 @@ package engine
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -85,11 +86,23 @@ func (m *Manager) Validate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, binary, "-t", "-f", m.options.ConfigPath, "-d", filepath.Dir(m.options.ConfigPath))
+	cmd := exec.CommandContext(ctx, binary, "-t", "--check-json", "-f", m.options.ConfigPath, "-d", filepath.Dir(m.options.ConfigPath))
 	// Validation output can contain configuration values. Return a fixed error instead.
-	if err := cmd.Run(); err != nil {
+	out, err := cmd.Output()
+	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
+			var report struct {
+				Errors []struct {
+					Path    string `json:"path"`
+					Code    string `json:"code"`
+					Message string `json:"message"`
+				} `json:"errors"`
+			}
+			if json.Unmarshal(out, &report) == nil && len(report.Errors) > 0 {
+				first := report.Errors[0]
+				return fmt.Errorf("configuration validation failed at %s (%s): %s; inspect `nagi config show`", first.Path, first.Code, first.Message)
+			}
 			return fmt.Errorf("configuration validation failed; inspect the selected profile with `nagi config show`, fix it, and retry (validate a local copy with mihomo -t -f FILE -d DIRECTORY): %w", err)
 		}
 		return fmt.Errorf("unable to run mihomo for configuration validation; check NAGI_MIHOMO_BIN and executable permissions: %w", err)

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -112,13 +113,23 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if err := file.Close(); err != nil {
 			return err
 		}
-		cmd := exec.Command(resolved, "-t", "-f", file.Name(), "-d", filepath.Dir(file.Name()))
-		if err := cmd.Run(); err != nil {
+		cmd := exec.Command(resolved, "-t", "--check-json", "-f", file.Name(), "-d", filepath.Dir(file.Name()))
+		out, err := cmd.Output()
+		if err != nil {
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
-				// mihomo diagnostics can contain credentials from the YAML. The
-				// temporary file is removed before this error reaches the user.
-				return errors.New("profile validation failed; check the source YAML being imported/applied or the profile being selected; validate a local copy with mihomo -t -f FILE -d DIRECTORY")
+				var result struct {
+					Errors []struct {
+						Path    string `json:"path"`
+						Code    string `json:"code"`
+						Message string `json:"message"`
+					} `json:"errors"`
+				}
+				if json.Unmarshal(out, &result) == nil && len(result.Errors) > 0 {
+					first := result.Errors[0]
+					return fmt.Errorf("profile validation failed at %s (%s): %s", first.Path, first.Code, first.Message)
+				}
+				return errors.New("profile validation failed; validate a local copy with mihomo -t --check-json -f FILE -d DIRECTORY")
 			}
 			return errors.New("could not run mihomo validation; check NAGI_MIHOMO_BIN and executable permissions, then retry")
 		}
@@ -141,7 +152,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if !status.Running {
 			return nil
 		}
-		if err := client.Put(ctx, "/configs?force=true", map[string]any{"path": path}, nil); err != nil {
+		if err := activateConfig(ctx, client, path); err != nil {
 			return err
 		}
 		if ctx.Value(skipSelectionRestoreKey{}) != true {
@@ -174,7 +185,7 @@ func materializeProfile(store *profile.Store, configDir, name string) (string, e
 	path := filepath.Join(configDir, "profiles", name+".yaml")
 	if _, err := store.Override(name); errors.Is(err, os.ErrNotExist) && !rules.Exists(configDir) {
 		return path, nil
-	} else if err != nil {
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
 	data, err := store.Effective(name)

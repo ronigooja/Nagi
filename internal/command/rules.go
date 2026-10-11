@@ -117,7 +117,7 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		if err != nil {
 			return err
 		}
-		if err := client.Put(ctx, "/configs?force=true", map[string]any{"path": path}, nil); err != nil {
+		if err := activateConfig(ctx, client, path); err != nil {
 			return fmt.Errorf("reload active rules: %w; saved rules were rolled back", err)
 		}
 		return nil
