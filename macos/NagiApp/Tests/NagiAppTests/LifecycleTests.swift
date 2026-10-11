@@ -11,7 +11,38 @@ final class LifecycleTests: XCTestCase {
 
     @MainActor func testQuotaFormattingSaturatesOverflow() {
         let subscription = Subscription(name: "feed", keyConfigured: false, scheduleSeconds: 3600, schedulerRunning: true, nextDue: nil, pauseReason: nil, lastFailureStage: nil, lastFailureReason: nil, expiresAt: nil, upload: Int64.max, download: 1, total: Int64.max)
-        XCTAssertTrue(MenuAppDelegate.quotaLabel(subscription).contains("9223372036854775807"))
+        XCTAssertEqual(MenuAppDelegate.quotaLabel(subscription), "Quota: 0 B available / 8 EiB total (8 EiB uploaded, 1 B downloaded)")
+    }
+
+    @MainActor func testSubscriptionTimeUsesLocalMinutePrecision() {
+        let zone = TimeZone(secondsFromGMT: -7 * 60 * 60)!
+        for timestamp in ["2026-10-06T21:19:43Z", "2026-10-06T21:19:43.535439224Z", "2026-10-06T21:19:43.12345678901234567890Z", "2026-10-06T23:19:43.5+02:00", "2026-10-06T19:19:43-02:00"] {
+            XCTAssertEqual(MenuAppDelegate.subscriptionTime(timestamp, timeZone: zone), "2026-10-06 14:19")
+        }
+        XCTAssertEqual(MenuAppDelegate.subscriptionTime("2026-10-06T01:19:43Z", timeZone: zone), "2026-10-05 18:19")
+        for timestamp in ["", "not a timestamp", "2026-02-30T21:19:43Z", "2026-10-06T21:19:43.Z", "2026-10-06T21:19:43Z private", "2026-10-06T21:19:43", "2026-10-06T29:19:43Z", "2026-10-06T21:19:43+24:00", "2026-10-06T21:19:43Z\n"] {
+            XCTAssertEqual(MenuAppDelegate.subscriptionTime(timestamp, timeZone: zone), "unknown")
+        }
+    }
+
+    @MainActor func testSubscriptionBytesUseTrimmedBinaryUnits() {
+        let cases: [(Int64, String)] = [(-1, "unknown"), (0, "0 B"), (1023, "1023 B"), (1024, "1 KiB"), (1536, "1.5 KiB"), (1264, "1.23 KiB"), (1572864, "1.5 MiB"), (1073741824, "1 GiB"), (1099511627776, "1 TiB"), (1125899906842624, "1 PiB"), (1152921504606846976, "1 EiB"), (Int64.max, "8 EiB")]
+        for (bytes, expected) in cases {
+            XCTAssertEqual(MenuAppDelegate.subscriptionBytes(bytes), expected)
+        }
+    }
+
+    @MainActor func testQuotaShowsAvailableAndProviderSnapshot() {
+        func subscription(upload: Int64, download: Int64, total: Int64) -> Subscription {
+            Subscription(name: "feed", keyConfigured: false, scheduleSeconds: 3600, schedulerRunning: true, nextDue: nil, pauseReason: nil, lastFailureStage: nil, lastFailureReason: nil, expiresAt: nil, upload: upload, download: download, total: total)
+        }
+        XCTAssertEqual(MenuAppDelegate.quotaLabel(subscription(upload: 1073741824, download: 536870912, total: 3221225472)), "Quota: 1.5 GiB available / 3 GiB total (1 GiB uploaded, 512 MiB downloaded)")
+        XCTAssertEqual(MenuAppDelegate.quotaLabel(subscription(upload: 648393234, download: 7448830025, total: 53687091200)), "Quota: 42.46 GiB available / 50 GiB total (618.36 MiB uploaded, 6.94 GiB downloaded)")
+        XCTAssertEqual(MenuAppDelegate.quotaLabel(subscription(upload: 2048, download: 1, total: 1024)), "Quota: 0 B available / 1 KiB total (2 KiB uploaded, 1 B downloaded)")
+        let unknownTotals: [Int64] = [0, -1]
+        for total in unknownTotals {
+            XCTAssertEqual(MenuAppDelegate.quotaLabel(subscription(upload: 1, download: 2, total: total)), "Quota: unknown")
+        }
     }
 }
 
@@ -104,6 +135,9 @@ extension LifecycleTests {
         fi
         if [ "$*" = '--json quit' ] && [ -f '\(directory.appendingPathComponent("quitfail").path)' ]; then
           printf '{"ok":false,"error":{"code":"quit_failed","message":"cleanup failed"}}\\n' >&2; exit 1
+        fi
+        if [ "$*" = "--json $(cat '\(mode.path)' 2>/dev/null) feed" ]; then
+          printf '{"ok":false,"error":{"code":"subscription_error","message":"fixture stage failed"}}\\n' >&2; exit 1
         fi
         case "$*" in
           '--json status') printf '{"ok":true,"data":{"running":false}}\\n' ;;
@@ -434,5 +468,39 @@ extension LifecycleTests {
         XCTAssertNotNil(quitting)
         await expectUntil { self.providerCalls(log).contains(["--json", "quit"]) && !model.busy }
         XCTAssertEqual(providerCalls(log).filter { $0.prefix(4) == ["--json", "proxy", "provider", "add"] }.count, 1)
+    }
+}
+
+@MainActor extension LifecycleTests {
+    func testSubscriptionFlowStopsAtFailedStageAndKeepsSavedRecord() async throws {
+        for added in [false, true] {
+            for stage in ["success", "update", "apply"] {
+                let (directory, script, log) = try modelFixture()
+                defer { try? FileManager.default.removeItem(at: directory) }
+                if stage != "success" {
+                    try "subscription \(stage)".write(to: directory.appendingPathComponent("mode"), atomically: true, encoding: .utf8)
+                }
+                let model = AppModel(cli: NagiCLIClient(executable: script))
+                if added { model.addAndApplySubscription("feed", url: "https://example.invalid/feed") }
+                else { model.updateAndApplySubscription("feed") }
+                await expectUntil { !model.busy }
+                let mutations = lines(log).filter {
+                    $0.hasPrefix("--json subscription add ") || $0 == "--json subscription update feed" || $0 == "--json subscription apply feed"
+                }
+                var expected: [String] = []
+                if added { expected.append("--json subscription add feed https://example.invalid/feed") }
+                expected.append("--json subscription update feed")
+                if stage != "update" { expected.append("--json subscription apply feed") }
+                XCTAssertEqual(mutations, expected)
+                XCTAssertFalse(lines(log).contains { $0.contains("subscription preview") || $0 == "--json start" })
+                if stage == "success" {
+                    XCTAssertEqual(model.notice, "Subscription updated and applied.")
+                } else {
+                    XCTAssertTrue(model.errorMessage?.contains("fixture stage failed") == true)
+                    XCTAssertTrue(model.errorMessage?.contains(stage == "update" ? "apply was not attempted" : "new cache remains available") == true)
+                    if added && stage == "update" { XCTAssertTrue(model.subscriptions.contains { $0.name == "feed" }) }
+                }
+            }
+        }
     }
 }

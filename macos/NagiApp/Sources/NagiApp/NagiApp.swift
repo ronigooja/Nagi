@@ -248,23 +248,19 @@ import AppKit
         addSubmenu("Profiles", profileMenu, enabled: !model.profiles.isEmpty)
 
         let subscriptionMenu = NSMenu()
-        add("Download Subscription…", action: #selector(downloadSubscription), enabled: !model.busy, to: subscriptionMenu)
+        add("Add and Apply Subscription…", action: #selector(addAndApplySubscription), enabled: !model.busy, to: subscriptionMenu)
         if model.subscriptions.isEmpty { disabled("No saved subscriptions", to: subscriptionMenu) }
         else { subscriptionMenu.addItem(.separator()) }
         for subscription in model.subscriptions {
             let actions = NSMenu()
             let quota = Self.quotaLabel(subscription)
             let quotaItem = NSMenuItem(title: quota, action: nil, keyEquivalent: ""); quotaItem.isEnabled = false; actions.addItem(quotaItem)
-            if let expiry = subscription.expiresAt { let expiryItem = NSMenuItem(title: "Expires: \(expiry)", action: nil, keyEquivalent: ""); expiryItem.isEnabled = false; actions.addItem(expiryItem) }
-            disabled(subscription.schedulerRunning ? (subscription.nextDue.map { "Next update: \($0)" } ?? "Next update: pending") : "Scheduler: not running", to: actions)
-            let apply = add("Apply", action: #selector(applySubscription(_:)),
-                            enabled: !model.busy, to: actions)
-            apply.representedObject = subscription.name
-            let preview = add("Preview changes", action: #selector(previewSubscription(_:)), enabled: !model.busy, to: actions)
-            preview.representedObject = subscription.name
+            if let expiry = subscription.expiresAt { let expiryItem = NSMenuItem(title: "Expires: \(Self.subscriptionTime(expiry))", action: nil, keyEquivalent: ""); expiryItem.isEnabled = false; actions.addItem(expiryItem) }
+            disabled(subscription.schedulerRunning ? (subscription.nextDue.map { "Next update: \(Self.subscriptionTime($0))" } ?? "Next update: pending") : "Scheduler: not running", to: actions)
             let updateAndApply = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
                                      enabled: !model.busy, to: actions)
             updateAndApply.representedObject = subscription.name
+            updateAndApply.toolTip = "Replaces configuration and clears local overrides and saved selections; does not start mihomo or enable traffic access."
             actions.addItem(.separator())
             let interval = subscription.scheduleSeconds > 0 ? "Schedule: every \(subscription.scheduleSeconds)s" : "Schedule: off"
             add(interval, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
@@ -323,7 +319,45 @@ import AppKit
         guard sub.total > 0 else { return "Quota: unknown" }
         let (sum, overflow) = max(0, sub.upload).addingReportingOverflow(max(0, sub.download))
         let used = overflow ? Int64.max : sum
-        return "Quota: \(used)/\(sub.total) bytes"
+        let available = max(0, sub.total - used)
+        return "Quota: \(subscriptionBytes(available)) available / \(subscriptionBytes(sub.total)) total (\(subscriptionBytes(sub.upload)) uploaded, \(subscriptionBytes(sub.download)) downloaded)"
+    }
+    static func subscriptionBytes(_ bytes: Int64) -> String {
+        guard bytes >= 0 else { return "unknown" }
+        guard bytes >= 1024 else { return "\(bytes) B" }
+        let units = ["KiB", "MiB", "GiB", "TiB", "PiB", "EiB"]
+        var value = Double(bytes) / 1024
+        var unit = 0
+        while value >= 1024 && unit < units.count - 1 {
+            value /= 1024
+            unit += 1
+        }
+        var number = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), value)
+        while number.hasSuffix("0") { number.removeLast() }
+        if number.hasSuffix(".") { number.removeLast() }
+        return "\(number) \(units[unit])"
+    }
+    static func subscriptionTime(_ raw: String, timeZone: TimeZone = .current) -> String {
+        // Fractions do not affect minute precision. Removing them before parsing
+        // also supports Go's nanoseconds and feeds with higher fractional precision.
+        let pattern = #"^(\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)(?:\.[0-9]+)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)\z"#
+        guard let expression = try? NSRegularExpression(pattern: pattern),
+              let match = expression.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
+              let seconds = Range(match.range(at: 1), in: raw),
+              let zone = Range(match.range(at: 2), in: raw) else { return "unknown" }
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.calendar = Calendar(identifier: .gregorian)
+        parser.timeZone = TimeZone(secondsFromGMT: 0)
+        parser.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+        parser.isLenient = false
+        guard let date = parser.date(from: String(raw[seconds]) + String(raw[zone])) else { return "unknown" }
+        let display = DateFormatter()
+        display.locale = Locale(identifier: "en_US_POSIX")
+        display.calendar = Calendar(identifier: .gregorian)
+        display.timeZone = timeZone
+        display.dateFormat = "yyyy-MM-dd HH:mm"
+        return display.string(from: date)
     }
     private func disabled(_ title: String, to target: NSMenu) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
@@ -338,18 +372,6 @@ import AppKit
     @objc private func updateAndApplySubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         model.updateAndApplySubscription(name)
-    }
-    @objc private func applySubscription(_ sender: NSMenuItem) {
-        guard let name = sender.representedObject as? String else { return }
-        model.applySubscription(name)
-    }
-    @objc private func previewSubscription(_ sender: NSMenuItem) {
-        guard let name = sender.representedObject as? String else { return }
-        Task { @MainActor in
-            let alert = NSAlert(); alert.messageText = "Subscription preview"
-            alert.informativeText = await model.previewSubscription(name)
-            alert.addButton(withTitle: "OK"); alert.runModal()
-        }
     }
     @objc private func scheduleSubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String,
@@ -450,11 +472,11 @@ import AppKit
             }
         }
     }
-    @objc private func downloadSubscription() {
+    @objc private func addAndApplySubscription() {
         let alert = NSAlert()
-        alert.messageText = "Download Subscription"
-        alert.informativeText = "Enter a name and the subscription URL."
-        alert.addButton(withTitle: "Download")
+        alert.messageText = "Add and Apply Subscription"
+        alert.informativeText = "Save, download, and apply this subscription. Applying replaces the target configuration and clears local overrides and saved selections. This does not start mihomo or enable traffic access."
+        alert.addButton(withTitle: "Add and Apply")
         alert.addButton(withTitle: "Cancel")
 
         let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 70))
@@ -499,7 +521,7 @@ import AppKit
                 alert.window.initialFirstResponder = urlField
                 continue
             }
-            model.addAndDownloadSubscription(name, url: url)
+            model.addAndApplySubscription(name, url: url)
             return
         }
     }

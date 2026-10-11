@@ -381,6 +381,12 @@ enum EngineState { case starting, running, stopped, unavailable }
         perform(ProfileCommands.applyDefaultOverride(for: profile))
     }
     func updateAndApplySubscription(_ name: String) {
+        saveDownloadAndApplySubscription(name, url: nil)
+    }
+    func addAndApplySubscription(_ name: String, url: String) {
+        saveDownloadAndApplySubscription(name, url: url)
+    }
+    private func saveDownloadAndApplySubscription(_ name: String, url: String?) {
         guard !busy && !quitting else { return }
         settingsGeneration += 1
         busy = true
@@ -388,77 +394,40 @@ enum EngineState { case starting, running, stopped, unavailable }
         notice = nil
         Task {
             defer { applyingSetting = false; busy = false }
+            if let url {
+                do {
+                    _ = try await cli.run(["subscription", "add", name, url])
+                    settingsGeneration += 1
+                    subscriptions.append(Subscription(name: name, keyConfigured: false, scheduleSeconds: 3600, schedulerRunning: false, nextDue: nil, pauseReason: nil, lastFailureStage: nil, lastFailureReason: nil, expiresAt: nil, upload: 0, download: 0, total: 0))
+                    subscriptions.sort { $0.name < $1.name }
+                } catch {
+                    settingsGeneration += 1
+                    errorMessage = "Subscription add failed: \(error.localizedDescription)"
+                    return
+                }
+            }
             do {
                 _ = try await cli.run(["subscription", "update", name])
+                settingsGeneration += 1
+                await refreshSubscriptions()
             } catch {
                 settingsGeneration += 1
-                errorMessage = "Subscription update failed: \(error.localizedDescription)"
+                let state = url == nil ? "Subscription download failed; apply was not attempted" : "Subscription saved, but download failed; apply was not attempted"
+                errorMessage = "\(state): \(error.localizedDescription)"
                 return
             }
             do {
                 let result = try await cli.run(["subscription", "apply", name])
                 settingsGeneration += 1
                 errorMessage = nil
+                profile = result["profile"]?.string
+                await refreshProfiles()
+                await refreshRuntimeSettings()
                 notice = "Subscription updated and applied."
-                profile = result["profile"]?.string
-                await refreshProfiles()
-                await refreshRuntimeSettings()
                 notify()
             } catch {
                 settingsGeneration += 1
-                errorMessage = "Subscription updated, but apply failed: \(error.localizedDescription)"
-            }
-        }
-    }
-    func addAndDownloadSubscription(_ name: String, url: String) {
-        guard !busy && !quitting else { return }
-        settingsGeneration += 1
-        busy = true
-        applyingSetting = true
-        notice = nil
-        Task {
-            defer { applyingSetting = false; busy = false }
-            do {
-                _ = try await cli.run(["subscription", "add", name, url])
-                settingsGeneration += 1
-                subscriptions.append(Subscription(name: name, keyConfigured: false, scheduleSeconds: 3600, schedulerRunning: false, nextDue: nil, pauseReason: nil, lastFailureStage: nil, lastFailureReason: nil, expiresAt: nil, upload: 0, download: 0, total: 0))
-                subscriptions.sort { $0.name < $1.name }
-            } catch {
-                settingsGeneration += 1
-                errorMessage = "Subscription add failed: \(error.localizedDescription)"
-                return
-            }
-            do {
-                _ = try await cli.run(["subscription", "update", name])
-                settingsGeneration += 1
-                errorMessage = nil
-                notice = "Subscription saved and downloaded. Apply it to activate the cache."
-            } catch {
-                settingsGeneration += 1
-                errorMessage = "Subscription saved, but download failed: \(error.localizedDescription). Retry the download from the CLI."
-            }
-        }
-    }
-    func applySubscription(_ name: String) {
-        guard !busy && !quitting else { return }
-        settingsGeneration += 1
-        busy = true
-        applyingSetting = true
-        notice = nil
-        Task {
-            defer { applyingSetting = false; busy = false }
-            do {
-                let result = try await cli.run(["subscription", "apply", name])
-                settingsGeneration += 1
-                errorMessage = nil
-                profile = result["profile"]?.string
-                await refreshProfiles()
-                await refreshRuntimeSettings()
-                notice = "Cached subscription applied."
-                notify()
-            } catch {
-                settingsGeneration += 1
-                errorMessage = "Subscription apply failed: \(error.localizedDescription)"
+                errorMessage = "Subscription downloaded, but apply failed; the new cache remains available: \(error.localizedDescription). Retry Update and Apply, or use nagi subscription apply NAME to retry the cache."
             }
         }
     }
@@ -492,23 +461,6 @@ enum EngineState { case starting, running, stopped, unavailable }
         var args = ["subscription", "schedule", name, "off"]
         if let seconds { args[3] = String(seconds) }
         perform(args)
-    }
-    func previewSubscription(_ name: String) async -> String {
-        do {
-            let value = try await cli.run(["subscription", "preview", name])
-            let added = value["added"]?.array.compactMap(\.string) ?? []
-            let removed = value["removed"]?.array.compactMap(\.string) ?? []
-            let changed = value["changed"]?.array.compactMap(\.string) ?? []
-            var lines = ["Compared cached subscription with profile \(name):",
-                         "Added (\(added.count)): \(added.joined(separator: ", "))",
-                         "Removed (\(removed.count)): \(removed.joined(separator: ", "))",
-                         "Changed (\(changed.count)): \(changed.joined(separator: ", "))"]
-            for change in value["changes"]?.array ?? [] {
-                lines.append("\(change["path"]?.string ?? "unknown path") · \(change["kind"]?.string ?? "unknown change") · \(change["behavior"]?.string ?? "")")
-            }
-            if value["remote_nodes_compared"]?.bool == false { lines.append("Remote provider nodes were not compared.") }
-            return lines.joined(separator: "\n")
-        } catch { return "Preview unavailable: \(error.localizedDescription)\nApply remains available if the cached subscription is valid." }
     }
     func clearSubscriptionKey(_ name: String) { perform(["subscription", "key", name, "clear"]) }
     func setSubscriptionKey(_ name: String, file: String) { perform(["subscription", "key", name, file]) }
