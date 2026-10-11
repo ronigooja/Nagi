@@ -37,7 +37,7 @@ func operationItem(t *testing.T, page *Page, label string) Item {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, item := range view.Items {
+	for _, item := range append(view.Items, view.Actions...) {
 		if item.Label == label {
 			return item
 		}
@@ -68,14 +68,14 @@ func TestOperationPageStaticCommands(t *testing.T) {
 			t.Errorf("system proxy status args=%v", item.Args)
 		}
 		item = operationItem(t, TrafficPage(), "Disable system proxy")
-		if !reflect.DeepEqual(item.Args, []string{"system-proxy", "disable"}) || item.Confirm == "" {
-			t.Errorf("disable system proxy: args=%v confirm=%q", item.Args, item.Confirm)
+		if !reflect.DeepEqual(item.Args, []string{"system-proxy", "disable"}) || item.Impact == "" {
+			t.Errorf("disable system proxy: args=%v confirm=%q", item.Args, item.Impact)
 		}
 	}
 	for _, tt := range tests {
 		item := operationItem(t, tt.page, tt.label)
-		if !reflect.DeepEqual(item.Args, tt.args) || (item.Confirm != "") != tt.confirm {
-			t.Errorf("%s: args=%v confirm=%q", tt.label, item.Args, item.Confirm)
+		if !reflect.DeepEqual(item.Args, tt.args) || (item.Impact != "") != tt.confirm {
+			t.Errorf("%s: args=%v confirm=%q", tt.label, item.Args, item.Impact)
 		}
 	}
 }
@@ -88,7 +88,7 @@ func TestLinuxTrafficMenuOmitsSystemProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, item := range view.Items {
+	for _, item := range append(view.Items, view.Actions...) {
 		if len(item.Args) > 0 && item.Args[0] == "system-proxy" {
 			t.Fatalf("unsupported Linux system proxy action: %q", item.Label)
 		}
@@ -159,9 +159,9 @@ func TestOperationPromptCommands(t *testing.T) {
 	}
 }
 
-func TestRuleRemovalUsesFreshNameAndConfirmation(t *testing.T) {
+func TestRuleRemovalUsesFreshNameOnce(t *testing.T) {
 	runner := &operationRunner{data: map[string]any{"rules custom": map[string]any{"entries": []map[string]any{{"name": "work rule"}}}}}
-	session := NewSession(runner, strings.NewReader("1\nyes\n"), &bytes.Buffer{})
+	session := NewSession(runner, strings.NewReader("1\n"), &bytes.Buffer{})
 	item := operationItem(t, RulesPage(), "Remove custom rule or set")
 	if err := item.Action(context.Background(), session); err != nil {
 		t.Fatal(err)
@@ -172,12 +172,12 @@ func TestRuleRemovalUsesFreshNameAndConfirmation(t *testing.T) {
 	}
 }
 
-func TestRuleRemovalCanceled(t *testing.T) {
+func TestRuleSelectionCanceled(t *testing.T) {
 	runner := &operationRunner{data: map[string]any{"rules custom": map[string]any{"entries": []map[string]any{{"name": "work rule"}}}}}
-	session := NewSession(runner, strings.NewReader("1\nno\n"), &bytes.Buffer{})
+	session := NewSession(runner, strings.NewReader("b\n"), &bytes.Buffer{})
 	item := operationItem(t, RulesPage(), "Remove custom rule or set")
-	if err := item.Action(context.Background(), session); err != nil {
-		t.Fatal(err)
+	if err := item.Action(context.Background(), session); err != ErrBack {
+		t.Fatalf("cancel = %v", err)
 	}
 	want := [][]string{{"rules", "custom"}}
 	if !reflect.DeepEqual(runner.calls, want) {

@@ -14,7 +14,7 @@ func diagnosticItem(t *testing.T, page *Page, label string) Item {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, item := range view.Items {
+	for _, item := range append(view.Items, view.Actions...) {
 		if item.Label == label {
 			return item
 		}
@@ -52,8 +52,8 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		item := diagnosticItem(t, tt.page, tt.label)
-		if !reflect.DeepEqual(item.Args, tt.args) || (item.Confirm != "") != tt.confirm {
-			t.Errorf("%s: args=%v confirm=%q", tt.label, item.Args, item.Confirm)
+		if !reflect.DeepEqual(item.Args, tt.args) || (item.Impact != "") != tt.confirm {
+			t.Errorf("%s: args=%v confirm=%q", tt.label, item.Args, item.Impact)
 		}
 	}
 }
@@ -64,7 +64,7 @@ func TestPrivilegedHelperGatedToMacOS(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, item := range view.Items {
+		for _, item := range append(view.Items, view.Actions...) {
 			if strings.Contains(item.Label, "Privileged helper") || strings.Contains(item.Label, "backend") {
 				t.Errorf("%s: unsupported helper action %q", goos, item.Label)
 			}
@@ -98,8 +98,8 @@ func TestServiceConfirmationAndErrorRecovery(t *testing.T) {
 		input string
 		want  bool
 	}{
-		{"3\nno\nb\nq\n", false},
-		{"3\nyes\nb\nq\n", true},
+		{"d\nb\nq\n", true},
+		{"d\nb\nq\n", true},
 	} {
 		fake := &fakeRunner{results: map[string]Result{"service uninstall": {Code: 1, Error: &CLIError{Code: "service_error", Message: "manager unavailable"}}}}
 		var out bytes.Buffer

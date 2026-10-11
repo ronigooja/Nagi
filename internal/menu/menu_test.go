@@ -41,7 +41,7 @@ func (f *fakeRunner) Run(_ context.Context, args []string) Result {
 func TestMenuRuntimeNavigation(t *testing.T) {
 	fake := &fakeRunner{results: map[string]Result{"status": {Data: map[string]any{"running": false, "profile": "default"}}}}
 	var out bytes.Buffer
-	input := strings.NewReader("wrong\n\n1\n3\nno\n3\nyes\nb\nq\n")
+	input := strings.NewReader("wrong\n\n1\nd\nb\nq\n")
 	code := Run(context.Background(), NewSession(fake, input, &out))
 	if code != 0 {
 		t.Fatalf("exit status = %d", code)
@@ -49,8 +49,8 @@ func TestMenuRuntimeNavigation(t *testing.T) {
 	if strings.Count(out.String(), "Choose a listed number") != 1 {
 		t.Fatalf("invalid choice feedback missing: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "Cancelled.") {
-		t.Fatal("confirmation cancellation missing")
+	if strings.Contains(out.String(), "confirm") {
+		t.Fatal("confirmation should not be shown")
 	}
 	for _, args := range fake.calls {
 		if reflect.DeepEqual(args, []string{"stop"}) {
@@ -63,7 +63,7 @@ func TestMenuRuntimeNavigation(t *testing.T) {
 func TestRuntimeModeMapping(t *testing.T) {
 	fake := &fakeRunner{results: map[string]Result{"status": {Data: map[string]any{"running": true, "profile": "work"}}, "mode saved": {Data: map[string]any{"mode": "rule"}}}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("1\n9\n2\nq\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("1\nk\nc\nq\n"), &out))
 	want := []string{"mode", "save", "global"}
 	for _, args := range fake.calls {
 		if reflect.DeepEqual(args, want) {
@@ -151,7 +151,7 @@ func TestCommandErrorHidesURL(t *testing.T) {
 		"start":  {Code: 1, Error: &CLIError{Message: "failed https://secret.example/token"}},
 	}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("1\n2\nq\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("1\nc\nq\n"), &out))
 	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "Error: failed [redacted URL]") {
 		t.Fatalf("command error URL was not hidden: %s", out.String())
 	}

@@ -10,7 +10,7 @@ func init() { RegisterPage("rules", RulesPage) }
 
 func RulesPage() *Page {
 	return &Page{Title: "Rules", Help: []string{"rules"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
-		return PageView{Items: []Item{
+		return PageView{Actions: []Item{
 			{Label: "List active rules", Args: []string{"rules", "list"}},
 			{Label: "List active rule providers", Args: []string{"rules", "providers"}},
 			{Label: "List custom rules and sets", Args: []string{"rules", "custom"}},

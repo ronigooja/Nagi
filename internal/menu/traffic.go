@@ -21,20 +21,20 @@ func TrafficPage() *Page {
 		items := []Item{
 			{Label: "TUN status", Args: []string{"tun", "status"}},
 			{Label: "Enable TUN", Args: []string{"tun", "enable"}},
-			{Label: "Disable TUN", Args: []string{"tun", "disable"}, Confirm: "Disable runtime TUN?"},
+			{Label: "Disable TUN", Args: []string{"tun", "disable"}, Impact: "Disable runtime TUN?"},
 			{Label: "Listener ports", Args: []string{"ports", "status"}},
 			{Label: "LAN access status", Args: []string{"lan", "status"}},
 			{Label: "Enable LAN access", Action: enableLAN},
-			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Confirm: "Disable LAN access and bind listeners to loopback?"},
+			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Impact: "Disable LAN access and bind listeners to loopback?"},
 		}
 		if runtime.GOOS == "darwin" {
 			items = append([]Item{
 				{Label: "System proxy status", Args: []string{"system-proxy", "status"}},
 				{Label: "Enable system proxy", Args: []string{"system-proxy", "enable"}},
-				{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Confirm: "Restore the OS proxy settings saved by Nagi?"},
+				{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Impact: "Restore the OS proxy settings saved by Nagi?"},
 			}, items...)
 		}
-		return PageView{Items: items}, nil
+		return PageView{Actions: items}, nil
 	}}
 }
 
@@ -54,11 +54,11 @@ func enableLAN(ctx context.Context, s *Session) error {
 
 func ConnectionsPage() *Page {
 	return &Page{Title: "Connections", Help: []string{"connections"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
-		return PageView{Items: []Item{
+		return PageView{Actions: []Item{
 			{Label: "List active connections", Args: []string{"connections", "list"}},
 			{Label: "Show a connection", Action: connectionAction("show")},
 			{Label: "Close a connection", Action: connectionAction("close")},
-			{Label: "Close all connections", Args: []string{"connections", "close-all"}, Confirm: "Close all current connections? Type yes to confirm."},
+			{Label: "Close all connections", Args: []string{"connections", "close-all"}, Impact: "Close all current connections? Type yes to confirm."},
 		}}, nil
 	}}
 }
@@ -88,7 +88,7 @@ func connectionAction(verb string) func(context.Context, *Session) error {
 
 func LogsPage() *Page {
 	return &Page{Title: "Logs and traffic", Help: []string{"logs"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
-		return PageView{Items: []Item{
+		return PageView{Actions: []Item{
 			{Label: "Show recent logs", Action: recentLogs},
 			{Label: "Follow logs (Ctrl-C returns here)", Action: func(ctx context.Context, s *Session) error { s.Stream(ctx, "logs", "follow"); return nil }},
 			{Label: "Watch traffic (Ctrl-C returns here)", Action: func(ctx context.Context, s *Session) error { s.Stream(ctx, "traffic", "watch"); return nil }},

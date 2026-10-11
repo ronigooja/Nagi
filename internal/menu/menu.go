@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -17,13 +18,17 @@ import (
 )
 
 type Session struct {
-	runner Runner
-	in     *bufio.Reader
-	out    io.Writer
+	runner     Runner
+	in         *bufio.Reader
+	out        io.Writer
+	file       *os.File
+	interrupts chan os.Signal
 }
 
 func NewSession(runner Runner, in io.Reader, out io.Writer) *Session {
-	return &Session{runner: runner, in: bufio.NewReader(in), out: out}
+	s := &Session{runner: runner, in: bufio.NewReader(in), out: out}
+	s.file, _ = in.(*os.File)
+	return s
 }
 
 func (s *Session) Fetch(ctx context.Context, args ...string) Result {
@@ -31,8 +36,10 @@ func (s *Session) Fetch(ctx context.Context, args ...string) Result {
 }
 
 func (s *Session) Run(ctx context.Context, args ...string) Result {
+	s.Printf("Executing: %s\n", output.RedactError(strings.Join(args, " ")))
 	result := s.Fetch(ctx, args...)
-	s.showResult(result)
+	s.ShowResult(args, result)
+	s.discardInterrupts()
 	return result
 }
 
@@ -43,6 +50,7 @@ func (s *Session) Stream(ctx context.Context, args ...string) Result {
 	}
 	streamCtx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
+	defer s.discardInterrupts()
 	result := streamer.Stream(streamCtx, args, s.out)
 	if streamCtx.Err() != nil && ctx.Err() == nil {
 		return Result{}
@@ -93,13 +101,36 @@ type frame struct {
 	page   *Page
 	view   PageView
 	index  int
+	filter string
 	loaded bool
+	render bool
 }
 
-// Run drives the line-oriented menu. It returns zero for ordinary exit and
-// interruption; command failures remain on the current page.
-func Run(ctx context.Context, s *Session) int {
-	stack := []frame{{page: RootPage()}}
+func (f *frame) resources() []Item {
+	if f.filter == "" {
+		return f.view.Items
+	}
+	items := []Item{}
+	for _, item := range f.view.Items {
+		name := item.Name
+		if name == "" {
+			name = item.Label
+		}
+		if strings.Contains(strings.ToLower(name), strings.ToLower(f.filter)) {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+// Run drives the scrollback-preserving menu; operations remain CLI commands.
+func Run(ctx context.Context, s *Session) int { return RunPage(ctx, s, RootPage()) }
+
+func RunPage(ctx context.Context, s *Session, root *Page) int {
+	s.interrupts = make(chan os.Signal, 8)
+	signal.Notify(s.interrupts, os.Interrupt)
+	defer signal.Stop(s.interrupts)
+	stack := []frame{{page: root, render: true}}
 	for len(stack) > 0 {
 		current := &stack[len(stack)-1]
 		if !current.loaded {
@@ -107,31 +138,54 @@ func Run(ctx context.Context, s *Session) int {
 				view, err := current.page.Load(ctx, s)
 				if err != nil {
 					s.Printf("Error refreshing %s: %s\n", current.page.Title, output.RedactError(err.Error()))
-					// A failed refresh invalidates the old choices. Keeping them can
-					// dispatch an action against a resource that no longer exists.
-					current.view = view
-					if current.view.Empty == "" && len(current.view.Items) == 0 {
-						current.view.Empty = "Data unavailable. Refresh or go back."
+					view.Items = nil // Failed reads cannot leave stale resources selectable.
+					if view.Empty == "" {
+						view.Empty = "Data unavailable. Refresh or go back."
 					}
-				} else {
-					current.view = view
 				}
+				current.view = view
 			}
 			current.loaded = true
-			if current.index*pageSize >= len(current.view.Items) {
+			last := (len(current.resources()) - 1) / pageSize
+			if current.index > last {
+				current.index = last
+			}
+			if current.index < 0 {
 				current.index = 0
 			}
+			current.render = true
 		}
-		s.render(current.page, current.view, current.index, len(stack))
+		resources := current.resources()
+		if current.render {
+			view := current.view
+			view.Items = resources
+			if current.filter != "" {
+				view.Context += "\nFilter: " + current.filter
+			}
+			s.render(current.page, view, current.index, len(stack))
+			current.render = false
+		}
 		value, err := s.readLine("Choice: ")
 		if errors.Is(err, ErrQuit) || errors.Is(err, context.Canceled) {
 			return 0
 		}
-		if err != nil {
+		if errors.Is(err, ErrBack) {
+			value = "b"
+			if len(stack) == 1 {
+				return 0
+			}
+		} else if err != nil {
 			s.Printf("Input error: %s\n", err)
 			return 1
 		}
-		switch strings.ToLower(value) {
+		if strings.HasPrefix(value, "/") {
+			current.filter = strings.TrimSpace(value[1:])
+			current.index = 0
+			current.render = true
+			continue
+		}
+		value = strings.ToLower(value)
+		switch value {
 		case "":
 			continue
 		case "q":
@@ -148,15 +202,19 @@ func Run(ctx context.Context, s *Session) int {
 			current.loaded = false
 			continue
 		case "h":
-			if len(current.page.Help) > 0 {
-				s.Run(ctx, append([]string{"help"}, current.page.Help...)...)
-			} else {
-				s.WriteLine("Choose an action to see its command help.")
+			s.WriteLine("Choose a numbered resource or a letter action. /word filters names; / clears the filter. Ctrl-C returns to the parent; q exits only the menu.")
+			for _, item := range fixedActions(current.view) {
+				s.Printf("%s: %s", item.Key, output.RedactError(item.Label))
+				if item.Impact != "" {
+					s.Printf(" — %s", output.RedactError(impactDescription(item.Impact)))
+				}
+				s.WriteLine("")
 			}
 			continue
 		case "n":
-			if (current.index+1)*pageSize < len(current.view.Items) {
+			if (current.index+1)*pageSize < len(resources) {
 				current.index++
+				current.render = true
 			} else {
 				s.WriteLine("Already at the last page.")
 			}
@@ -164,71 +222,112 @@ func Run(ctx context.Context, s *Session) int {
 		case "p":
 			if current.index > 0 {
 				current.index--
+				current.render = true
 			} else {
 				s.WriteLine("Already at the first page.")
 			}
 			continue
 		}
-		n, err := strconv.Atoi(value)
-		start := current.index * pageSize
-		end := start + pageSize
-		if end > len(current.view.Items) {
-			end = len(current.view.Items)
+		var item Item
+		found := false
+		for _, action := range fixedActions(current.view) {
+			if value == action.Key {
+				item = action
+				found = true
+				break
+			}
 		}
-		if err != nil || n < 1 || start+n > end {
-			s.WriteLine("Choose a listed number, r, h, b, or q.")
+		if !found {
+			n, e := strconv.Atoi(value)
+			start := current.index * pageSize
+			if e == nil && n >= 1 && n <= pageSize && start+n <= len(resources) {
+				item = resources[start+n-1]
+				found = true
+			}
+		}
+		if !found {
+			s.WriteLine("Choose a listed number or letter, /filter, r, h, b, or q.")
 			continue
 		}
-		item := current.view.Items[start+n-1]
 		if item.Next != nil {
-			stack = append(stack, frame{page: item.Next()})
+			stack = append(stack, frame{page: item.Next(), render: true})
 			continue
 		}
-		if item.Confirm != "" {
-			confirmed, err := s.Confirm(item.Confirm)
-			if errors.Is(err, ErrQuit) {
-				return 0
-			}
-			if errors.Is(err, ErrBack) {
-				continue
-			}
-			if err != nil {
-				s.Printf("Input error: %s\n", err)
-				continue
-			}
-			if !confirmed {
-				s.WriteLine("Cancelled.")
-				continue
-			}
-		}
-		if item.Action != nil {
-			if err := item.Action(ctx, s); errors.Is(err, ErrQuit) {
-				return 0
-			} else if err != nil && !errors.Is(err, ErrBack) {
-				s.Printf("Error: %s\n", output.RedactError(err.Error()))
-			}
+		nav := Navigation{}
+		if item.Navigate != nil {
+			nav, err = item.Navigate(ctx, s)
+		} else if item.Action != nil {
+			err = item.Action(ctx, s)
 		} else if len(item.Args) > 0 {
 			s.Run(ctx, item.Args...)
+			err = nil
+		}
+		if errors.Is(err, ErrQuit) {
+			return 0
+		}
+		if err != nil && !errors.Is(err, ErrBack) {
+			s.Printf("Error: %s\n", output.RedactError(err.Error()))
 		}
 		current.loaded = false
+		if err == nil && nav.Back && len(stack) > 1 {
+			stack = stack[:len(stack)-1]
+			stack[len(stack)-1].loaded = false
+		} else if err == nil && nav.Next != nil {
+			stack = append(stack, frame{page: nav.Next, render: true})
+		}
 	}
 	return 0
 }
 
+// The terminal is canonical: readiness means a complete line is available.
+// Polling in the same goroutine avoids abandoned readers after cancellation.
 func (s *Session) interruptibleRead() (string, error) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	type response struct {
-		line string
-		err  error
-	}
-	ready := make(chan response, 1)
-	go func() { line, err := s.in.ReadString('\n'); ready <- response{line, err} }()
 	select {
-	case result := <-ready:
-		return result.line, result.err
-	case <-ctx.Done():
-		return "", ErrQuit
+	case <-s.interrupts:
+		fmt.Fprintln(s.out)
+		return "", ErrBack
+	default:
+	}
+	if s.in.Buffered() > 0 || s.file == nil || !IsTerminal(s.file) {
+		return s.in.ReadString('\n')
+	}
+	temporary := false
+	if s.interrupts == nil {
+		s.interrupts = make(chan os.Signal, 8)
+		signal.Notify(s.interrupts, os.Interrupt)
+		temporary = true
+	}
+	if temporary {
+		defer func() { signal.Stop(s.interrupts); s.interrupts = nil }()
+	}
+	for {
+		select {
+		case <-s.interrupts:
+			fmt.Fprintln(s.out)
+			return "", ErrBack
+		default:
+		}
+		fd := s.file.Fd()
+		n, errno := terminalReady(fd)
+		if errno == syscall.EINTR {
+			continue
+		}
+		if errno != 0 {
+			return "", errno
+		}
+		if n > 0 {
+			return s.in.ReadString('\n')
+		}
+	}
+}
+
+func (s *Session) discardInterrupts() {
+	for {
+		select {
+		case <-s.interrupts:
+		default:
+			return
+		}
 	}
 }
 

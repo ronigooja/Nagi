@@ -28,17 +28,17 @@ func statusSummary(result Result) string {
 
 func RuntimePage() *Page {
 	return &Page{Title: "Runtime status", Help: []string{"status"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: statusSummary(s.Fetch(ctx, "status")), Items: []Item{
+		view := PageView{Context: statusSummary(s.Fetch(ctx, "status")), Actions: []Item{
 			{Label: "Show status", Args: []string{"status"}, Help: []string{"status"}},
 			{Label: "Start mihomo", Args: []string{"start"}, Help: []string{"start"}},
-			{Label: "Stop mihomo", Args: []string{"stop"}, Confirm: "Stop mihomo?", Help: []string{"stop"}},
-			{Label: "Restart mihomo", Args: []string{"restart"}, Confirm: "Restart mihomo?", Help: []string{"restart"}},
+			{Label: "Stop mihomo", Args: []string{"stop"}, Impact: "Stop mihomo?", Help: []string{"stop"}},
+			{Label: "Restart mihomo", Args: []string{"restart"}, Impact: "Restart mihomo?", Help: []string{"restart"}},
 			{Label: "Show current configuration", Args: []string{"config", "show"}, Help: []string{"config", "show"}},
 			{Label: "Validate current configuration", Args: []string{"config", "validate"}, Help: []string{"config", "validate"}},
 			{Label: "Reload configuration", Args: []string{"config", "reload"}, Help: []string{"config", "reload"}},
 			{Label: "Change runtime mode", Next: func() *Page { return modePage(false) }, Help: []string{"mode"}},
 			{Label: "Save persistent mode", Next: func() *Page { return modePage(true) }, Help: []string{"mode"}},
-			{Label: "Quit Nagi for this login session", Args: []string{"quit"}, Confirm: "Stop the login monitor and mihomo for this session?", Help: []string{"quit"}},
+			{Label: "Quit Nagi for this login session", Args: []string{"quit"}, Impact: "Stop the login monitor and mihomo for this session?", Help: []string{"quit"}},
 		}}
 		return view, nil
 	}}
@@ -65,7 +65,7 @@ func modePage(persistent bool) *Page {
 			if persistent {
 				args = []string{"mode", "save", mode}
 			}
-			view.Items = append(view.Items, Item{Label: mode, Args: args, Help: []string{"mode"}})
+			view.Actions = append(view.Actions, Item{Label: mode, Args: args, Help: []string{"mode"}})
 		}
 		return view, nil
 	}}

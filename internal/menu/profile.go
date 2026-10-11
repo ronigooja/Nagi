@@ -80,12 +80,12 @@ func profileDetailPage(name string) *Page {
 			{Label: "Use profile", Args: []string{"profile", "use", name}},
 			{Label: "Export source YAML", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "export", name) }},
 			{Label: "Back up source YAML", Args: []string{"profile", "backup", name}},
-			{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Confirm: "Replace this profile with its backup?"},
+			{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Impact: "Replace this profile with its backup?"},
 			{Label: "Compare with backup or another profile", Action: func(ctx context.Context, s *Session) error { return diffProfile(ctx, s, name) }},
 			{Label: "Show local override", Args: []string{"profile", "override", "show", name}},
 			{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }},
-			{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Confirm: "Clear this profile's local override?"},
-			{Label: "Remove profile", Args: []string{"profile", "remove", name}, Confirm: "Remove this profile? Its backup will remain."},
+			{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Clear this profile's local override?"},
+			{Label: "Remove profile", Args: []string{"profile", "remove", name}, Impact: "Remove this profile? Its backup will remain."},
 		}}, nil
 	}}
 }
@@ -212,11 +212,11 @@ func subscriptionDetailPage(name string) *Page {
 		var preview menuPreview
 		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "preview", name), &preview); err == nil {
 			view.Context = strings.Join(previewLines(preview), "\n")
-			view.Items = append(view.Items, Item{Label: "Apply cached subscription", Args: []string{"subscription", "apply", name}, Confirm: "Apply cached subscription as a profile?"})
+			view.Items = append(view.Items, Item{Label: "Apply cached subscription", Args: []string{"subscription", "apply", name}, Impact: "Apply cached subscription as a profile?"})
 		} else {
 			view.Context = "Preview unavailable: " + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ". Update the cache or retry preview before applying."
 		}
-		view.Items = append(view.Items, Item{Label: "Remove subscription and cache", Args: []string{"subscription", "remove", name}, Confirm: "Remove this subscription and its cache?"})
+		view.Items = append(view.Items, Item{Label: "Remove subscription and cache", Args: []string{"subscription", "remove", name}, Impact: "Remove this subscription and its cache?"})
 		return view, nil
 	}}
 }

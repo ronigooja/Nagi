@@ -10,7 +10,7 @@ func init() { RegisterPage("dns", DNSPage) }
 // DNSPage exposes the existing DNS commands without making claims about OS DNS capture.
 func DNSPage() *Page {
 	return &Page{Title: "DNS", Help: []string{"dns"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
-		return PageView{Context: "dns check inspects configuration and the mihomo API only; it is not an OS DNS leak test.", Items: []Item{
+		return PageView{Context: "dns check inspects configuration and the mihomo API only; it is not an OS DNS leak test.", Actions: []Item{
 			{Label: "Show DNS status", Args: []string{"dns", "status"}},
 			{Label: "Check DNS configuration", Args: []string{"dns", "check"}},
 			{Label: "Set direct DoH upstreams", Action: dnsSet("direct")},
@@ -18,7 +18,7 @@ func DNSPage() *Page {
 			{Label: "Add DNS exception", Action: dnsExceptionAdd},
 			{Label: "Remove DNS exception", Action: dnsExceptionRemove},
 			{Label: "Enable TUN DNS interception", Args: []string{"dns", "tun", "on"}},
-			{Label: "Disable TUN DNS interception", Args: []string{"dns", "tun", "off"}, Confirm: "Disable TUN DNS interception in the selected profile?"},
+			{Label: "Disable TUN DNS interception", Args: []string{"dns", "tun", "off"}, Impact: "Disable TUN DNS interception in the selected profile?"},
 			{Label: "Query a domain", Action: dnsQuery},
 			{Label: "Flush mihomo DNS cache", Args: []string{"dns", "flush"}},
 		}}, nil

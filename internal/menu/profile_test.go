@@ -34,7 +34,7 @@ func TestProfileListAndFileAction(t *testing.T) {
 	if !reflect.DeepEqual(runner.calls[len(runner.calls)-1], want) {
 		t.Fatalf("export args = %#v, want %#v", runner.calls[len(runner.calls)-1], want)
 	}
-	if detail.Items[8].Confirm == "" || detail.Items[3].Confirm == "" {
+	if detail.Items[8].Impact == "" || detail.Items[3].Impact == "" {
 		t.Fatal("profile removal and restore must require confirmation")
 	}
 }
@@ -55,7 +55,7 @@ func TestSubscriptionPreviewBeforeApplyAndURLRedaction(t *testing.T) {
 	if strings.Contains(view.Context, "secret.example") || !strings.Contains(view.Context, "[redacted URL]") {
 		t.Fatalf("URL leaked in preview: %q", view.Context)
 	}
-	if view.Items[2].Confirm == "" || view.Items[3].Confirm == "" {
+	if view.Items[2].Impact == "" || view.Items[3].Impact == "" {
 		t.Fatal("subscription apply and remove must require confirmation")
 	}
 }
