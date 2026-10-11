@@ -31,6 +31,9 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
+  <key>NSAppTransportSecurity</key><dict>
+    <key>NSAllowsArbitraryLoads</key><true/>
+  </dict>
 </dict></plist>
 PLIST
 printf 'Nagi App build succeeded: %s\n' "$app_dir"

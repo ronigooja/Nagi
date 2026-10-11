@@ -11,6 +11,7 @@ import AppKit
 
 @MainActor final class MenuAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model = AppModel()
+    private let groupIcons = GroupIconLoader()
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var pulse: Timer?
@@ -211,12 +212,20 @@ import AppKit
         addSubmenu("Mode", modeMenu, enabled: model.state == .running)
 
         let groupsMenu = NSMenu()
-        if model.groups.isEmpty { disabled("No proxy groups", to: groupsMenu) }
+        if model.groups.allSatisfy(\.hidden) { disabled("No visible proxy groups", to: groupsMenu) }
         for group in model.groups {
+            if group.hidden { continue }
             let choices = NSMenu()
+            let automatic = group.automatic
+            if automatic {
+                disabled(group.fixed.map { "Fixed: \($0)" } ?? "Automatic: \(group.selected)", to: choices)
+                if let status = group.selectedStatus, status != "available" { disabled("Selection: \(status)", to: choices) }
+                choices.addItem(.separator())
+            }
             if group.selectable {
                 for node in group.nodes {
-                    add(node, command: ["proxy", "select", group.name, node],
+                    guard let command = group.selectCommand(node) else { continue }
+                    add(node, command: command,
                         checked: group.selected == node, enabled: !model.busy, to: choices)
                 }
             } else {
@@ -229,10 +238,39 @@ import AppKit
                     choices.addItem(item)
                 }
             }
+            if let restoreCommand = group.restoreAutomaticCommand {
+                choices.addItem(.separator())
+                let automatic = add("Restore Automatic Selection", command: restoreCommand,
+                    enabled: !model.busy, to: choices)
+                automatic.toolTip = "Clear the fixed choice through mihomo"
+            }
             if group.nodes.isEmpty { disabled("No nodes in this group", to: choices) }
-            addSubmenu(group.name, choices, to: groupsMenu)
+            let groupItem = addSubmenu(group.name, choices, to: groupsMenu)
+            if let icon = group.icon {
+                groupItem.representedObject = icon
+                let image = groupIcons.image(for: icon) { [weak groupItem] image in
+                    guard let groupItem, groupItem.representedObject as? String == icon else { return }
+                    groupItem.image = image
+                }
+                if let image {
+                    image.size = NSSize(width: 14, height: 14)
+                    groupItem.image = image
+                }
+            }
         }
         addSubmenu("Proxy Groups", groupsMenu, enabled: model.state == .running)
+        let providersMenu = NSMenu()
+        if model.providersUnavailable { disabled("Proxy providers unavailable", to: providersMenu) }
+        else if model.providers.isEmpty { disabled("No proxy providers", to: providersMenu) }
+        for provider in model.providers {
+            let actions = NSMenu()
+            add("Update", command: provider.updateCommand, enabled: !model.busy, to: actions)
+            add("Healthcheck", command: provider.healthcheckCommand, enabled: !model.busy, to: actions)
+            let metadata = NSMenuItem(title: "\(provider.type) · \(provider.nodes.count) nodes", action: nil, keyEquivalent: "")
+            metadata.isEnabled = false; actions.addItem(metadata)
+            addSubmenu(provider.name, actions, to: providersMenu)
+        }
+        addSubmenu("Proxy Providers", providersMenu, enabled: model.state == .running)
         menu.addItem(.separator())
 
         let profileMenu = NSMenu()
@@ -258,12 +296,25 @@ import AppKit
         else { subscriptionMenu.addItem(.separator()) }
         for subscription in model.subscriptions {
             let actions = NSMenu()
+            let quota = Self.quotaLabel(subscription)
+            let quotaItem = NSMenuItem(title: quota, action: nil, keyEquivalent: ""); quotaItem.isEnabled = false; actions.addItem(quotaItem)
+            if let expiry = subscription.expiresAt { let expiryItem = NSMenuItem(title: "Expires: \(expiry)", action: nil, keyEquivalent: ""); expiryItem.isEnabled = false; actions.addItem(expiryItem) }
+            disabled(subscription.schedulerRunning ? (subscription.nextDue.map { "Next update: \($0)" } ?? "Next update: pending") : "Scheduler: not running", to: actions)
             let apply = add("Apply", action: #selector(applySubscription(_:)),
                             enabled: !model.busy, to: actions)
             apply.representedObject = subscription.name
+            let preview = add("Preview changes", action: #selector(previewSubscription(_:)), enabled: !model.busy, to: actions)
+            preview.representedObject = subscription.name
             let updateAndApply = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
                                      enabled: !model.busy, to: actions)
             updateAndApply.representedObject = subscription.name
+            actions.addItem(.separator())
+            let interval = subscription.scheduleSeconds > 0 ? "Schedule: every \(subscription.scheduleSeconds)s" : "Schedule: off"
+            add(interval, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
+            add("Schedule: every hour", action: #selector(scheduleHour(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
+            add(subscription.keyConfigured ? "Clear Encryption Key" : "Set Encryption Key…", action: #selector(subscriptionKey(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
+            if let pause = subscription.pauseReason { disabled("Auto-apply paused: \(pause)", to: actions) }
+            if let stage = subscription.lastFailureStage { disabled("Last failure: \(stage)/\(subscription.lastFailureReason ?? "unknown")", to: actions) }
             actions.addItem(.separator())
             let delete = add("Delete Subscription…", action: #selector(deleteSubscription(_:)),
                              enabled: !model.busy, to: actions)
@@ -305,10 +356,17 @@ import AppKit
         item.representedObject = command
         return item
     }
-    private func addSubmenu(_ title: String, _ submenu: NSMenu, enabled: Bool = true, to target: NSMenu? = nil) {
+    @discardableResult private func addSubmenu(_ title: String, _ submenu: NSMenu, enabled: Bool = true, to target: NSMenu? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.submenu = submenu; item.isEnabled = enabled
         (target ?? menu).addItem(item)
+        return item
+    }
+    static func quotaLabel(_ sub: Subscription) -> String {
+        guard sub.total > 0 else { return "Quota: unknown" }
+        let (sum, overflow) = max(0, sub.upload).addingReportingOverflow(max(0, sub.download))
+        let used = overflow ? Int64.max : sum
+        return "Quota: \(used)/\(sub.total) bytes"
     }
     private func disabled(_ title: String, to target: NSMenu) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
@@ -327,6 +385,31 @@ import AppKit
     @objc private func applySubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         model.applySubscription(name)
+    }
+    @objc private func previewSubscription(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        Task { @MainActor in
+            let alert = NSAlert(); alert.messageText = "Subscription preview"
+            alert.informativeText = await model.previewSubscription(name)
+            alert.addButton(withTitle: "OK"); alert.runModal()
+        }
+    }
+    @objc private func scheduleSubscription(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String,
+              let sub = model.subscriptions.first(where: { $0.name == name }) else { return }
+        model.scheduleSubscription(name, seconds: sub.scheduleSeconds > 0 ? nil : 3600)
+    }
+    @objc private func scheduleHour(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        model.scheduleSubscription(name, seconds: 3600)
+    }
+    @objc private func subscriptionKey(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String,
+              let sub = model.subscriptions.first(where: { $0.name == name }) else { return }
+        if sub.keyConfigured { model.clearSubscriptionKey(name); return }
+        let panel = NSOpenPanel(); panel.canChooseFiles = true; panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
+        NSApp.activate(ignoringOtherApps: true)
+        if panel.runModal() == .OK, let url = panel.url { model.setSubscriptionKey(name, file: url.path) }
     }
     @objc private func downloadSubscription() {
         let alert = NSAlert()

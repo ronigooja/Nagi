@@ -16,6 +16,8 @@ type menuProxyGroup struct {
 	All            []string `json:"all"`
 	Alive          bool     `json:"alive"`
 	SelectedStatus string   `json:"selected_status"`
+	Hidden         bool     `json:"hidden"`
+	Icon           string   `json:"icon"`
 }
 
 func init() { RegisterPage("proxy", ProxyPage) }
@@ -41,6 +43,7 @@ func proxyGroupsPage() *Page {
 	return &Page{Title: "Proxies and groups", Help: []string{"proxy", "groups"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Context: "Choose a group, then a node to switch immediately. /word filters group names.", Empty: "No proxy groups returned. Start mihomo and run `nagi proxy groups` to inspect the configuration.", Actions: []Item{
 			{Key: "s", Label: "Search node names across groups", Navigate: searchProxyNodes},
+			{Key: "v", Label: "Manage proxy providers", Next: func() *Page { return providerListPage() }},
 			{Key: "a", Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
 		}}
 		var data struct {
@@ -51,6 +54,9 @@ func proxyGroupsPage() *Page {
 			return view, err
 		}
 		for _, group := range data.Groups {
+			if group.Hidden {
+				continue
+			}
 			group := group
 			view.Items = append(view.Items, Item{Name: group.Name, Label: proxyGroupLabel(group), Next: func() *Page { return proxyGroupPage(group.Name) }})
 		}
@@ -64,6 +70,9 @@ func automaticProxyGroup(group menuProxyGroup) bool {
 
 func proxyGroupLabel(group menuProxyGroup) string {
 	label := group.Name
+	if group.Icon != "" {
+		label = "[icon] " + label
+	}
 	if group.Now != "" {
 		label += " → " + group.Now
 	}
@@ -230,6 +239,9 @@ func searchProxyNodes(ctx context.Context, s *Session) (Navigation, error) {
 		view := PageView{Context: "Node search: " + query, Empty: "No matching nodes found."}
 		for _, group := range data.Groups {
 			group := group
+			if group.Hidden {
+				continue
+			}
 			view.Items = append(view.Items, Item{Name: group.Name, Label: proxyGroupLabel(group), Next: func() *Page { return proxyNodesPage(group.Name, query, false) }})
 		}
 		return view, nil

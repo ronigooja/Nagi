@@ -24,6 +24,8 @@ import (
 
 const schedulerHeartbeatInterval = 5 * time.Second
 
+var errSchedulerAlreadyRunning = errors.New("subscription scheduler is already running")
+
 type schedulerHeartbeat struct {
 	PID int       `json:"pid"`
 	At  time.Time `json:"heartbeat"`
@@ -83,7 +85,7 @@ func acquireScheduler(p nagiruntime.Paths) (*schedulerHost, error) {
 	if err = platform.TryLock(f); err != nil {
 		_ = f.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
-			return nil, errors.New("subscription scheduler is already running")
+			return nil, errSchedulerAlreadyRunning
 		}
 		return nil, err
 	}
@@ -293,7 +295,11 @@ func runSubscriptionWatch(ctx context.Context, stdout, stderr io.Writer, jsonMod
 	}
 	h, err := acquireScheduler(p)
 	if err != nil {
-		output.WriteError(stderr, jsonMode, "subscription_error", err.Error())
+		code := "subscription_error"
+		if errors.Is(err, errSchedulerAlreadyRunning) {
+			code = "scheduler_already_running"
+		}
+		output.WriteError(stderr, jsonMode, code, err.Error())
 		return 1
 	}
 	defer h.Close()

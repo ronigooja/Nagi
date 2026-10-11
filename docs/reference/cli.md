@@ -45,7 +45,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `dns flush` | Clear the running mihomo DNS cache. |
 | `dns check` | Audit the selected configuration and query mihomo DNS through its control API. |
 | `subscription list` | List names, refresh and schedule state, cache/application metadata, and available expiry and traffic metadata without URLs. |
-| `subscription watch` | Run the foreground scheduler until interrupted; the installed login service hosts the same scheduler. A duplicate host exits with `subscription_error`. |
+| `subscription watch` | Run the foreground scheduler until interrupted; the installed login service hosts the same scheduler. A duplicate host exits with structured error code `scheduler_already_running`. |
 | `subscription schedule NAME SECONDS\|off` | Persist an update interval from 1 through 31,536,000 seconds, or disable scheduling with `off`; a running scheduler refreshes when due and applies only the selected associated profile. |
 | `subscription add NAME URL` | Save an HTTP or HTTPS subscription URL. |
 | `subscription key NAME FILE\|clear` | Copy a local age identity file for a saved subscription, or clear its identity. |
@@ -87,6 +87,8 @@ Run `nagi menu` in a terminal. The home page offers runtime controls, proxy grou
 At `Choice:`, select a numbered resource or a displayed letter action. Resources display ten per page, with numbering restarting at `1`; fixed actions remain visible on every page. `n` and `p` move between pages, `b` returns to the parent, `r` refreshes, `h` explains the current page, and `q` exits only the menu. `/word` filters resource names without regard to case; `/` clears the filter. Changing the filter returns to page one. Actions and refreshes retain the filter and page, clamping to the last available page if needed. Blank or invalid choices repeat only the input prompt. A failed refresh clears stale resource choices and shows a read error; recovery actions remain accessible where available.
 
 Actions execute once on selection, without typing `yes` or accepting a second confirmation. Effects such as replacing configuration, clearing local overrides or saved selections, stopping mihomo, and closing connections appear beside their entries. Selecting a proxy group opens its nodes; selecting a node switches immediately and stays in that list. Filtered nodes and latency results use the same selection behavior. Latency results retain their order and measurements across selections; refreshed nodes that no longer exist lose their measurements. Automatic groups show automatic or fixed state; group latency tests can release a fixed selection.
+
+On the proxy groups page, `v` opens proxy providers. Select a provider number to show its current type and nodes. On its detail page, `u` invokes `proxy provider update NAME`, `c` invokes `proxy provider healthcheck NAME`, and a numbered node invokes `proxy delay NODE`. The detail page reads `proxy provider show NAME` again on entry, refresh, and after each operation, so updated membership replaces the prior list. Read errors clear node choices while keeping `u` and `c` available.
 
 Text fields accept literal `b` and `q`. Ctrl-C cancels the current form and returns to its owning page; at a menu choice it returns to the parent, or exits on the home page. Required or invalid fields are prompted again without discarding other fields. After a failed form submission, values remain available: select a field number to edit and `s` to submit again, or Ctrl-C to cancel. Failed mutations are never retried automatically. End of input exits the menu. An already submitted ordinary operation can finish; Ctrl-C does not promise cancellation or rollback of that operation.
 
@@ -209,7 +211,7 @@ To inspect mihomo's own diagnostics locally, use `mihomo -t -f FILE -d DIRECTORY
 
 ## JSON and exit codes
 
-JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `not_running`, `lifecycle_busy`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `proxy_provider_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
+JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `scheduler_already_running`, `not_running`, `lifecycle_busy`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `proxy_provider_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `mihomo_api_error`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
 
 Additional success payloads are defined below; all appear in `data`:
 
@@ -245,7 +247,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `proxy provider update` | `provider` and `updated: true`. |
 | `proxy provider healthcheck` | `provider` and `healthcheck_started: true`. |
 | `proxy delays` | `group`, `url`, `timeout_ms`, `results` array of `proxy`, optional `delay_ms` or `error`. Uses mihomo’s native group test. For URLTest and Fallback, a confirmed handler run clears the fixed node and Nagi removes the saved choice. The `url` field records the requested URL. In the pinned mihomo version, URLTest uses its configured test URL despite the request’s `url` parameter; other group types use the supplied or default URL. Successful automatic-group tests add `automatic_reset: true` and `saved_selection_removed: true`. |
-| `proxy search` | `query`, `groups` array with the same group fields as `proxy groups`. |
+| `proxy groups`, `proxy show`, `proxy search` | Group objects include `name`, `type`, `now`, `fixed` for explicitly pinned automatic groups, `all`, `alive`, `selected_status`, and additive native `hidden` and `icon` metadata. Nagi menus omit hidden groups; URLs and credentials are never included. |
 | `proxy restore` | `restored` and `unavailable` string arrays of `GROUP -> NODE`. |
 | `connections close ID` | `id` (string), `closed: true` (request accepted, including an already absent connection). |
 | `connections close-all` | `closed: true` (request accepted; no count). |

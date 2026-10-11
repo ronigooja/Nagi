@@ -14,12 +14,18 @@ type menuProfiles struct {
 }
 
 type menuSubscription struct {
-	Name      string `json:"name"`
-	UpdatedAt string `json:"updated_at"`
-	ExpiresAt string `json:"expires_at"`
-	Upload    int64  `json:"upload"`
-	Download  int64  `json:"download"`
-	Total     int64  `json:"total"`
+	Name              string `json:"name"`
+	KeyConfigured     bool   `json:"key_configured"`
+	ScheduleSeconds   int64  `json:"schedule_seconds"`
+	NextDue           string `json:"next_due"`
+	PauseReason       string `json:"pause_reason"`
+	LastFailureStage  string `json:"last_failure_stage"`
+	LastFailureReason string `json:"last_failure_reason"`
+	UpdatedAt         string `json:"updated_at"`
+	ExpiresAt         string `json:"expires_at"`
+	Upload            int64  `json:"upload"`
+	Download          int64  `json:"download"`
+	Total             int64  `json:"total"`
 }
 
 type menuPreview struct {
@@ -179,6 +185,9 @@ func subscriptionListPage() *Page {
 		for _, entry := range data.Subscriptions {
 			entry := entry
 			label := entry.Name
+			if entry.ScheduleSeconds > 0 {
+				label += fmt.Sprintf(" (every %ds)", entry.ScheduleSeconds)
+			}
 			if entry.UpdatedAt == "" {
 				label += " (never downloaded)"
 			} else {
@@ -205,10 +214,31 @@ func addSubscription(ctx context.Context, s *Session) (Navigation, error) {
 	return Navigation{Next: subscriptionDetailPage(values["name"])}, nil
 }
 
+func subscriptionSchedule(ctx context.Context, s *Session, name string) error {
+	values := map[string]string{}
+	_, err := s.Form(ctx, []Field{{Key: "seconds", Label: "Interval seconds (or off)", Required: true}}, values, func(v map[string]string) Result {
+		return s.Run(ctx, "subscription", "schedule", name, v["seconds"])
+	})
+	return err
+}
+
+func subscriptionKey(ctx context.Context, s *Session, name string) error {
+	values := map[string]string{}
+	_, err := s.Form(ctx, []Field{{Key: "file", Label: "Identity file path, or clear", Required: true}}, values, func(v map[string]string) Result {
+		if v["file"] == "clear" {
+			return s.Run(ctx, "subscription", "key", name, "clear")
+		}
+		return s.Run(ctx, "subscription", "key", name, v["file"])
+	})
+	return err
+}
+
 func subscriptionDetailPage(name string) *Page {
 	var download *menuPreview
 	return &Page{Title: "Subscription: " + name, Help: []string{"subscription", "preview"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Actions: []Item{
+			{Key: "s", Label: "Set schedule interval", Action: func(ctx context.Context, s *Session) error { return subscriptionSchedule(ctx, s, name) }},
+			{Key: "k", Label: "Set or clear encryption key", Action: func(ctx context.Context, s *Session) error { return subscriptionKey(ctx, s, name) }},
 			{Key: "d", Label: "Download cache", Impact: "Downloads only; does not apply, start mihomo or enable traffic access", Action: func(ctx context.Context, s *Session) error {
 				result := s.Run(ctx, "subscription", "update", name)
 				if result.Code != 0 || result.Error != nil {
@@ -237,6 +267,12 @@ func subscriptionDetailPage(name string) *Page {
 			for _, entry := range data.Subscriptions {
 				if entry.Name == name {
 					view.Context = subscriptionMetadata(entry)
+					if entry.PauseReason != "" {
+						view.Context += "\nAutomatic apply paused: " + entry.PauseReason
+					}
+					if entry.LastFailureStage != "" {
+						view.Context += "\nLast scheduler failure: " + entry.LastFailureStage + "/" + entry.LastFailureReason
+					}
 					break
 				}
 			}

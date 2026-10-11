@@ -3,12 +3,14 @@ import Darwin
 
 /// All engine and configuration operations pass through the installed CLI.
 struct NagiCLIClient {
-    static let executable = URL(fileURLWithPath: "/usr/local/bin/nagi")
+    static let installedExecutable = URL(fileURLWithPath: "/usr/local/bin/nagi")
+    let executable: URL
     private let timeout: TimeInterval = 45
+    init(executable: URL = installedExecutable) { self.executable = executable }
 
     func run(_ arguments: [String]) async throws -> JSONValue {
-        guard FileManager.default.isExecutableFile(atPath: Self.executable.path) else {
-            throw CLIError.missingCLI(Self.executable.path)
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw CLIError.missingCLI(executable.path)
         }
         let holder = ProcessHolder()
         return try await withTaskCancellationHandler {
@@ -22,15 +24,20 @@ struct NagiCLIClient {
     }
 
     func trafficStream(_ sample: @escaping (JSONValue) -> Void) throws -> TrafficStream {
-        guard FileManager.default.isExecutableFile(atPath: Self.executable.path) else {
-            throw CLIError.missingCLI(Self.executable.path)
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw CLIError.missingCLI(executable.path)
         }
-        return try TrafficStream(executable: Self.executable, sample: sample)
+        return try TrafficStream(executable: executable, sample: sample)
+    }
+
+    func subscriptionWatch() throws -> SubscriptionWatch {
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw CLIError.missingCLI(executable.path) }
+        return try SubscriptionWatch(executable: executable)
     }
 
     private func runBlocking(_ arguments: [String], holder: ProcessHolder) throws -> JSONValue {
         let process = Process()
-        process.executableURL = Self.executable
+        process.executableURL = executable
         process.arguments = ["--json"] + arguments
         let stdout = Pipe(), stderr = Pipe()
         process.standardOutput = stdout; process.standardError = stderr
@@ -80,6 +87,95 @@ struct NagiCLIClient {
             else { overflow = true }
         }
         return (bytes, overflow)
+    }
+}
+
+enum WatchExit {
+    case stopped, duplicate, failed(Error)
+}
+
+final class SubscriptionWatch: @unchecked Sendable {
+    private let process: Process
+    private let stdout: Pipe
+    private let stderr: Pipe
+    private let lock = NSLock()
+    private var stopped = false
+    private var announced = false
+    private var outputError: Error?
+    private let readers = DispatchGroup()
+    init(executable: URL) throws {
+        process = Process(); process.executableURL = executable
+        process.arguments = ["--json", "subscription", "watch"]
+        stdout = Pipe(); stderr = Pipe()
+        process.standardOutput = stdout; process.standardError = stderr
+        do { try process.run() } catch { throw CLIError.launch(error.localizedDescription) }
+        stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
+        readers.enter()
+        DispatchQueue.global(qos: .utility).async { [self] in
+            readLines(stdout.fileHandleForReading, isError: false)
+            readers.leave()
+        }
+        readers.enter()
+        DispatchQueue.global(qos: .utility).async { [self] in
+            readLines(stderr.fileHandleForReading, isError: true)
+            readers.leave()
+        }
+    }
+    private func readLines(_ handle: FileHandle, isError: Bool) {
+        var pending = Data()
+        while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty { break }
+            pending.append(chunk)
+            while let newline = pending.firstIndex(of: 10) {
+                if newline > 65_536 {
+                    lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock()
+                    terminateAfterFailure(); return
+                }
+                let line = Data(pending.prefix(upTo: newline))
+                pending.removeSubrange(...newline)
+                guard !line.isEmpty else { continue }
+                parse(line, isError: isError)
+            }
+            if pending.count > 65_536 { lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock(); terminateAfterFailure(); return }
+        }
+        if !pending.isEmpty { parse(pending, isError: isError) }
+    }
+    private func parse(_ data: Data, isError: Bool) {
+        guard let envelope = try? JSONDecoder().decode(CLIEnvelope.self, from: data) else { return }
+        lock.lock(); defer { lock.unlock() }
+        if !isError && envelope.ok && envelope.data?["scheduler_running"]?.bool == true { announced = true }
+        if isError, let error = envelope.error { outputError = CLIError.command(error.code, error.message) }
+    }
+    func stop() {
+        lock.lock(); stopped = true; lock.unlock()
+        guard process.isRunning else { return }
+        process.terminate()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) { [process] in
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+        }
+    }
+    private func terminateAfterFailure() {
+        guard process.isRunning else { return }
+        process.terminate()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) { [process] in
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+        }
+    }
+    func wait() async -> WatchExit {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async { [self] in
+                process.waitUntilExit()
+                readers.wait()
+                lock.lock(); let intentional = stopped, started = announced, failure = outputError; lock.unlock()
+                if intentional { continuation.resume(returning: .stopped) }
+                else if let command = failure as? CLIError, case .command(let code, _) = command, code == "scheduler_already_running" {
+                    continuation.resume(returning: .duplicate)
+                } else if let failure { continuation.resume(returning: .failed(failure)) }
+                else if !started { continuation.resume(returning: .failed(CLIError.invalidJSON("Scheduler exited before announcing readiness."))) }
+                else { continuation.resume(returning: .failed(CLIError.invalidJSON("Scheduler exited unexpectedly."))) }
+            }
+        }
     }
 }
 

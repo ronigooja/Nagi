@@ -19,8 +19,8 @@ The home page shows mihomo state and the selected profile. Failed reads show unk
 | Home category | Flows |
 | --- | --- |
 | Runtime controls | Status, start, stop, restart, configuration show/validate/reload, runtime and persistent mode, session quit. |
-| Proxy groups | Groups and current nodes, direct node switching, filtering, details, node/group latency, automatic selection, saved selection restore. |
-| Subscriptions | List/add, detail metadata, cache download, change summaries and paginated names, apply, remove. |
+| Proxy groups | Groups and current nodes, direct node switching, filtering, details, node/group latency, automatic selection, saved selection restore, and redacted provider update/healthcheck (c) actions. Hidden native groups are omitted while icon metadata is retained for labels. |
+| Subscriptions | List/add, detail metadata, cache download, change summaries and paginated names, apply, remove, schedule interval, encryption-key set/clear, pause/failure state, quota and expiry. |
 | Local profiles | List/import, use, export, backup/restore, diff, override show/set/clear, remove. |
 | Traffic access | TUN, listener ports, LAN status and changes; macOS system proxy controls. |
 | Diagnostics | Doctor, redacted diagnostics/export, version, shell completion. |
@@ -43,6 +43,8 @@ Text prompts accept `b` and `q` as literal content. Ctrl-C cancels the current f
 ## Proxy flow
 
 Selecting Proxies at home loads groups directly, including current nodes. Selecting a group opens its node list. Selecting a node dispatches `proxy select GROUP NODE` once, then refreshes the current marker while staying in the list. Names containing spaces remain one argument. The ordinary path takes three selections from home.
+
+The provider entry lists redacted names and node counts. Opening a provider and every later refresh call `proxy provider show NAME`; update and healthcheck actions use their corresponding CLI commands. A failed provider read clears selectable nodes while leaving those actions available for recovery.
 
 Details, latency tests, restoring saved choices, and returning an automatic group to automatic selection are fixed actions. Ordinary nodes, filtered nodes, and latency-ranked nodes all switch with the same numeric action. A group page retains its last measurements and ordering across selections and refreshes, pruning records for nodes absent from the refreshed group. Automatic groups show fixed or automatic state. Latency actions disclose possible release of a fixed choice and preserve underlying errors about partial completion or unknown state.
 

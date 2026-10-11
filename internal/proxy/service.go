@@ -33,6 +33,8 @@ type Group struct {
 	All            []string `json:"all,omitempty"`
 	Alive          bool     `json:"alive"`
 	SelectedStatus string   `json:"selected_status,omitempty"`
+	Hidden         bool     `json:"hidden,omitempty"`
+	Icon           string   `json:"icon,omitempty"`
 }
 
 type Connection struct {
