@@ -44,7 +44,8 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `dns query DOMAIN [A\|AAAA]` | Query the running mihomo resolver over its private control socket. |
 | `dns flush` | Clear the running mihomo DNS cache. |
 | `dns check` | Audit the selected configuration and query mihomo DNS through its control API. |
-| `subscription list` | List names, refresh times, and available expiry and traffic metadata without URLs. |
+| `subscription list` | List names, refresh and schedule state, cache/application metadata, and available expiry and traffic metadata without URLs. |
+| `subscription schedule NAME SECONDS\|off` | Persist an update interval from 1 through 31,536,000 seconds, or disable scheduling with `off`; scheduling is stored but the scheduler is not running yet. |
 | `subscription add NAME URL` | Save an HTTP or HTTPS subscription URL. |
 | `subscription key NAME FILE\|clear` | Copy a local age identity file for a saved subscription, or clear its identity. |
 | `subscription update NAME` | Fetch and validate up to 8 MiB, cache it, and report node changes against the preceding cache. |
@@ -230,7 +231,8 @@ Additional success payloads are defined below; all appear in `data`:
 | `dns tun on/off` | `profile` (string), `tun_enabled` (boolean), `saved: true`. |
 | `dns query` | `domain`, `type` (strings), `response` (mihomo JSON object). |
 | `dns flush` | `flushed: true`. |
-| `subscription list` | `subscriptions` array: `name`, `key_configured` (boolean), optional `updated_at` and `expires_at` (RFC 3339), optional nonzero `upload`, `download`, `total` (bytes). URLs, identities, and identity paths are omitted. |
+| `subscription list` | `subscriptions` array: `name`, `key_configured` (boolean), and `schedule_seconds` (integer; `0` means off); optional `next_due`, `updated_at`, and `expires_at` (RFC 3339), `last_failure_stage` and `last_failure_reason` (fixed redacted status codes), `cache_version`, `applied_cache_version`, `source_hash` (SHA-256 hex), and `profile`; optional nonzero `upload`, `download`, and `total` (bytes). The top-level payload also includes `scheduler_running` (always `false` in this release). URLs, identities, and identity paths are omitted. |
+| `subscription schedule NAME SECONDS\|off` | `name`, `schedule_seconds` (integer; `0` means off), and `scheduler_running: false`. |
 | `subscription key NAME FILE\|clear` | `name` and `key_configured` (boolean). |
 | `subscription update NAME` | `name`, `bytes` (cached plaintext bytes, including after decryption), `updated_at`, `preview`, and optional `expires_at`, `upload`, `download`, `total`. |
 | `subscription preview NAME` | `name`, `format`, sorted `added`, `removed`, and `changed` top-level node-name arrays; `changes` array of redacted `path`, `kind` (`added`, `removed`, or `changed`), and `behavior`; `remote_nodes_compared` boolean. |
