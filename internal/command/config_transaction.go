@@ -280,8 +280,8 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration unconfirmed: %w", checkErr))
 	}
 	if currentID == beforeID {
-		if errors.Is(actionErr, errActivationUnconfirmed) {
-			return nil, errors.Join(actionErr, fileErr, errors.New("prior activation marker is currently active, but an in-progress timed-out apply may still finish; recheck `nagi status`"))
+		if errors.Is(actionErr, errActivationMayStillApply) {
+			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: observed activation ID %q matches the prior configuration, but the original PUT may still apply later; after it settles, inspect `nagi status` and retry `nagi config reload`", currentID))
 		}
 		return nil, errors.Join(actionErr, fileErr)
 	}
@@ -314,8 +314,18 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 			e = traffic.New(paths.StateDir).SyncPort(recoveryCtx, port)
 		}
 		if e != nil {
+			if errors.Is(actionErr, errActivationMayStillApply) {
+				return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: rollback PUT was confirmed, but managed system proxy restoration failed and the original PUT may still apply later: %w; after it settles, retry `nagi config reload`", e))
+			}
 			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restored but system proxy restoration failed: %w", e))
 		}
+	}
+	if errors.Is(actionErr, errActivationMayStillApply) {
+		observedID, _, observeErr := configID(recoveryCtx, client)
+		if observeErr != nil {
+			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: rollback PUT was confirmed, but the original PUT may still apply later; current activation ID could not be read: %w; after it settles, retry `nagi config reload`", observeErr))
+		}
+		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: rollback PUT was confirmed; latest observed activation ID is %q, but the original PUT may still apply later; after it settles, inspect `nagi status` and retry `nagi config reload`", observedID))
 	}
 	return nil, errors.Join(actionErr, fileErr, fmt.Errorf("prior running configuration restored with a confirmed activation ID"))
 }

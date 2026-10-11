@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
+	"github.com/ronigooja/Nagi/internal/output"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
@@ -251,6 +252,213 @@ func TestRollbackFailureReportsUnconfirmedRuntime(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "runtime restoration failed") || !strings.Contains(err.Error(), "current state is uncertain") {
 		t.Fatalf("rollback failure: %v", err)
+	}
+}
+
+func TestLateCandidateAfterConfirmedRollbackReportsUncertainRuntime(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "config")
+	run := filepath.Join(dir, "run")
+	if err := os.MkdirAll(filepath.Join(config, "profiles"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(run, 0700); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(config, "profiles", "default.yaml")
+	override := filepath.Join(config, "overrides", "default.yaml")
+	choices := filepath.Join(config, "proxy-selections.json")
+	if err := os.MkdirAll(filepath.Dir(override), 0700); err != nil {
+		t.Fatal(err)
+	}
+	prior := map[string]string{
+		source:   "mixed-port: 17890\nrules: [MATCH,DIRECT]\n",
+		override: "mode: rule\n",
+		choices:  `{"default":{"group":"Manual","node":"A"}}`,
+	}
+	for path, data := range prior {
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\nexit 0\n")
+	t.Setenv("NAGI_MIHOMO_BIN", binary)
+	socket := filepath.Join(run, "mihomo.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	activeID := "old"
+	var candidateID, rollbackID string
+	puts := 0
+	lateApply := make(chan struct{})
+	lateDone := make(chan struct{})
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PUT" {
+			var request struct {
+				ActivationID string `json:"activation_id"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode PUT: %v", err)
+				return
+			}
+			mu.Lock()
+			puts++
+			if puts == 1 {
+				activeID = request.ActivationID
+				mu.Unlock()
+			} else if puts == 2 {
+				candidateID = request.ActivationID
+				mu.Unlock()
+				<-lateApply
+				mu.Lock()
+				activeID = candidateID
+				mu.Unlock()
+				close(lateDone)
+			} else {
+				rollbackID = request.ActivationID
+				activeID = rollbackID
+				mu.Unlock()
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		mu.Lock()
+		id := activeID
+		mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{"activation_id": id, "mixed-port": 17890})
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	defer func() {
+		select {
+		case <-lateDone:
+		default:
+			close(lateApply)
+			<-lateDone
+		}
+	}()
+	paths := nagiruntime.Paths{ConfigDir: config, RuntimeDir: run, SocketPath: socket}
+	_, err = applyTransaction(context.Background(), paths, []string{"profile", "import"}, func() (any, error) {
+		if e := os.WriteFile(source, []byte("mixed-port: 17900\n"), 0600); e != nil {
+			return nil, e
+		}
+		if e := os.WriteFile(override, []byte("mode: direct\n"), 0600); e != nil {
+			return nil, e
+		}
+		if e := os.Remove(choices); e != nil {
+			return nil, e
+		}
+		client := control.NewWithTimeout(socket, 40*time.Millisecond)
+		if e := client.Put(context.Background(), "/configs?force=true", map[string]any{"path": source, "activation_id": strings.Repeat("a", 32)}, nil); e != nil {
+			return nil, e
+		}
+		return nil, activateConfig(context.Background(), client, source)
+	})
+	if err == nil || !errors.Is(err, errActivationMayStillApply) || !strings.Contains(err.Error(), "runtime recovery incomplete") {
+		t.Fatalf("expected outstanding apply and incomplete recovery: %v", err)
+	}
+	mu.Lock()
+	confirmedRollback := rollbackID != "" && activeID == rollbackID
+	confirmedID := rollbackID
+	mu.Unlock()
+	if !confirmedRollback || !strings.Contains(err.Error(), confirmedID) {
+		t.Fatalf("rollback observation not reported: %v, rollback %q", err, confirmedID)
+	}
+	for path, want := range prior {
+		got, readErr := os.ReadFile(path)
+		if readErr != nil || string(got) != want {
+			t.Fatalf("disk rollback %s: %q %v", path, got, readErr)
+		}
+	}
+	var jsonError strings.Builder
+	output.WriteError(&jsonError, true, "profile_error", err.Error())
+	var envelope struct {
+		OK    bool `json:"ok"`
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if e := json.Unmarshal([]byte(jsonError.String()), &envelope); e != nil || envelope.OK || envelope.Error.Code != "profile_error" || !strings.Contains(envelope.Error.Message, "runtime recovery incomplete") {
+		t.Fatalf("JSON failure omits recovery status: %q, %v", jsonError.String(), e)
+	}
+	close(lateApply)
+	<-lateDone
+	mu.Lock()
+	lateID := activeID
+	mu.Unlock()
+	if lateID != candidateID || lateID == confirmedID {
+		t.Fatalf("original PUT did not overwrite confirmed rollback: candidate %q, active %q, rollback %q", candidateID, lateID, confirmedID)
+	}
+}
+
+func TestSettledApplyFailureConfirmsRuntimeRestoration(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "config")
+	run := filepath.Join(dir, "run")
+	if err := os.MkdirAll(filepath.Join(config, "profiles"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(run, 0700); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(config, "profiles", "default.yaml")
+	old := []byte("mixed-port: 17890\nrules: [MATCH,DIRECT]\n")
+	if err := os.WriteFile(source, old, 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\nexit 0\n"))
+	socket := filepath.Join(run, "mihomo.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	activeID := "old"
+	rollbackID := ""
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		if r.Method == "PUT" {
+			var request struct {
+				ActivationID string `json:"activation_id"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode PUT: %v", err)
+				return
+			}
+			rollbackID = request.ActivationID
+			activeID = rollbackID
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"activation_id": activeID, "mixed-port": 17890})
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	paths := nagiruntime.Paths{ConfigDir: config, RuntimeDir: run, SocketPath: socket}
+	_, err = applyTransaction(context.Background(), paths, []string{"profile", "import"}, func() (any, error) {
+		if e := os.WriteFile(source, []byte("mixed-port: 17900\n"), 0600); e != nil {
+			return nil, e
+		}
+		mu.Lock()
+		activeID = "settled-candidate"
+		mu.Unlock()
+		return nil, errors.New("known settled failure")
+	})
+	if err == nil || !strings.Contains(err.Error(), "prior running configuration restored with a confirmed activation ID") || strings.Contains(err.Error(), "runtime recovery incomplete") {
+		t.Fatalf("settled recovery: %v", err)
+	}
+	mu.Lock()
+	restored := rollbackID != "" && activeID == rollbackID
+	mu.Unlock()
+	if !restored {
+		t.Fatal("prior runtime was not reactivated")
+	}
+	if got, e := os.ReadFile(source); e != nil || string(got) != string(old) {
+		t.Fatalf("source after rollback: %q, %v", got, e)
 	}
 }
 

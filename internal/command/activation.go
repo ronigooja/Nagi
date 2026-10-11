@@ -13,6 +13,10 @@ import (
 
 var errActivationUnconfirmed = errors.New("mihomo configuration activation is unconfirmed")
 
+// A failed transport request can outlive its caller in mihomo. Until its
+// activation ID is observed, a later rollback cannot establish final state.
+var errActivationMayStillApply = errors.New("mihomo configuration PUT may still apply")
+
 // activateConfig uses mihomo's activation marker as evidence that the
 // requested configuration actually became active. A timed-out PUT may still
 // complete, so the independent recovery context checks before deciding.
@@ -40,7 +44,7 @@ func activateConfig(ctx context.Context, client *control.Client, path string) er
 		select {
 		case <-checkCtx.Done():
 			if err != nil {
-				return fmt.Errorf("%w after PUT error: %v; inspect `nagi status` after mihomo settles", errActivationUnconfirmed, err)
+				return fmt.Errorf("%w: %w after PUT error: %v", errActivationUnconfirmed, errActivationMayStillApply, err)
 			}
 			return fmt.Errorf("%w: current marker %s", errActivationUnconfirmed, current.ActivationID)
 		case <-time.After(200 * time.Millisecond):
