@@ -14,6 +14,12 @@ struct ProxyGroup {
     var selectable: Bool {
         ["selector", "urltest", "fallback"].contains(kind.lowercased())
     }
+    var automatic: Bool { ["urltest", "fallback"].contains(kind.lowercased()) }
+    func selectCommand(_ node: String) -> [String]? {
+        guard selectable, !hidden, nodes.contains(node) else { return nil }
+        return ["proxy", "select", name, node]
+    }
+    var restoreAutomaticCommand: [String]? { automatic && !hidden ? ["proxy", "auto", name] : nil }
 }
 struct Subscription {
     let name: String
@@ -29,7 +35,11 @@ struct Subscription {
     let download: Int64
     let total: Int64
 }
-struct ProxyProvider { let name: String; let type: String; let vehicleType: String; let nodes: [String] }
+struct ProxyProvider {
+    let name: String; let type: String; let vehicleType: String; let nodes: [String]
+    var updateCommand: [String] { ["proxy", "provider", "update", name] }
+    var healthcheckCommand: [String] { ["proxy", "provider", "healthcheck", name] }
+}
 enum TrafficDisplay: String, CaseIterable {
     case both, icon
     var title: String {
@@ -51,7 +61,8 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
 
     var onChange: (() -> Void)?
-    private let cli = NagiCLIClient()
+    private let cli: NagiCLIClient
+    private let watchDelay: (Int, Bool) -> UInt64
     private var refreshTask: Task<Void, Never>?
     private var trafficTask: Task<Void, Never>?
     private var trafficStream: TrafficStream?
@@ -59,6 +70,12 @@ enum EngineState { case starting, running, stopped, unavailable }
     private var subscriptionWatchTask: Task<Void, Never>?
     private var watchGeneration = 0
     private var watchRetry = 0
+    init(cli: NagiCLIClient = NagiCLIClient(), watchDelay: @escaping (Int, Bool) -> UInt64 = { attempt, duplicate in
+        duplicate ? 15_000_000_000 : UInt64(1 << attempt) * 1_000_000_000
+    }) {
+        self.cli = cli
+        self.watchDelay = watchDelay
+    }
     private var trafficGeneration = 0
     private var settingsGeneration = 0
     private var lastSample = Date.distantPast
@@ -555,19 +572,21 @@ enum EngineState { case starting, running, stopped, unavailable }
                     self.watchRetry = 0
                     await self.refreshSubscriptions()
                     // A login service may own the host. Recheck later so a vanished host is replaced.
-                    try? await Task.sleep(nanoseconds: 15_000_000_000)
+                    try? await Task.sleep(nanoseconds: self.watchDelay(self.watchRetry, true))
                 case .failed(let error):
                     self.errorMessage = "Subscription scheduler unavailable: \(error.localizedDescription)"
                     self.watchRetry = min(self.watchRetry + 1, 5)
-                    let delay = UInt64(1 << self.watchRetry) * 1_000_000_000
-                    try? await Task.sleep(nanoseconds: delay)
+                    try? await Task.sleep(nanoseconds: self.watchDelay(self.watchRetry, false))
                 }
-                if generation == self.watchGeneration && !self.sleeping && !self.quitting { self.startSubscriptionWatch() }
+                if generation == self.watchGeneration && !self.sleeping && !self.quitting {
+                    self.subscriptionWatchTask = nil
+                    self.startSubscriptionWatch()
+                }
             }
         } catch {
             errorMessage = "Subscription scheduler unavailable: \(error.localizedDescription)"
             watchRetry = min(watchRetry + 1, 5)
-            let delay = UInt64(1 << watchRetry) * 1_000_000_000
+            let delay = watchDelay(watchRetry, false)
             subscriptionWatchTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: delay)
                 guard let self, generation == self.watchGeneration else { return }

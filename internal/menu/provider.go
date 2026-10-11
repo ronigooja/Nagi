@@ -25,18 +25,23 @@ func providerListPage() *Page {
 		}
 		for _, p := range data.Providers {
 			p := p
-			view.Items = append(view.Items, Item{Name: p.Name, Label: fmt.Sprintf("%s (%s) · %d nodes", p.Name, p.Type, len(p.Nodes)), Next: func() *Page { return providerDetailPage(p) }})
+			view.Items = append(view.Items, Item{Name: p.Name, Label: fmt.Sprintf("%s (%s) · %d nodes", p.Name, p.Type, len(p.Nodes)), Next: func() *Page { return providerDetailPage(p.Name) }})
 		}
 		return view, nil
 	}}
 }
 
-func providerDetailPage(p menuProvider) *Page {
-	return &Page{Title: "Provider: " + p.Name, Load: func(context.Context, *Session) (PageView, error) {
-		view := PageView{Context: fmt.Sprintf("Type: %s; nodes: %d", p.Type, len(p.Nodes)), Actions: []Item{
-			{Key: "u", Label: "Update provider", Args: []string{"proxy", "provider", "update", p.Name}},
-			{Key: "c", Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", p.Name}},
+func providerDetailPage(name string) *Page {
+	return &Page{Title: "Provider: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Context: "Provider state: unknown", Actions: []Item{
+			{Key: "u", Label: "Update provider", Args: []string{"proxy", "provider", "update", name}},
+			{Key: "c", Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", name}},
 		}}
+		var p menuProvider
+		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "provider", "show", name), &p); err != nil {
+			return view, err
+		}
+		view.Context = fmt.Sprintf("Type: %s; nodes: %d", p.Type, len(p.Nodes))
 		for _, node := range p.Nodes {
 			// Make numbered provider nodes useful: invoke the canonical CLI latency check.
 			view.Items = append(view.Items, Item{Name: node, Label: node + " (measure latency)", Args: []string{"proxy", "delay", node}})

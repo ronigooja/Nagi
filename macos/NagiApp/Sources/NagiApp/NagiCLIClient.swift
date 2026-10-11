@@ -3,12 +3,14 @@ import Darwin
 
 /// All engine and configuration operations pass through the installed CLI.
 struct NagiCLIClient {
-    static let executable = URL(fileURLWithPath: "/usr/local/bin/nagi")
+    static let installedExecutable = URL(fileURLWithPath: "/usr/local/bin/nagi")
+    let executable: URL
     private let timeout: TimeInterval = 45
+    init(executable: URL = installedExecutable) { self.executable = executable }
 
     func run(_ arguments: [String]) async throws -> JSONValue {
-        guard FileManager.default.isExecutableFile(atPath: Self.executable.path) else {
-            throw CLIError.missingCLI(Self.executable.path)
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw CLIError.missingCLI(executable.path)
         }
         let holder = ProcessHolder()
         return try await withTaskCancellationHandler {
@@ -22,20 +24,20 @@ struct NagiCLIClient {
     }
 
     func trafficStream(_ sample: @escaping (JSONValue) -> Void) throws -> TrafficStream {
-        guard FileManager.default.isExecutableFile(atPath: Self.executable.path) else {
-            throw CLIError.missingCLI(Self.executable.path)
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw CLIError.missingCLI(executable.path)
         }
-        return try TrafficStream(executable: Self.executable, sample: sample)
+        return try TrafficStream(executable: executable, sample: sample)
     }
 
     func subscriptionWatch() throws -> SubscriptionWatch {
-        guard FileManager.default.isExecutableFile(atPath: Self.executable.path) else { throw CLIError.missingCLI(Self.executable.path) }
-        return try SubscriptionWatch(executable: Self.executable)
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw CLIError.missingCLI(executable.path) }
+        return try SubscriptionWatch(executable: executable)
     }
 
     private func runBlocking(_ arguments: [String], holder: ProcessHolder) throws -> JSONValue {
         let process = Process()
-        process.executableURL = Self.executable
+        process.executableURL = executable
         process.arguments = ["--json"] + arguments
         let stdout = Pipe(), stderr = Pipe()
         process.standardOutput = stdout; process.standardError = stderr
@@ -122,20 +124,20 @@ final class SubscriptionWatch: @unchecked Sendable {
     private func readLines(_ handle: FileHandle, isError: Bool) {
         var pending = Data()
         while true {
-            let chunk = (try? handle.read(upToCount: 8192)) ?? Data()
+            let chunk = handle.availableData
             if chunk.isEmpty { break }
-            if chunk.count > 65_536 {
-                lock.lock(); outputError = CLIError.invalidJSON("Scheduler output exceeded 64 KiB."); lock.unlock()
-                terminateAfterFailure(); break
-            }
             pending.append(chunk)
             while let newline = pending.firstIndex(of: 10) {
+                if newline > 65_536 {
+                    lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock()
+                    terminateAfterFailure(); return
+                }
                 let line = Data(pending.prefix(upTo: newline))
                 pending.removeSubrange(...newline)
                 guard !line.isEmpty else { continue }
                 parse(line, isError: isError)
             }
-            if pending.count > 65_536 { lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock(); terminateAfterFailure(); break }
+            if pending.count > 65_536 { lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock(); terminateAfterFailure(); return }
         }
         if !pending.isEmpty { parse(pending, isError: isError) }
     }

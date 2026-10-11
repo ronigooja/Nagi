@@ -11,6 +11,7 @@ import AppKit
 
 @MainActor final class MenuAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model = AppModel()
+    private let groupIcons = GroupIconLoader()
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var pulse: Timer?
@@ -215,7 +216,7 @@ import AppKit
         for group in model.groups {
             if group.hidden { continue }
             let choices = NSMenu()
-            let automatic = ["urltest", "fallback"].contains(group.kind.lowercased())
+            let automatic = group.automatic
             if automatic {
                 disabled(group.fixed.map { "Fixed: \($0)" } ?? "Automatic: \(group.selected)", to: choices)
                 if let status = group.selectedStatus, status != "available" { disabled("Selection: \(status)", to: choices) }
@@ -223,7 +224,8 @@ import AppKit
             }
             if group.selectable {
                 for node in group.nodes {
-                    add(node, command: ["proxy", "select", group.name, node],
+                    guard let command = group.selectCommand(node) else { continue }
+                    add(node, command: command,
                         checked: group.selected == node, enabled: !model.busy, to: choices)
                 }
             } else {
@@ -236,18 +238,24 @@ import AppKit
                     choices.addItem(item)
                 }
             }
-            if automatic {
+            if let restoreCommand = group.restoreAutomaticCommand {
                 choices.addItem(.separator())
-                let automatic = add("Restore Automatic Selection", command: ["proxy", "auto", group.name],
+                let automatic = add("Restore Automatic Selection", command: restoreCommand,
                     enabled: !model.busy, to: choices)
                 automatic.toolTip = "Clear the fixed choice through mihomo"
             }
             if group.nodes.isEmpty { disabled("No nodes in this group", to: choices) }
             let groupItem = addSubmenu(group.name, choices, to: groupsMenu)
-            if let icon = group.icon, icon.hasPrefix("system:"),
-               let image = NSImage(systemSymbolName: String(icon.dropFirst(7)), accessibilityDescription: group.name) {
-                image.size = NSSize(width: 14, height: 14)
-                groupItem.image = image
+            if let icon = group.icon {
+                groupItem.representedObject = icon
+                let image = groupIcons.image(for: icon) { [weak groupItem] image in
+                    guard let groupItem, groupItem.representedObject as? String == icon else { return }
+                    groupItem.image = image
+                }
+                if let image {
+                    image.size = NSSize(width: 14, height: 14)
+                    groupItem.image = image
+                }
             }
         }
         addSubmenu("Proxy Groups", groupsMenu, enabled: model.state == .running)
@@ -256,8 +264,8 @@ import AppKit
         else if model.providers.isEmpty { disabled("No proxy providers", to: providersMenu) }
         for provider in model.providers {
             let actions = NSMenu()
-            add("Update", command: ["proxy", "provider", "update", provider.name], enabled: !model.busy, to: actions)
-            add("Healthcheck", command: ["proxy", "provider", "healthcheck", provider.name], enabled: !model.busy, to: actions)
+            add("Update", command: provider.updateCommand, enabled: !model.busy, to: actions)
+            add("Healthcheck", command: provider.healthcheckCommand, enabled: !model.busy, to: actions)
             let metadata = NSMenuItem(title: "\(provider.type) · \(provider.nodes.count) nodes", action: nil, keyEquivalent: "")
             metadata.isEnabled = false; actions.addItem(metadata)
             addSubmenu(provider.name, actions, to: providersMenu)
