@@ -383,6 +383,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		}
 		for _, entry := range entries {
 			label := entry.Name
+			if entry.KeyConfigured {
+				label += "  Age key configured"
+			}
 			if !entry.UpdatedAt.IsZero() {
 				label += "  Updated: " + entry.UpdatedAt.Format("2006-01-02 15:04:05 MST")
 			} else {
@@ -558,6 +561,10 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			return line(w, "Removed subscription "+name+" and its cache.")
 		case v["applied"] == true:
 			return line(w, fmt.Sprintf("Applied subscription %s as selected profile %v. If mihomo was running, its configuration was reloaded.", name, v["profile"]))
+		case v["key_configured"] == true:
+			return line(w, "Saved private age identity for subscription "+name+". Run `nagi subscription update "+name+"` to refresh it.")
+		case v["key_configured"] == false:
+			return line(w, "Cleared private age identity for subscription "+name+".")
 		case len(v) == 1:
 			return line(w, fmt.Sprintf("Saved subscription %s. Run `nagi subscription update %s` to download it.", name, name))
 		}

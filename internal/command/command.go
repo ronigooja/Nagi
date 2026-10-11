@@ -448,6 +448,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
 	trafficManager := traffic.New(paths.StateDir)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
+	subs.Binary = binary
 	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
@@ -1267,9 +1268,26 @@ func profileCommandWithCurrentError(ctx context.Context, args []string, store *p
 
 func subscriptionCommand(ctx context.Context, args []string, store *subscription.Store, profiles *profile.Store, proxies *proxy.Service) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("subscription list|add <name> <url>|update <name>|preview <name>|apply <name>|remove <name>")
+		return nil, usage("subscription list|add <name> <url>|key <name> <file|clear>|update <name>|preview <name>|apply <name>|remove <name>")
 	}
 	switch args[1] {
+	case "key":
+		if err := arity(args, 4); err != nil {
+			return nil, err
+		}
+		if args[3] == "clear" {
+			if err := store.RequireEntry(args[2]); err != nil {
+				return nil, fail("subscription_error", err)
+			}
+			if err := store.ClearKey(args[2]); err != nil {
+				return nil, fail("subscription_error", err)
+			}
+			return map[string]any{"name": args[2], "key_configured": false}, nil
+		}
+		if err := store.SetKey(args[2], args[3]); err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		return map[string]any{"name": args[2], "key_configured": true}, nil
 	case "list":
 		if err := arity(args, 2); err != nil {
 			return nil, err
@@ -1345,7 +1363,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		}
 		return map[string]any{"name": args[2], "profile": args[2], "applied": true, "preview": preview, "selections_restored": 0}, nil
 	default:
-		return nil, usage("subscription list|add <name> <url>|update <name>|preview <name>|apply <name>|remove <name>")
+		return nil, usage("subscription list|add <name> <url>|key <name> <file|clear>|update <name>|preview <name>|apply <name>|remove <name>")
 	}
 }
 
