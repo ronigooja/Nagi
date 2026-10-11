@@ -1453,17 +1453,34 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		if err != nil {
 			return nil, err
 		}
-		result, delayErr := service.Delays(ctx, args[2], target, timeoutMS)
-		if g.Type == "URLTest" || g.Type == "Fallback" {
-			result.AutomaticReset = true
-			current, err := profile.NewStore(configDir, nil, nil).Current()
+		automatic := g.Type == "URLTest" || g.Type == "Fallback"
+		var current string
+		if automatic {
+			current, err = profile.NewStore(configDir, nil, nil).Current()
 			if err != nil {
-				return nil, fail("proxy_selection_error", fmt.Errorf("group latency test may have resumed automatic selection, but selected profile could not be read: %w", err))
+				return nil, fail("proxy_selection_error", fmt.Errorf("group latency test was not started because selected profile could not be read; saved choice is unchanged: %w", err))
 			}
+		}
+		result, state, delayErr := service.DelaysKnown(ctx, g, target, timeoutMS)
+		if automatic && state == proxy.DelayResetUnknown {
+			// A transport failure may occur after the handler cleared the pin.
+			// Only a visible transition from fixed to automatic proves the reset.
+			observed, readErr := service.Show(ctx, args[2])
+			if readErr == nil && g.Fixed != "" && observed.Fixed == "" {
+				state = proxy.DelayResetConfirmed
+			} else {
+				return nil, fmt.Errorf("group latency test failed and automatic reset is unknown; saved choice was kept; inspect `nagi proxy show %q` before `nagi proxy restore`: %w", args[2], delayErr)
+			}
+		}
+		if automatic && state == proxy.DelayResetConfirmed {
 			if err := selections.RemoveGroup(current, args[2]); err != nil {
 				return nil, fail("proxy_selection_error", fmt.Errorf("group latency test resumed automatic selection in running engine, but saved choice could not be removed: %w", err))
 			}
+			result.AutomaticReset = true
 			result.SavedSelectionRemoved = true
+		}
+		if automatic && state == proxy.DelayResetConfirmed && delayErr != nil {
+			return nil, fmt.Errorf("group latency test failed after mihomo resumed automatic selection; saved choice was removed: %w", delayErr)
 		}
 		return result, delayErr
 	case "delay":

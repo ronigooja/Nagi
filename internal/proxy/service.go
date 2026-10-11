@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/ronigooja/Nagi/internal/control"
 )
 
 type Client interface {
@@ -85,18 +87,38 @@ type BatchDelayResult struct {
 }
 
 func (s *Service) Delays(ctx context.Context, group, target string, timeoutMS int) (BatchDelayResult, error) {
-	result := BatchDelayResult{Group: group, URL: target, TimeoutMS: timeoutMS, Results: []BatchDelayItem{}}
 	g, err := s.Show(ctx, group)
 	if err != nil {
-		return result, err
+		return BatchDelayResult{Group: group, URL: target, TimeoutMS: timeoutMS, Results: []BatchDelayItem{}}, err
 	}
+	result, _, err := s.DelaysKnown(ctx, g, target, timeoutMS)
+	return result, err
+}
+
+// DelayRequestState records what is known about mihomo's fixed-node reset.
+type DelayRequestState uint8
+
+const (
+	DelayNotSent DelayRequestState = iota
+	DelayResetConfirmed
+	DelayResetUnknown
+)
+
+// DelaysKnown uses a previously read group, so callers can make persistence
+// decisions without a second group read between preflight and dispatch.
+func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeoutMS int) (BatchDelayResult, DelayRequestState, error) {
+	result := BatchDelayResult{Group: g.Name, URL: target, TimeoutMS: timeoutMS, Results: []BatchDelayItem{}}
 	if err := validateDelay(target, timeoutMS); err != nil {
-		return result, err
+		return result, DelayNotSent, err
 	}
 	u := delayQuery(target, timeoutMS)
 	var measured map[string]int
-	if err := s.Client.Get(ctx, "/group/"+url.PathEscape(group)+"/delay?"+u.Encode(), &measured); err != nil {
-		return result, err
+	if err := s.Client.Get(ctx, "/group/"+url.PathEscape(g.Name)+"/delay?"+u.Encode(), &measured); err != nil {
+		var apiErr *control.APIError
+		if errors.As(err, &apiErr) && apiErr.Status == 504 {
+			return result, DelayResetConfirmed, err
+		}
+		return result, DelayResetUnknown, err
 	}
 	for _, name := range g.All {
 		item := BatchDelayItem{Proxy: name}
@@ -120,7 +142,7 @@ func (s *Service) Delays(ctx context.Context, group, target string, timeoutMS in
 		}
 		return a.Proxy < b.Proxy
 	})
-	return result, nil
+	return result, DelayResetConfirmed, nil
 }
 
 func (s *Service) Search(ctx context.Context, query string) ([]Group, error) {
