@@ -26,6 +26,10 @@ func (f *roadmapClient) Get(_ context.Context, path string, out any) error {
 		return json.Unmarshal([]byte(`{"name":"Choice","type":"Selector","all":["Slow","Fast"],"now":"Gone","alive":true}`), out)
 	case path == "/proxies/Other":
 		return json.Unmarshal([]byte(`{"name":"Other","type":"Selector","all":["Fast"],"now":"Fast","alive":true}`), out)
+	case path == "/providers/proxies":
+		return json.Unmarshal([]byte(`{"providers":{}}`), out)
+	case strings.HasPrefix(path, "/group/Choice/delay?"):
+		return json.Unmarshal([]byte(`{"Slow":90,"Fast":10}`), out)
 	case strings.Contains(path, "/delay"):
 		if strings.Contains(path, "Missing") {
 			return errors.New("unavailable")

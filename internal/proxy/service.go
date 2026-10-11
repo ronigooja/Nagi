@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 type Client interface {
@@ -77,10 +76,12 @@ type BatchDelayItem struct {
 	Error   string `json:"error,omitempty"`
 }
 type BatchDelayResult struct {
-	Group     string           `json:"group"`
-	URL       string           `json:"url"`
-	TimeoutMS int              `json:"timeout_ms"`
-	Results   []BatchDelayItem `json:"results"`
+	Group                 string           `json:"group"`
+	URL                   string           `json:"url"`
+	TimeoutMS             int              `json:"timeout_ms"`
+	Results               []BatchDelayItem `json:"results"`
+	AutomaticReset        bool             `json:"automatic_reset,omitempty"`
+	SavedSelectionRemoved bool             `json:"saved_selection_removed,omitempty"`
 }
 
 func (s *Service) Delays(ctx context.Context, group, target string, timeoutMS int) (BatchDelayResult, error) {
@@ -89,34 +90,23 @@ func (s *Service) Delays(ctx context.Context, group, target string, timeoutMS in
 	if err != nil {
 		return result, err
 	}
-	if len(g.All) == 0 {
-		return result, nil
+	if err := validateDelay(target, timeoutMS); err != nil {
+		return result, err
 	}
-	result.Results = make([]BatchDelayItem, len(g.All))
-	semaphore := make(chan struct{}, 8)
-	var wg sync.WaitGroup
-	for i, name := range g.All {
-		wg.Add(1)
-		go func(i int, name string) {
-			defer wg.Done()
-			select {
-			case semaphore <- struct{}{}:
-			case <-ctx.Done():
-				result.Results[i] = BatchDelayItem{Proxy: name, Error: "request canceled"}
-				return
-			}
-			defer func() { <-semaphore }()
-			delay, err := s.Delay(ctx, name, target, timeoutMS)
-			item := BatchDelayItem{Proxy: name}
-			if err != nil {
-				item.Error = "latency test failed"
-			} else {
-				item.DelayMS = &delay.DelayMS
-			}
-			result.Results[i] = item
-		}(i, name)
+	u := delayQuery(target, timeoutMS)
+	var measured map[string]int
+	if err := s.Client.Get(ctx, "/group/"+url.PathEscape(group)+"/delay?"+u.Encode(), &measured); err != nil {
+		return result, err
 	}
-	wg.Wait()
+	for _, name := range g.All {
+		item := BatchDelayItem{Proxy: name}
+		if delay, ok := measured[name]; ok {
+			item.DelayMS = &delay
+		} else {
+			item.Error = "latency test failed"
+		}
+		result.Results = append(result.Results, item)
+	}
 	sort.SliceStable(result.Results, func(i, j int) bool {
 		a, b := result.Results[i], result.Results[j]
 		if a.Error != "" {
@@ -162,24 +152,61 @@ func (s *Service) Delay(ctx context.Context, name, target string, timeoutMS int)
 	if strings.TrimSpace(name) == "" {
 		return result, errors.New("proxy node required")
 	}
-	parsed, err := url.Parse(target)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
-		return result, errors.New("URL must be an absolute HTTP(S) URL without userinfo")
+	if err := validateDelay(target, timeoutMS); err != nil {
+		return result, err
 	}
-	if timeoutMS < 1 || timeoutMS > 30000 {
-		return result, errors.New("timeout must be an integer from 1 to 30000 milliseconds")
+	u := delayQuery(target, timeoutMS)
+	path := "/proxies/" + url.PathEscape(name) + "/delay?" + u.Encode()
+	if provider, ok, err := s.providerForNode(ctx, name); err != nil {
+		return result, err
+	} else if ok {
+		path = "/providers/proxies/" + url.PathEscape(provider) + "/" + url.PathEscape(name) + "/healthcheck?" + u.Encode()
 	}
-	u := url.Values{}
-	u.Set("url", target)
-	u.Set("timeout", strconv.Itoa(timeoutMS))
 	var response struct {
 		Delay int `json:"delay"`
 	}
-	if err := s.Client.Get(ctx, "/proxies/"+url.PathEscape(name)+"/delay?"+u.Encode(), &response); err != nil {
+	if err := s.Client.Get(ctx, path, &response); err != nil {
 		return result, err
 	}
 	result = DelayResult{Proxy: name, URL: target, TimeoutMS: timeoutMS, DelayMS: response.Delay}
 	return result, nil
+}
+
+func validateDelay(target string, timeoutMS int) error {
+	parsed, err := url.Parse(target)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+		return errors.New("URL must be an absolute HTTP(S) URL without userinfo")
+	}
+	if timeoutMS < 1 || timeoutMS > 30000 {
+		return errors.New("timeout must be an integer from 1 to 30000 milliseconds")
+	}
+	return nil
+}
+
+func delayQuery(target string, timeoutMS int) url.Values {
+	u := url.Values{}
+	u.Set("url", target)
+	u.Set("timeout", strconv.Itoa(timeoutMS))
+	return u
+}
+
+// Auto clears mihomo's fixed node for an automatic group. Selector groups
+// require a selection and cannot be reset through this endpoint.
+func (s *Service) Auto(ctx context.Context, group string) error {
+	g, err := s.Show(ctx, group)
+	if err != nil {
+		return err
+	}
+	if g.Type != "URLTest" && g.Type != "Fallback" {
+		return errors.New("group is not automatic; choose a URLTest or Fallback group")
+	}
+	c, ok := s.Client.(interface {
+		Delete(context.Context, string, any) error
+	})
+	if !ok {
+		return errors.New("mihomo control client does not support DELETE")
+	}
+	return c.Delete(ctx, "/proxies/"+url.PathEscape(group), nil)
 }
 
 func (s *Service) Groups(ctx context.Context) ([]Group, error) {

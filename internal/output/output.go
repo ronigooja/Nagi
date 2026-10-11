@@ -102,6 +102,8 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return nil
 	case proxy.Group:
 		return writeGroup(w, v)
+	case proxy.Provider:
+		return writeProvider(w, v)
 	case proxy.Connection:
 		return writeConnection(w, v)
 	case proxy.DelayResult:
@@ -109,6 +111,11 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 	case proxy.BatchDelayResult:
 		if err := line(w, "Proxy group "+v.Group+" latency:"); err != nil {
 			return err
+		}
+		if v.AutomaticReset && v.SavedSelectionRemoved {
+			if err := line(w, "Automatic selection resumed; saved choice removed."); err != nil {
+				return err
+			}
 		}
 		if len(v.Results) == 0 {
 			return line(w, "No nodes in this group.")
@@ -260,6 +267,18 @@ func writeGroup(w io.Writer, g proxy.Group) error {
 	return nil
 }
 
+func writeProvider(w io.Writer, p proxy.Provider) error {
+	if err := line(w, fmt.Sprintf("%s (%s, %s): %d nodes", p.Name, p.Type, p.VehicleType, len(p.Nodes))); err != nil {
+		return err
+	}
+	for _, name := range p.Nodes {
+		if err := line(w, "  "+name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func writeHumanMap(w io.Writer, v map[string]any) error {
 	if v["quit"] == true {
 		return line(w, "Nagi stopped for this login session. Login startup preference is unchanged.")
@@ -342,6 +361,17 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				}
 			}
 			if err := writeGroup(w, group); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if providers, ok := v["providers"].([]proxy.Provider); ok {
+		if len(providers) == 0 {
+			return line(w, "No proxy providers configured.")
+		}
+		for _, provider := range providers {
+			if err := writeProvider(w, provider); err != nil {
 				return err
 			}
 		}
@@ -536,8 +566,19 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		return line(w, "Selected profile "+current+". If mihomo was running, its configuration was reloaded.")
 	}
 	if group, ok := v["group"].(string); ok {
+		if v["automatic"] == true {
+			return line(w, "Automatic selection resumed for "+group+"; saved choice removed.")
+		}
 		if node, ok := v["node"].(string); ok {
 			return line(w, fmt.Sprintf("Selected %s in proxy group %s.", node, group))
+		}
+	}
+	if provider, ok := v["provider"].(string); ok {
+		if v["updated"] == true {
+			return line(w, "Updated proxy provider "+provider+".")
+		}
+		if v["healthcheck_started"] == true {
+			return line(w, "Started healthcheck for proxy provider "+provider+".")
 		}
 	}
 	if mode, ok := v["mode"].(string); ok {

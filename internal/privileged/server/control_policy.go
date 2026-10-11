@@ -113,7 +113,7 @@ func validateControl(req privileged.Request) error {
 			return errors.New("GET body is not allowed")
 		}
 		switch u.Path {
-		case "/version", "/configs", "/proxies", "/connections", "/rules", "/providers/rules", "/traffic":
+		case "/version", "/configs", "/proxies", "/providers/proxies", "/connections", "/rules", "/providers/rules", "/traffic":
 			if u.RawQuery == "" {
 				return nil
 			}
@@ -126,7 +126,10 @@ func validateControl(req privileged.Request) error {
 		if len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" && u.RawQuery == "" {
 			return nil
 		}
-		if len(parts) == 4 && parts[1] == "proxies" && parts[3] == "delay" && parts[2] != "" {
+		if len(parts) == 5 && parts[1] == "providers" && parts[2] == "proxies" && parts[3] != "" && parts[4] == "healthcheck" && u.RawQuery == "" {
+			return nil
+		}
+		if (len(parts) == 4 && (parts[1] == "proxies" || parts[1] == "group") && parts[3] == "delay" && parts[2] != "") || (len(parts) == 6 && parts[1] == "providers" && parts[2] == "proxies" && parts[3] != "" && parts[4] != "" && parts[5] == "healthcheck") {
 			q := u.Query()
 			target, targetErr := url.Parse(q.Get("url"))
 			timeout, timeoutErr := strconv.Atoi(q.Get("timeout"))
@@ -145,7 +148,13 @@ func validateControl(req privileged.Request) error {
 		if u.Path == "/connections" || len(parts) == 3 && parts[1] == "connections" && parts[2] != "" {
 			return nil
 		}
+		if len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" {
+			return nil
+		}
 	case http.MethodPut:
+		if len(parts) == 4 && parts[1] == "providers" && parts[2] == "proxies" && parts[3] != "" && u.RawQuery == "" && len(req.Body) == 0 {
+			return nil
+		}
 		if len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" && u.RawQuery == "" {
 			var body struct {
 				Name string `json:"name"`

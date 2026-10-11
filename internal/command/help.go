@@ -56,7 +56,7 @@ var commandSpecs = []commandSpec{
 	{"dns", "dns <status|set|exception|tun|query|flush|check>", "Manage DNS protection", "Configures selected-profile DNS in a separate local override; inspects mihomo DNS through its private control API.", "nagi dns status", "", 0, -1},
 	{"dns status", "dns status", "Show selected DNS policy", "Reports configured upstreams, IPv6, TUN, and configuration risks.", "nagi dns status", "", 0, 0},
 	{"dns check", "dns check", "Check DNS configuration and mihomo API", "Inspects the selected effective DNS configuration and queries the running mihomo resolver.", "nagi dns check", "", 0, 0},
-	{"dns set", "dns set direct URL [URL...]|proxy NODE URL [URL...]", "Set encrypted DNS upstreams", "Saves one or more HTTPS DoH URLs. Direct connects directly; proxy pins DoH to a named non-direct node in the selected profile. No plaintext fallback is configured.", "nagi dns set direct https://1.1.1.1/dns-query", "", 2, 32},
+	{"dns set", "dns set direct URL [URL...]|proxy NAME URL [URL...]", "Set encrypted DNS upstreams", "Saves one or more HTTPS DoH URLs. Direct connects directly; proxy binds DoH to a named non-direct node or proxy group in the effective profile. No plaintext fallback is configured.", "nagi dns set direct https://1.1.1.1/dns-query", "", 2, 32},
 	{"dns exception", "dns exception <add DOMAIN SERVER|remove DOMAIN>", "Manage DNS exceptions", "Exceptions route a domain suffix to an explicit server; plaintext IP servers are allowed only here.", "nagi dns exception add corp.example udp://10.0.0.53:53", "", 0, -1},
 	{"dns exception add", "dns exception add DOMAIN SERVER", "Add DNS exception", "Maps a domain suffix to a DoH URL or an explicitly requested plaintext IP server.", "nagi dns exception add corp.example udp://10.0.0.53:53", "", 2, 2},
 	{"dns exception remove", "dns exception remove DOMAIN", "Remove DNS exception", "Removes the selected domain suffix from local DNS policy.", "nagi dns exception remove corp.example", "", 1, 1},
@@ -65,11 +65,17 @@ var commandSpecs = []commandSpec{
 	{"dns tun off", "dns tun off", "Disable TUN DNS interception", "Disables TUN in the selected profile override.", "nagi dns tun off", "", 0, 0},
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
-	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Reads proxy groups and selections from a running mihomo process and measures node delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider show|update|healthcheck NAME|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Reads proxy groups and providers from a running mihomo process and measures delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups in the current profile's order with their live selections.", "nagi proxy groups", "", 0, 0},
 	{"proxy show", "proxy show GROUP", "Show a proxy group", "Shows one group and its available nodes.", "nagi proxy show 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 1},
 	{"proxy search", "proxy search QUERY", "Search nodes", "Lists case-insensitive node-name matches by group.", "nagi proxy search Hong", "Run `nagi proxy groups` to inspect all nodes.", 1, 1},
 	{"proxy select", "proxy select GROUP NODE", "Select a proxy node", "Selects a node in a group and saves the choice for the selected profile.", "nagi proxy select 'Proxy Group' 'Node A'", "Run `nagi proxy groups` and `nagi proxy show GROUP` to find names.", 2, 2},
+	{"proxy auto", "proxy auto GROUP", "Resume automatic selection", "Clears the fixed node of a URLTest or Fallback group and removes its saved choice.", "nagi proxy auto 'Auto Group'", "Run `nagi proxy groups` to find an automatic group.", 1, 1},
+	{"proxy providers", "proxy providers", "List proxy providers", "Lists provider names, types, update time, and node names without revealing URLs or credentials.", "nagi proxy providers", "", 0, 0},
+	{"proxy provider", "proxy provider <show|update|healthcheck> NAME", "Manage one proxy provider", "Uses mihomo's native provider management API.", "nagi proxy provider show work", "", 0, -1},
+	{"proxy provider show", "proxy provider show NAME", "Show a proxy provider", "Reports redacted provider metadata and node names.", "nagi proxy provider show work", "", 1, 1},
+	{"proxy provider update", "proxy provider update NAME", "Update a proxy provider", "Asks mihomo to download the provider again.", "nagi proxy provider update work", "", 1, 1},
+	{"proxy provider healthcheck", "proxy provider healthcheck NAME", "Check provider nodes", "Asks mihomo to start its provider healthcheck.", "nagi proxy provider healthcheck work", "", 1, 1},
 	{"proxy delay", "proxy delay NODE [URL] [TIMEOUT_MS]", "Measure proxy delay", "Measures an HTTP(S) URL through a proxy node. URL defaults to https://www.gstatic.com/generate_204 and timeout to 5000 ms.", "nagi proxy delay NodeA", "Run `nagi proxy groups` to find a node name.", 1, 3},
 	{"rules", "rules <list|providers|custom|conflicts|connection ID|add NAME TYPE PAYLOAD TARGET|remove NAME|enable NAME|disable NAME|import-local NAME BEHAVIOR FILE TARGET|import-remote NAME BEHAVIOR URL TARGET>", "Manage routing rules", "Custom rules are stored outside profiles and apply before profile rules.", "nagi rules list", "", 0, -1},
 	{"rules list", "rules list", "List active rules", "Shows mihomo's ordered active rules, including disabled state and hit counts.", "nagi rules list", "", 0, 0},
@@ -126,7 +132,7 @@ var commandSpecs = []commandSpec{
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
-	{"completion candidates", "completion candidates profile|subscription|groups|nodes [GROUP]", "List completion candidates", "Lists local names or live proxy names; subscription URLs are excluded.", "nagi completion candidates profile", "", 1, 2},
+	{"completion candidates", "completion candidates profile|subscription|groups|nodes [GROUP]|providers", "List completion candidates", "Lists local names or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile", "", 1, 2},
 }
 
 func findSpec(path string) *commandSpec {
@@ -219,8 +225,8 @@ func validateInvocation(args []string) error {
 		return syntaxError("too many arguments", spec)
 	}
 	if spec.path == "completion candidates" {
-		if args[2] != "profile" && args[2] != "subscription" && args[2] != "groups" && args[2] != "nodes" {
-			return syntaxError("RESOURCE must be profile, subscription, groups, or nodes", spec)
+		if args[2] != "profile" && args[2] != "subscription" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" {
+			return syntaxError("RESOURCE must be profile, subscription, groups, nodes, or providers", spec)
 		}
 		if n == 2 && args[2] != "nodes" {
 			return syntaxError("GROUP is only valid for nodes", spec)

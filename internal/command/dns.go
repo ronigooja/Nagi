@@ -377,21 +377,41 @@ func dnsProxyNode(store *profile.Store, name, group string) error {
 	if err != nil {
 		return err
 	}
-	var cfg struct {
-		Proxies []struct {
-			Name string `yaml:"name"`
-			Type string `yaml:"type"`
-		} `yaml:"proxies"`
-	}
+	var cfg dnsBindingConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return errors.New("selected profile is not valid YAML")
 	}
+	if validDNSBinding(cfg, group) {
+		return nil
+	}
+	return errors.New("proxy target not found in selected profile; choose a non-direct node or proxy group from the effective YAML")
+}
+
+type dnsBindingConfig struct {
+	Proxies []struct {
+		Name string `yaml:"name"`
+		Type string `yaml:"type"`
+	} `yaml:"proxies"`
+	ProxyGroups []struct {
+		Name string `yaml:"name"`
+	} `yaml:"proxy-groups"`
+}
+
+func validDNSBinding(cfg dnsBindingConfig, name string) bool {
+	if name == "" || name == "DIRECT" || name == "RULES" {
+		return false
+	}
 	for _, item := range cfg.Proxies {
-		if item.Name == group && item.Type != "direct" && item.Type != "reject" && item.Type != "pass" {
-			return nil
+		if item.Name == name && item.Type != "direct" && item.Type != "reject" && item.Type != "pass" {
+			return true
 		}
 	}
-	return errors.New("proxy node not found in selected profile; choose a non-direct node name from the source YAML")
+	for _, item := range cfg.ProxyGroups {
+		if item.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func validateDNSProxyTargets(data []byte) error {
@@ -403,6 +423,9 @@ func validateDNSProxyTargets(data []byte) error {
 			Name string `yaml:"name"`
 			Type string `yaml:"type"`
 		} `yaml:"proxies"`
+		ProxyGroups []struct {
+			Name string `yaml:"name"`
+		} `yaml:"proxy-groups"`
 	}
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return errors.New("effective profile is not valid YAML")
@@ -415,15 +438,8 @@ func validateDNSProxyTargets(data []byte) error {
 		if parsed.Fragment == "" || parsed.Fragment == "RULES" || parsed.Fragment == "DIRECT" {
 			continue
 		}
-		found := false
-		for _, item := range cfg.Proxies {
-			if item.Name == parsed.Fragment && item.Type != "direct" && item.Type != "reject" && item.Type != "pass" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return errors.New("DNS proxy node is missing or no longer usable; update `nagi dns set proxy NODE URL` before activating this profile")
+		if !validDNSBinding(dnsBindingConfig{Proxies: cfg.Proxies, ProxyGroups: cfg.ProxyGroups}, parsed.Fragment) {
+			return errors.New("DNS proxy target is missing or no longer usable; update `nagi dns set proxy NAME URL` before activating this profile")
 		}
 	}
 	return nil

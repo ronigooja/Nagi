@@ -15,6 +15,12 @@ func TestRestrictedControl(t *testing.T) {
 		{Method: "GET", Path: "/proxies/Group/delay?timeout=5000&url=https%3A%2F%2Fexample.com"},
 		{Method: "PATCH", Path: "/configs", Body: []byte(`{"tun":{"enable":true,"auto-route":true,"auto-detect-interface":true}}`)},
 		{Method: "PUT", Path: "/proxies/Group", Body: []byte(`{"name":"Node"}`)},
+		{Method: "DELETE", Path: "/proxies/Auto"},
+		{Method: "GET", Path: "/providers/proxies"},
+		{Method: "GET", Path: "/providers/proxies/work/healthcheck"},
+		{Method: "PUT", Path: "/providers/proxies/work"},
+		{Method: "GET", Path: "/providers/proxies/work/Node/healthcheck?timeout=5000&url=https%3A%2F%2Fexample.com"},
+		{Method: "GET", Path: "/group/Auto/delay?timeout=5000&url=https%3A%2F%2Fexample.com"},
 	}
 	for _, req := range allowed {
 		if err := validateControl(req); err != nil {
@@ -28,6 +34,8 @@ func TestRestrictedControl(t *testing.T) {
 		{Method: "GET", Path: "/configs/../../etc/shadow"},
 		{Method: "GET", Path: "/proxies/%2Fetc%2Fshadow"},
 		{Method: "POST", Path: "/configs"},
+		{Method: "PUT", Path: "/providers/proxies/work", Body: []byte(`{"url":"https://evil.test"}`)},
+		{Method: "DELETE", Path: "/providers/proxies/work"},
 	}
 	for _, req := range denied {
 		if err := validateControl(req); err == nil {

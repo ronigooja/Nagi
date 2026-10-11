@@ -11,6 +11,7 @@ type fakeClient struct{ path, selected, method, bodyPath string }
 
 func (f *fakeClient) Get(_ context.Context, path string, out any) error {
 	f.path = path
+	if path == "/providers/proxies" { return json.Unmarshal([]byte(`{"providers":{}}`), out) }
 	if path == "/configs" {
 		return json.Unmarshal([]byte(`{"mode":"global"}`), out)
 	}

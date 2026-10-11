@@ -50,6 +50,26 @@ func (s SelectionStore) Save(profile, group, node string) error {
 	return writeSelections(s.Path, data)
 }
 
+// RemoveGroup clears one saved pin after mihomo has resumed automatic selection.
+func (s SelectionStore) RemoveGroup(profile, group string) error {
+	all, err := s.read()
+	if err != nil {
+		return err
+	}
+	if _, ok := all[profile][group]; !ok {
+		return nil
+	}
+	delete(all[profile], group)
+	if len(all[profile]) == 0 {
+		delete(all, profile)
+	}
+	data, err := json.MarshalIndent(all, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeSelections(s.Path, data)
+}
+
 func writeSelections(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err

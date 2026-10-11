@@ -253,11 +253,21 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				return nil, e
 			}
 			service := orderedProxyService(client, paths.ConfigDir)
+			names := []string{}
+			if len(args) == 3 && args[2] == "providers" {
+				providers, err := service.Providers(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, p := range providers {
+					names = append(names, p.Name)
+				}
+				return proxy.Candidates(names), nil
+			}
 			groups, err := service.Groups(ctx)
 			if err != nil {
 				return nil, err
 			}
-			names := []string{}
 			if len(args) == 3 && args[2] == "groups" {
 				for _, g := range groups {
 					names = append(names, g.Name)
@@ -284,7 +294,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				}
 				return proxy.Candidates(names), nil
 			}
-			return nil, usage("completion candidates groups|nodes [GROUP]")
+			return nil, usage("completion candidates groups|nodes [GROUP]|providers")
 		}
 		if len(args) != 2 {
 			return nil, usage("completion bash|zsh|fish")
@@ -1339,7 +1349,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 
 func proxyCommand(ctx context.Context, args []string, service *proxy.Service, selections proxy.SelectionStore, configDir string) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
+		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider show|update|healthcheck NAME|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
 	}
 	switch args[1] {
 	case "groups":
@@ -1368,6 +1378,53 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 			return nil, fail("proxy_selection_error", fmt.Errorf("selected node in running engine, but could not save choice: %w", err))
 		}
 		return map[string]any{"group": args[2], "node": args[3]}, nil
+	case "auto":
+		if err := arity(args, 3); err != nil {
+			return nil, err
+		}
+		current, err := profile.NewStore(configDir, nil, nil).Current()
+		if err != nil {
+			return nil, fail("proxy_selection_error", err)
+		}
+		if err := service.Auto(ctx, args[2]); err != nil {
+			return nil, fail("proxy_selection_error", err)
+		}
+		if err := selections.RemoveGroup(current, args[2]); err != nil {
+			return nil, fail("proxy_selection_error", fmt.Errorf("automatic selection resumed in running engine, but saved choice could not be removed: %w", err))
+		}
+		return map[string]any{"group": args[2], "automatic": true, "saved_selection_removed": true}, nil
+	case "providers":
+		if err := arity(args, 2); err != nil {
+			return nil, err
+		}
+		providers, err := service.Providers(ctx)
+		if err != nil {
+			return nil, fail("proxy_provider_error", err)
+		}
+		return map[string]any{"providers": providers}, nil
+	case "provider":
+		if len(args) != 4 {
+			return nil, usage("proxy provider show|update|healthcheck NAME")
+		}
+		switch args[2] {
+		case "show":
+			p, err := service.Provider(ctx, args[3])
+			if err != nil {
+				return nil, fail("proxy_provider_error", err)
+			}
+			return p, nil
+		case "update":
+			if err := service.ProviderUpdate(ctx, args[3]); err != nil {
+				return nil, fail("proxy_provider_error", err)
+			}
+			return map[string]any{"provider": args[3], "updated": true}, nil
+		case "healthcheck":
+			if err := service.ProviderHealthcheck(ctx, args[3]); err != nil {
+				return nil, fail("proxy_provider_error", err)
+			}
+			return map[string]any{"provider": args[3], "healthcheck_started": true}, nil
+		}
+		return nil, usage("proxy provider show|update|healthcheck NAME")
 	case "restore":
 		if err := arity(args, 2); err != nil {
 			return nil, err
@@ -1392,7 +1449,23 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		if len(args) == 5 {
 			timeoutMS, _ = strconv.Atoi(args[4])
 		}
-		return service.Delays(ctx, args[2], target, timeoutMS)
+		g, err := service.Show(ctx, args[2])
+		if err != nil {
+			return nil, err
+		}
+		result, delayErr := service.Delays(ctx, args[2], target, timeoutMS)
+		if g.Type == "URLTest" || g.Type == "Fallback" {
+			result.AutomaticReset = true
+			current, err := profile.NewStore(configDir, nil, nil).Current()
+			if err != nil {
+				return nil, fail("proxy_selection_error", fmt.Errorf("group latency test may have resumed automatic selection, but selected profile could not be read: %w", err))
+			}
+			if err := selections.RemoveGroup(current, args[2]); err != nil {
+				return nil, fail("proxy_selection_error", fmt.Errorf("group latency test resumed automatic selection in running engine, but saved choice could not be removed: %w", err))
+			}
+			result.SavedSelectionRemoved = true
+		}
+		return result, delayErr
 	case "delay":
 		target := "https://www.gstatic.com/generate_204"
 		timeoutMS := 5000
@@ -1404,7 +1477,7 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		}
 		return service.Delay(ctx, args[2], target, timeoutMS)
 	default:
-		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
+		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider show|update|healthcheck NAME|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
 	}
 }
 

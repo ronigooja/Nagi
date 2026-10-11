@@ -69,7 +69,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
   fi
   root="${semantic[0]}"
   if [[ ${#semantic[@]} -eq 2 && "$root" == completion && "${semantic[1]}" == candidates ]]; then
-    COMPREPLY=( $(compgen -W 'profile subscription groups nodes' -- "$cur") ); return 0
+    COMPREPLY=( $(compgen -W 'profile subscription groups nodes providers' -- "$cur") ); return 0
   fi
   if [[ ${#semantic[@]} -eq 2 ]]; then
     if [[ "$root" == profile && ( "${semantic[1]}" == use || "${semantic[1]}" == remove ) ]]; then
@@ -98,9 +98,15 @@ func bashCompletion(roots []string, children map[string][]string) string {
     COMPREPLY=( $(compgen -W 'A AAAA' -- "$cur") ); return 0
   fi
   if [[ "$root" == proxy ]]; then
+    if [[ ${#semantic[@]} -eq 2 && "${semantic[1]}" == provider ]]; then
+      COMPREPLY=( $(compgen -W 'show update healthcheck' -- "$cur") ); return 0
+    fi
+    if [[ ${#semantic[@]} -eq 3 && "${semantic[1]}" == provider ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates providers 2>/dev/null); return 0
+    fi
     local kind="" group=""
     if [[ ${#semantic[@]} -eq 2 ]]; then
-      case "${semantic[1]}" in show|select|delays) kind=groups ;; delay) kind=nodes ;; esac
+      case "${semantic[1]}" in show|select|auto|delays) kind=groups ;; delay) kind=nodes ;; esac
     elif [[ ${#semantic[@]} -eq 3 && "${semantic[1]}" == select ]]; then
       kind=nodes; group="${semantic[2]}"
     fi
@@ -135,7 +141,7 @@ _nagi() {
   done
   if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi
   if (( ${#semantic} == 0 )); then compadd -- %s; return; fi
-  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription groups nodes; return; fi
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription groups nodes providers; return; fi
   if (( ${#semantic} == 2 )); then
     if [[ ${semantic[1]} == profile && ( ${semantic[2]} == use || ${semantic[2]} == remove ) ]]; then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
     if [[ ${semantic[1]} == subscription && ( ${semantic[2]} == update || ${semantic[2]} == apply || ${semantic[2]} == remove ) ]]; then compadd -- ${(f)"$(nagi completion candidates subscription 2>/dev/null)"}; return; fi
@@ -145,9 +151,11 @@ _nagi() {
   if [[ ${semantic[1]} == dns && ${#semantic} == 2 ]]; then case ${semantic[2]} in exception) compadd -- add remove; return ;; tun) compadd -- on off; return ;; set) compadd -- direct proxy; return ;; esac; fi
   if [[ ${semantic[1]} == dns && ${semantic[2]} == query && ${#semantic} == 3 ]]; then compadd -- A AAAA; return; fi
   if [[ ${semantic[1]} == proxy ]]; then
+    if (( ${#semantic} == 2 )) && [[ ${semantic[2]} == provider ]]; then compadd -- show update healthcheck; return; fi
+    if (( ${#semantic} == 3 )) && [[ ${semantic[2]} == provider ]]; then compadd -- ${(f)"$(nagi completion candidates providers 2>/dev/null)"}; return; fi
     local kind="" group=""
     if (( ${#semantic} == 2 )); then
-      case ${semantic[2]} in show|select|delays) kind=groups ;; delay) kind=nodes ;; esac
+      case ${semantic[2]} in show|select|auto|delays) kind=groups ;; delay) kind=nodes ;; esac
     elif (( ${#semantic} == 3 )) && [[ ${semantic[2]} == select ]]; then kind=nodes; group=${semantic[3]}; fi
     if [[ -n $kind ]]; then
       local -a candidates
@@ -195,7 +203,7 @@ end
 		fmt.Fprintf(&b, "complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = %s' -a '%s'\n", root, shellWords(values))
 	}
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = mode' -a 'rule global direct'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription groups nodes'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription groups nodes providers'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and contains -- $s[2] use remove' -a '(nagi completion candidates profile 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = subscription; and contains -- $s[2] update apply remove' -a '(nagi completion candidates subscription 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = import' -F\n")
@@ -206,9 +214,11 @@ end
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = tun' -a 'on off'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = set' -a 'direct proxy'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = dns; and test \"$s[2]\" = query' -a 'A AAAA'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and contains -- \"$s[2]\" show select delays' -a '(nagi completion candidates groups 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and contains -- \"$s[2]\" show select auto delays' -a '(nagi completion candidates groups 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = delay' -a '(nagi completion candidates nodes 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = select' -a '(set -l s (__nagi_semantic); nagi completion candidates nodes \"$s[3]\" 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider' -a 'show update healthcheck'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider' -a '(nagi completion candidates providers 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
 	return b.String()
 }
