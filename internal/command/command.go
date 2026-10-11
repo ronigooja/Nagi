@@ -449,6 +449,10 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	trafficManager := traffic.New(paths.StateDir)
 	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), &http.Client{Timeout: 30 * time.Second})
 	subs.Binary = binary
+	subs.CommitUnderConfigLock = func(fn func() error) error {
+		_, err := withNamedLock(paths, "config.lock", func() (any, error) { return nil, fn() })
+		return err
+	}
 	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
@@ -720,7 +724,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err != nil {
 			return nil, err
 		}
-		return profileCommand(ctx, args, store)
+		return profileCommand(ctx, args, store, subs)
 	case "subscription":
 		if len(args) > 1 && (args[1] == "apply" || args[1] == "preview") {
 			store, err := getProfiles()
@@ -1076,7 +1080,11 @@ func arity(args []string, n int) error {
 }
 func usage(message string) error { return fail("usage", errors.New(message)) }
 
-func profileCommand(ctx context.Context, args []string, store *profile.Store) (any, error) {
+func profileCommand(ctx context.Context, args []string, store *profile.Store, subscriptions ...*subscription.Store) (any, error) {
+	var subs *subscription.Store
+	if len(subscriptions) > 0 {
+		subs = subscriptions[0]
+	}
 	if len(args) < 2 {
 		return nil, usage("profile list|use NAME|import NAME FILE|export NAME FILE|backup NAME|restore NAME|diff NAME [OTHER|backup]|remove NAME")
 	}
@@ -1117,6 +1125,11 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 		}
 		if err := store.Write(ctx, args[2], data); err != nil {
 			return nil, fail("profile_error", err)
+		}
+		if subs != nil {
+			if err := subs.DetachProfile(args[2]); err != nil {
+				return nil, fail("profile_error", err)
+			}
 		}
 		return map[string]any{"name": args[2], "imported": true}, nil
 	case "export":
@@ -1238,6 +1251,11 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store) (a
 		if err := store.Remove(args[2]); err != nil {
 			return nil, fail("profile_error", err)
 		}
+		if subs != nil {
+			if err := subs.DetachProfile(args[2]); err != nil {
+				return nil, fail("profile_error", err)
+			}
+		}
 		return map[string]any{"name": args[2], "removed": true, "kind": "profile"}, nil
 	default:
 		return nil, usage("profile list|use NAME|import NAME FILE|export NAME FILE|backup NAME|restore NAME|diff NAME [OTHER|backup]|remove NAME")
@@ -1268,7 +1286,7 @@ func profileCommandWithCurrentError(ctx context.Context, args []string, store *p
 
 func subscriptionCommand(ctx context.Context, args []string, store *subscription.Store, profiles *profile.Store, proxies *proxy.Service) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("subscription list|add <name> <url>|key <name> <file|clear>|update <name>|preview <name>|apply <name>|remove <name>")
+		return nil, usage("subscription list|add <name> <url>|key <name> <file|clear>|schedule <name> <seconds|off>|update <name>|preview <name>|apply <name>|remove <name>")
 	}
 	switch args[1] {
 	case "key":
@@ -1293,7 +1311,23 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 			return nil, err
 		}
 		list, err := store.List()
-		return map[string]any{"subscriptions": list}, err
+		return map[string]any{"subscriptions": list, "scheduler_running": false}, err
+	case "schedule":
+		if err := arity(args, 4); err != nil {
+			return nil, usage("subscription schedule NAME SECONDS|off")
+		}
+		seconds := int64(0)
+		if args[3] != "off" {
+			var parseErr error
+			seconds, parseErr = strconv.ParseInt(args[3], 10, 64)
+			if parseErr != nil || seconds < 1 || seconds > subscription.MaxScheduleSeconds {
+				return nil, usage("schedule interval must be 1..31536000 seconds or off")
+			}
+		}
+		if err := store.Schedule(args[2], seconds); err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		return map[string]any{"name": args[2], "schedule_seconds": seconds, "scheduler_running": false}, nil
 	case "add":
 		if err := arity(args, 4); err != nil {
 			return nil, err
@@ -1361,9 +1395,12 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		if err := (proxy.SelectionStore{Path: filepath.Join(profiles.Dir, "proxy-selections.json")}).Clear(args[2]); err != nil {
 			return nil, fail("subscription_error", fmt.Errorf("subscription applied but saved proxy choices could not be cleared: %w", err))
 		}
+		if err := store.RecordApplySuccess(args[2], args[2], subscription.Hash(data), merged); err != nil {
+			return nil, fail("subscription_error", err)
+		}
 		return map[string]any{"name": args[2], "profile": args[2], "applied": true, "preview": preview, "selections_restored": 0}, nil
 	default:
-		return nil, usage("subscription list|add <name> <url>|key <name> <file|clear>|update <name>|preview <name>|apply <name>|remove <name>")
+		return nil, usage("subscription list|add <name> <url>|key <name> <file|clear>|schedule <name> <seconds|off>|update <name>|preview <name>|apply <name>|remove <name>")
 	}
 }
 

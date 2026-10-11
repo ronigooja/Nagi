@@ -45,3 +45,5 @@ Lifecycle operations use the runtime lock and PID marker to distinguish a live p
 ## Diagnostics and security
 
 `diagnostics` performs read-only checks against local paths, executable resolution, profile readability, PID liveness, Unix Socket `/version`, mihomo `/configs`, listener reachability, DNS enablement, listener/controller exposure, and owner-only permissions. It does not read profile contents into the report. `diagnostics export` serializes the same redacted report to an owner-only file. The report separates process existence, API reachability, configured listener, and proxy path checks.
+
+Subscription metadata is committed under a persistent cache lock whose inode is outside the configuration tree restored by configuration transactions. Refresh downloads and decrypts without locks, then takes `config.lock` followed by the subscription index lock only for cache/index commit; it rereads the index and rejects a changed subscription generation. This prevents stale HTTP results from overwriting schedule or key changes. The scheduler metadata is currently storage-only and no watch or automatic apply task runs.

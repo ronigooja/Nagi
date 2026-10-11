@@ -378,6 +378,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		return nil
 	}
 	if entries, ok := v["subscriptions"].([]subscription.Entry); ok {
+		if _, err := fmt.Fprintln(w, "Scheduler: not running (schedule settings are saved only)."); err != nil {
+			return err
+		}
 		if len(entries) == 0 {
 			return line(w, "No subscriptions configured. Add one with `nagi subscription add NAME URL`.")
 		}
@@ -397,6 +400,27 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			if entry.Total > 0 {
 				label += fmt.Sprintf("  Traffic: %d/%d bytes", entry.Upload+entry.Download, entry.Total)
 			}
+			if entry.ScheduleSeconds == 0 {
+				label += "  Schedule: off"
+			} else {
+				label += fmt.Sprintf("  Schedule: %ds", entry.ScheduleSeconds)
+			}
+			if !entry.NextDue.IsZero() {
+				label += "  Next due: " + entry.NextDue.Format("2006-01-02 15:04:05 MST")
+			}
+			if entry.Profile != "" {
+				label += "  Profile: " + entry.Profile
+			}
+			if entry.CacheVersion != "" {
+				label += "  Cache version: " + entry.CacheVersion
+			}
+			if entry.AppliedCacheVersion != "" {
+				label += "  Applied version: " + entry.AppliedCacheVersion
+			}
+			if entry.LastFailureStage != "" {
+				label += "  Last failure: " + entry.LastFailureStage + " (" + entry.LastFailureReason + ")"
+			}
+
 			if err := line(w, label); err != nil {
 				return err
 			}

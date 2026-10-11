@@ -46,10 +46,11 @@ var commandSpecs = []commandSpec{
 	{"profile override clear", "profile override clear NAME", "Clear local override", "Removes the user-owned override and reloads the selected running profile.", "nagi profile override clear work", "", 1, 1},
 	{"profile override apply-default", "profile override apply-default NAME", "Apply local default settings", "Copies safe local runtime settings from profiles/default.yaml onto NAME; subscription nodes, groups, rules, and Nagi-managed fields remain unchanged.", "nagi profile override apply-default work", "The default profile must exist.", 1, 1},
 	{"profile remove", "profile remove NAME", "Remove a profile", "Removes an unselected local profile and keeps its backup file.", "nagi profile remove old", "Run `nagi profile list` to see profile names.", 1, 1},
-	{"subscription", "subscription <list|add NAME URL|key NAME FILE|clear|update NAME|preview NAME|apply NAME|remove NAME>", "Manage subscriptions", "Stores URLs and private age identities separately from cached downloads and active profiles.", "nagi subscription list", "", 0, -1},
-	{"subscription list", "subscription list", "List subscriptions", "Lists saved names and refresh times without showing URLs.", "nagi subscription list", "", 0, 0},
+	{"subscription", "subscription <list|add NAME URL|key NAME FILE|clear|schedule NAME SECONDS|off|update NAME|preview NAME|apply NAME|remove NAME>", "Manage subscriptions", "Stores URLs and private age identities separately from cached downloads and active profiles.", "nagi subscription list", "", 0, -1},
+	{"subscription list", "subscription list", "List subscriptions", "Lists names, refresh/schedule state, cache and applied versions, and profile association without URLs. The scheduler is not running yet.", "nagi subscription list", "", 0, 0},
 	{"subscription add", "subscription add NAME URL", "Save a subscription URL", "Saves an HTTP or HTTPS URL; does not download or activate it. Names use letters, digits, _ or -, up to 128 characters.", "nagi subscription add work https://example.com/subscription", "", 2, 2},
 	{"subscription key", "subscription key NAME FILE|clear", "Set or clear an age identity", "Copies a bounded regular identity file into private storage, or clears it. The next encrypted update uses mihomo to decrypt; plaintext feeds are unaffected.", "nagi subscription key work ./identity.txt", "Run `nagi subscription list` to find a subscription name.", 2, 2},
+	{"subscription schedule", "subscription schedule NAME SECONDS|off", "Set a subscription interval", "Saves 1..31536000 seconds, or off. New subscriptions default to 3600 seconds; legacy entries default to off. Scheduling does not run updates yet.", "nagi subscription schedule work 3600", "Run `nagi subscription list` to find a subscription name.", 2, 2},
 	{"subscription update", "subscription update NAME", "Download a subscription", "Validates and caches up to 8 MiB, then reports node changes; does not activate it.", "nagi subscription update work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
 	{"subscription preview", "subscription preview NAME", "Preview cached node changes", "Compares cached nodes with the existing profile without changing it.", "nagi subscription preview work", "Run `nagi subscription list` to find a subscription name.", 1, 1},
 	{"subscription apply", "subscription apply NAME", "Apply a cached subscription", "Replaces the named profile with cached configuration, removes its local override and saved group choices, validates, and selects it. Nagi owns local listeners and controller access.", "nagi subscription apply work", "Run `nagi subscription preview NAME` to inspect node changes.", 1, 1},
@@ -224,6 +225,14 @@ func validateInvocation(args []string) error {
 	}
 	if n > spec.maxArgs {
 		return syntaxError("too many arguments", spec)
+	}
+	if spec.path == "subscription schedule" {
+		if args[3] != "off" {
+			seconds, err := strconv.ParseInt(args[3], 10, 64)
+			if err != nil || seconds < 1 || seconds > 31536000 {
+				return syntaxError("SECONDS must be 1..31536000 or off", spec)
+			}
+		}
 	}
 	if spec.path == "completion candidates" {
 		if args[2] != "profile" && args[2] != "subscription" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" {
