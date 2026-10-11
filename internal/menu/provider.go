@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"unicode"
 )
 
 type menuProvider struct {
@@ -43,12 +44,22 @@ func addProvider(ctx context.Context, s *Session) error {
 		nameField("New provider name"),
 		{Key: "url", Label: "Subscription HTTP(S) URL", Required: true, Validate: func(raw string) error {
 			u, err := url.Parse(raw)
-			if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil {
-				return fmt.Errorf("enter an HTTP(S) URL without user credentials")
+			if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+				return fmt.Errorf("enter an HTTP(S) URL with a hostname and without user credentials or a fragment")
 			}
 			return nil
 		}},
-		{Key: "group", Label: "Target group name (existing or new; spaces allowed)", Required: true},
+		{Key: "group", Label: "Target group name (existing or new; spaces allowed)", Required: true, Validate: func(value string) error {
+			if len(value) == 0 || len(value) > 128 {
+				return fmt.Errorf("enter a printable group name from 1 to 128 bytes")
+			}
+			for _, r := range value {
+				if !unicode.IsPrint(r) {
+					return fmt.Errorf("enter a printable group name from 1 to 128 bytes")
+				}
+			}
+			return nil
+		}},
 		{Key: "seconds", Label: "Update interval seconds (default 3600; 1–31536000)", Required: true, Validate: func(raw string) error {
 			seconds, err := strconv.ParseInt(raw, 10, 64)
 			if err != nil || seconds < 1 || seconds > 31536000 {

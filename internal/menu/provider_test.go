@@ -163,3 +163,16 @@ func TestProviderAddEOFBeforeSubmissionDoesNotDispatch(t *testing.T) {
 		t.Fatalf("err=%v calls=%v", err, r.calls)
 	}
 }
+
+func TestProviderAddRejectsInvalidURLAndGroupWhileRetainingName(t *testing.T) {
+	r := &fakeRunner{}
+	var out bytes.Buffer
+	input := "work\nhttps://:443/feed\nhttps://example.invalid/feed#section\nhttps://example.invalid/feed\nWork\tGroup\n" + strings.Repeat("界", 43) + "\n  Work Group  \n\n"
+	if err := addProvider(context.Background(), NewSession(r, strings.NewReader(input), &out)); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"proxy", "provider", "add", "work", "https://example.invalid/feed", "Work Group", "3600"}}
+	if !reflect.DeepEqual(r.calls, want) || strings.Count(out.String(), "Invalid value:") != 4 {
+		t.Fatalf("calls=%v output=%s", r.calls, out.String())
+	}
+}
