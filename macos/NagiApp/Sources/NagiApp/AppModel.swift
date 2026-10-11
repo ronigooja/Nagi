@@ -336,6 +336,39 @@ enum EngineState { case starting, running, stopped, unavailable }
         }
     }
 
+    // Configuration, validation, persistence, and activation remain CLI operations.
+    func addProvider(_ name: String, url: String, group: String, intervalSeconds: Int64 = 3600) async -> String? {
+        guard !busy && !quitting else { return "Another operation is in progress. Try again when it finishes." }
+        guard (1...31_536_000).contains(intervalSeconds) else {
+            return "Update interval must be 1–31536000 seconds."
+        }
+        settingsGeneration += 1
+        busy = true
+        applyingSetting = true
+        notice = nil
+        defer { applyingSetting = false; busy = false }
+        do {
+            let result = try await cli.run(["proxy", "provider", "add", name, url, group, String(intervalSeconds)])
+            settingsGeneration += 1
+            errorMessage = nil
+            profile = result["profile"]?.string ?? profile
+            await refreshRuntimeSettings()
+            notice = result["group_created"]?.bool == true
+                ? "Provider added. New group choices are in Select Node (Proxy Groups). Routing rules are unchanged."
+                : "Provider added. Group choices are in Select Node (Proxy Groups)."
+            notify()
+            return nil
+        } catch {
+            settingsGeneration += 1
+            // CLI errors are redacted; also protect the form URL against older CLI versions.
+            let detail = error.localizedDescription.replacingOccurrences(of: url, with: "<redacted URL>")
+                .replacingOccurrences(of: "(?i)https?://[^\\s<>\"']+", with: "<redacted URL>", options: .regularExpression)
+            let message = "Provider add failed: \(detail)"
+            errorMessage = message
+            return message
+        }
+    }
+
     func switchToDefaultProfile() {
         perform(ProfileCommands.useDefault)
     }

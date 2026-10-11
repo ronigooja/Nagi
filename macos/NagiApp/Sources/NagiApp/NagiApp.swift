@@ -213,17 +213,19 @@ import AppKit
         }
         addSubmenu("Proxy Groups", groupsMenu, enabled: model.state == .running)
         let providersMenu = NSMenu()
+        add("Add Provider…", action: #selector(addProvider), enabled: !model.busy, to: providersMenu)
+        providersMenu.addItem(.separator())
         if model.providersUnavailable { disabled("Proxy providers unavailable", to: providersMenu) }
         else if model.providers.isEmpty { disabled("No proxy providers", to: providersMenu) }
         for provider in model.providers {
             let actions = NSMenu()
-            add("Update", command: provider.updateCommand, enabled: !model.busy, to: actions)
-            add("Healthcheck", command: provider.healthcheckCommand, enabled: !model.busy, to: actions)
+            add("Update", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
+            add("Healthcheck", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: actions)
             let metadata = NSMenuItem(title: "\(provider.type) · \(provider.nodes.count) nodes", action: nil, keyEquivalent: "")
             metadata.isEnabled = false; actions.addItem(metadata)
             addSubmenu(provider.name, actions, to: providersMenu)
         }
-        addSubmenu("Proxy Providers", providersMenu, enabled: model.state == .running)
+        addSubmenu("Proxy Providers", providersMenu, enabled: !model.busy)
         menu.addItem(.separator())
 
         let profileMenu = NSMenu()
@@ -363,6 +365,80 @@ import AppKit
         let panel = NSOpenPanel(); panel.canChooseFiles = true; panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
         NSApp.activate(ignoringOtherApps: true)
         if panel.runModal() == .OK, let url = panel.url { model.setSubscriptionKey(name, file: url.path) }
+    }
+    @objc private func addProvider() {
+        guard !model.busy else { return }
+        let alert = NSAlert()
+        alert.messageText = "Add Provider"
+        let instructions = "Add an HTTP(S) provider to the selected profile. Choose an existing group or enter a new name. A new Select group includes DIRECT and leaves routing rules unchanged. Its choices appear in Select Node (Proxy Groups); use Global mode or existing routing rules to route through it. Saving while stopped does not start the engine."
+        alert.informativeText = instructions
+        alert.addButton(withTitle: "Add Provider")
+        alert.addButton(withTitle: "Cancel")
+        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 140))
+        func label(_ title: String, y: CGFloat) {
+            let field = NSTextField(labelWithString: title)
+            field.frame = NSRect(x: 0, y: y, width: 85, height: 24)
+            accessory.addSubview(field)
+        }
+        label("Name", y: 108)
+        let nameField = NSTextField(frame: NSRect(x: 90, y: 108, width: 310, height: 24))
+        nameField.placeholderString = "Provider name"
+        accessory.addSubview(nameField)
+        label("URL", y: 74)
+        let urlField = NSTextField(frame: NSRect(x: 90, y: 74, width: 310, height: 24))
+        urlField.placeholderString = "https://example.com/provider.yaml"
+        accessory.addSubview(urlField)
+        label("Group", y: 40)
+        let groupField = NSComboBox(frame: NSRect(x: 90, y: 40, width: 310, height: 24))
+        groupField.isEditable = true
+        groupField.placeholderString = "Existing or new group name"
+        groupField.addItems(withObjectValues: model.groups.filter {
+            ["selector", "urltest", "fallback", "loadbalance"].contains($0.kind.lowercased())
+        }.map(\.name))
+        accessory.addSubview(groupField)
+        label("Interval (s)", y: 6)
+        let intervalField = NSTextField(frame: NSRect(x: 90, y: 6, width: 310, height: 24))
+        intervalField.stringValue = "3600"
+        accessory.addSubview(intervalField)
+        alert.accessoryView = accessory
+        alert.window.initialFirstResponder = nameField
+        NSApp.activate(ignoringOtherApps: true)
+        Task { @MainActor in
+            // Reuse the fields after local or CLI validation errors, retaining private input.
+            while alert.runModal() == .alertFirstButtonReturn {
+                let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let url = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let group = groupField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard name.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil else {
+                    alert.informativeText = "Name must be 1–128 ASCII letters, numbers, underscores, or hyphens."
+                    alert.window.initialFirstResponder = nameField
+                    continue
+                }
+                guard let components = URLComponents(string: url),
+                      ["http", "https"].contains(components.scheme?.lowercased() ?? ""),
+                      components.host?.isEmpty == false else {
+                    alert.informativeText = "Enter a valid HTTP or HTTPS URL."
+                    alert.window.initialFirstResponder = urlField
+                    continue
+                }
+                guard !group.isEmpty else {
+                    alert.informativeText = "Choose an existing group or enter a new group name."
+                    alert.window.initialFirstResponder = groupField
+                    continue
+                }
+                guard let interval = Int64(intervalField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
+                      (1...31_536_000).contains(interval) else {
+                    alert.informativeText = "Update interval must be 1–31536000 seconds."
+                    alert.window.initialFirstResponder = intervalField
+                    continue
+                }
+                if let error = await model.addProvider(name, url: url, group: group, intervalSeconds: interval) {
+                    alert.informativeText = error
+                    continue
+                }
+                return
+            }
+        }
     }
     @objc private func downloadSubscription() {
         let alert = NSAlert()

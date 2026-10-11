@@ -300,3 +300,131 @@ extension LifecycleTests {
         XCTAssertLessThan(Date().timeIntervalSince(started), 9)
     }
 }
+
+@MainActor extension LifecycleTests {
+    private func providerFixture(running: Bool = false) throws -> (URL, URL, URL) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("nagi-provider-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let script = directory.appendingPathComponent("nagi")
+        let log = directory.appendingPathComponent("events.jsonl")
+        try """
+        #!/usr/bin/python3
+        import json, pathlib, sys, time
+        root = pathlib.Path(__file__).parent
+        args = sys.argv[1:]
+        with (root / 'events.jsonl').open('a') as log:
+            log.write(json.dumps(args) + '\\n')
+        command = args[1:]
+        if command[:3] == ['proxy', 'provider', 'add']:
+            time.sleep(0.1)
+            if (root / 'fail').exists():
+                print(json.dumps({'ok':False,'error':{'code':'provider_exists','message':'Provider already exists: ' + command[4]}}))
+                sys.exit(1)
+            data = {'provider':command[3], 'group':command[5], 'profile':'personal', 'interval_seconds':int(command[6]), 'added':True, 'group_created':True}
+        elif command == ['status']:
+            data = {'running':\(running ? "True" : "False"), 'profile':'personal'}
+        elif command == ['profile', 'list']:
+            data = {'profiles':['personal'], 'current':'personal'}
+        elif command == ['proxy', 'groups']:
+            data = {'groups':[{'name':'Work Group','type':'Selector','now':'DIRECT','all':['DIRECT','Node A']}]}
+        elif command == ['proxy', 'providers']:
+            data = {'providers':[{'name':'work','type':'Proxy','vehicle_type':'HTTP','nodes':['Node A']}]}
+        elif command == ['quit']:
+            time.sleep(0.1)
+            data = {}
+        else:
+            data = {}
+        print(json.dumps({'ok':True,'data':data}))
+        """.write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
+        return (directory, script, log)
+    }
+
+    private func providerCalls(_ log: URL) -> [[String]] {
+        lines(log).compactMap { line in
+            guard let data = line.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode([String].self, from: data)
+        }
+    }
+
+    func testProviderAddWhileStoppedDoesNotStartEngine() async throws {
+        let (directory, cli, log) = try providerFixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = AppModel(cli: NagiCLIClient(executable: cli))
+        await model.refresh()
+        XCTAssertEqual(model.state, .stopped)
+        let error = await model.addProvider("work", url: "https://example.invalid/feed?token=private", group: "Work Group")
+        XCTAssertNil(error)
+        XCTAssertEqual(providerCalls(log).filter { $0.prefix(4) == ["--json", "proxy", "provider", "add"] },
+                       [["--json", "proxy", "provider", "add", "work", "https://example.invalid/feed?token=private", "Work Group", "3600"]])
+        XCTAssertFalse(providerCalls(log).contains(["--json", "start"]))
+        XCTAssertEqual(model.state, .stopped)
+        XCTAssertEqual(model.profile, "personal")
+        XCTAssertFalse(model.busy)
+        XCTAssertFalse(model.applyingSetting)
+        XCTAssertTrue(model.notice?.contains("Routing rules are unchanged") == true)
+        XCTAssertFalse(model.notice?.contains("private") == true)
+    }
+
+    func testProviderAddRefreshesGroupsAndProvidersWhenRunning() async throws {
+        let (directory, cli, log) = try providerFixture(running: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = AppModel(cli: NagiCLIClient(executable: cli))
+        model.pauseForSleep()
+        await model.refresh()
+        let before = providerCalls(log).count
+        let error = await model.addProvider("work", url: "http://example.invalid/feed", group: "Work Group", intervalSeconds: 60)
+        XCTAssertNil(error)
+        let calls = Array(providerCalls(log).dropFirst(before))
+        XCTAssertEqual(calls.first, ["--json", "proxy", "provider", "add", "work", "http://example.invalid/feed", "Work Group", "60"])
+        XCTAssertTrue(calls.contains(["--json", "proxy", "groups"]))
+        XCTAssertTrue(calls.contains(["--json", "proxy", "providers"]))
+        XCTAssertEqual(model.groups.first?.name, "Work Group")
+        XCTAssertEqual(model.providers.first?.name, "work")
+        XCTAssertNil(model.errorMessage)
+    }
+
+    func testProviderAddFailureRedactsURLAndCanRetry() async throws {
+        let (directory, cli, log) = try providerFixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let failure = directory.appendingPathComponent("fail")
+        try "fail".write(to: failure, atomically: true, encoding: .utf8)
+        let model = AppModel(cli: NagiCLIClient(executable: cli))
+        let url = "https://example.invalid/feed?token=private"
+        let error = await model.addProvider("work", url: url, group: "Work Group")
+        XCTAssertTrue(error?.contains("already exists") == true)
+        XCTAssertFalse(error?.contains(url) == true)
+        XCTAssertFalse(model.errorMessage?.contains("private") == true)
+        XCTAssertNil(model.notice)
+        XCTAssertFalse(model.busy)
+        XCTAssertFalse(model.applyingSetting)
+        try FileManager.default.removeItem(at: failure)
+        let retried = await model.addProvider("work", url: url, group: "Work Group")
+        XCTAssertNil(retried)
+        XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(providerCalls(log).filter { $0.prefix(4) == ["--json", "proxy", "provider", "add"] }.count, 2)
+    }
+
+    func testProviderAddGuardsBusyQuitAndInvalidIntervals() async throws {
+        let (directory, cli, log) = try providerFixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = AppModel(cli: NagiCLIClient(executable: cli))
+        for interval in [Int64(0), -1, 31_536_001] {
+            let error = await model.addProvider("work", url: "https://example.invalid/feed", group: "Work Group", intervalSeconds: interval)
+            XCTAssertNotNil(error)
+        }
+        XCTAssertTrue(providerCalls(log).isEmpty)
+        let first = Task { await model.addProvider("work", url: "https://example.invalid/feed", group: "Work Group") }
+        await expectUntil { model.busy }
+        XCTAssertTrue(model.applyingSetting)
+        let blocked = await model.addProvider("second", url: "https://example.invalid/other", group: "Work Group")
+        XCTAssertNotNil(blocked)
+        let result = await first.value
+        XCTAssertNil(result)
+        model.quit { _ in }
+        let quitting = await model.addProvider("third", url: "https://example.invalid/other", group: "Work Group")
+        XCTAssertNotNil(quitting)
+        await expectUntil { self.providerCalls(log).contains(["--json", "quit"]) && !model.busy }
+        XCTAssertEqual(providerCalls(log).filter { $0.prefix(4) == ["--json", "proxy", "provider", "add"] }.count, 1)
+    }
+}
