@@ -1,6 +1,6 @@
 # Nagi
 
-Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, scheduled refresh, optional age-encrypted subscription feeds, and encrypted DNS policy. It provides proxy search, saved selections, provider inspection and updates, latency checks, connection controls, runtime routing modes, TUN controls, listener/LAN status, and macOS system proxy controls. Profile export, backup, restore, and comparison support local configuration work. An interactive, line-oriented terminal menu, read-only diagnostics, and Bash, Zsh, and Fish completion support terminal use. A macOS menu bar app calls the CLI for common operations.
+Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, scheduled refresh, optional age-encrypted subscription feeds, and encrypted DNS policy. It provides proxy search, saved selections, provider creation, inspection, and updates, latency checks, connection controls, runtime routing modes, TUN controls, listener/LAN status, and macOS system proxy controls. Profile export, backup, restore, and comparison support local configuration work. An interactive, line-oriented terminal menu, read-only diagnostics, and Bash, Zsh, and Fish completion support terminal use. A macOS menu bar app calls the CLI for common operations.
 
 ## Quick start
 
@@ -26,6 +26,7 @@ The `default` profile is the built-in configuration template; installation and u
 - [macOS menu app](macos/NagiApp/README.md): menu controls, traffic display, installation, and packaging.
 - [Getting started](docs/guides/getting-started.md): initial configuration and operation.
 - [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
+- [Proxy providers](docs/guides/proxy-providers.md): add a node source, attach it to a group, and refresh its nodes.
 - [Traffic access](docs/guides/traffic-access.md): system proxy, TUN, listener ports, and LAN access.
 - [Startup and recovery](docs/guides/startup.md): login service, stale state, and rechecks.
 - [Diagnostics](docs/guides/diagnostics.md): redacted health and security checks.

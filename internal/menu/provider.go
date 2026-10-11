@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"unicode"
 )
 
@@ -44,7 +45,7 @@ func addProvider(ctx context.Context, s *Session) error {
 		nameField("New provider name"),
 		{Key: "url", Label: "Subscription HTTP(S) URL", Required: true, Validate: func(raw string) error {
 			u, err := url.Parse(raw)
-			if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+			if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || strings.Contains(raw, "#") {
 				return fmt.Errorf("enter an HTTP(S) URL with a hostname and without user credentials or a fragment")
 			}
 			return nil

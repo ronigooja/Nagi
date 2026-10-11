@@ -42,6 +42,8 @@ If the group read fails, Select Node queries the existing `status` command, clea
 
 The provider entry lists redacted names and node counts. Opening a provider and every read after an operation call `proxy provider show NAME`; update and healthcheck actions use their corresponding CLI commands. A failed provider read clears selectable nodes while leaving those actions available for recovery.
 
+The provider list always offers Add provider, including when empty or unreadable. Its shared form collects the provider name, HTTP(S) URL, existing or new group name, and update interval, then calls `proxy provider add`. Submission errors retain the form values for explicit editing and retry. The form explains that creation updates the selected profile and reloads a running engine, while a new select group leaves routing rules unchanged. Configuration persistence and activation remain CLI responsibilities; the menu does not require a successful live group read to add a provider while stopped.
+
 Details, latency tests, restoring saved choices, and returning an automatic group to automatic selection are fixed actions. Ordinary nodes and latency-ranked nodes all switch with the same numeric action. A group page retains its last measurements and ordering across selections and refreshes, pruning records for nodes absent from the refreshed group. Automatic groups show fixed or automatic state. Latency actions disclose possible release of a fixed choice and preserve underlying errors about partial completion or unknown state.
 
 ## Subscription and profile flows
