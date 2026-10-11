@@ -50,6 +50,32 @@ func (s SelectionStore) Save(profile, group, node string) error {
 	return writeSelections(s.Path, data)
 }
 
+// Prune removes choices whose group or selected node disappeared after an update.
+func (s SelectionStore) Prune(profile string, groups map[string]map[string]bool) error {
+	all, err := s.read()
+	if err != nil {
+		return err
+	}
+	changed := false
+	for group, node := range all[profile] {
+		if !groups[group][node] && !groups[group]["*"] {
+			delete(all[profile], group)
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	if len(all[profile]) == 0 {
+		delete(all, profile)
+	}
+	data, err := json.MarshalIndent(all, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeSelections(s.Path, data)
+}
+
 // RemoveGroup clears one saved pin after mihomo has resumed automatic selection.
 func (s SelectionStore) RemoveGroup(profile, group string) error {
 	all, err := s.read()

@@ -133,6 +133,9 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		})
 		return menu.Run(context.Background(), menu.NewSession(runner, os.Stdin, stdout))
 	}
+	if len(filtered) == 2 && filtered[0] == "subscription" && filtered[1] == "watch" {
+		return runForegroundSubscriptionWatch(stdout, stderr, jsonMode, version, commit)
+	}
 	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
 		return runTrafficWatch(stdout, stderr, jsonMode)
 	}
@@ -1311,7 +1314,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 			return nil, err
 		}
 		list, err := store.List()
-		return map[string]any{"subscriptions": list, "scheduler_running": false}, err
+		return map[string]any{"subscriptions": list, "scheduler_running": schedulerRunningForCurrentUser()}, err
 	case "schedule":
 		if err := arity(args, 4); err != nil {
 			return nil, usage("subscription schedule NAME SECONDS|off")
@@ -1327,7 +1330,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		if err := store.Schedule(args[2], seconds); err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		return map[string]any{"name": args[2], "schedule_seconds": seconds, "scheduler_running": false}, nil
+		return map[string]any{"name": args[2], "schedule_seconds": seconds, "scheduler_running": schedulerRunningForCurrentUser()}, nil
 	case "add":
 		if err := arity(args, 4); err != nil {
 			return nil, err

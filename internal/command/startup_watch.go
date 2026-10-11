@@ -34,6 +34,9 @@ func runStartupWatch(stderr io.Writer, version, commit string) int {
 			output.WriteError(stderr, false, "service_stop_error", err.Error())
 		}
 	}()
+	// The scheduler shares this login host but runs in its own cancellable
+	// goroutine; slow network fetches never hold up lifecycle checks.
+	go runSubscriptionWatch(ctx, io.Discard, stderr, false, version, commit)
 	delay := startupWatchInterval
 	for {
 		if err := startupWatchStep(ctx, func(args ...string) (any, error) {

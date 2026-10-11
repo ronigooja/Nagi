@@ -234,7 +234,7 @@ func (s *Store) Due(now time.Time) ([]Entry, error) {
 	}
 	due := make([]Entry, 0)
 	for _, e := range entries {
-		if e.ScheduleSeconds > 0 && !e.NextDue.After(now) {
+		if e.ScheduleSeconds > 0 && e.LastFailureStage != "paused" && !e.NextDue.After(now) {
 			due = append(due, e)
 		}
 	}
@@ -359,7 +359,7 @@ func (s *Store) DetachProfile(profileName string) error {
 // error; reasons are stable, redacted operational codes.
 func (s *Store) RecordFailure(name, stage, reason string, nextDue time.Time) error {
 	allowedStage := map[string]bool{"fetch": true, "decrypt": true, "validate": true, "apply": true, "paused": true}
-	allowedReason := map[string]bool{"network_error": true, "invalid_content": true, "identity_unavailable": true, "activation_failed": true, "engine_unavailable": true, "profile_changed": true, "schedule_off": true}
+	allowedReason := map[string]bool{"network_error": true, "invalid_content": true, "identity_unavailable": true, "activation_failed": true, "engine_unavailable": true, "profile_changed": true, "schedule_off": true, "source_unreadable": true, "dns_target_missing": true, "custom_rule_conflict": true, "selection_conflict": true}
 	if !allowedStage[stage] || !allowedReason[reason] {
 		return errors.New("invalid failure metadata")
 	}
@@ -380,6 +380,11 @@ func (s *Store) RecordSuccess(name string, nextDue time.Time) error {
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for i := range entries {
 			if entries[i].Name == name {
+				// A successful fetch cannot resume an externally edited or
+				// unreadable source. Explicit apply owns that recovery.
+				if entries[i].LastFailureStage == "paused" {
+					return entries, nil
+				}
 				entries[i].LastFailureStage = ""
 				entries[i].LastFailureReason = ""
 				entries[i].NextDue = nextDue.UTC()
@@ -434,6 +439,10 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 	if !found {
 		return zero, errors.New("subscription not found")
 	}
+	keyVersion, err := s.keyVersion(name)
+	if err != nil {
+		return zero, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, original.URL, nil)
 	if err != nil {
 		return zero, errors.New("invalid subscription request")
@@ -479,7 +488,11 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 			}
 			for i := range latest {
 				if latest[i].Name == name {
-					if latest[i].URL != original.URL || latest[i].Generation != original.Generation {
+					currentKeyVersion, err := s.keyVersion(name)
+					if err != nil {
+						return err
+					}
+					if latest[i].URL != original.URL || latest[i].Generation != original.Generation || currentKeyVersion != keyVersion {
 						return errors.New("subscription changed during download; retry update")
 					}
 					cachePath := s.cachePath(name)
@@ -532,6 +545,24 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 		return zero, err
 	}
 	return result, nil
+}
+
+// keyVersion lets a refresh reject plaintext produced with an identity that
+// changed while the HTTP request or decrypt command was in flight.
+func (s *Store) keyVersion(name string) (string, error) {
+	path := s.keyPath(name)
+	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxIdentitySize {
+		return "", errors.New("subscription identity is unavailable")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", errors.New("cannot read subscription identity")
+	}
+	return Hash(data), nil
 }
 
 func sanitizeError(err error) error {

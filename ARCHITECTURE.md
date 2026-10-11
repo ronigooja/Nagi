@@ -56,7 +56,7 @@ Nagi uses a private Unix Socket by default. Its default profile does not expose 
 
 ## Services, builds, and validation
 
-`nagi service install` creates a user launchd Agent on macOS or a `systemd --user` unit on Linux. The service invokes the CLI; the app never invokes a service manager. Locked local and fetched builds are described in [Build and test](docs/development/build-and-test.md).
+`nagi service install` creates a user launchd Agent on macOS or a `systemd --user` unit on Linux. The service invokes the CLI; the app never invokes a service manager. Its login monitor also hosts the per-user subscription scheduler; a foreground `subscription watch` uses the same singleton host lock. Locked local and fetched builds are described in [Build and test](docs/development/build-and-test.md).
 
 Go tests cover runtime paths, lifecycle state, profile writes and rollback, subscriptions, proxy client behavior, and the Unix Socket client. [Build and test](docs/development/build-and-test.md) describes a manual runtime integration check with a built mihomo executable for start, status, configuration validation, proxy groups, connections, and stop. CI runs a locked build and unit tests on Linux and macOS, but does not run that manual check. The release script cross compiles four OS and architecture targets; on macOS it can combine and optionally sign and notarize the CLI and mihomo binaries. `make build app` invokes the [app packaging script](macos/NagiApp/README.md) on macOS to create a menu-only bundle in `bin/`. The macOS app currently has no verified build in the Linux development environment. CI release publication has not been implemented.
 

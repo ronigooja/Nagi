@@ -378,7 +378,11 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		return nil
 	}
 	if entries, ok := v["subscriptions"].([]subscription.Entry); ok {
-		if _, err := fmt.Fprintln(w, "Scheduler: not running (schedule settings are saved only)."); err != nil {
+		scheduler := "stopped"
+		if v["scheduler_running"] == true {
+			scheduler = "running"
+		}
+		if _, err := fmt.Fprintln(w, "Scheduler: "+scheduler); err != nil {
 			return err
 		}
 		if len(entries) == 0 {
@@ -585,6 +589,12 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			return line(w, "Removed subscription "+name+" and its cache.")
 		case v["applied"] == true:
 			return line(w, fmt.Sprintf("Applied subscription %s as selected profile %v. If mihomo was running, its configuration was reloaded.", name, v["profile"]))
+		case v["schedule_seconds"] != nil:
+			seconds, _ := v["schedule_seconds"].(int64)
+			if seconds == 0 {
+				return line(w, "Subscription "+name+" scheduling is off.")
+			}
+			return line(w, fmt.Sprintf("Subscription %s will refresh every %d seconds while the scheduler is running.", name, seconds))
 		case v["key_configured"] == true:
 			return line(w, "Saved private age identity for subscription "+name+". Run `nagi subscription update "+name+"` to refresh it.")
 		case v["key_configured"] == false:
