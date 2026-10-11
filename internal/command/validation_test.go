@@ -50,7 +50,7 @@ func TestProfileValidatorKeepsSourcePrivate(t *testing.T) {
 			t.Errorf("validation error exposed %q: %s", excluded, message)
 		}
 	}
-	for _, want := range []string{"source YAML", "mihomo -t -f FILE -d DIRECTORY"} {
+	for _, want := range []string{"profile validation failed", "mihomo -t --check-json -f FILE -d DIRECTORY"} {
 		if !strings.Contains(message, want) {
 			t.Errorf("validation error missing %q: %s", want, message)
 		}
@@ -61,6 +61,15 @@ func TestProfileValidatorKeepsSourcePrivate(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Fatalf("validation left temporary files: %v", entries)
+	}
+}
+
+func TestProfileValidatorUsesRedactedFieldPath(t *testing.T) {
+	binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"proxy-providers.Work.url\",\"code\":\"invalid_url\",\"message\":\"invalid URL\"}]}'\nexit 1\n")
+	store, _ := validationStore(t, binary)
+	err := store.Write(context.Background(), "work", []byte("secret: PRIVATE\n"))
+	if err == nil || !strings.Contains(err.Error(), "proxy-providers.Work.url") || strings.Contains(err.Error(), "PRIVATE") {
+		t.Fatalf("field diagnostic: %v", err)
 	}
 }
 

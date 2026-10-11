@@ -348,6 +348,116 @@ func (m *Manager) RestoreIfStopped(ctx context.Context, pid int) error {
 	})
 }
 func (m *Manager) Managed() bool { _, e := os.Stat(m.journalPath()); return e == nil }
+
+// SyncPort follows a successful mihomo reload while retaining the original
+// pre-Nagi settings in the journal. A service changed by another application
+// is left untouched and reported as a conflict.
+func (m *Manager) SyncPort(ctx context.Context, port int) error {
+	return m.locked(func() error {
+		j, err := m.readJournal()
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if port < 1 || port > 65535 {
+			return errors.New("managed system proxy requires an active HTTP or mixed listener")
+		}
+		if j.Applied.Backend != "macos-networksetup" {
+			return errors.New("managed system proxy journal has no current target")
+		}
+		current, err := m.current(ctx)
+		if err != nil {
+			return err
+		}
+		if current.Backend != j.Applied.Backend {
+			return errors.New("system proxy backend changed during configuration apply")
+		}
+		for _, service := range j.Applied.Services {
+			actual, ok := current.PerService[service]
+			if !ok {
+				return fmt.Errorf("managed network service %q is missing", service)
+			}
+			if !macTargetMatches(actual, j.Applied.PerService[service]) {
+				return fmt.Errorf("network service %q was changed externally; leaving its proxy settings untouched", service)
+			}
+		}
+		if j.Applied.HTTP.Port == port && j.Applied.HTTPS.Port == port {
+			return nil
+		}
+		oldTarget := j.Applied
+		newTarget := oldTarget
+		newTarget.PerService = make(map[string]ServiceSettings, len(oldTarget.PerService))
+		for service, values := range oldTarget.PerService {
+			values.HTTP = Setting{Enabled: true, Host: "127.0.0.1", Port: port}
+			values.HTTPS = values.HTTP
+			newTarget.PerService[service] = values
+		}
+		newTarget.HTTP = Setting{Enabled: true, Host: "127.0.0.1", Port: port}
+		newTarget.HTTPS = newTarget.HTTP
+		if err := m.apply(ctx, newTarget); err != nil {
+			return fmt.Errorf("update managed system proxy port: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
+		}
+		observed, err := m.current(ctx)
+		if err != nil {
+			return fmt.Errorf("verify managed system proxy port: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
+		}
+		for _, service := range newTarget.Services {
+			if !macTargetMatches(observed.PerService[service], newTarget.PerService[service]) {
+				return fmt.Errorf("managed network service %q did not accept updated proxy port; compensation: %v", service, m.compensatePort(ctx, oldTarget, newTarget))
+			}
+		}
+		j.Applied = newTarget
+		if err := m.writeJournal(j); err != nil {
+			return fmt.Errorf("save managed proxy target: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
+		}
+		return nil
+	})
+}
+
+// compensatePort only touches settings still matching Nagi's attempted new
+// target. A setting changed by another process remains untouched.
+func (m *Manager) compensatePort(ctx context.Context, old, attempted State) error {
+	current, err := m.current(ctx)
+	if err != nil {
+		return err
+	}
+	var problems []error
+	for _, service := range attempted.Services {
+		actual, ok := current.PerService[service]
+		if !ok {
+			continue
+		}
+		before := old.PerService[service]
+		after := attempted.PerService[service]
+		for _, item := range []struct {
+			value, old, new Setting
+			set, state      string
+		}{
+			{actual.HTTP, before.HTTP, after.HTTP, "-setwebproxy", "-setwebproxystate"},
+			{actual.HTTPS, before.HTTPS, after.HTTPS, "-setsecurewebproxy", "-setsecurewebproxystate"},
+		} {
+			if !targetSettingMatches(item.value, item.new) {
+				continue
+			}
+			if item.old.Host != "" && item.old.Port > 0 {
+				_, err = m.call(ctx, "networksetup", item.set, service, item.old.Host, strconv.Itoa(item.old.Port))
+				if err != nil {
+					problems = append(problems, err)
+					continue
+				}
+			}
+			state := "off"
+			if item.old.Enabled {
+				state = "on"
+			}
+			_, err = m.call(ctx, "networksetup", item.state, service, state)
+			problems = append(problems, err)
+		}
+	}
+	return errors.Join(problems...)
+}
 func (m *Manager) Watch(ctx context.Context, pid int) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()

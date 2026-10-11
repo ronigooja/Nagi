@@ -84,6 +84,38 @@ func writeIntent(paths nagiruntime.Paths, intent string) error {
 }
 
 func execute(ctx context.Context, args []string, version, commit string) (any, error) {
+	if !configMutation(args) {
+		return executeUnlocked(ctx, args, version, commit)
+	}
+	if args[0] == "quit" {
+		return executeUnlocked(ctx, args, version, commit)
+	}
+	paths, err := nagiruntime.Resolve()
+	if err != nil {
+		return nil, err
+	}
+	apply := func() (any, error) {
+		return withNamedLock(paths, "config.lock", func() (any, error) {
+			intent, intentErr := readIntent(paths)
+			if intentErr != nil {
+				return nil, intentErr
+			}
+			if intent == "quit-pending" && args[0] != "startup" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
+				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes"))
+			}
+			if transactionalMutation(args) {
+				return applyTransaction(ctx, paths, args, func() (any, error) { return executeUnlocked(ctx, args, version, commit) })
+			}
+			return executeUnlocked(ctx, args, version, commit)
+		})
+	}
+	if args[0] == "start" || args[0] == "stop" || args[0] == "restart" || args[0] == "privileged-helper" {
+		return withQuitLock(paths, apply)
+	}
+	return apply()
+}
+
+func executeUnlocked(ctx context.Context, args []string, version, commit string) (any, error) {
 	if len(args) == 0 {
 		return executeInternal(ctx, args, version, commit)
 	}
@@ -100,11 +132,6 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
 		return nil, err
-	}
-	if command == "start" || command == "stop" || command == "restart" || command == "privileged-helper" {
-		return withQuitLock(paths, func() (any, error) {
-			return executeLockedLifecycle(ctx, args, version, commit, paths)
-		})
 	}
 	return executeLockedLifecycle(ctx, args, version, commit, paths)
 }
@@ -184,24 +211,32 @@ func quit(ctx context.Context, args []string, version, commit string) (result an
 func quitLocked(ctx context.Context, paths nagiruntime.Paths, version, commit string) (result any, err error) {
 	// Mark stopped before asking the service manager to terminate its monitor.
 	// launchctl/systemctl can wait for that monitor, so do not hold the lock here.
-	if _, err := withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "quit-pending") }); err != nil {
+	if _, err := withNamedLock(paths, "config.lock", func() (any, error) {
+		return withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "quit-pending") })
+	}); err != nil {
 		return nil, err
 	}
 	completed := false
 	defer func() {
 		if !completed {
-			_, rollbackErr := withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "stopped") })
+			_, rollbackErr := withNamedLock(paths, "config.lock", func() (any, error) {
+				return withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "stopped") })
+			})
 			err = quitRollbackError(err, rollbackErr)
 		}
 	}()
 	if err := pauseMonitor(); err != nil {
 		return nil, fmt.Errorf("quit could not pause the login monitor; run `nagi startup status` and retry: %w", err)
 	}
-	_, err = withLifecycleLock(paths, func() (any, error) { return executeInternal(ctx, []string{"stop"}, version, commit) })
+	_, err = withNamedLock(paths, "config.lock", func() (any, error) {
+		return withLifecycleLock(paths, func() (any, error) { return executeInternal(ctx, []string{"stop"}, version, commit) })
+	})
 	if err != nil && !errors.Is(err, engine.ErrNotRunning) {
 		return nil, err
 	}
-	if _, err := withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "quit-ready") }); err != nil {
+	if _, err := withNamedLock(paths, "config.lock", func() (any, error) {
+		return withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "quit-ready") })
+	}); err != nil {
 		return nil, err
 	}
 	completed = true

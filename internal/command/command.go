@@ -528,6 +528,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		result, err := startAndVerify(ctx, m, client, configPath, profileName)
 		if err == nil {
+			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies)
 		}
 		return result, err
@@ -566,6 +567,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		result, err := startAndVerify(ctx, m, client, configPath, profileName)
 		if err == nil {
+			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies)
 		}
 		return result, err
@@ -702,7 +704,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if !status.Running {
 				return nil, fail("not_running", errors.New("mihomo is not running; start it before reloading configuration"))
 			}
-			if err := client.Put(ctx, "/configs?force=true", map[string]any{"path": configPath}, nil); err != nil {
+			if err := activateConfig(ctx, client, configPath); err != nil {
 				return nil, fail("mihomo_api_error", fmt.Errorf("configuration validated but reload failed; runtime state may still use the previous configuration: %w", err))
 			}
 			return map[string]any{"reloaded": true, "profile": profileName}, nil
