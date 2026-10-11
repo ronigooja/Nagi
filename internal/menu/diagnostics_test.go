@@ -30,25 +30,22 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 		args   []string
 		impact bool
 	}{
-		{ServicePage(), "Service status", []string{"service", "status"}, false},
+		{ServicePage(), "Service details", []string{"service", "status"}, false},
 		{ServicePage(), "Install login service", []string{"service", "install"}, true},
 		{ServicePage(), "Uninstall login service", []string{"service", "uninstall"}, true},
-		{ServicePage(), "Startup status", []string{"startup", "status"}, false},
+		{ServicePage(), "Startup details", []string{"startup", "status"}, false},
 		{ServicePage(), "Enable login startup", []string{"startup", "enable"}, true},
 		{ServicePage(), "Disable login startup", []string{"startup", "disable"}, true},
-		{ServicePage(), "Check startup and runtime state", []string{"startup", "check"}, false},
-		{ServicePage(), "Recover stale runtime markers", []string{"recover"}, true},
-		{diagnosticsPageForOS("linux"), "Run doctor checks", []string{"doctor"}, false},
-		{diagnosticsPageForOS("linux"), "Run redacted diagnostics", []string{"diagnostics"}, false},
+		{DiagnosticsPage(), "Repair startup state", []string{"startup", "check"}, false},
+		{DiagnosticsPage(), "Clean stale runtime records", []string{"recover"}, true},
+		{diagnosticsPageForOS("linux"), "Basic checks", []string{"doctor"}, false},
+		{diagnosticsPageForOS("linux"), "Detailed diagnostics", []string{"diagnostics"}, false},
 		{diagnosticsPageForOS("linux"), "Show version", []string{"version"}, false},
-		{helperPageForOS("darwin"), "Privileged helper status", []string{"privileged-helper", "status"}, false},
+		{helperPageForOS("darwin"), "Privileged helper details", []string{"privileged-helper", "status"}, false},
 		{helperPageForOS("darwin"), "Install privileged helper", []string{"privileged-helper", "install"}, true},
 		{helperPageForOS("darwin"), "Uninstall privileged helper", []string{"privileged-helper", "uninstall"}, true},
 		{helperPageForOS("darwin"), "Select privileged backend", []string{"privileged-helper", "enable"}, true},
 		{helperPageForOS("darwin"), "Select user backend", []string{"privileged-helper", "disable"}, true},
-		{CompletionPage(), "Generate Bash completion script", []string{"completion", "bash"}, true},
-		{CompletionPage(), "Generate Zsh completion script", []string{"completion", "zsh"}, true},
-		{CompletionPage(), "Generate Fish completion script", []string{"completion", "fish"}, true},
 	}
 	for _, tt := range tests {
 		item := diagnosticItem(t, tt.page, tt.label)
@@ -83,7 +80,7 @@ func TestDiagnosticExportRequiresAbsoluteFile(t *testing.T) {
 	} {
 		runner := &fakeRunner{}
 		var out bytes.Buffer
-		item := diagnosticItem(t, DiagnosticsPage(), "Export redacted diagnostics")
+		item := diagnosticItem(t, DiagnosticsPage(), "Export diagnostics")
 		if err := item.Action(context.Background(), NewSession(runner, strings.NewReader(tt.input), &out)); err != nil {
 			t.Fatal(err)
 		}
@@ -96,35 +93,15 @@ func TestDiagnosticExportRequiresAbsoluteFile(t *testing.T) {
 func TestServiceUninstallRunsOnceAndKeepsRecoveryPage(t *testing.T) {
 	fake := &fakeRunner{results: map[string]Result{"service uninstall": {Code: 1, Error: &CLIError{Code: "service_error", Message: "manager unavailable"}}}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(fake, strings.NewReader("d\nq\n"), &out), ServicePage())
+	RunPage(context.Background(), NewSession(fake, strings.NewReader("6\n0\n"), &out), ServicePage())
 	count := 0
 	for _, args := range fake.calls {
 		if reflect.DeepEqual(args, []string{"service", "uninstall"}) {
 			count++
 		}
 	}
-	if count != 1 || !strings.Contains(out.String(), "manager unavailable") || strings.Count(out.String(), "\nService and startup\n") != 2 {
+	if count != 1 || !strings.Contains(out.String(), "manager unavailable") || strings.Count(out.String(), "\nStart at Login\n") != 2 {
 		t.Fatalf("count=%d calls=%v output=%s", count, fake.calls, out.String())
-	}
-}
-
-func TestCompletionCandidatesArguments(t *testing.T) {
-	for _, tt := range []struct {
-		input string
-		want  [][]string
-	}{
-		{"1\n", [][]string{{"completion", "candidates", "profile"}}},
-		{"4\nGroup With Spaces\n", [][]string{{"completion", "candidates", "nodes", "Group With Spaces"}}},
-		{"4\n\n", [][]string{{"completion", "candidates", "nodes"}}},
-	} {
-		fake := &fakeRunner{}
-		item := diagnosticItem(t, CompletionPage(), "Show completion candidates")
-		if err := item.Action(context.Background(), NewSession(fake, strings.NewReader(tt.input), &bytes.Buffer{})); err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(fake.calls, tt.want) {
-			t.Errorf("input %q: calls=%v", tt.input, fake.calls)
-		}
 	}
 }
 
@@ -134,7 +111,7 @@ func TestAdvancedRetainsAllFeatureEntrypoints(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"DNS", "Rules", "Connections", "Logs and traffic", "Service and startup"}
+		want := []string{"Current Configuration", "DNS", "Routing Rules", "Connections", "Start at Login"}
 		if goos == "darwin" {
 			want = append(want, "Privileged helper")
 		}

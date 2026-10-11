@@ -20,16 +20,9 @@ func (s *Session) render(page *Page, view PageView, index int, depth int) {
 	if len(view.Items) == 0 && view.Empty != "" {
 		fmt.Fprintln(s.out, output.RedactError(view.Empty))
 	}
-	start := index * pageSize
-	end := start + pageSize
-	if end > len(view.Items) {
-		end = len(view.Items)
-	}
-	for n, item := range view.Items[start:end] {
-		fmt.Fprintf(s.out, "%d. %s\n", n+1, output.RedactError(item.Label))
-	}
-	for _, item := range fixedActions(view) {
-		fmt.Fprintf(s.out, "%s. %s", item.Key, output.RedactError(item.Label))
+	for n, choice := range numberedChoices(view, index) {
+		item := choice.Item
+		fmt.Fprintf(s.out, "%d. %s", n+1, output.RedactError(item.Label))
 		if item.Impact != "" {
 			fmt.Fprintf(s.out, " — %s", output.RedactError(item.Impact))
 		}
@@ -38,16 +31,14 @@ func (s *Session) render(page *Page, view PageView, index int, depth int) {
 	if len(view.Items) > pageSize {
 		fmt.Fprintf(s.out, "Page %d/%d\n", index+1, (len(view.Items)+pageSize-1)/pageSize)
 	}
-	if depth > 1 {
-		fmt.Fprintln(s.out, "b. Back")
+	if depth == 0 {
+		s.WriteLine("0. Cancel")
+	} else if depth > 1 {
+		s.WriteLine("0. Back")
+	} else {
+		s.WriteLine("0. Exit menu (mihomo keeps running)")
 	}
-	if end < len(view.Items) {
-		fmt.Fprintln(s.out, "n. Next")
-	}
-	if index > 0 {
-		fmt.Fprintln(s.out, "p. Previous")
-	}
-	fmt.Fprintln(s.out, "r. Refresh  h. Page help  /. Filter  q. Exit menu (mihomo keeps running)")
+
 }
 
 func (s *Session) showResult(result Result) {
@@ -78,6 +69,49 @@ func (s *Session) showResult(result Result) {
 
 // ShowResult is the menu presentation boundary; the ordinary CLI is unchanged.
 func (s *Session) ShowResult(args []string, result Result) {
+	if s.active {
+		var buf strings.Builder
+		out := s.out
+		s.out = &buf
+		s.presentResult(args, result)
+		s.out = out
+		s.pending += buf.String()
+		s.longResult = result.Code == 0 && result.Error == nil && pausesForReading(args)
+		return
+	}
+	s.presentResult(args, result)
+}
+
+func pausesForReading(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "logs":
+		return true
+	case "config":
+		return len(args) > 1 && args[1] == "show"
+	case "profile":
+		return len(args) > 2 && (args[1] == "diff" || args[1] == "override" && args[2] == "show")
+	}
+	return false
+}
+
+func (s *Session) feedback(text string) {
+	text = output.RedactError(text)
+	if s.active {
+		s.pending += text + "\n"
+	} else {
+		s.WriteLine(text)
+	}
+}
+
+func (s *Session) flushResult() {
+	fmt.Fprint(s.out, s.pending)
+	s.pending = ""
+}
+
+func (s *Session) presentResult(args []string, result Result) {
 	if result.Error != nil || result.Code != 0 || result.Data == nil {
 		s.showResult(result)
 		return

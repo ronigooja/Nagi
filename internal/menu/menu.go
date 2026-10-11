@@ -23,6 +23,9 @@ type Session struct {
 	out        io.Writer
 	file       *os.File
 	interrupts chan os.Signal
+	active     bool
+	pending    string
+	longResult bool
 }
 
 func NewSession(runner Runner, in io.Reader, out io.Writer) *Session {
@@ -56,7 +59,7 @@ func (s *Session) Stream(ctx context.Context, args ...string) Result {
 		return Result{}
 	}
 	if result.Error != nil || result.Code != 0 {
-		s.showResult(result)
+		s.ShowResult(args, result)
 	}
 	return result
 }
@@ -70,17 +73,18 @@ func RegisterPage(key string, factory func() *Page) { registered[key] = factory 
 type rootEntry struct{ key, label string }
 
 var rootEntries = []rootEntry{
-	{"runtime", "Runtime control"},
-	{"proxy", "Proxies and groups"},
+	{"runtime", "Start / Stop"},
+	{"proxy", "Select Node"},
 	{"subscription", "Subscriptions"},
-	{"profile", "Local profiles"},
-	{"traffic", "Traffic access"},
-	{"diagnostics", "Diagnostics and recovery"},
-	{"advanced", "Advanced features"},
+	{"profile", "Profiles"},
+	{"mode", "Proxy Mode"},
+	{"traffic", trafficTitle()},
+	{"diagnostics", "Troubleshooting"},
+	{"advanced", "Settings & Maintenance"},
 }
 
 func RootPage() *Page {
-	return &Page{Title: "Nagi menu", Help: []string{"menu"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Nagi menu", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Context: statusSummary(s.Fetch(ctx, "status"))}
 		for _, entry := range rootEntries {
 			entry := entry
@@ -98,32 +102,16 @@ type frame struct {
 	page   *Page
 	view   PageView
 	index  int
-	filter string
 	loaded bool
 	render bool
-}
-
-func (f *frame) resources() []Item {
-	if f.filter == "" {
-		return f.view.Items
-	}
-	items := []Item{}
-	for _, item := range f.view.Items {
-		name := item.Name
-		if name == "" {
-			name = item.Label
-		}
-		if strings.Contains(strings.ToLower(name), strings.ToLower(f.filter)) {
-			items = append(items, item)
-		}
-	}
-	return items
 }
 
 // Run drives the scrollback-preserving menu; operations remain CLI commands.
 func Run(ctx context.Context, s *Session) int { return RunPage(ctx, s, RootPage()) }
 
 func RunPage(ctx context.Context, s *Session, root *Page) int {
+	s.active = true
+	defer func() { s.active = false }()
 	s.interrupts = make(chan os.Signal, 8)
 	signal.Notify(s.interrupts, os.Interrupt)
 	defer signal.Stop(s.interrupts)
@@ -134,14 +122,14 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			if current.page.Load != nil {
 				view, err := current.page.Load(ctx, s)
 				if err != nil {
-					s.Printf("Error refreshing %s: %s\n", output.RedactError(current.page.Title), output.RedactError(err.Error()))
+					s.pending += fmt.Sprintf("Error reading %s: %s\n", output.RedactError(current.page.Title), output.RedactError(err.Error()))
 					view.Items = nil // Failed reads cannot leave stale resources selectable.
-					view.Empty = "Data unavailable. Refresh or go back."
+					view.Empty = "Data unavailable. Return to the parent page and reopen to try again."
 				}
 				current.view = view
 			}
 			current.loaded = true
-			last := (len(current.resources()) - 1) / pageSize
+			last := (len(current.view.Items) - 1) / pageSize
 			if current.index > last {
 				current.index = last
 			}
@@ -150,22 +138,17 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			}
 			current.render = true
 		}
-		resources := current.resources()
 		if current.render {
-			view := current.view
-			view.Items = resources
-			if current.filter != "" {
-				view.Context += "\nFilter: " + current.filter
-			}
-			s.render(current.page, view, current.index, len(stack))
+			s.render(current.page, current.view, current.index, len(stack))
 			current.render = false
+			s.flushResult()
 		}
 		value, err := s.readLine("Choice: ")
 		if errors.Is(err, ErrQuit) || errors.Is(err, context.Canceled) {
 			return 0
 		}
 		if errors.Is(err, ErrBack) {
-			value = "b"
+			value = "0"
 			if len(stack) == 1 {
 				return 0
 			}
@@ -173,77 +156,30 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			s.Printf("Input error: %s\n", err)
 			return 1
 		}
-		if strings.HasPrefix(value, "/") {
-			current.filter = strings.TrimSpace(value[1:])
-			current.index = 0
+		if value == "" {
+			continue
+		}
+		if value == "0" {
+			if len(stack) == 1 {
+				return 0
+			}
+			stack = stack[:len(stack)-1]
+			stack[len(stack)-1].loaded = false
+			continue
+		}
+		choices := numberedChoices(current.view, current.index)
+		n, e := strconv.Atoi(value)
+		if e != nil || n < 1 || n > len(choices) || strconv.Itoa(n) != value {
+			s.WriteLine("Choose a listed number.")
+			continue
+		}
+		choice := choices[n-1]
+		if choice.PageDelta != 0 {
+			current.index += choice.PageDelta
 			current.render = true
 			continue
 		}
-		value = strings.ToLower(value)
-		switch value {
-		case "":
-			continue
-		case "q":
-			return 0
-		case "b":
-			if len(stack) > 1 {
-				stack = stack[:len(stack)-1]
-				stack[len(stack)-1].loaded = false
-			} else {
-				s.WriteLine("Already at the main menu.")
-			}
-			continue
-		case "r":
-			current.loaded = false
-			continue
-		case "h":
-			s.WriteLine("Choose a numbered resource or a letter action. /word filters names; / clears the filter. Ctrl-C returns to the parent; q exits only the menu.")
-			for _, item := range fixedActions(current.view) {
-				s.Printf("%s: %s", item.Key, output.RedactError(item.Label))
-				if item.Impact != "" {
-					s.Printf(" — %s", output.RedactError(item.Impact))
-				}
-				s.WriteLine("")
-			}
-			continue
-		case "n":
-			if (current.index+1)*pageSize < len(resources) {
-				current.index++
-				current.render = true
-			} else {
-				s.WriteLine("Already at the last page.")
-			}
-			continue
-		case "p":
-			if current.index > 0 {
-				current.index--
-				current.render = true
-			} else {
-				s.WriteLine("Already at the first page.")
-			}
-			continue
-		}
-		var item Item
-		found := false
-		for _, action := range fixedActions(current.view) {
-			if value == action.Key {
-				item = action
-				found = true
-				break
-			}
-		}
-		if !found {
-			n, e := strconv.Atoi(value)
-			start := current.index * pageSize
-			if e == nil && n >= 1 && n <= pageSize && start+n <= len(resources) {
-				item = resources[start+n-1]
-				found = true
-			}
-		}
-		if !found {
-			s.WriteLine("Choose a listed number or letter, /filter, r, h, b, or q.")
-			continue
-		}
+		item := choice.Item
 		if item.Next != nil {
 			stack = append(stack, frame{page: item.Next(), render: true})
 			continue
@@ -261,7 +197,18 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			return 0
 		}
 		if err != nil && !errors.Is(err, ErrBack) {
-			s.Printf("Error: %s\n", output.RedactError(err.Error()))
+			s.pending += fmt.Sprintf("Error: %s\n", output.RedactError(err.Error()))
+		}
+		if s.longResult {
+			s.flushResult()
+			s.longResult = false
+			_, pauseErr := s.readLine("Press Enter to return: ")
+			if errors.Is(pauseErr, ErrQuit) {
+				return 0
+			}
+			if pauseErr != nil && !errors.Is(pauseErr, ErrBack) {
+				return 1
+			}
 		}
 		current.loaded = false
 		if err == nil && nav.Back && len(stack) > 1 {

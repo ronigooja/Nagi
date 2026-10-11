@@ -9,13 +9,13 @@ import (
 	"testing"
 )
 
-func TestResourceActionsFilterAndContext(t *testing.T) {
+func TestResourceActionsPaginationAndClamp(t *testing.T) {
 	var out bytes.Buffer
 	runner := &fakeRunner{}
 	loads := 0
 	page := &Page{Title: "Resources", Load: func(_ context.Context, _ *Session) (PageView, error) {
 		loads++
-		view := PageView{Actions: []Item{{Label: "Fixed action", Key: "x", Args: []string{"change"}}}}
+		view := PageView{Actions: []Item{{Label: "Fixed action", Args: []string{"change"}}}}
 		limit := 21
 		if loads > 1 {
 			limit = 11
@@ -26,12 +26,12 @@ func TestResourceActionsFilterAndContext(t *testing.T) {
 		}
 		return view, nil
 	}}
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("n\nn\nx\n1\n/NAME 01\n1\n/metadata\n1\nq\n"), &out), page)
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("12\n12\n2\n1\n3\n1\n0\n"), &out), page)
 	want := [][]string{{"change"}, {"pick", "Name 11"}, {"pick", "Name 01"}}
 	if !reflect.DeepEqual(runner.calls, want) {
 		t.Fatalf("calls=%v", runner.calls)
 	}
-	if strings.Count(out.String(), "x. Fixed action") < 4 {
+	if strings.Count(out.String(), "Fixed action") < 4 {
 		t.Fatal("fixed action disappeared during pagination")
 	}
 	if !strings.Contains(out.String(), "Page 2/2") {
@@ -54,7 +54,7 @@ func TestLiteralTextAndFormPreservedRetry(t *testing.T) {
 	var out bytes.Buffer
 	values := map[string]string{}
 	calls := []map[string]string{}
-	s := NewSession(&fakeRunner{}, strings.NewReader("\nb\nq\n1\ncorrect\ns\n"), &out)
+	s := NewSession(&fakeRunner{}, strings.NewReader("\nb\nq\n1\ncorrect\n3\n"), &out)
 	result, err := s.Form(context.Background(), []Field{{Key: "name", Label: "Name", Required: true}, {Key: "path", Label: "Path", Required: true}}, values, func(v map[string]string) Result {
 		copy := map[string]string{}
 		for k, value := range v {
@@ -90,12 +90,12 @@ func TestActionNavigationAndNoConfirmation(t *testing.T) {
 	var out bytes.Buffer
 	calls := 0
 	child := &Page{Title: "Child", Load: func(context.Context, *Session) (PageView, error) {
-		return PageView{Actions: []Item{{Key: "d", Label: "Delete", Impact: "Deletes the resource", Navigate: func(context.Context, *Session) (Navigation, error) { calls++; return Navigation{Back: true}, nil }}}}, nil
+		return PageView{Actions: []Item{{Label: "Delete", Impact: "Deletes the resource", Navigate: func(context.Context, *Session) (Navigation, error) { calls++; return Navigation{Back: true}, nil }}}}, nil
 	}}
 	root := &Page{Title: "Parent", Load: func(context.Context, *Session) (PageView, error) {
 		return PageView{Items: []Item{{Label: "Child", Next: func() *Page { return child }}}}, nil
 	}}
-	RunPage(context.Background(), NewSession(&fakeRunner{}, strings.NewReader("1\nd\nq\n"), &out), root)
+	RunPage(context.Background(), NewSession(&fakeRunner{}, strings.NewReader("1\n1\n0\n"), &out), root)
 	if calls != 1 || strings.Count(out.String(), "\nParent\n") != 2 || strings.Contains(out.String(), "Type yes") {
 		t.Fatal(out.String())
 	}

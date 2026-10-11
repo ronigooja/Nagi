@@ -10,7 +10,7 @@ import (
 func init() { RegisterPage("rules", RulesPage) }
 
 func RulesPage() *Page {
-	return &Page{Title: "Rules", Help: []string{"rules"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Rules", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		result := s.Fetch(ctx, "rules", "custom")
 		summary := "Custom rules: unknown"
 		if result.Error != nil {
@@ -22,19 +22,20 @@ func RulesPage() *Page {
 				summary = fmt.Sprintf("Custom rules and sets: %d", len(entries))
 			}
 		}
-		return PageView{Context: summary, Actions: []Item{
-			{Label: "List active rules", Args: []string{"rules", "list"}},
-			{Label: "List active rule providers", Args: []string{"rules", "providers"}},
-			{Label: "List custom rules and sets", Args: []string{"rules", "custom"}},
-			{Label: "Show rule order and conflicts", Args: []string{"rules", "conflicts"}},
-			{Label: "Show rule matched by a connection", Action: ruleConnection},
-			{Label: "Add custom rule", Impact: "Saves and activates the rule", Action: ruleAdd},
-			{Label: "Remove custom rule or set", Impact: "Removes and activates the change", Action: ruleChange("remove")},
-			{Label: "Enable custom rule or set", Action: ruleChange("enable")},
-			{Label: "Disable custom rule or set", Action: ruleChange("disable")},
-			{Label: "Import local rule set", Impact: "Saves and activates the set", Action: ruleImport("import-local")},
-			{Label: "Import remote rule set", Impact: "Downloads, saves and activates the set", Action: ruleImport("import-remote")},
-		}}, nil
+		view := PageView{Context: summary, Actions: []Item{
+			submenu(actionPage("View Rules", Item{Label: "List active rules", Args: []string{"rules", "list"}},
+				Item{Label: "List active rule providers", Args: []string{"rules", "providers"}},
+				Item{Label: "List custom rules and sets", Args: []string{"rules", "custom"}},
+				Item{Label: "Show rule order and conflicts", Args: []string{"rules", "conflicts"}},
+				Item{Label: "Show rule matched by a connection", Action: ruleConnection})),
+			submenu(actionPage("Manage Custom Rules", Item{Label: "Add custom rule", Impact: "Saves and activates the rule", Action: ruleAdd},
+				Item{Label: "Enable custom rule or set", Action: ruleChange("enable")},
+				Item{Label: "Disable custom rule or set", Action: ruleChange("disable")},
+				Item{Label: "Remove custom rule or set", Impact: "Removes and activates the change", Action: ruleChange("remove")})),
+			submenu(actionPage("Import Rule Sets", Item{Label: "Import local rule set", Impact: "Saves and activates the set", Action: ruleImport("import-local")},
+				Item{Label: "Import remote rule set", Impact: "Downloads, saves and activates the set", Action: ruleImport("import-remote")})),
+		}}
+		return view, nil
 	}}
 }
 
@@ -74,15 +75,15 @@ func menuNames(value any, field string) []string {
 func menuSelectName(ctx context.Context, s *Session, command []string, field, label string) (string, error) {
 	result := s.Fetch(ctx, command...)
 	if result.Code != 0 || result.Error != nil {
-		s.showResult(result)
+		s.ShowResult(command, result)
 		return "", nil
 	}
 	names := menuNames(result.Data, field)
 	if len(names) == 0 {
 		if field == "connections" {
-			s.WriteLine("No active connections returned; start mihomo and run `nagi connections list`.")
+			s.feedback("No active connections returned; start mihomo and run `nagi connections list`.")
 		} else {
-			s.WriteLine("No custom rules or sets returned; run `nagi rules custom`.")
+			s.feedback("No custom rules or sets returned; run `nagi rules custom`.")
 		}
 		return "", nil
 	}

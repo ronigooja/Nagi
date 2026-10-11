@@ -46,25 +46,6 @@ func TestProxyGroupNodeNamesStaySingleArguments(t *testing.T) {
 	}
 }
 
-func TestProxySearchSelectsReturnedNamesByNumber(t *testing.T) {
-	runner := &featureRunner{results: map[string]Result{
-		"proxy\x00groups":                                {Data: map[string]any{"groups": []any{map[string]any{"name": "World Select"}}}},
-		"proxy\x00show\x00World Select":                  {Data: map[string]any{"name": "World Select", "all": []string{"Hong Kong A", "Tokyo"}}},
-		"proxy\x00search\x00Hong":                        {Data: map[string]any{"groups": []any{map[string]any{"name": "World Select", "all": []string{"Hong Kong A"}}}}},
-		"proxy\x00select\x00World Select\x00Hong Kong A": {Data: map[string]any{"group": "World Select", "node": "Hong Kong A"}},
-	}}
-	var out bytes.Buffer
-	if code := RunPage(context.Background(), NewSession(runner, strings.NewReader("s\nHong\n1\n1\nq\n"), &out), ProxyPage()); code != 0 {
-		t.Fatalf("exit %d", code)
-	}
-	if !hasProxyCall(runner.calls, []string{"proxy", "select", "World Select", "Hong Kong A"}) {
-		t.Fatalf("calls: %#v", runner.calls)
-	}
-	if strings.Contains(out.String(), "1. Tokyo") {
-		t.Fatalf("nonmatching node displayed: %s", out.String())
-	}
-}
-
 func hasProxyCall(calls [][]string, want []string) bool {
 	for _, call := range calls {
 		if reflect.DeepEqual(call, want) {
@@ -99,7 +80,7 @@ func TestProxySwitchNeedsThreeSelectionsFromRoot(t *testing.T) {
 	}
 }
 
-func TestProxyPaginationFilterAndBatchSelectSameNames(t *testing.T) {
+func TestProxyPaginationAndBatchSelectSameNames(t *testing.T) {
 	nodes := []string{}
 	for i := 0; i < 12; i++ {
 		nodes = append(nodes, fmt.Sprintf("Node %02d", i))
@@ -111,20 +92,20 @@ func TestProxyPaginationFilterAndBatchSelectSameNames(t *testing.T) {
 		"proxy\x00select\x00Auto\x00Node 11": {Data: map[string]any{"group": "Auto", "node": "Node 11"}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("n\n2\n/node 11\n1\nl\n1\nr\n/\n1\nq\n"), &out), proxyGroupPage("Auto"))
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("16\n2\n8\n13\n1\n1\n0\n"), &out), proxyGroupPage("Auto"))
 	count := 0
 	for _, call := range runner.calls {
 		if reflect.DeepEqual(call, []string{"proxy", "select", "Auto", "Node 11"}) {
 			count++
 		}
 	}
-	if count != 4 {
+	if count != 3 {
 		t.Fatalf("same-node selections=%d calls=%#v", count, runner.calls)
 	}
-	if strings.Count(out.String(), "l. Test all nodes") < 7 {
+	if strings.Count(out.String(), "Test all nodes") < 6 {
 		t.Fatalf("fixed action not retained: %s", out.String())
 	}
-	for _, text := range []string{"Page 2/2", "Selection: fixed to Node 00", "May clear a fixed choice", "Node 11 — 12 ms", "Filter: node 11"} {
+	for _, text := range []string{"Page 2/2", "Selection: fixed to Node 00", "May clear a fixed choice", "Node 11 — 12 ms"} {
 		if !strings.Contains(out.String(), text) {
 			t.Fatalf("missing %q: %s", text, out.String())
 		}
@@ -143,7 +124,7 @@ func TestProxyMeasurementsPruneRemovedNodes(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, action := range view.Actions {
-		if action.Key == "l" {
+		if action.Label == "Test all nodes and select from results" {
 			if err := action.Action(context.Background(), s); err != nil {
 				t.Fatal(err)
 			}
@@ -180,7 +161,7 @@ func TestProxyBatchErrorsRetainUnderlyingStateExplanation(t *testing.T) {
 		"proxy\x00delays\x00Auto": {Code: 1, Error: &CLIError{Message: message}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("l\na\nq\n"), &out), proxyGroupPage("Auto"))
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("4\n6\n0\n"), &out), proxyGroupPage("Auto"))
 	if !strings.Contains(out.String(), message) || !hasProxyCall(runner.calls, []string{"proxy", "auto", "Auto"}) {
 		t.Fatalf("result: %s; calls=%#v", out.String(), runner.calls)
 	}
@@ -197,7 +178,7 @@ func TestProxyLatencyFailureKeepsLastMeasurementsAndRedactsNames(t *testing.T) {
 	view, _ := page.Load(context.Background(), s)
 	var batch Item
 	for _, action := range view.Actions {
-		if action.Key == "l" {
+		if action.Label == "Test all nodes and select from results" {
 			batch = action
 		}
 	}

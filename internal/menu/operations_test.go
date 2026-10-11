@@ -33,17 +33,26 @@ func (r *operationRunner) Run(_ context.Context, args []string) Result {
 
 func operationItem(t *testing.T, page *Page, label string) Item {
 	t.Helper()
-	view, err := page.Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
-	if err != nil {
-		t.Fatal(err)
+	item, ok := findMenuItem(page, label)
+	if !ok {
+		t.Fatalf("missing item %q", label)
 	}
+	return item
+}
+
+func findMenuItem(page *Page, label string) (Item, bool) {
+	view, _ := page.Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
 	for _, item := range append(view.Items, view.Actions...) {
 		if item.Label == label {
-			return item
+			return item, true
+		}
+		if item.Next != nil {
+			if found, ok := findMenuItem(item.Next(), label); ok {
+				return found, true
+			}
 		}
 	}
-	t.Fatalf("missing item %q", label)
-	return Item{}
+	return Item{}, false
 }
 
 func TestOperationPageStaticCommands(t *testing.T) {
@@ -53,17 +62,17 @@ func TestOperationPageStaticCommands(t *testing.T) {
 		args   []string
 		impact bool
 	}{
-		{DNSPage(), "Show DNS status", []string{"dns", "status"}, false},
+		{DNSPage(), "DNS details", []string{"dns", "status"}, false},
 		{DNSPage(), "Check DNS configuration", []string{"dns", "check"}, false},
 		{DNSPage(), "Disable TUN DNS interception", []string{"dns", "tun", "off"}, true},
-		{TrafficPage(), "TUN status", []string{"tun", "status"}, false},
+		{TrafficPage(), "TUN details", []string{"tun", "status"}, false},
 		{TrafficPage(), "Listener ports", []string{"ports", "status"}, false},
 		{TrafficPage(), "Disable LAN access", []string{"lan", "disable"}, true},
 		{ConnectionsPage(), "Close all connections", []string{"connections", "close-all"}, true},
 		{RulesPage(), "List active rule providers", []string{"rules", "providers"}, false},
 	}
 	if runtime.GOOS == "darwin" {
-		item := operationItem(t, TrafficPage(), "System proxy status")
+		item := operationItem(t, TrafficPage(), "System proxy details")
 		if !reflect.DeepEqual(item.Args, []string{"system-proxy", "status"}) {
 			t.Errorf("system proxy status args=%v", item.Args)
 		}
@@ -174,7 +183,7 @@ func TestRuleRemovalUsesFreshNameOnce(t *testing.T) {
 
 func TestRuleSelectionCanceled(t *testing.T) {
 	runner := &operationRunner{data: map[string]any{"rules custom": map[string]any{"entries": []map[string]any{{"name": "work rule"}}}}}
-	session := NewSession(runner, strings.NewReader("b\n"), &bytes.Buffer{})
+	session := NewSession(runner, strings.NewReader("0\n"), &bytes.Buffer{})
 	item := operationItem(t, RulesPage(), "Remove custom rule or set")
 	if err := item.Action(context.Background(), session); err != ErrBack {
 		t.Fatalf("cancel = %v", err)
@@ -225,7 +234,7 @@ func TestOperationStreamsUseStreamingRunner(t *testing.T) {
 func TestFixedOperationExecutesOnceWithoutConfirmation(t *testing.T) {
 	runner := &fakeRunner{}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("e\nq\n"), &out), ConnectionsPage())
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("4\n0\n"), &out), ConnectionsPage())
 	count := 0
 	for _, args := range runner.calls {
 		if reflect.DeepEqual(args, []string{"connections", "close-all"}) {
@@ -242,7 +251,7 @@ func TestDNSFormRetainsLiteralNamesAfterFailedSubmission(t *testing.T) {
 		"dns exception add b q": {{Code: 1, Error: &CLIError{Message: "server is invalid"}}},
 	}}
 	var out bytes.Buffer
-	err := dnsExceptionAdd(context.Background(), NewSession(runner, strings.NewReader("\nb\nq\n2\nudp://192.0.2.53:53\ns\n"), &out))
+	err := dnsExceptionAdd(context.Background(), NewSession(runner, strings.NewReader("\nb\nq\n2\nudp://192.0.2.53:53\n3\n"), &out))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,9 +290,9 @@ func TestTrafficUnknownStatusPreservesActionsAndRedacts(t *testing.T) {
 	runner := &fakeRunner{results: map[string]Result{
 		"tun status": {Error: &CLIError{Message: "failed https://secret.example/token"}},
 	}}
-	selection := "d"
+	selection := "1\n3"
 	if runtime.GOOS == "darwin" {
-		selection = "g" // Three system proxy actions precede the TUN actions.
+		selection = "2\n3" // System proxy settings precede TUN.
 	}
 	var out bytes.Buffer
 	RunPage(context.Background(), NewSession(runner, strings.NewReader(selection+"\nq\n"), &out), TrafficPage())

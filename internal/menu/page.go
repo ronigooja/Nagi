@@ -2,17 +2,16 @@ package menu
 
 import "context"
 
-// Page supplies a fresh view when opened, refreshed, or after an action.
+// Page supplies a fresh view when opened or after an action.
 type Page struct {
 	Title string
-	Help  []string
 	Load  func(context.Context, *Session) (PageView, error)
 }
 
 type PageView struct {
 	Context string
-	Items   []Item // Resources: filtered and paginated numeric choices.
-	Actions []Item // Fixed actions: always visible letter choices.
+	Items   []Item // Resources, paginated ten at a time.
+	Actions []Item // Actions, visible after resources on every page.
 	Empty   string
 }
 
@@ -24,41 +23,57 @@ type Navigation struct {
 // Item opens a page, dispatches a command, or performs a custom flow.
 type Item struct {
 	Label    string
-	Name     string // Name used for filtering; defaults to Label.
-	Key      string
+	Name     string // Resource identity.
 	Args     []string
 	Impact   string // Effect shown beside the action; never asks for confirmation.
 	Next     func() *Page
 	Action   func(context.Context, *Session) error
 	Navigate func(context.Context, *Session) (Navigation, error)
-	Help     []string
 }
 
 const pageSize = 10
 
-// actionKeys excludes the reserved navigation keys b/r/h/q/n/p.
-const actionKeys = "acdefgijklmostuvwxyz"
+// numberedChoices is the single mapping used by rendering and dispatch.
+type numberedChoice struct {
+	Item      Item
+	PageDelta int
+}
 
-func fixedActions(view PageView) []Item {
-	actions := append([]Item(nil), view.Actions...)
-	used := map[string]bool{}
-	for _, item := range actions {
-		if item.Key != "" {
-			used[item.Key] = true
-		}
+func numberedChoices(view PageView, index int) []numberedChoice {
+	start := index * pageSize
+	end := start + pageSize
+	if end > len(view.Items) {
+		end = len(view.Items)
 	}
-	for i := range actions {
-		if actions[i].Key != "" {
-			continue
-		}
-		for _, key := range actionKeys {
-			k := string(key)
-			if !used[k] {
-				actions[i].Key = k
-				used[k] = true
-				break
-			}
-		}
+	choices := []numberedChoice{}
+	for _, item := range view.Items[start:end] {
+		choices = append(choices, numberedChoice{Item: item})
 	}
-	return actions
+	for _, item := range view.Actions {
+		choices = append(choices, numberedChoice{Item: item})
+	}
+	if end < len(view.Items) {
+		choices = append(choices, numberedChoice{Item: Item{Label: "Next page"}, PageDelta: 1})
+	}
+	if index > 0 {
+		choices = append(choices, numberedChoice{Item: Item{Label: "Previous page"}, PageDelta: -1})
+	}
+	return choices
+}
+
+func actionPage(title string, items ...Item) *Page {
+	return &Page{Title: title, Load: func(context.Context, *Session) (PageView, error) {
+		return PageView{Actions: items}, nil
+	}}
+}
+
+// Settings reread their status on entry and after each operation.
+func statePage(title string, command, fields []string, items ...Item) *Page {
+	return &Page{Title: title, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		return PageView{Context: pageStatus(ctx, s, title, command, fields...), Actions: items}, nil
+	}}
+}
+
+func submenu(page *Page) Item {
+	return Item{Label: page.Title, Next: func() *Page { return page }}
 }

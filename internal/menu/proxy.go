@@ -40,11 +40,10 @@ func decodeMenuResult(result Result, target any) error {
 func ProxyPage() *Page { return proxyGroupsPage() }
 
 func proxyGroupsPage() *Page {
-	return &Page{Title: "Proxies and groups", Help: []string{"proxy", "groups"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: "Choose a group, then a node to switch immediately. /word filters group names.", Empty: "No proxy groups returned. Start mihomo and run `nagi proxy groups` to inspect the configuration.", Actions: []Item{
-			{Key: "s", Label: "Search node names across groups", Navigate: searchProxyNodes},
-			{Key: "v", Label: "Manage proxy providers", Next: func() *Page { return providerListPage() }},
-			{Key: "a", Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
+	return &Page{Title: "Select Node", Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Context: "Choose a group, then a node to switch immediately.", Empty: "No proxy groups returned. Start mihomo and run `nagi proxy groups` to inspect the configuration.", Actions: []Item{
+			{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
+			{Label: "Proxy Providers", Next: func() *Page { return providerListPage() }},
 		}}
 		var data struct {
 			Groups []menuProxyGroup `json:"groups"`
@@ -95,25 +94,25 @@ type menuProxyMeasurement struct {
 	Error   string `json:"error"`
 }
 
-func proxyGroupPage(name string) *Page { return proxyNodesPage(name, "", false) }
+func proxyGroupPage(name string) *Page { return proxyNodesPage(name, false) }
 
 // Measurements belong to the page, so refresh and node selection retain their
 // original order. Only a new successful batch test replaces that snapshot.
-func proxyNodesPage(name, query string, testOnly bool) *Page {
+func proxyNodesPage(name string, testOnly bool) *Page {
 	measurements := map[string]menuProxyMeasurement{}
 	order := []string{}
 	title := "Proxy group: " + name
 	if testOnly {
 		title = "Test node latency: " + name
 	}
-	return &Page{Title: title, Help: []string{"proxy", "show"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Empty: "No matching nodes. Clear the filter, refresh, or inspect `nagi proxy show`.", Actions: []Item{
-			{Key: "d", Label: "Show group details", Args: []string{"proxy", "show", name}},
+	return &Page{Title: title, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Empty: "No nodes available. Inspect `nagi proxy show`.", Actions: []Item{
+			{Label: "Show group details", Args: []string{"proxy", "show", name}},
 		}}
 		if !testOnly {
 			view.Actions = append(view.Actions,
-				Item{Key: "t", Label: "Test one node", Next: func() *Page { return proxyNodesPage(name, "", true) }},
-				Item{Key: "l", Label: "Test all nodes and select from results", Impact: "May clear a fixed choice and its saved selection for automatic groups", Action: func(ctx context.Context, s *Session) error {
+				Item{Label: "Test one node", Next: func() *Page { return proxyNodesPage(name, true) }},
+				Item{Label: "Test all nodes and select from results", Impact: "May clear a fixed choice and its saved selection for automatic groups", Action: func(ctx context.Context, s *Session) error {
 					s.WriteLine("Executing: test all nodes in this group")
 					result := s.Fetch(ctx, "proxy", "delays", name)
 					var data struct {
@@ -129,10 +128,10 @@ func proxyNodesPage(name, query string, testOnly bool) *Page {
 						order = append(order, measurement.Proxy)
 						measurements[measurement.Proxy] = measurement
 					}
-					s.Printf("Latency test completed: %d results. Choose a numbered node to switch.\n", len(order))
+					s.feedback(fmt.Sprintf("Latency test completed: %d results. Choose a numbered node to switch.", len(order)))
 					return nil
 				}},
-				Item{Key: "s", Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
+				Item{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
 			)
 		}
 		var group menuProxyGroup
@@ -156,16 +155,13 @@ func proxyNodesPage(name, query string, testOnly bool) *Page {
 				view.Context += "\nSelection: fixed to " + group.Fixed
 			}
 			if !testOnly {
-				view.Actions = append(view.Actions, Item{Key: "a", Label: "Resume automatic selection", Impact: "Clears this group's fixed choice and saved selection", Args: []string{"proxy", "auto", name}})
+				view.Actions = append(view.Actions, Item{Label: "Resume automatic selection", Impact: "Clears this group's fixed choice and saved selection", Args: []string{"proxy", "auto", name}})
 			}
 		}
 		if testOnly {
 			view.Context += "\nChoose a node to measure latency."
 		} else {
-			view.Context += "\nChoose a node to switch immediately; /word filters node names."
-		}
-		if query != "" {
-			view.Context += "\nSearch: " + query
+			view.Context += "\nChoose a node to switch immediately."
 		}
 		live := map[string]bool{}
 		for _, node := range group.All {
@@ -192,9 +188,6 @@ func proxyNodesPage(name, query string, testOnly bool) *Page {
 			view.Context += "\nLast latency measurements retained in result order; unmeasured nodes follow."
 		}
 		for _, node := range nodes {
-			if !strings.Contains(strings.ToLower(node), strings.ToLower(query)) {
-				continue
-			}
 			label := node
 			if measurement, ok := measurements[node]; ok {
 				if measurement.DelayMS != nil {
@@ -216,34 +209,4 @@ func proxyNodesPage(name, query string, testOnly bool) *Page {
 		}
 		return view, nil
 	}}
-}
-
-func searchProxyNodes(ctx context.Context, s *Session) (Navigation, error) {
-	values := map[string]string{}
-	_, err := s.Form(ctx, []Field{{Key: "query", Label: "Node name substring", Required: true}}, values, func(values map[string]string) Result {
-		result := s.Run(ctx, "proxy", "search", values["query"])
-		return result
-	})
-	if err != nil {
-		return Navigation{}, err
-	}
-	query := values["query"]
-	return Navigation{Next: &Page{Title: "Matching proxy groups", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		// Re-read on refresh so deleted groups never remain selectable.
-		var data struct {
-			Groups []menuProxyGroup `json:"groups"`
-		}
-		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "search", query), &data); err != nil {
-			return PageView{}, err
-		}
-		view := PageView{Context: "Node search: " + query, Empty: "No matching nodes found."}
-		for _, group := range data.Groups {
-			group := group
-			if group.Hidden {
-				continue
-			}
-			view.Items = append(view.Items, Item{Name: group.Name, Label: proxyGroupLabel(group), Next: func() *Page { return proxyNodesPage(group.Name, query, false) }})
-		}
-		return view, nil
-	}}}, nil
 }

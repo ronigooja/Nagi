@@ -18,7 +18,7 @@ Build the CLI with `make build cli` on Linux or macOS; build the macOS App separ
 
 The `default` profile is the built-in configuration template; installation and updates replace it with the installed version's defaults. Use another name for personal profiles and subscriptions. See the [installation workflow](docs/development/install.md#install-update-and-remove) for details.
 
-`nagi menu` opens a step-by-step menu when both input and output are terminals. Choose numbered resources and letter actions; use `/word` to filter names, `b` to go back, and `q` to leave the menu while mihomo keeps running. Actions execute without a second confirmation; their effects appear beside the entry. Use ordinary commands with `--json` for scripts and applications. See the [CLI reference](docs/reference/cli.md#terminal-menu) for the full interaction contract.
+`nagi menu` opens a step-by-step menu when both input and output are terminals. Choose numbered resources and actions; use `0` to return from a submenu or leave the home menu while mihomo keeps running. Common operations appear first, and state reloads after operations and when returning to a page. Actions execute without a second confirmation; their effects appear beside the entry. Use ordinary commands with `--json` for scripts and applications. See the [CLI reference](docs/reference/cli.md#terminal-menu) for the full interaction contract.
 
 ## Documentation
 

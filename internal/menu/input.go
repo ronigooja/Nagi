@@ -38,64 +38,39 @@ func (s *Session) Select(label string, choices []string) (string, error) {
 		return "", fmt.Errorf("no choices available")
 	}
 	page := 0
-	filter := ""
+	view := PageView{}
+	for _, value := range choices {
+		view.Items = append(view.Items, Item{Label: value, Name: value})
+	}
 	redraw := true
 	for {
-		shown := []string{}
-		for _, choice := range choices {
-			if strings.Contains(strings.ToLower(choice), strings.ToLower(filter)) {
-				shown = append(shown, choice)
-			}
-		}
-		start := page * pageSize
-		end := start + pageSize
-		if end > len(shown) {
-			end = len(shown)
-		}
 		if redraw {
-			s.WriteLine(output.RedactError(label))
-			for i, value := range shown[start:end] {
-				s.Printf("%d. %s\n", i+1, output.RedactError(value))
-			}
-			s.WriteLine("b. Cancel  q. Exit menu  /. Filter  n/p. Next/previous")
+			s.render(&Page{Title: label}, view, page, 0)
 			redraw = false
 		}
 		value, err := s.readLine("Choice: ")
 		if err != nil {
 			return "", err
 		}
-		lower := strings.ToLower(value)
-		if strings.HasPrefix(value, "/") {
-			filter = strings.TrimSpace(value[1:])
-			page = 0
+		if value == "" {
+			continue
+		}
+		if value == "0" {
+			return "", ErrBack
+		}
+		numbered := numberedChoices(view, page)
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 1 || n > len(numbered) || strconv.Itoa(n) != value {
+			s.WriteLine("Choose a listed number.")
+			continue
+		}
+		choice := numbered[n-1]
+		if choice.PageDelta != 0 {
+			page += choice.PageDelta
 			redraw = true
 			continue
 		}
-		switch lower {
-		case "q":
-			return "", ErrQuit
-		case "b":
-			return "", ErrBack
-		case "n":
-			if end < len(shown) {
-				page++
-				redraw = true
-			}
-			continue
-		case "p":
-			if page > 0 {
-				page--
-				redraw = true
-			}
-			continue
-		case "":
-			continue
-		}
-		n, e := strconv.Atoi(value)
-		if e == nil && n >= 1 && start+n <= end {
-			return shown[start+n-1], nil
-		}
-		s.WriteLine("Choose a listed number, b, or q.")
+		return choice.Item.Name, nil
 	}
 }
 
@@ -154,16 +129,24 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 	}
 	result := submit(values)
 	for result.Code != 0 || result.Error != nil {
-		s.WriteLine("Submission failed. Values are retained. Choose a field to edit, s to submit again, or Ctrl-C to cancel.")
+		s.WriteLine("Submission failed. Values are retained. Choose a field to edit or submit again.")
 		for i, field := range fields {
 			s.Printf("%d. %s\n", i+1, field.Label)
 		}
+		s.Printf("%d. Submit again\n0. Cancel\n", len(fields)+1)
+		s.flushResult()
 		for {
 			value, err := s.readLine("Choice: ")
 			if err != nil {
 				return result, err
 			}
-			if value == "s" {
+			if value == "" {
+				continue
+			}
+			if value == "0" {
+				return result, ErrBack
+			}
+			if value == strconv.Itoa(len(fields)+1) {
 				if ctx.Err() != nil {
 					return result, ctx.Err()
 				}
@@ -171,8 +154,8 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 				break
 			}
 			n, err := strconv.Atoi(value)
-			if err != nil || n < 1 || n > len(fields) {
-				s.WriteLine("Choose a field number or s.")
+			if err != nil || n < 1 || n > len(fields) || strconv.Itoa(n) != value {
+				s.WriteLine("Choose a listed number.")
 				continue
 			}
 			if err := edit(fields[n-1]); err != nil {

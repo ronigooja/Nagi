@@ -39,7 +39,7 @@ func (r *changingProviderRunner) Run(_ context.Context, args []string) Result {
 func TestProviderSessionRefreshesAfterUpdateAndDispatchesActions(t *testing.T) {
 	r := &changingProviderRunner{}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(r, strings.NewReader("1\nu\nc\n1\nq\n"), &out), providerListPage())
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n1\n"), &out), providerListPage())
 	for _, want := range [][]string{{"proxy", "provider", "show", "work"}, {"proxy", "provider", "update", "work"}, {"proxy", "provider", "healthcheck", "work"}, {"proxy", "delay", "New"}} {
 		if !hasProxyCall(r.calls, want) {
 			t.Fatalf("missing %v in %#v", want, r.calls)
@@ -53,7 +53,7 @@ func TestProviderSessionRefreshesAfterUpdateAndDispatchesActions(t *testing.T) {
 func TestProviderEntryAndHealthcheckKeysDispatchThroughSession(t *testing.T) {
 	r := &changingProviderRunner{}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(r, strings.NewReader("v\n1\nc\nq\n"), &out), ProxyPage())
+	RunPage(context.Background(), NewSession(r, strings.NewReader("2\n1\n3\n"), &out), ProxyPage())
 	if !hasProxyCall(r.calls, []string{"proxy", "providers"}) ||
 		!hasProxyCall(r.calls, []string{"proxy", "provider", "show", "work"}) ||
 		!hasProxyCall(r.calls, []string{"proxy", "provider", "healthcheck", "work"}) {
@@ -64,7 +64,7 @@ func TestProviderEntryAndHealthcheckKeysDispatchThroughSession(t *testing.T) {
 func TestProviderReadFailureClearsNodesAndKeepsRecovery(t *testing.T) {
 	r := &changingProviderRunner{fail: true}
 	view, err := providerDetailPage("work").Load(context.Background(), NewSession(r, strings.NewReader(""), &bytes.Buffer{}))
-	if err == nil || len(view.Items) != 0 || !strings.Contains(view.Context, "unknown") || !reflect.DeepEqual([]string{view.Actions[0].Key, view.Actions[1].Key}, []string{"u", "c"}) {
+	if err == nil || len(view.Items) != 0 || !strings.Contains(view.Context, "unknown") || !reflect.DeepEqual([]string{view.Actions[0].Label, view.Actions[1].Label}, []string{"Update provider", "Start healthcheck"}) {
 		t.Fatalf("view=%#v err=%v", view, err)
 	}
 }

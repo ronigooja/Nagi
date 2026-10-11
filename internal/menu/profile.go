@@ -55,9 +55,9 @@ func init() {
 func ProfilePage() *Page { return profileListPage() }
 
 func profileListPage() *Page {
-	return &Page{Title: "Profiles", Help: []string{"profile", "list"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Profiles", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Empty: "No profiles found. Choose Import a profile.", Actions: []Item{
-			{Key: "i", Label: "Import a profile", Navigate: importProfile},
+			{Label: "Import a profile", Navigate: importProfile},
 		}}
 		var data menuProfiles
 		if err := decodeMenuResult(s.Fetch(ctx, "profile", "list"), &data); err != nil {
@@ -85,16 +85,12 @@ func profileListPage() *Page {
 }
 
 func profileDetailPage(name string) *Page {
-	return &Page{Title: "Profile: " + name, Help: []string{"profile", "use"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Profile: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Actions: []Item{
 			{Label: "Use profile", Args: []string{"profile", "use", name}},
 			{Label: "Export source YAML", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "export", name) }},
-			{Label: "Back up source YAML", Args: []string{"profile", "backup", name}},
-			{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Impact: "Replaces source YAML; reloads when selected and running"},
-			{Label: "Compare with backup or another profile", Action: func(ctx context.Context, s *Session) error { return diffProfile(ctx, s, name) }},
-			{Label: "Show local override", Args: []string{"profile", "override", "show", name}},
-			{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }},
-			{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Restores source settings; reloads when selected and running"},
+			submenu(actionPage("Backup & Restore", Item{Label: "Back up source YAML", Args: []string{"profile", "backup", name}}, Item{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Impact: "Replaces source YAML; reloads when selected and running"}, Item{Label: "Compare with backup or another profile", Action: func(ctx context.Context, s *Session) error { return diffProfile(ctx, s, name) }})),
+			submenu(actionPage("Local Overrides", Item{Label: "Show local override", Args: []string{"profile", "override", "show", name}}, Item{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }}, Item{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Restores source settings; reloads when selected and running"})),
 			{Label: "Remove profile", Navigate: removeResource("profile", name), Impact: "Deletes source YAML; backup and override remain"},
 		}}
 		var data menuProfiles
@@ -174,8 +170,8 @@ func diffProfile(ctx context.Context, s *Session, name string) error {
 }
 
 func subscriptionListPage() *Page {
-	return &Page{Title: "Subscriptions", Help: []string{"subscription", "list"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Empty: "No subscriptions configured. Choose Add subscription.", Actions: []Item{{Key: "a", Label: "Add subscription", Navigate: addSubscription}}}
+	return &Page{Title: "Subscriptions", Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Empty: "No subscriptions configured. Choose Add subscription.", Actions: []Item{{Label: "Add subscription", Navigate: addSubscription}}}
 		var data struct {
 			Subscriptions []menuSubscription `json:"subscriptions"`
 		}
@@ -216,7 +212,7 @@ func addSubscription(ctx context.Context, s *Session) (Navigation, error) {
 
 func subscriptionSchedule(ctx context.Context, s *Session, name string) error {
 	values := map[string]string{}
-	_, err := s.Form(ctx, []Field{{Key: "seconds", Label: "Interval seconds (or off)", Required: true}}, values, func(v map[string]string) Result {
+	_, err := s.Form(ctx, []Field{{Key: "seconds", Label: "Interval seconds", Required: true}}, values, func(v map[string]string) Result {
 		return s.Run(ctx, "subscription", "schedule", name, v["seconds"])
 	})
 	return err
@@ -224,10 +220,7 @@ func subscriptionSchedule(ctx context.Context, s *Session, name string) error {
 
 func subscriptionKey(ctx context.Context, s *Session, name string) error {
 	values := map[string]string{}
-	_, err := s.Form(ctx, []Field{{Key: "file", Label: "Identity file path, or clear", Required: true}}, values, func(v map[string]string) Result {
-		if v["file"] == "clear" {
-			return s.Run(ctx, "subscription", "key", name, "clear")
-		}
+	_, err := s.Form(ctx, []Field{{Key: "file", Label: "Identity file path", Required: true}}, values, func(v map[string]string) Result {
 		return s.Run(ctx, "subscription", "key", name, v["file"])
 	})
 	return err
@@ -235,11 +228,15 @@ func subscriptionKey(ctx context.Context, s *Session, name string) error {
 
 func subscriptionDetailPage(name string) *Page {
 	var download *menuPreview
-	return &Page{Title: "Subscription: " + name, Help: []string{"subscription", "preview"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Subscription: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		changes := []Item{{Label: "Compare with target profile", Next: func() *Page { return subscriptionPreviewPage(name) }}}
+		if download != nil {
+			snapshot := *download
+			changes = append([]Item{{Label: "Compare with previous download", Next: func() *Page { return previewNamesPage("Download changes vs previous cache", snapshot) }}}, changes...)
+		}
+
 		view := PageView{Actions: []Item{
-			{Key: "s", Label: "Set schedule interval", Action: func(ctx context.Context, s *Session) error { return subscriptionSchedule(ctx, s, name) }},
-			{Key: "k", Label: "Set or clear encryption key", Action: func(ctx context.Context, s *Session) error { return subscriptionKey(ctx, s, name) }},
-			{Key: "d", Label: "Download cache", Impact: "Downloads only; does not apply, start mihomo or enable traffic access", Action: func(ctx context.Context, s *Session) error {
+			{Label: "Download subscription", Impact: "Downloads only; does not apply, start mihomo or enable traffic access", Action: func(ctx context.Context, s *Session) error {
 				result := s.Run(ctx, "subscription", "update", name)
 				if result.Code != 0 || result.Error != nil {
 					return nil
@@ -253,9 +250,19 @@ func subscriptionDetailPage(name string) *Page {
 				download = data.Preview
 				return nil
 			}},
-			{Key: "v", Label: "View application changes against target profile", Next: func() *Page { return subscriptionPreviewPage(name) }},
-			{Key: "a", Label: "Apply cached subscription", Args: []string{"subscription", "apply", name}, Impact: "Replaces target source configuration, clears local overrides and saved node selections; does not start mihomo or enable traffic access"},
-			{Key: "x", Label: "Remove subscription and cache", Navigate: removeResource("subscription", name), Impact: "Deletes subscription record and downloaded cache; keeps local profile"},
+			{Label: "Apply downloaded subscription", Args: []string{"subscription", "apply", name}, Impact: "Replaces target source configuration, clears local overrides and saved node selections; does not start mihomo or enable traffic access"},
+			submenu(actionPage("View Changes", changes...)),
+			{Label: "Automatic Updates", Next: func() *Page {
+				return actionPage("Automatic Updates",
+					Item{Label: "Set update interval", Action: func(ctx context.Context, s *Session) error { return subscriptionSchedule(ctx, s, name) }},
+					Item{Label: "Disable automatic updates", Args: []string{"subscription", "schedule", name, "off"}})
+			}},
+			{Label: "Encryption Settings", Next: func() *Page {
+				return actionPage("Encryption Settings",
+					Item{Label: "Set identity file", Action: func(ctx context.Context, s *Session) error { return subscriptionKey(ctx, s, name) }},
+					Item{Label: "Clear encryption key", Args: []string{"subscription", "key", name, "clear"}})
+			}},
+			{Label: "Remove subscription and cache", Navigate: removeResource("subscription", name), Impact: "Deletes subscription record and downloaded cache; keeps local profile"},
 		}}
 		var data struct {
 			Subscriptions []menuSubscription `json:"subscriptions"`
@@ -285,8 +292,6 @@ func subscriptionDetailPage(name string) *Page {
 		}
 		if download != nil {
 			view.Context += "\nLast download changes (new cache vs previous cache): " + previewSummary(*download)
-			snapshot := *download
-			view.Actions = append(view.Actions, Item{Key: "c", Label: "View last download changes against previous cache", Next: func() *Page { return previewNamesPage("Download changes vs previous cache", snapshot) }})
 		}
 		return view, nil
 	}}
@@ -341,12 +346,12 @@ func previewView(preview menuPreview) PageView {
 		category := category
 		for _, name := range category.items {
 			safe := menuURLPattern.ReplaceAllString(name, "[redacted URL]")
-			view.Items = append(view.Items, Item{Name: safe, Label: category.name + ": " + safe, Action: func(_ context.Context, s *Session) error { s.WriteLine(category.name + ": " + safe); return nil }})
+			view.Items = append(view.Items, Item{Name: safe, Label: category.name + ": " + safe, Action: func(_ context.Context, s *Session) error { s.feedback(category.name + ": " + safe); return nil }})
 		}
 	}
 	for _, change := range preview.Changes {
 		label := menuURLPattern.ReplaceAllString(change.Kind+": "+change.Path+" — "+change.Behavior, "[redacted URL]")
-		view.Items = append(view.Items, Item{Name: label, Label: label, Action: func(_ context.Context, s *Session) error { s.WriteLine(label); return nil }})
+		view.Items = append(view.Items, Item{Name: label, Label: label, Action: func(_ context.Context, s *Session) error { s.feedback(label); return nil }})
 	}
 	return view
 }

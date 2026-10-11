@@ -46,7 +46,7 @@ func TestProfileListAndFileAction(t *testing.T) {
 	if !strings.Contains(out.String(), "required") {
 		t.Fatalf("required field not retried: %s", &out)
 	}
-	if profileAction(t, detail, "Restore latest backup").Impact == "" {
+	if operationItem(t, profileDetailPage("default"), "Restore latest backup").Impact == "" {
 		t.Fatal("restore impact absent")
 	}
 }
@@ -61,7 +61,7 @@ func TestSubscriptionPreviewSummaryAndPaginatedNames(t *testing.T) {
 		"subscription\x00preview\x00feed": {Data: map[string]any{"name": "feed", "added": nodes, "removed": []string{"Old"}, "changed": []string{"Changed"}, "changes": []map[string]any{{"path": "rules", "kind": "changed", "behavior": "routing policy"}}}},
 	}}
 	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader("n\nq\n"), &out)
+	s := NewSession(runner, strings.NewReader("11\n0\n"), &out)
 	view, err := subscriptionDetailPage("feed").Load(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,8 @@ func TestSubscriptionPreviewSummaryAndPaginatedNames(t *testing.T) {
 	if !strings.Contains(view.Context, "70 bytes available") || !strings.Contains(view.Context, "2027-01-01") {
 		t.Fatalf("metadata: %s", view.Context)
 	}
-	preview := profileAction(t, view, "View application changes against target profile").Next()
+	changes, _ := profileAction(t, view, "View Changes").Next().Load(context.Background(), s)
+	preview := profileAction(t, changes, "Compare with target profile").Next()
 	previewView, err := preview.Load(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +96,7 @@ func TestSubscriptionApplyAvailableAfterPreviewFailure(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		item := profileAction(t, view, "Apply cached subscription")
+		item := profileAction(t, view, "Apply downloaded subscription")
 		if !reflect.DeepEqual(item.Args, []string{"subscription", "apply", "feed"}) || !strings.Contains(item.Impact, "clears local overrides and saved node selections") {
 			t.Fatalf("apply: %+v", item)
 		}
@@ -111,7 +112,7 @@ func TestSubscriptionAddNavigatesAndRetriesRetainedFields(t *testing.T) {
 		"subscription\x00add\x00q\x00" + url: {}, "subscription\x00add\x00b\x00" + url: {Code: 1, Error: &CLIError{Message: "already exists"}},
 	}}
 	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader("\nbad name\nb\ninvalid\n"+url+"\n1\nq\ns\n"), &out)
+	s := NewSession(runner, strings.NewReader("\nbad name\nb\ninvalid\n"+url+"\n1\nq\n3\n"), &out)
 	nav, err := addSubscription(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +154,7 @@ func TestSubscriptionDownloadStaysAndDistinguishesCacheComparison(t *testing.T) 
 		t.Fatal(err)
 	}
 	runner.calls = nil
-	action := profileAction(t, view, "Download cache")
+	action := profileAction(t, view, "Download subscription")
 	if action.Navigate != nil || action.Next != nil {
 		t.Fatal("download navigates")
 	}
@@ -170,7 +171,8 @@ func TestSubscriptionDownloadStaysAndDistinguishesCacheComparison(t *testing.T) 
 	if !strings.Contains(view.Context, "Application changes (cache vs target profile): 1 nodes added") || !strings.Contains(view.Context, "Last download changes (new cache vs previous cache): 0 nodes added, 1 removed") {
 		t.Fatalf("comparisons: %s", view.Context)
 	}
-	old := profileAction(t, view, "View last download changes against previous cache").Next()
+	changes, _ := profileAction(t, view, "View Changes").Next().Load(context.Background(), s)
+	old := profileAction(t, changes, "Compare with previous download").Next()
 	snapshot, _ := old.Load(context.Background(), s)
 	if len(snapshot.Items) != 1 || snapshot.Items[0].Label != "Removed: cache change" {
 		t.Fatalf("download snapshot: %+v", snapshot)
@@ -210,7 +212,7 @@ func TestSubscriptionMenuAddAndRemoveJourney(t *testing.T) {
 		"subscription\x00remove\x00feed":                              {},
 	}}
 	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader("a\nfeed\nhttps://example.invalid/feed\na\nx\nq\n"), &out)
+	s := NewSession(runner, strings.NewReader("1\nfeed\nhttps://example.invalid/feed\n2\n6\n0\n"), &out)
 	if code := RunPage(context.Background(), s, subscriptionListPage()); code != 0 {
 		t.Fatal(code)
 	}

@@ -15,7 +15,7 @@ type menuProvider struct {
 func init() { RegisterPage("provider", providerListPage) }
 
 func providerListPage() *Page {
-	return &Page{Title: "Proxy providers", Help: []string{"proxy", "providers"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Proxy providers", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		var data struct {
 			Providers []menuProvider `json:"providers"`
 		}
@@ -34,8 +34,8 @@ func providerListPage() *Page {
 func providerDetailPage(name string) *Page {
 	return &Page{Title: "Provider: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Context: "Provider state: unknown", Actions: []Item{
-			{Key: "u", Label: "Update provider", Args: []string{"proxy", "provider", "update", name}},
-			{Key: "c", Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", name}},
+			{Label: "Update provider", Args: []string{"proxy", "provider", "update", name}},
+			{Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", name}},
 		}}
 		var p menuProvider
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "provider", "show", name), &p); err != nil {

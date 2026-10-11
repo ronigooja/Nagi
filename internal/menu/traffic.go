@@ -15,27 +15,34 @@ func init() {
 	RegisterPage("logs", LogsPage)
 }
 
-func TrafficPage() *Page {
-	help := []string{"tun"}
+func trafficTitle() string {
 	if runtime.GOOS == "darwin" {
-		help = []string{"system-proxy"}
+		return "System Proxy & TUN"
 	}
-	return &Page{Title: "Traffic access", Help: help, Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return "TUN & LAN"
+}
+
+func TrafficPage() *Page {
+	return &Page{Title: trafficTitle(), Load: func(ctx context.Context, s *Session) (PageView, error) {
 		items := []Item{
-			{Label: "TUN status", Args: []string{"tun", "status"}},
+			{Label: "TUN details", Args: []string{"tun", "status"}},
 			{Label: "Enable TUN", Args: []string{"tun", "enable"}},
 			{Label: "Disable TUN", Args: []string{"tun", "disable"}, Impact: "Disables runtime TUN"},
 			{Label: "Listener ports", Args: []string{"ports", "status"}},
-			{Label: "LAN access status", Args: []string{"lan", "status"}},
+			{Label: "LAN access details", Args: []string{"lan", "status"}},
 			{Label: "Enable LAN access", Impact: "Exposes listeners on the selected interface", Action: enableLAN},
 			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Impact: "Disables LAN access and binds listeners to loopback"},
 		}
+		tun := statePage("TUN", []string{"tun", "status"}, []string{"enabled"}, items[:3]...)
+		lan := statePage("LAN Access", []string{"lan", "status"}, []string{"enabled", "bind_address"}, items[4:]...)
+		items = []Item{{Label: "TUN", Next: func() *Page { return tun }}, {Label: "LAN Access", Next: func() *Page { return lan }}, items[3]}
 		if runtime.GOOS == "darwin" {
-			items = append([]Item{
-				{Label: "System proxy status", Args: []string{"system-proxy", "status"}},
-				{Label: "Enable system proxy", Args: []string{"system-proxy", "enable"}},
-				{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Impact: "Restores OS proxy settings saved by Nagi"},
-			}, items...)
+			system := statePage("System Proxy", []string{"system-proxy", "status"}, []string{"enabled"},
+				Item{Label: "System proxy details", Args: []string{"system-proxy", "status"}},
+				Item{Label: "Enable system proxy", Args: []string{"system-proxy", "enable"}},
+				Item{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Impact: "Restores OS proxy settings saved by Nagi"})
+			items = append([]Item{{Label: "System Proxy", Next: func() *Page { return system }}}, items...)
+
 		}
 		summary := []string{
 			pageStatus(ctx, s, "TUN", []string{"tun", "status"}, "enabled"),
@@ -66,7 +73,7 @@ func enableLAN(ctx context.Context, s *Session) error {
 }
 
 func ConnectionsPage() *Page {
-	return &Page{Title: "Connections", Help: []string{"connections"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
+	return &Page{Title: "Connections", Load: func(_ context.Context, _ *Session) (PageView, error) {
 		return PageView{Actions: []Item{
 			{Label: "List active connections", Args: []string{"connections", "list"}},
 			{Label: "Show a connection", Action: connectionAction("show")},
@@ -92,7 +99,7 @@ func connectionAction(verb string) func(context.Context, *Session) error {
 }
 
 func LogsPage() *Page {
-	return &Page{Title: "Logs and traffic", Help: []string{"logs"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
+	return &Page{Title: "Logs and traffic", Load: func(_ context.Context, _ *Session) (PageView, error) {
 		return PageView{Actions: []Item{
 			{Label: "Show recent logs", Action: recentLogs},
 			{Label: "Follow logs (Ctrl-C returns here)", Action: func(ctx context.Context, s *Session) error { s.Stream(ctx, "logs", "follow"); return nil }},
