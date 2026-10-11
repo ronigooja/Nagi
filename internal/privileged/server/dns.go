@@ -73,9 +73,8 @@ func (h *RuntimeHandler) syncDNS(ctx context.Context) (traffic.DNSState, error) 
 		return h.unavailableDNS(ctx, errors.New("TUN DNS requires auto-route"))
 	}
 	device, _ := tun["device"].(string)
-	adapter, err := net.InterfaceByName(device)
-	if err != nil || adapter.Flags&net.FlagUp == 0 {
-		return h.unavailableDNS(ctx, fmt.Errorf("TUN adapter %q is not ready", device))
+	if err := waitTUNAdapter(ctx, device, net.InterfaceByName); err != nil {
+		return h.unavailableDNS(ctx, err)
 	}
 	// Mihomo automatically intercepts port 53 on the derived TUN DNS endpoints.
 	targets, err := traffic.DNSTargets(tun)
@@ -83,6 +82,28 @@ func (h *RuntimeHandler) syncDNS(ctx context.Context) (traffic.DNSState, error) 
 		return h.unavailableDNS(ctx, err)
 	}
 	return m.Sync(ctx, h.child.Process.Pid, targets)
+}
+
+// Adapter creation can lag behind mihomo's configured enable flag.
+func waitTUNAdapter(ctx context.Context, device string, lookup func(string) (*net.Interface, error)) error {
+	if device == "" {
+		return errors.New("running TUN has no adapter name")
+	}
+	readyCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		adapter, err := lookup(device)
+		if err == nil && adapter != nil && adapter.Flags&net.FlagUp != 0 {
+			return nil
+		}
+		select {
+		case <-readyCtx.Done():
+			return fmt.Errorf("TUN adapter %q is not ready: %w", device, readyCtx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 // Restore the baseline before reporting an unusable TUN resolver so an

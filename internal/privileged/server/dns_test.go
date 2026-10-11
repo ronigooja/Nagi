@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
+	"errors"
 	"github.com/ronigooja/Nagi/internal/privileged"
+	"net"
 	"testing"
+	"time"
 )
 
 func TestDNSOperationsRefuseOrphanedChild(t *testing.T) {
@@ -28,5 +31,29 @@ func TestTUNPatchDNSAllowlist(t *testing.T) {
 		if err := validateConfigPatch([]byte(raw)); err == nil {
 			t.Fatalf("accepted unsafe patch %s", raw)
 		}
+	}
+}
+
+func TestWaitTUNAdapterHandlesDelayedCreationAndCancellation(t *testing.T) {
+	attempts := 0
+	if err := waitTUNAdapter(context.Background(), "utun9", func(name string) (*net.Interface, error) {
+		attempts++
+		if name != "utun9" {
+			t.Fatal(name)
+		}
+		if attempts < 2 {
+			return nil, errors.New("not created")
+		}
+		return &net.Interface{Flags: net.FlagUp}, nil
+	}); err != nil || attempts != 2 {
+		t.Fatalf("delayed adapter: %d %v", attempts, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	if err := waitTUNAdapter(ctx, "utun9", func(string) (*net.Interface, error) { return &net.Interface{}, nil }); err == nil {
+		t.Fatal("down adapter accepted")
+	}
+	if err := waitTUNAdapter(context.Background(), "", nil); err == nil {
+		t.Fatal("empty adapter accepted")
 	}
 }
