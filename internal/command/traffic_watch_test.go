@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -107,11 +106,7 @@ func TestTrafficWatchTextAndAPIError(t *testing.T) {
 
 func TestTrafficWatchHelpAndInvalidArgumentsWithoutRuntime(t *testing.T) {
 	root := t.TempDir()
-	bad := filepath.Join(root, "config-file")
-	if err := os.WriteFile(bad, []byte("x"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", bad)
+	invalidTestConfigDir(t, root)
 	for _, args := range [][]string{{"traffic", "watch", "--help"}, {"--json", "traffic", "watch", "extra"}} {
 		var stdout, stderr bytes.Buffer
 		code := Run(args, &stdout, &stderr, "test", "commit")

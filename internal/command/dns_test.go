@@ -62,7 +62,7 @@ func TestNewDefaultProfileDNSAndTUNDisabled(t *testing.T) {
 
 func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 	root := t.TempDir()
-	config := filepath.Join(root, "config", "nagi")
+	config := isolatedTestPaths(t, root).ConfigDir
 	if err := os.MkdirAll(filepath.Join(config, "profiles"), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -72,10 +72,6 @@ func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 	}
 	bin := writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\nexit 0\n")
 	t.Setenv("NAGI_MIHOMO_BIN", bin)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
-	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
-	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
-	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
 	run := func(args ...string) (map[string]any, int) {
 		t.Helper()
 		var out, errout bytes.Buffer

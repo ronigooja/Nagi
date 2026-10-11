@@ -50,11 +50,7 @@ func TestJSONContractAndExitCodes(t *testing.T) {
 func TestHelpDoesNotReadRuntimeConfiguration(t *testing.T) {
 	root := t.TempDir()
 	// A file where a config directory is expected makes runtime resolution fail.
-	bad := filepath.Join(root, "config-file")
-	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", bad)
+	invalidTestConfigDir(t, root)
 	var stdout, stderr bytes.Buffer
 	if code := Run([]string{"status", "--help"}, &stdout, &stderr, "test", "commit"); code != 0 {
 		t.Fatalf("help exit=%d stderr=%s", code, stderr.String())
@@ -76,11 +72,7 @@ func TestNoArgsPrintsHelp(t *testing.T) {
 
 func TestCompletionIsRuntimeIndependent(t *testing.T) {
 	root := t.TempDir()
-	bad := filepath.Join(root, "config-file")
-	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", bad)
+	invalidTestConfigDir(t, root)
 	for _, shell := range []string{"bash", "zsh", "fish"} {
 		var stdout, stderr bytes.Buffer
 		if code := Run([]string{"--json", "completion", shell}, &stdout, &stderr, "test", "commit"); code != 0 {
@@ -123,8 +115,7 @@ COMP_WORDS=(nagi profile import ` + filepath.Join(root, "file") + `); COMP_CWORD
 
 func TestProfileRemoveCLI(t *testing.T) {
 	root := t.TempDir()
-	configHome := filepath.Join(root, "config")
-	configDir := filepath.Join(configHome, "nagi")
+	configDir := isolatedTestPaths(t, root).ConfigDir
 	if err := os.MkdirAll(filepath.Join(configDir, "profiles"), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -137,10 +128,6 @@ func TestProfileRemoveCLI(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configDir, "settings.yaml"), []byte("profile: default\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
-	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
-	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
 	t.Setenv("NAGI_MIHOMO_BIN", filepath.Join(root, "missing-mihomo"))
 	for _, name := range []string{"bad/name", "missing"} {
 		var invalidOut, invalidErr bytes.Buffer
@@ -164,17 +151,13 @@ func TestProfileRemoveCLI(t *testing.T) {
 
 func TestRecoveryCommandsIgnoreCorruptSelectedProfile(t *testing.T) {
 	root := t.TempDir()
-	config := filepath.Join(root, "config", "nagi")
+	config := isolatedTestPaths(t, root).ConfigDir
 	if err := os.MkdirAll(config, 0700); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(config, "settings.yaml"), []byte("profile: bad/name\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", filepath.Dir(config))
-	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
-	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
-	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
 	t.Setenv("NAGI_MIHOMO_BIN", filepath.Join(root, "missing-mihomo"))
 	for _, args := range [][]string{{"version"}, {"logs"}, {"stop"}} {
 		var stdout, stderr bytes.Buffer
@@ -201,11 +184,7 @@ func TestRecoveryCommandsIgnoreCorruptSelectedProfile(t *testing.T) {
 
 func TestEveryCommandHasHelpWithoutRuntime(t *testing.T) {
 	root := t.TempDir()
-	bad := filepath.Join(root, "config-file")
-	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", bad)
+	invalidTestConfigDir(t, root)
 	t.Setenv("NAGI_MIHOMO_BIN", filepath.Join(root, "missing-mihomo"))
 	for _, spec := range commandSpecs {
 		t.Run(spec.path, func(t *testing.T) {
@@ -242,11 +221,7 @@ func TestInvalidHelpPathIsUsageError(t *testing.T) {
 
 func TestArgumentErrorsPrecedeRuntimeAndShowSyntax(t *testing.T) {
 	root := t.TempDir()
-	bad := filepath.Join(root, "config-file")
-	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", bad)
+	invalidTestConfigDir(t, root)
 	cases := []struct {
 		args, want []string
 	}{
@@ -318,11 +293,7 @@ func TestUsageErrorDoesNotEchoSubscriptionURL(t *testing.T) {
 
 func TestProxyDelayValidationPrecedesRuntime(t *testing.T) {
 	root := t.TempDir()
-	bad := filepath.Join(root, "config-file")
-	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", bad)
+	invalidTestConfigDir(t, root)
 	for _, args := range [][]string{
 		{"proxy", "delay", "Node", "ftp://example.test"},
 		{"proxy", "delay", "Node", "https://user:pass@example.test"},
@@ -340,11 +311,7 @@ func TestProxyDelayValidationPrecedesRuntime(t *testing.T) {
 
 func TestConnectionsCloseRejectsEmptyIDBeforeRuntime(t *testing.T) {
 	root := t.TempDir()
-	bad := filepath.Join(root, "config-file")
-	if err := os.WriteFile(bad, []byte("not a directory"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", bad)
+	invalidTestConfigDir(t, root)
 	var stdout, stderr bytes.Buffer
 	if code := Run([]string{"connections", "close", ""}, &stdout, &stderr, "test", "commit"); code != 2 {
 		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
@@ -441,11 +408,7 @@ func TestDiagnosticsUsage(t *testing.T) {
 
 func TestLocalCompletionCandidatesAreJSONAndPrivate(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
-	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
-	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
-	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
-	dir := filepath.Join(root, "config", "nagi")
+	dir := isolatedTestPaths(t, root).ConfigDir
 	if e := os.MkdirAll(filepath.Join(dir, "profiles"), 0700); e != nil {
 		t.Fatal(e)
 	}

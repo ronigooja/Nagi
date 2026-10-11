@@ -11,17 +11,13 @@ import (
 
 func TestDoctorJSONAndTextWithCorruptSettings(t *testing.T) {
 	root := t.TempDir()
-	config := filepath.Join(root, "config", "nagi")
+	config := isolatedTestPaths(t, root).ConfigDir
 	if err := os.MkdirAll(config, 0700); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(config, "settings.yaml"), []byte("profile: bad/name\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", filepath.Dir(config))
-	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
-	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
-	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
 	t.Setenv("NAGI_MIHOMO_BIN", filepath.Join(root, "missing"))
 	var stdout, stderr bytes.Buffer
 	if code := Run([]string{"--json", "doctor"}, &stdout, &stderr, "test", "commit"); code != 0 {
