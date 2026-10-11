@@ -23,10 +23,10 @@ extension LifecycleTests {
     }
 
     func testDuplicateAndOwnedLongLivedHost() async throws {
-        let duplicate = try fixture("printf '{\"ok\":false,\"error\":{\"code\":\"scheduler_already_running\",\"message\":\"busy\"}}\\n' >&2; exit 1")
+        let duplicate = try fixture("printf '{\"ok\":false,\"error\":{\"code\":\"scheduler_' >&2; sleep 0.05; printf 'already_running\",\"message\":\"busy\"}}\\n' >&2; exit 1")
         let duplicateWatch = try SubscriptionWatch(executable: duplicate)
         if case .duplicate = await duplicateWatch.wait() {} else { XCTFail("duplicate host was not classified") }
-        let long = try fixture("printf '{\"ok\":true,\"data\":{\"scheduler_running\":true}}\\n'; sleep 60")
+        let long = try fixture("exec python3 -c 'import signal,time; print(\"{\\\"ok\\\":true,\\\"data\\\":{\\\"scheduler_running\\\":true}}\",flush=True); signal.pause()'")
         let owned = try SubscriptionWatch(executable: long)
         try await Task.sleep(nanoseconds: 100_000_000)
         owned.stop()
