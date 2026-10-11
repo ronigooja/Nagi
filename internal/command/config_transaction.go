@@ -43,7 +43,7 @@ func configMutation(args []string) bool {
 			return false
 		}
 		if args[1] == "provider" {
-			return len(args) > 2 && (args[2] == "update" || args[2] == "healthcheck")
+			return len(args) > 2 && (args[2] == "add" || args[2] == "update" || args[2] == "healthcheck")
 		}
 		return args[1] == "select" || args[1] == "auto" || args[1] == "delays" || args[1] == "restore"
 	case "privileged-helper":
@@ -61,6 +61,8 @@ func transactionalMutation(args []string) bool {
 		return false
 	}
 	switch args[0] {
+	case "proxy":
+		return len(args) > 2 && args[1] == "provider" && args[2] == "add"
 	case "profile":
 		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override"
 	case "subscription":

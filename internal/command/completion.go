@@ -102,10 +102,13 @@ func bashCompletion(roots []string, children map[string][]string) string {
   fi
   if [[ "$root" == proxy ]]; then
     if [[ ${#semantic[@]} -eq 2 && "${semantic[1]}" == provider ]]; then
-      COMPREPLY=( $(compgen -W 'show update healthcheck' -- "$cur") ); return 0
+      COMPREPLY=( $(compgen -W 'add show update healthcheck' -- "$cur") ); return 0
     fi
-    if [[ ${#semantic[@]} -eq 3 && "${semantic[1]}" == provider ]]; then
+    if [[ ${#semantic[@]} -eq 3 && "${semantic[1]}" == provider && "${semantic[2]}" != add ]]; then
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates providers 2>/dev/null); return 0
+    fi
+    if [[ ${#semantic[@]} -eq 5 && "${semantic[1]}" == provider && "${semantic[2]}" == add ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates groups 2>/dev/null); return 0
     fi
     local kind="" group=""
     if [[ ${#semantic[@]} -eq 2 ]]; then
@@ -155,8 +158,9 @@ _nagi() {
   if [[ ${semantic[1]} == dns && ${#semantic} == 2 ]]; then case ${semantic[2]} in exception) compadd -- add remove; return ;; tun) compadd -- on off; return ;; set) compadd -- direct proxy; return ;; esac; fi
   if [[ ${semantic[1]} == dns && ${semantic[2]} == query && ${#semantic} == 3 ]]; then compadd -- A AAAA; return; fi
   if [[ ${semantic[1]} == proxy ]]; then
-    if (( ${#semantic} == 2 )) && [[ ${semantic[2]} == provider ]]; then compadd -- show update healthcheck; return; fi
-    if (( ${#semantic} == 3 )) && [[ ${semantic[2]} == provider ]]; then compadd -- ${(f)"$(nagi completion candidates providers 2>/dev/null)"}; return; fi
+    if (( ${#semantic} == 2 )) && [[ ${semantic[2]} == provider ]]; then compadd -- add show update healthcheck; return; fi
+    if (( ${#semantic} == 3 )) && [[ ${semantic[2]} == provider && ${semantic[3]} != add ]]; then compadd -- ${(f)"$(nagi completion candidates providers 2>/dev/null)"}; return; fi
+    if (( ${#semantic} == 5 )) && [[ ${semantic[2]} == provider && ${semantic[3]} == add ]]; then compadd -- ${(f)"$(nagi completion candidates groups 2>/dev/null)"}; return; fi
     local kind="" group=""
     if (( ${#semantic} == 2 )); then
       case ${semantic[2]} in show|select|auto|delays) kind=groups ;; delay) kind=nodes ;; esac
@@ -222,8 +226,9 @@ end
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and contains -- \"$s[2]\" show select auto delays' -a '(nagi completion candidates groups 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = delay' -a '(nagi completion candidates nodes 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = select' -a '(set -l s (__nagi_semantic); nagi completion candidates nodes \"$s[3]\" 2>/dev/null)'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider' -a 'show update healthcheck'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider' -a '(nagi completion candidates providers 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider' -a 'add show update healthcheck'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider; and test \"$s[3]\" = add' -a '(nagi completion candidates groups 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider; and test \"$s[3]\" != add' -a '(nagi completion candidates providers 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
 	return b.String()
 }

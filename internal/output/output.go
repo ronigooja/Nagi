@@ -618,6 +618,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		}
 	}
 	if provider, ok := v["provider"].(string); ok {
+		if v["added"] == true {
+			return line(w, fmt.Sprintf("Saved proxy provider %s to group %s in profile %s (update interval: %v seconds).", provider, v["group"], v["profile"], v["interval_seconds"]))
+		}
 		if v["updated"] == true {
 			return line(w, "Updated proxy provider "+provider+".")
 		}

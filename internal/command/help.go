@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/ronigooja/Nagi/internal/profile"
 )
 
 type commandSpec struct {
@@ -68,14 +70,15 @@ var commandSpecs = []commandSpec{
 	{"dns tun off", "dns tun off", "Disable TUN DNS interception", "Disables TUN in the selected profile override.", "nagi dns tun off", "", 0, 0},
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
-	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider show|update|healthcheck NAME|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Reads proxy groups and providers from a running mihomo process and measures delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups in the current profile's order with their live selections.", "nagi proxy groups", "", 0, 0},
 	{"proxy show", "proxy show GROUP", "Show a proxy group", "Shows one group and its available nodes.", "nagi proxy show 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 1},
 	{"proxy search", "proxy search QUERY", "Search nodes", "Lists case-insensitive node-name matches by group.", "nagi proxy search Hong", "Run `nagi proxy groups` to inspect all nodes.", 1, 1},
 	{"proxy select", "proxy select GROUP NODE", "Select a proxy node", "Selects a node in a group and saves the choice for the selected profile.", "nagi proxy select 'Proxy Group' 'Node A'", "Run `nagi proxy groups` and `nagi proxy show GROUP` to find names.", 2, 2},
 	{"proxy auto", "proxy auto GROUP", "Resume automatic selection", "Clears the fixed node of a URLTest or Fallback group and removes its saved choice.", "nagi proxy auto 'Auto Group'", "Run `nagi proxy groups` to find an automatic group.", 1, 1},
 	{"proxy providers", "proxy providers", "List proxy providers", "Lists provider names, types, update time, and node names without revealing URLs or credentials.", "nagi proxy providers", "", 0, 0},
-	{"proxy provider", "proxy provider <show|update|healthcheck> NAME", "Manage one proxy provider", "Uses mihomo's native provider management API.", "nagi proxy provider show work", "", 0, -1},
+	{"proxy provider", "proxy provider <add NAME URL GROUP [SECONDS]|show NAME|update NAME|healthcheck NAME>", "Manage one proxy provider", "Adds provider configuration through the selected profile override; inspections, updates, and healthchecks use mihomo APIs.", "nagi proxy provider show work", "", 0, -1},
+	{"proxy provider add", "proxy provider add NAME URL GROUP [SECONDS]", "Add an HTTP proxy provider", "Adds a provider to the selected profile local override and attaches it to GROUP. Creates a select group with DIRECT fallback if absent. NAME uses 1..128 ASCII letters, digits, _ or -; GROUP permits internal spaces. URL must be absolute HTTP(S) without userinfo or fragment. SECONDS defaults to 3600 (1..31536000). mihomo downloads and healthchecks nodes; routing rules remain unchanged. Reloads only when running.", "nagi proxy provider add work https://example.com/nodes.yaml \"My Proxy\"", "Run `nagi proxy groups` to find a running group, or choose a new GROUP name.", 3, 4},
 	{"proxy provider show", "proxy provider show NAME", "Show a proxy provider", "Reports redacted provider metadata and node names.", "nagi proxy provider show work", "", 1, 1},
 	{"proxy provider update", "proxy provider update NAME", "Update a proxy provider", "Asks mihomo to download the provider again.", "nagi proxy provider update work", "", 1, 1},
 	{"proxy provider healthcheck", "proxy provider healthcheck NAME", "Check provider nodes", "Asks mihomo to start its provider healthcheck.", "nagi proxy provider healthcheck work", "", 1, 1},
@@ -226,6 +229,19 @@ func validateInvocation(args []string) error {
 	}
 	if n > spec.maxArgs {
 		return syntaxError("too many arguments", spec)
+	}
+	if spec.path == "proxy provider add" {
+		interval := profile.DefaultProviderInterval
+		if n == 4 {
+			var err error
+			interval, err = strconv.Atoi(args[6])
+			if err != nil {
+				return syntaxError("SECONDS must be an integer from 1 to 31536000", spec)
+			}
+		}
+		if err := profile.ValidateProviderInput(args[3], args[4], args[5], interval); err != nil {
+			return syntaxError(err.Error(), spec)
+		}
 	}
 	if spec.path == "subscription schedule" {
 		if args[3] != "off" {

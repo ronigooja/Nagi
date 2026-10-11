@@ -42,6 +42,7 @@ type commandError struct {
 }
 
 func (e *commandError) Error() string   { return e.err.Error() }
+func (e *commandError) Unwrap() error   { return e.err }
 func fail(code string, err error) error { return &commandError{code, err} }
 
 func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
@@ -456,7 +457,8 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		_, err := withNamedLock(paths, "config.lock", func() (any, error) { return nil, fn() })
 		return err
 	}
-	needsProfile := command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	addingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "add"
+	needsProfile := addingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -744,6 +746,21 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
+		if addingProvider {
+			store, err := getProfiles()
+			if err != nil {
+				return nil, fail("proxy_provider_error", err)
+			}
+			interval := profile.DefaultProviderInterval
+			if len(args) == 7 {
+				interval, _ = strconv.Atoi(args[6])
+			}
+			created, err := store.AddProvider(ctx, profileName, args[3], args[4], args[5], interval)
+			if err != nil {
+				return nil, fail("proxy_provider_error", fmt.Errorf("provider addition failed; inspect `nagi profile list` and the selected profile override: %w", err))
+			}
+			return map[string]any{"provider": args[3], "group": args[5], "profile": profileName, "interval_seconds": interval, "added": true, "group_created": created}, nil
+		}
 		return proxyCommand(ctx, args, proxies, proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}, paths.ConfigDir)
 	case "rules":
 		return rulesCommand(ctx, args, paths.ConfigDir, binary, client, proxies)
