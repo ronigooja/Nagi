@@ -1,6 +1,6 @@
 # Nagi
 
-Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, and encrypted DNS policy, and provides proxy search, saved selections, latency checks, connection controls, runtime routing modes, TUN controls, listener/LAN status, and macOS system proxy controls. Profile export, backup, restore, and comparison support local configuration work. An interactive, line-oriented terminal menu, read-only diagnostics, and Bash, Zsh, and Fish completion support terminal use. A macOS menu bar app calls the CLI for common operations.
+Nagi is a macOS and Linux CLI for managing a locally installed mihomo process. It starts mihomo with a private Unix Socket control API, manages profiles, local overrides, subscription caches, scheduled refresh, and encrypted DNS policy, and provides proxy search, saved selections, latency checks, connection controls, runtime routing modes, TUN controls, listener/LAN status, and macOS system proxy controls. Profile export, backup, restore, and comparison support local configuration work. An interactive, line-oriented terminal menu, read-only diagnostics, and Bash, Zsh, and Fish completion support terminal use. A macOS menu bar app calls the CLI for common operations.
 
 ## Quick start
 
