@@ -53,8 +53,8 @@ func RuntimePage() *Page {
 	return &Page{Title: "Start / Stop", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Context: statusSummary(s.Fetch(ctx, "status")), Actions: []Item{
 			{Label: "Start mihomo", Args: []string{"start"}},
-			{Label: "Stop mihomo", Args: []string{"stop"}, Impact: "Stops mihomo and interrupts traffic"},
-			{Label: "Restart mihomo", Args: []string{"restart"}, Impact: "Restarts mihomo and interrupts traffic"},
+			{Label: "Stop mihomo", Args: []string{"stop"}},
+			{Label: "Restart mihomo", Args: []string{"restart"}},
 			{Label: "Show full status", Args: []string{"status"}},
 			{Label: "Quit Nagi for this login session", Args: []string{"quit"}, Impact: "Stops the login monitor and mihomo for this session"},
 		}}
