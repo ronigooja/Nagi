@@ -67,22 +67,32 @@ func (h *RuntimeHandler) syncDNS(ctx context.Context) (traffic.DNSState, error) 
 	}
 	dns, _ := config["dns"].(map[string]any)
 	if enabled, _ := dns["enable"].(bool); !enabled {
-		return traffic.DNSState{}, errors.New("TUN DNS requires running mihomo DNS enabled")
+		return h.unavailableDNS(ctx, errors.New("TUN DNS requires running mihomo DNS enabled"))
 	}
 	if route, _ := tun["auto-route"].(bool); !route {
-		return traffic.DNSState{}, errors.New("TUN DNS requires auto-route")
+		return h.unavailableDNS(ctx, errors.New("TUN DNS requires auto-route"))
 	}
 	device, _ := tun["device"].(string)
 	adapter, err := net.InterfaceByName(device)
 	if err != nil || adapter.Flags&net.FlagUp == 0 {
-		return traffic.DNSState{}, fmt.Errorf("TUN adapter %q is not ready", device)
+		return h.unavailableDNS(ctx, fmt.Errorf("TUN adapter %q is not ready", device))
 	}
 	// Mihomo automatically intercepts port 53 on the derived TUN DNS endpoints.
 	targets, err := traffic.DNSTargets(tun)
 	if err != nil {
-		return traffic.DNSState{}, err
+		return h.unavailableDNS(ctx, err)
 	}
 	return m.Sync(ctx, h.child.Process.Pid, targets)
+}
+
+// Restore the baseline before reporting an unusable TUN resolver so an
+// activation that completes after a client timeout does not strand OS DNS.
+func (h *RuntimeHandler) unavailableDNS(ctx context.Context, cause error) (traffic.DNSState, error) {
+	state, restoreErr := h.dnsManager().Disable(ctx)
+	if restoreErr != nil {
+		return state, fmt.Errorf("%w; restore system DNS: %v", cause, restoreErr)
+	}
+	return state, cause
 }
 
 // Reconcile actual engine configuration so a delayed reload also updates DNS.
