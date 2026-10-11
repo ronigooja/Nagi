@@ -121,14 +121,12 @@ final class SubscriptionWatch: @unchecked Sendable {
     }
     private func readLines(_ handle: FileHandle, isError: Bool) {
         var pending = Data()
-        var total = 0
         while true {
-            let chunk = handle.availableData
+            let chunk = (try? handle.read(upToCount: 8192)) ?? Data()
             if chunk.isEmpty { break }
-            total += chunk.count
-            if total > 65_536 || chunk.count > 65_536 {
+            if chunk.count > 65_536 {
                 lock.lock(); outputError = CLIError.invalidJSON("Scheduler output exceeded 64 KiB."); lock.unlock()
-                stop(); break
+                terminateAfterFailure(); break
             }
             pending.append(chunk)
             while let newline = pending.firstIndex(of: 10) {
@@ -137,21 +135,25 @@ final class SubscriptionWatch: @unchecked Sendable {
                 guard !line.isEmpty else { continue }
                 parse(line, isError: isError)
             }
-            if pending.count > 65_536 { lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock(); stop(); break }
+            if pending.count > 65_536 { lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock(); terminateAfterFailure(); break }
         }
         if !pending.isEmpty { parse(pending, isError: isError) }
     }
     private func parse(_ data: Data, isError: Bool) {
-        guard let envelope = try? JSONDecoder().decode(CLIEnvelope.self, from: data) else {
-            lock.lock(); outputError = CLIError.invalidJSON("Scheduler returned invalid JSON."); lock.unlock()
-            return
-        }
+        guard let envelope = try? JSONDecoder().decode(CLIEnvelope.self, from: data) else { return }
         lock.lock(); defer { lock.unlock() }
         if !isError && envelope.ok && envelope.data?["scheduler_running"]?.bool == true { announced = true }
         if isError, let error = envelope.error { outputError = CLIError.command(error.code, error.message) }
     }
     func stop() {
         lock.lock(); stopped = true; lock.unlock()
+        guard process.isRunning else { return }
+        process.terminate()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) { [process] in
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+        }
+    }
+    private func terminateAfterFailure() {
         guard process.isRunning else { return }
         process.terminate()
         DispatchQueue.global().asyncAfter(deadline: .now() + 1) { [process] in
@@ -165,7 +167,7 @@ final class SubscriptionWatch: @unchecked Sendable {
                 readers.wait()
                 lock.lock(); let intentional = stopped, started = announced, failure = outputError; lock.unlock()
                 if intentional { continuation.resume(returning: .stopped) }
-                else if case CLIError.command(let code, _) = failure, code == "scheduler_already_running" {
+                else if let command = failure as? CLIError, case .command(let code, _) = command, code == "scheduler_already_running" {
                     continuation.resume(returning: .duplicate)
                 } else if let failure { continuation.resume(returning: .failed(failure)) }
                 else if !started { continuation.resume(returning: .failed(CLIError.invalidJSON("Scheduler exited before announcing readiness."))) }

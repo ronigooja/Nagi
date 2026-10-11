@@ -5,5 +5,8 @@ let package = Package(
     name: "NagiApp",
     platforms: [.macOS(.v13)],
     products: [.executable(name: "NagiApp", targets: ["NagiApp"])],
-    targets: [.executableTarget(name: "NagiApp")]
+    targets: [
+        .executableTarget(name: "NagiApp"),
+        .testTarget(name: "NagiAppTests", dependencies: ["NagiApp"])
+    ]
 )
