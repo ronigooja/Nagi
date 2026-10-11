@@ -137,7 +137,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		} else if dns["respect-rules"] == true {
 			policy = "rules"
 		}
-		result := map[string]any{"profile": name, "enabled": dns["enable"] == true, "ipv6": dns["ipv6"] == true, "policy": policy, "upstream_hosts": dnsHosts(servers), "tun_enabled": tun["enable"] == true, "issues": issues}
+		result := map[string]any{"profile": name, "enabled": dns["enable"] == true, "ipv6": dns["ipv6"] == true, "resolve_proxy_destinations": dns["resolve-proxy-destinations"] == true, "policy": policy, "upstream_hosts": dnsHosts(servers), "tun_enabled": tun["enable"] == true, "issues": issues}
 		if args[1] == "check" {
 			result["scope"] = "configuration and mihomo API"
 			var response map[string]any
@@ -188,6 +188,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		dns := dnsSection(override)
 		override["ipv6"] = true
 		dns["enable"] = true
+		dns["resolve-proxy-destinations"] = true
 		dns["ipv6"] = true
 		dns["listen"] = "127.0.0.1:1053"
 		dns["enhanced-mode"] = "fake-ip"

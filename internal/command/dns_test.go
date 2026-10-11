@@ -28,13 +28,14 @@ func TestNewDefaultProfileDNSAndTUNDisabled(t *testing.T) {
 	var cfg struct {
 		Rules []string `yaml:"rules"`
 		DNS   struct {
-			Enable                bool     `yaml:"enable"`
-			EnhancedMode          string   `yaml:"enhanced-mode"`
-			DefaultNameserver     []string `yaml:"default-nameserver"`
-			Nameserver            []string `yaml:"nameserver"`
-			DirectNameserver      []string `yaml:"direct-nameserver"`
-			ProxyServerNameserver []string `yaml:"proxy-server-nameserver"`
-			Fallback              []string `yaml:"fallback"`
+			Enable                   bool     `yaml:"enable"`
+			ResolveProxyDestinations bool     `yaml:"resolve-proxy-destinations"`
+			EnhancedMode             string   `yaml:"enhanced-mode"`
+			DefaultNameserver        []string `yaml:"default-nameserver"`
+			Nameserver               []string `yaml:"nameserver"`
+			DirectNameserver         []string `yaml:"direct-nameserver"`
+			ProxyServerNameserver    []string `yaml:"proxy-server-nameserver"`
+			Fallback                 []string `yaml:"fallback"`
 		} `yaml:"dns"`
 		TUN struct {
 			Enable              bool     `yaml:"enable"`
@@ -49,7 +50,7 @@ func TestNewDefaultProfileDNSAndTUNDisabled(t *testing.T) {
 	}
 	ali := []string{"https://223.5.5.5/dns-query", "https://223.6.6.6/dns-query"}
 	proxy := []string{"https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"}
-	if !cfg.DNS.Enable || cfg.DNS.EnhancedMode != "fake-ip" || !slices.Equal(cfg.Rules, []string{"MATCH,DIRECT"}) {
+	if !cfg.DNS.Enable || !cfg.DNS.ResolveProxyDestinations || cfg.DNS.EnhancedMode != "fake-ip" || !slices.Equal(cfg.Rules, []string{"MATCH,DIRECT"}) {
 		t.Fatalf("unexpected default DNS or rules: %+v", cfg)
 	}
 	if !slices.Equal(cfg.DNS.DefaultNameserver, ali) || !slices.Equal(cfg.DNS.DirectNameserver, ali) || !slices.Equal(cfg.DNS.ProxyServerNameserver, ali) || !slices.Equal(cfg.DNS.Nameserver, proxy) || len(cfg.DNS.Fallback) != 0 {
@@ -97,7 +98,7 @@ func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 		t.Fatal("tun failed")
 	}
 	data, code := run("dns", "status")
-	if code != 0 || data["policy"] != "proxy" || data["tun_enabled"] != true {
+	if code != 0 || data["policy"] != "proxy" || data["resolve_proxy_destinations"] != true || data["tun_enabled"] != true {
 		t.Fatalf("status: %v", data)
 	}
 	issues := data["issues"].([]any)
@@ -112,7 +113,7 @@ func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, code = run("dns", "status")
-	if code != 0 || data["enabled"] != true {
+	if code != 0 || data["enabled"] != true || data["resolve_proxy_destinations"] != true {
 		t.Fatalf("source replacement lost policy: %v", data)
 	}
 	for _, issue := range data["issues"].([]any) {
@@ -128,6 +129,13 @@ func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 	}
 	if _, code := run("dns", "set", "direct", "udp://1.1.1.1:53"); code != 1 {
 		t.Fatal("plaintext upstream accepted")
+	}
+	if _, code := run("dns", "set", "direct", "https://1.1.1.1/dns-query"); code != 0 {
+		t.Fatal("direct DoH policy failed")
+	}
+	data, code = run("dns", "status")
+	if code != 0 || data["policy"] != "direct" || data["resolve_proxy_destinations"] != true {
+		t.Fatalf("direct DNS lost destination resolution: %v", data)
 	}
 }
 

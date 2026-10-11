@@ -30,6 +30,7 @@ rules:
   - MATCH,DIRECT
 dns:
   enable: true
+  resolve-proxy-destinations: true
   listen: 127.0.0.1:1053
   ipv6: true
   enhanced-mode: fake-ip
