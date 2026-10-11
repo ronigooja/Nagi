@@ -22,24 +22,26 @@ import (
 const maxSubscriptionSize = 8 << 20
 
 type Entry struct {
-	Name      string    `json:"name"`
-	URL       string    `json:"-"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
-	ExpiresAt time.Time `json:"expires_at,omitempty"`
-	Upload    int64     `json:"upload,omitempty"`
-	Download  int64     `json:"download,omitempty"`
-	Total     int64     `json:"total,omitempty"`
+	Name          string    `json:"name"`
+	KeyConfigured bool      `json:"key_configured"`
+	URL           string    `json:"-"`
+	UpdatedAt     time.Time `json:"updated_at,omitempty"`
+	ExpiresAt     time.Time `json:"expires_at,omitempty"`
+	Upload        int64     `json:"upload,omitempty"`
+	Download      int64     `json:"download,omitempty"`
+	Total         int64     `json:"total,omitempty"`
 }
 
 func (e Entry) MarshalJSON() ([]byte, error) {
 	view := struct {
-		Name      string     `json:"name"`
-		UpdatedAt *time.Time `json:"updated_at,omitempty"`
-		ExpiresAt *time.Time `json:"expires_at,omitempty"`
-		Upload    int64      `json:"upload,omitempty"`
-		Download  int64      `json:"download,omitempty"`
-		Total     int64      `json:"total,omitempty"`
-	}{Name: e.Name}
+		Name          string     `json:"name"`
+		KeyConfigured bool       `json:"key_configured"`
+		UpdatedAt     *time.Time `json:"updated_at,omitempty"`
+		ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+		Upload        int64      `json:"upload,omitempty"`
+		Download      int64      `json:"download,omitempty"`
+		Total         int64      `json:"total,omitempty"`
+	}{Name: e.Name, KeyConfigured: e.KeyConfigured}
 	if !e.UpdatedAt.IsZero() {
 		view.UpdatedAt = &e.UpdatedAt
 	}
@@ -65,6 +67,7 @@ type Store struct {
 	ConfigDir string
 	CacheDir  string
 	Client    *http.Client
+	Binary    string
 }
 
 // subscriptionHeaders identify Nagi as a mihomo/Clash Meta client. XBoard
@@ -140,6 +143,7 @@ func (s *Store) List() ([]Entry, error) {
 	// URLs are deliberately omitted from ordinary output, including JSON serialization.
 	for i := range entries {
 		entries[i].URL = ""
+		entries[i].KeyConfigured = s.hasKey(entries[i].Name)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return entries, nil
@@ -177,10 +181,11 @@ func (s *Store) Remove(name string) error {
 				return err
 			}
 			err := os.Remove(s.cachePath(name))
+			keyErr := s.ClearKey(name)
 			if errors.Is(err, fs.ErrNotExist) {
-				return nil
+				return keyErr
 			}
-			return err
+			return errors.Join(err, keyErr)
 		}
 	}
 	return errors.New("subscription not found")
@@ -240,6 +245,12 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 		}
 		if len(data) == 0 || len(data) > maxSubscriptionSize {
 			return zero, errors.New("subscription content empty or too large")
+		}
+		if strings.HasPrefix(string(data), "-----BEGIN AGE ENCRYPTED FILE-----") {
+			data, err = s.decrypt(ctx, name, data)
+			if err != nil {
+				return zero, err
+			}
 		}
 		incoming, format, err := Document(data)
 		if err != nil {

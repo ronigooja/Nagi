@@ -97,7 +97,7 @@ func TestJSONPreservesShapeAndPrivacy(t *testing.T) {
 		data any
 		want string
 	}{
-		{"subscription", map[string]any{"subscriptions": []subscription.Entry{{Name: "private", URL: "https://secret.example/token"}}}, `{"ok":true,"data":{"subscriptions":[{"name":"private"}]}}`},
+		{"subscription", map[string]any{"subscriptions": []subscription.Entry{{Name: "private", URL: "https://secret.example/token"}}}, `{"ok":true,"data":{"subscriptions":[{"name":"private","key_configured":false}]}}`},
 		{"refresh", subscription.RefreshResult{Name: "private", Bytes: 2, UpdatedAt: time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)}, `{"ok":true,"data":{"name":"private","bytes":2,"updated_at":"2026-10-04T00:00:00Z"}}`},
 		{"group", proxy.Group{Name: "Main", Type: "Selector", Alive: false}, `{"ok":true,"data":{"name":"Main","type":"Selector","alive":false}}`},
 	} {
