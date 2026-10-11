@@ -41,7 +41,12 @@ func sendControl(ctx context.Context, socket string, req privileged.Request) (pr
 		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
 	}}
 	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+	timeout := 10 * time.Second
+	if strings.Contains(req.Path, "/delay?") || strings.Contains(req.Path, "/healthcheck?") {
+		// The validated mihomo measurement may consume its full 30 seconds.
+		timeout = 31 * time.Second
+	}
+	client := &http.Client{Transport: transport, Timeout: timeout}
 	request, err := http.NewRequestWithContext(ctx, req.Method, "http://nagi.invalid"+req.Path, bytes.NewReader(req.Body))
 	if err != nil {
 		return privileged.Response{}, err

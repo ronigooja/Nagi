@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -18,7 +20,6 @@ import (
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/privileged"
-	"github.com/ronigooja/Nagi/internal/privileged/configpolicy"
 	"golang.org/x/sys/unix"
 )
 
@@ -34,6 +35,7 @@ type RuntimeHandler struct {
 	child      *exec.Cmd
 	done       chan error
 	snapshot   string
+	resources  []string
 	orphaned   bool
 }
 
@@ -154,7 +156,7 @@ func (h *RuntimeHandler) status() privileged.Response {
 	case <-h.done:
 		h.child = nil
 		_ = os.Remove(h.controllerPath())
-		_ = os.Remove(h.snapshot)
+		h.removeSnapshots()
 		_ = os.Remove(h.markerPath())
 		h.snapshot = ""
 		return privileged.Response{OK: true}
@@ -181,47 +183,52 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	if err != nil {
 		return privileged.Response{}, err
 	}
-	snapshot, err := configpolicy.Snapshot(h.PrivateDir, data)
+	snapshot, resources, err := h.prepareConfig(data, req.ConfigPath)
 	if err != nil {
+		return privileged.Response{}, err
+	}
+	if err := h.checkNative(ctx, snapshot); err != nil {
+		removeSnapshots(snapshot, resources)
 		return privileged.Response{}, err
 	}
 	controller := h.controllerPath()
 	if err := os.Remove(controller); err != nil && !errors.Is(err, os.ErrNotExist) {
-		os.Remove(snapshot)
+		removeSnapshots(snapshot, resources)
 		return privileged.Response{}, err
 	}
 	log, err := os.OpenFile(filepath.Join(h.PrivateDir, "mihomo.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY|unix.O_NOFOLLOW, 0600)
 	if err != nil {
-		os.Remove(snapshot)
+		removeSnapshots(snapshot, resources)
 		return privileged.Response{}, err
 	}
 	defer log.Close()
-	cmd := exec.Command(h.BinaryPath, "-f", snapshot, "-d", h.PrivateDir, "-ext-ctl-unix", controller)
+	cmd := exec.Command(h.BinaryPath, "--config-policy", "restricted", "-f", snapshot, "-d", h.PrivateDir, "-ext-ctl-unix", controller)
 	cmd.Dir = h.PrivateDir
 	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + h.PrivateDir, "TMPDIR=" + h.PrivateDir}
 	cmd.Stdout, cmd.Stderr = log, log
 	marker, err := os.OpenFile(h.markerPath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY|unix.O_NOFOLLOW, 0600)
 	if err != nil {
-		os.Remove(snapshot)
+		removeSnapshots(snapshot, resources)
 		return privileged.Response{}, fmt.Errorf("create child marker: %w", err)
 	}
 	if _, err := marker.WriteString("pending\n"); err != nil {
 		marker.Close()
 		os.Remove(h.markerPath())
-		os.Remove(snapshot)
+		removeSnapshots(snapshot, resources)
 		return privileged.Response{}, err
 	}
 	if err := marker.Close(); err != nil {
 		os.Remove(h.markerPath())
-		os.Remove(snapshot)
+		removeSnapshots(snapshot, resources)
 		return privileged.Response{}, err
 	}
 	if err := cmd.Start(); err != nil {
-		os.Remove(snapshot)
+		removeSnapshots(snapshot, resources)
 		os.Remove(h.markerPath())
 		return privileged.Response{}, fmt.Errorf("start privileged mihomo: %w", err)
 	}
 	h.child, h.done, h.snapshot = cmd, make(chan error, 1), snapshot
+	h.resources = resources
 	go func() { h.done <- cmd.Wait() }()
 	deadline := time.NewTimer(10 * time.Second)
 	defer deadline.Stop()
@@ -247,7 +254,7 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 			return privileged.Response{}, errors.New("privileged mihomo controller did not become ready")
 		case <-h.done:
 			h.child = nil
-			os.Remove(snapshot)
+			h.removeSnapshots()
 			os.Remove(h.markerPath())
 			return privileged.Response{}, errors.New("privileged mihomo exited during startup")
 		case <-tick.C:
@@ -269,7 +276,7 @@ func (h *RuntimeHandler) stop(ctx context.Context) (privileged.Response, error) 
 	}
 	h.child = nil
 	_ = os.Remove(h.controllerPath())
-	_ = os.Remove(h.snapshot)
+	h.removeSnapshots()
 	_ = os.Remove(h.markerPath())
 	h.snapshot = ""
 	return privileged.Response{OK: true}, nil
@@ -282,7 +289,7 @@ func (h *RuntimeHandler) kill() {
 		h.child = nil
 	}
 	_ = os.Remove(h.controllerPath())
-	_ = os.Remove(h.snapshot)
+	h.removeSnapshots()
 	_ = os.Remove(h.markerPath())
 	h.snapshot = ""
 }
@@ -315,7 +322,8 @@ func controllerLive(path string) bool {
 
 func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (privileged.Response, error) {
 	var body struct {
-		Path string `json:"path"`
+		Path         string `json:"path"`
+		ActivationID string `json:"activation_id"`
 	}
 	if strictJSON(req.Body, &body) != nil || body.Path == "" {
 		return privileged.Response{}, errors.New("invalid configuration reload")
@@ -324,23 +332,91 @@ func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (pr
 	if err != nil {
 		return privileged.Response{}, err
 	}
-	snapshot, err := configpolicy.Snapshot(h.PrivateDir, data)
+	if !validActivationID(req.Body) {
+		return privileged.Response{}, errors.New("invalid activation_id")
+	}
+	snapshot, resources, err := h.prepareConfig(data, body.Path)
 	if err != nil {
 		return privileged.Response{}, err
 	}
-	encoded, _ := json.Marshal(map[string]string{"path": snapshot})
+	if err := h.checkNative(ctx, snapshot); err != nil {
+		removeSnapshots(snapshot, resources)
+		return privileged.Response{}, err
+	}
+	encoded, _ := json.Marshal(map[string]string{"path": snapshot, "activation_id": body.ActivationID})
 	req.Body = encoded
 	// The only reload URL is built here; clients cannot supply an arbitrary
 	// controller path or a root-readable configuration filename.
 	response, err := controlRequestReload(ctx, h.controllerPath(), req)
-	if err != nil || !response.OK {
-		_ = os.Remove(snapshot)
-		return response, err
-	}
-	_ = os.Remove(h.snapshot)
+	// A timed-out controller request can still apply later. Keep every snapshot
+	// and referenced resource until the child has exited.
+	h.resources = append(h.resources, h.snapshot)
+	h.resources = append(h.resources, resources...)
 	h.snapshot = snapshot
-	return response, nil
+	return response, err
 }
+
+func validActivationID(data []byte) bool {
+	var body struct {
+		Path         string `json:"path"`
+		ActivationID string `json:"activation_id"`
+	}
+	if strictJSON(data, &body) != nil || len(body.ActivationID) != 32 {
+		return false
+	}
+	_, err := hex.DecodeString(body.ActivationID)
+	if err != nil {
+		return false
+	}
+	return strings.ToLower(body.ActivationID) == body.ActivationID
+}
+
+func removeSnapshots(snapshot string, resources []string) {
+	if snapshot != "" {
+		_ = os.Remove(snapshot)
+	}
+	for _, path := range resources {
+		_ = os.Remove(path)
+	}
+}
+
+func (h *RuntimeHandler) removeSnapshots() {
+	removeSnapshots(h.snapshot, h.resources)
+	h.snapshot = ""
+	h.resources = nil
+}
+
+func (h *RuntimeHandler) checkNative(ctx context.Context, snapshot string) error {
+	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(checkCtx, h.BinaryPath, "-t", "--check-json", "--config-policy", "restricted", "-f", snapshot, "-d", h.PrivateDir)
+	cmd.Dir = h.PrivateDir
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + h.PrivateDir, "TMPDIR=" + h.PrivateDir}
+	output, err := cmd.Output()
+	var result struct {
+		Valid  bool `json:"valid"`
+		Errors []struct {
+			Path    string `json:"path"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal(output, &result) != nil {
+		return errors.New("restricted configuration failed native validation")
+	}
+	if !result.Valid || err != nil {
+		if len(result.Errors) != 0 {
+			issue := result.Errors[0]
+			if safeValidationField.MatchString(issue.Path) && safeValidationField.MatchString(issue.Code) && len(issue.Path) <= 128 && len(issue.Code) <= 64 {
+				return fmt.Errorf("restricted configuration failed native validation at %s (%s)", issue.Path, issue.Code)
+			}
+		}
+		return errors.New("restricted configuration failed native validation")
+	}
+	return nil
+}
+
+var safeValidationField = regexp.MustCompile(`^[a-zA-Z0-9_.:\[\]-]+$`)
 
 // readUserConfig traverses every component with openat and O_NOFOLLOW so a
 // symlink replacement between request validation and reading cannot redirect

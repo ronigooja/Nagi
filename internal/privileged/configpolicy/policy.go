@@ -81,15 +81,15 @@ func Validate(data []byte) error {
 			if err := validateProxies(value); err != nil {
 				return fieldError(key, err)
 			}
-		case "rule-providers":
-			if err := validateInlineRuleProviders(value); err != nil {
+		case "rule-providers", "proxy-providers":
+			if err := validateProviders(value, key); err != nil {
 				return fieldError(key, err)
 			}
 		case "geo-auto-update":
 			if err := falseValue(value); err != nil {
 				return fieldError(key, err)
 			}
-		case "proxy-groups", "rules", "sub-rules", "dns", "hosts", "sniffer", "profile", "authentication", "skip-auth-prefixes", "lan-allowed-ips", "lan-disallowed-ips", "unified-delay", "tcp-concurrent", "global-client-fingerprint", "find-process-mode", "geodata-mode", "geodata-loader", "geosite-matcher", "geo-update-interval", "interface-name", "keep-alive-idle", "keep-alive-interval", "disable-keep-alive":
+		case "proxy-groups", "rules", "sub-rules", "dns", "hosts", "sniffer", "profile", "authentication", "skip-auth-prefixes", "lan-allowed-ips", "lan-disallowed-ips", "unified-delay", "tcp-concurrent", "global-client-fingerprint", "find-process-mode", "geodata-mode", "geodata-loader", "geosite-matcher", "geo-update-interval", "interface-name", "keep-alive-idle", "keep-alive-interval", "disable-keep-alive", "preserve-proxy-hostname", "listeners":
 			if err := validateInline(value, key); err != nil {
 				return err
 			}
@@ -111,7 +111,7 @@ func port(node *yaml.Node) error {
 	return nil
 }
 
-func validateInlineRuleProviders(node *yaml.Node) error {
+func validateProviders(node *yaml.Node, context string) error {
 	providers, err := mapping(node)
 	if err != nil {
 		return err
@@ -121,30 +121,38 @@ func validateInlineRuleProviders(node *yaml.Node) error {
 		if err != nil {
 			return fieldError(name, err)
 		}
-		if len(fields) != 3 {
-			return fmt.Errorf("%w: rule provider %q must be inline", ErrUnsupported, name)
-		}
 		kind, ok := fields["type"]
 		if !ok {
 			return fmt.Errorf("%w: rule provider %q has no type", ErrUnsupported, name)
 		}
-		if err := literal(kind, "inline"); err != nil {
+		if err := literal(kind, "inline", "http", "file"); err != nil {
 			return fieldError(name+".type", err)
 		}
-		behavior, ok := fields["behavior"]
-		if !ok {
-			return fmt.Errorf("%w: rule provider %q has no behavior", ErrUnsupported, name)
+		if context == "rule-providers" {
+			if behavior, ok := fields["behavior"]; ok {
+				if err := literal(behavior, "classical", "domain", "ipcidr"); err != nil {
+					return fieldError(name+".behavior", err)
+				}
+			}
 		}
-		if err := literal(behavior, "classical", "domain", "ipcidr"); err != nil {
-			return fieldError(name+".behavior", err)
-		}
-		payload, ok := fields["payload"]
-		if !ok || payload.Kind != yaml.SequenceNode {
-			return fmt.Errorf("%w: rule provider %q needs inline payload", ErrUnsupported, name)
-		}
-		for _, line := range payload.Content {
-			if line.Kind != yaml.ScalarNode || line.Tag != "!!str" {
-				return fmt.Errorf("%w: rule provider %q payload must be strings", ErrUnsupported, name)
+		for key, value := range fields {
+			if key == "path" && kind.Value == "file" {
+				continue
+			}
+			if key == "path" && kind.Value == "http" {
+				return fmt.Errorf("%w: %s.path is managed by mihomo", ErrUnsupported, context)
+			}
+			if key == "path" || key == "path-in-bundle" || key == "age-secret-key" {
+				return fmt.Errorf("%w: %s.%s is not supported", ErrUnsupported, context, key)
+			}
+			if key == "payload" && context == "proxy-providers" {
+				if err := validateProxies(value); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := validateInline(value, context+"."+name+"."+key); err != nil {
+				return err
 			}
 		}
 	}
@@ -164,8 +172,21 @@ func validateProxies(node *yaml.Node) error {
 		if !ok {
 			return fmt.Errorf("%w: proxy type is required", ErrUnsupported)
 		}
-		if err := literal(kind, "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic", "http", "socks5"); err != nil {
+		if err := literal(kind, "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic", "http", "socks5", "snell", "wireguard", "anytls"); err != nil {
 			return fieldError("proxies.type", err)
+		}
+		if plugin := fields["plugin"]; plugin != nil {
+			if kind.Value != "ss" || literal(plugin, "obfs", "v2ray-plugin", "gost-plugin", "shadow-tls", "restls", "kcptun-plugin") != nil {
+				return fmt.Errorf("%w: proxies.plugin is not an audited built-in plugin", ErrUnsupported)
+			}
+		}
+		for key, value := range fields {
+			if key == "certificate" || key == "private-key" && kind.Value != "wireguard" {
+				if value.Kind != yaml.ScalarNode || value.Tag != "!!str" {
+					return fmt.Errorf("%w: proxies.%s requires inline PEM or a file snapshot", ErrUnsupported, key)
+				}
+				continue
+			}
 		}
 		if err := validateInline(proxy, "proxies"); err != nil {
 			return err
@@ -193,8 +214,11 @@ func validateInline(node *yaml.Node, context string) error {
 				}
 				continue
 			}
+			if context == "proxies" && (lower == "plugin" || lower == "plugin-opts" || lower == "certificate" || lower == "private-key") {
+				continue
+			}
 			if context == "dns" && lower == "listen" {
-				return fmt.Errorf("%w: DNS listeners are not supported in privileged profiles", ErrUnsupported)
+				continue
 			}
 			if forbiddenInlineKey(lower) || lower == "path" && context != "proxies.ws-opts" && context != "proxies.h2-opts" && context != "proxies.http-opts" {
 				return fmt.Errorf("%w: %s may access a local file or execute code", ErrUnsupported, child)
@@ -219,7 +243,7 @@ func validateInline(node *yaml.Node, context string) error {
 
 func forbiddenInlineKey(key string) bool {
 	switch key {
-	case "script", "exec", "command", "plugin", "plugin-opts", "file", "filename", "filepath", "certificate", "private-key", "client-cert", "client-key", "ca-cert", "custom-certifactes", "tls", "external-controller", "external-controller-unix", "external-controller-tls", "external-ui", "external-ui-url", "secret", "path-url":
+	case "script", "exec", "command", "file", "filename", "filepath", "certificate", "private-key", "client-cert", "client-key", "ca-cert", "custom-certifactes", "tls", "external-controller", "external-controller-unix", "external-controller-tls", "external-ui", "external-ui-url", "secret", "path-url":
 		return true
 	}
 	return strings.HasSuffix(key, "-path") || strings.HasSuffix(key, "-file")
@@ -308,7 +332,9 @@ func literal(node *yaml.Node, values ...string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unsupported value %q", node.Value)
+	// Values may be credentials or provider URLs. The caller adds the field
+	// name, which is sufficient to locate the rejected setting.
+	return errors.New("unsupported value")
 }
 
 func boolean(node *yaml.Node) error {
@@ -365,6 +391,39 @@ func Snapshot(rootDir string, data []byte) (string, error) {
 		err = closeErr
 	}
 	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// SnapshotResource stores bytes already read through the helper's guarded
+// user-file walk. It never accepts a source path for the root process to open.
+func SnapshotResource(rootDir string, data []byte) (string, error) {
+	if os.Geteuid() != 0 {
+		return "", errors.New("root privileges required for resource snapshot")
+	}
+	if len(data) == 0 || len(data) > maxConfigBytes {
+		return "", fmt.Errorf("%w: resource size is outside 1..%d bytes", ErrUnsupported, maxConfigBytes)
+	}
+	if err := securePrivateDirectory(rootDir); err != nil {
+		return "", err
+	}
+	f, err := os.CreateTemp(rootDir, "resource-*")
+	if err != nil {
+		return "", err
+	}
+	path := f.Name()
+	if err = f.Chmod(0600); err == nil {
+		_, err = f.Write(data)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = os.Remove(path)
 		return "", err
 	}
 	return path, nil

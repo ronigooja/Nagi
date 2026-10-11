@@ -52,16 +52,4 @@ needs App Store-style sandboxing or packet-tunnel APIs.
 
 ## Implementation status
 
-The configuration policy accepts inline proxy nodes, groups, and rules in
-ordinary subscription profiles, plus Nagi's inline rule providers. It rejects
-file and remote providers, scripts, plugins,
-external controllers, extra listeners, file references, YAML aliases,
-unknown top-level fields, and multiple YAML documents. Snapshot creation
-copies validated bytes into an existing private root-owned directory. On
-macOS, the directory and each ancestor are also checked for ACL entries.
-Root mihomo must never open the user's mutable profile path. The macOS helper
-uses a peer-authenticated session socket, a root-private controller and log,
-and a fixed controller request allowlist. A marker prevents a restarted helper
-from launching a duplicate root child after an unobserved helper crash;
-administrator recovery is required in that case. The Linux installer remains
-disabled.
+The macOS helper uses a peer-authenticated session socket, a root-private controller and log, and a fixed controller request allowlist. A marker prevents a restarted helper from launching a duplicate root child after an unobserved helper crash; administrator recovery is required in that case. The Linux installer remains disabled. The configuration trust boundary, supported provider references, engine policy, and snapshot lifetime are specified in [decision 0003](0003-restricted-root-configuration.md).

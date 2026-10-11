@@ -38,3 +38,4 @@ Build the CLI with `make build cli` on Linux or macOS; build the macOS App separ
 - [CLI usability rules](docs/development/cli-usability.md): command help, human output, actionable errors, and compatibility checks.
 - [Release process](docs/development/release.md): version rules, release checks, and release note requirements.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
+- [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
