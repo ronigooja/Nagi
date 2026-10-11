@@ -106,7 +106,15 @@ make build cli
 ./scripts/installer.sh uninstall
 ```
 
-The installer uses existing artifacts and never compiles anything. Build the CLI and macOS App explicitly before installing or updating. `make build cli` does not rebuild mihomo; use an existing matching `bin/mihomo` or run `./scripts/build.sh` for a full pinned build. As a development example, `./scripts/sync_to_mac.sh` copies source files to `<mac-host>:<remote-repository-path>` and leaves remote `.git`, `bin/`, `dist/`, and build caches intact. It replaces remote source files, including local edits, and removes remote source files absent locally. `install` and `update` use the repository `bin/` directory by default and require both executables; `uninstall` does not require build artifacts. `update` replaces the installed executables using the same artifact layout as `install`. After installing or updating, check the installed version with `/usr/local/bin/nagi --json version` and confirm the companion `mihomo` is the intended pinned build.
+The installer uses existing artifacts and never compiles anything. Build the CLI and macOS App explicitly before installing or updating. As a development example, `./scripts/sync_to_mac.sh` copies source files to a configured remote checkout and leaves remote `.git`, `bin/`, `dist/`, and build caches intact. Set the destination only in your local shell, then run the script:
+
+```sh
+NAGI_MAC_REMOTE='user@mac-host' \
+NAGI_MAC_REMOTE_DIR='/path/to/Nagi' \
+./scripts/sync_to_mac.sh
+```
+
+It replaces remote source files, including local edits, and removes remote source files absent locally. `install` and `update` use the repository `bin/` directory by default and require both executables; `uninstall` does not require build artifacts. `update` replaces the installed executables using the same artifact layout as `install`. After installing or updating, check the installed version with `/usr/local/bin/nagi --json version` and confirm the companion `mihomo` is the intended pinned build.
 
 | Option | Meaning |
 | --- | --- |
