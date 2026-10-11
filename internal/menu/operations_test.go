@@ -33,7 +33,7 @@ func (r *operationRunner) Run(_ context.Context, args []string) Result {
 
 func operationItem(t *testing.T, page *Page, label string) Item {
 	t.Helper()
-	view, err := page.Load(context.Background(), nil)
+	view, err := page.Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,10 +48,10 @@ func operationItem(t *testing.T, page *Page, label string) Item {
 
 func TestOperationPageStaticCommands(t *testing.T) {
 	tests := []struct {
-		page    *Page
-		label   string
-		args    []string
-		confirm bool
+		page   *Page
+		label  string
+		args   []string
+		impact bool
 	}{
 		{DNSPage(), "Show DNS status", []string{"dns", "status"}, false},
 		{DNSPage(), "Check DNS configuration", []string{"dns", "check"}, false},
@@ -69,13 +69,13 @@ func TestOperationPageStaticCommands(t *testing.T) {
 		}
 		item = operationItem(t, TrafficPage(), "Disable system proxy")
 		if !reflect.DeepEqual(item.Args, []string{"system-proxy", "disable"}) || item.Impact == "" {
-			t.Errorf("disable system proxy: args=%v confirm=%q", item.Args, item.Impact)
+			t.Errorf("disable system proxy: args=%v impact=%q", item.Args, item.Impact)
 		}
 	}
 	for _, tt := range tests {
 		item := operationItem(t, tt.page, tt.label)
-		if !reflect.DeepEqual(item.Args, tt.args) || (item.Impact != "") != tt.confirm {
-			t.Errorf("%s: args=%v confirm=%q", tt.label, item.Args, item.Impact)
+		if !reflect.DeepEqual(item.Args, tt.args) || (item.Impact != "") != tt.impact {
+			t.Errorf("%s: args=%v impact=%q", tt.label, item.Args, item.Impact)
 		}
 	}
 }
@@ -84,7 +84,7 @@ func TestLinuxTrafficMenuOmitsSystemProxy(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux menu only")
 	}
-	view, err := TrafficPage().Load(context.Background(), nil)
+	view, err := TrafficPage().Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestLinuxTrafficMenuOmitsSystemProxy(t *testing.T) {
 }
 
 func TestDNSPageScope(t *testing.T) {
-	dns, err := DNSPage().Load(context.Background(), nil)
+	dns, err := DNSPage().Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,4 +220,76 @@ func TestOperationStreamsUseStreamingRunner(t *testing.T) {
 			t.Fatalf("stream output missing: %q", out.String())
 		}
 	}
+}
+
+func TestFixedOperationExecutesOnceWithoutConfirmation(t *testing.T) {
+	runner := &fakeRunner{}
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("e\nq\n"), &out), ConnectionsPage())
+	count := 0
+	for _, args := range runner.calls {
+		if reflect.DeepEqual(args, []string{"connections", "close-all"}) {
+			count++
+		}
+	}
+	if count != 1 || strings.Contains(out.String(), "Type yes") {
+		t.Fatalf("close-all count=%d output=%s", count, out.String())
+	}
+}
+
+func TestDNSFormRetainsLiteralNamesAfterFailedSubmission(t *testing.T) {
+	runner := &sequenceRunner{results: map[string][]Result{
+		"dns exception add b q": {{Code: 1, Error: &CLIError{Message: "server is invalid"}}},
+	}}
+	var out bytes.Buffer
+	err := dnsExceptionAdd(context.Background(), NewSession(runner, strings.NewReader("\nb\nq\n2\nudp://192.0.2.53:53\ns\n"), &out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"dns", "exception", "add", "b", "q"}, {"dns", "exception", "add", "b", "udp://192.0.2.53:53"}}
+	if !reflect.DeepEqual(runner.calls, want) || !strings.Contains(out.String(), "This field is required") {
+		t.Fatalf("calls=%v output=%s", runner.calls, out.String())
+	}
+}
+
+func TestOperationFormsValidateInPlace(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		action func(context.Context, *Session) error
+		input  string
+		want   []string
+	}{
+		{"LAN", enableLAN, "bad-address\n192.0.2.10\n", []string{"lan", "enable", "192.0.2.10"}},
+		{"logs", recentLogs, "0\nnot-a-number\n25\n", []string{"logs", "25"}},
+		{"DNS", dnsSet("direct"), "http://dns.example/query\nhttps://dns.example/query\n", []string{"dns", "set", "direct", "https://dns.example/query"}},
+		{"rules", ruleAdd, "invalid name\nwork\n10\n\nDIRECT\n", []string{"rules", "add", "work", "MATCH", "-", "DIRECT"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			runner := &fakeRunner{}
+			var out bytes.Buffer
+			if err := tt.action(context.Background(), NewSession(runner, strings.NewReader(tt.input), &out)); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(runner.calls, [][]string{tt.want}) || !strings.Contains(out.String(), "Invalid value") {
+				t.Fatalf("calls=%v output=%s", runner.calls, out.String())
+			}
+		})
+	}
+}
+
+func TestTrafficUnknownStatusPreservesActionsAndRedacts(t *testing.T) {
+	runner := &fakeRunner{results: map[string]Result{
+		"tun status": {Error: &CLIError{Message: "failed https://secret.example/token"}},
+	}}
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("d\nq\n"), &out), TrafficPage())
+	if !strings.Contains(out.String(), "TUN: unknown") || strings.Contains(out.String(), "secret.example") {
+		t.Fatal(out.String())
+	}
+	for _, args := range runner.calls {
+		if reflect.DeepEqual(args, []string{"tun", "disable"}) {
+			return
+		}
+	}
+	t.Fatalf("recovery action was not dispatched: %v", runner.calls)
 }

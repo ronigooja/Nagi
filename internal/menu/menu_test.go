@@ -100,17 +100,17 @@ func TestSelectPaginates(t *testing.T) {
 	}
 }
 
-func TestRootShowsAllTenSectionsAndPaginates(t *testing.T) {
+func TestRootShowsSevenSectionsAndAdvanced(t *testing.T) {
 	fake := &fakeRunner{}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("10\nb\nq\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("7\nb\nq\n"), &out))
 	for _, entry := range rootEntries {
 		if !strings.Contains(out.String(), entry.label) {
 			t.Fatalf("root section %q absent: %s", entry.label, out.String())
 		}
 	}
-	if !strings.Contains(out.String(), "Diagnostics and recovery\n") || !strings.Contains(out.String(), "\nDiagnostics and recovery\n") {
-		t.Fatalf("tenth section was not selectable: %s", out.String())
+	if !strings.Contains(out.String(), "Advanced features\n") || !strings.Contains(out.String(), "\nAdvanced features\n") {
+		t.Fatalf("advanced section was not selectable: %s", out.String())
 	}
 }
 
@@ -122,7 +122,7 @@ func TestFailedRefreshDropsStaleChoices(t *testing.T) {
 		},
 	}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("3\n1\nr\n3\nq\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("4\nr\n3\nq\n"), &out))
 	if !strings.Contains(out.String(), "Data unavailable. Refresh or go back.") || !strings.Contains(out.String(), "Choose a listed number") {
 		t.Fatalf("failed refresh did not clear stale choices: %s", out.String())
 	}
@@ -139,7 +139,7 @@ func TestReturningToParentRefreshesList(t *testing.T) {
 		},
 	}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("3\n1\n3\nb\nq\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("4\n3\nb\nq\n"), &out))
 	if !strings.Contains(out.String(), "3. new") {
 		t.Fatalf("parent list not refreshed after back: %s", out.String())
 	}

@@ -2,7 +2,10 @@ package menu
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -17,39 +20,49 @@ func TrafficPage() *Page {
 	if runtime.GOOS == "darwin" {
 		help = []string{"system-proxy"}
 	}
-	return &Page{Title: "Traffic access", Help: help, Load: func(_ context.Context, _ *Session) (PageView, error) {
+	return &Page{Title: "Traffic access", Help: help, Load: func(ctx context.Context, s *Session) (PageView, error) {
 		items := []Item{
 			{Label: "TUN status", Args: []string{"tun", "status"}},
 			{Label: "Enable TUN", Args: []string{"tun", "enable"}},
-			{Label: "Disable TUN", Args: []string{"tun", "disable"}, Impact: "Disable runtime TUN?"},
+			{Label: "Disable TUN", Args: []string{"tun", "disable"}, Impact: "Disables runtime TUN"},
 			{Label: "Listener ports", Args: []string{"ports", "status"}},
 			{Label: "LAN access status", Args: []string{"lan", "status"}},
-			{Label: "Enable LAN access", Action: enableLAN},
-			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Impact: "Disable LAN access and bind listeners to loopback?"},
+			{Label: "Enable LAN access", Impact: "Exposes listeners on the selected interface", Action: enableLAN},
+			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Impact: "Disables LAN access and binds listeners to loopback"},
 		}
 		if runtime.GOOS == "darwin" {
 			items = append([]Item{
 				{Label: "System proxy status", Args: []string{"system-proxy", "status"}},
 				{Label: "Enable system proxy", Args: []string{"system-proxy", "enable"}},
-				{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Impact: "Restore the OS proxy settings saved by Nagi?"},
+				{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Impact: "Restores OS proxy settings saved by Nagi"},
 			}, items...)
 		}
-		return PageView{Actions: items}, nil
+		summary := []string{
+			pageStatus(ctx, s, "TUN", []string{"tun", "status"}, "enabled"),
+			pageStatus(ctx, s, "Listener ports", []string{"ports", "status"}, "http", "socks", "mixed"),
+			pageStatus(ctx, s, "LAN", []string{"lan", "status"}, "enabled", "bind_address"),
+		}
+		if runtime.GOOS == "darwin" {
+			summary = append(summary, pageStatus(ctx, s, "System proxy", []string{"system-proxy", "status"}, "enabled"))
+		}
+		return PageView{Context: strings.Join(summary, "\n"), Actions: items}, nil
 	}}
 }
 
 func enableLAN(ctx context.Context, s *Session) error {
-	address, err := s.Prompt("Bind IPv4/IPv6 address (blank for all interfaces)")
-	if err != nil {
-		return err
-	}
-	address = strings.TrimSpace(address)
-	args := []string{"lan", "enable"}
-	if address != "" {
-		args = append(args, address)
-	}
-	s.Run(ctx, args...)
-	return nil
+	_, err := s.Form(ctx, []Field{{Key: "address", Label: "Bind IPv4/IPv6 address (blank for all interfaces)", Validate: func(v string) error {
+		if v != "" && net.ParseIP(v) == nil {
+			return fmt.Errorf("enter an IPv4 or IPv6 address")
+		}
+		return nil
+	}}}, nil, func(v map[string]string) Result {
+		args := []string{"lan", "enable"}
+		if v["address"] != "" {
+			args = append(args, v["address"])
+		}
+		return s.Run(ctx, args...)
+	})
+	return err
 }
 
 func ConnectionsPage() *Page {
@@ -57,8 +70,8 @@ func ConnectionsPage() *Page {
 		return PageView{Actions: []Item{
 			{Label: "List active connections", Args: []string{"connections", "list"}},
 			{Label: "Show a connection", Action: connectionAction("show")},
-			{Label: "Close a connection", Action: connectionAction("close")},
-			{Label: "Close all connections", Args: []string{"connections", "close-all"}, Impact: "Close all current connections? Type yes to confirm."},
+			{Label: "Close a connection", Impact: "Closes the selected connection", Action: connectionAction("close")},
+			{Label: "Close all connections", Args: []string{"connections", "close-all"}, Impact: "Closes all current connections"},
 		}}, nil
 	}}
 }
@@ -72,15 +85,7 @@ func connectionAction(verb string) func(context.Context, *Session) error {
 		if id == "" {
 			return nil
 		}
-		if verb == "close" {
-			ok, err := s.Confirm("Close connection " + id + "?")
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return nil
-			}
-		}
+
 		s.Run(ctx, "connections", verb, id)
 		return nil
 	}
@@ -97,15 +102,20 @@ func LogsPage() *Page {
 }
 
 func recentLogs(ctx context.Context, s *Session) error {
-	lines, err := s.Prompt("Number of log lines (blank for 100; 1-10000)")
-	if err != nil {
-		return err
-	}
-	lines = strings.TrimSpace(lines)
-	if lines == "" {
-		s.Run(ctx, "logs")
-	} else {
-		s.Run(ctx, "logs", lines)
-	}
-	return nil
+	_, err := s.Form(ctx, []Field{{Key: "lines", Label: "Number of log lines (blank for 100; 1-10000)", Validate: func(v string) error {
+		if v == "" {
+			return nil
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 10000 {
+			return fmt.Errorf("enter a number from 1 to 10000")
+		}
+		return nil
+	}}}, nil, func(v map[string]string) Result {
+		if v["lines"] == "" {
+			return s.Run(ctx, "logs")
+		}
+		return s.Run(ctx, "logs", v["lines"])
+	})
+	return err
 }

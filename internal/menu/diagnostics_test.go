@@ -10,7 +10,7 @@ import (
 
 func diagnosticItem(t *testing.T, page *Page, label string) Item {
 	t.Helper()
-	view, err := page.Load(context.Background(), nil)
+	view, err := page.Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,10 +25,10 @@ func diagnosticItem(t *testing.T, page *Page, label string) Item {
 
 func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 	tests := []struct {
-		page    *Page
-		label   string
-		args    []string
-		confirm bool
+		page   *Page
+		label  string
+		args   []string
+		impact bool
 	}{
 		{ServicePage(), "Service status", []string{"service", "status"}, false},
 		{ServicePage(), "Install login service", []string{"service", "install"}, true},
@@ -41,26 +41,26 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 		{diagnosticsPageForOS("linux"), "Run doctor checks", []string{"doctor"}, false},
 		{diagnosticsPageForOS("linux"), "Run redacted diagnostics", []string{"diagnostics"}, false},
 		{diagnosticsPageForOS("linux"), "Show version", []string{"version"}, false},
-		{diagnosticsPageForOS("darwin"), "Privileged helper status", []string{"privileged-helper", "status"}, false},
-		{diagnosticsPageForOS("darwin"), "Install privileged helper", []string{"privileged-helper", "install"}, true},
-		{diagnosticsPageForOS("darwin"), "Uninstall privileged helper", []string{"privileged-helper", "uninstall"}, true},
-		{diagnosticsPageForOS("darwin"), "Select privileged backend", []string{"privileged-helper", "enable"}, true},
-		{diagnosticsPageForOS("darwin"), "Select user backend", []string{"privileged-helper", "disable"}, true},
+		{helperPageForOS("darwin"), "Privileged helper status", []string{"privileged-helper", "status"}, false},
+		{helperPageForOS("darwin"), "Install privileged helper", []string{"privileged-helper", "install"}, true},
+		{helperPageForOS("darwin"), "Uninstall privileged helper", []string{"privileged-helper", "uninstall"}, true},
+		{helperPageForOS("darwin"), "Select privileged backend", []string{"privileged-helper", "enable"}, true},
+		{helperPageForOS("darwin"), "Select user backend", []string{"privileged-helper", "disable"}, true},
 		{CompletionPage(), "Generate Bash completion script", []string{"completion", "bash"}, true},
 		{CompletionPage(), "Generate Zsh completion script", []string{"completion", "zsh"}, true},
 		{CompletionPage(), "Generate Fish completion script", []string{"completion", "fish"}, true},
 	}
 	for _, tt := range tests {
 		item := diagnosticItem(t, tt.page, tt.label)
-		if !reflect.DeepEqual(item.Args, tt.args) || (item.Impact != "") != tt.confirm {
-			t.Errorf("%s: args=%v confirm=%q", tt.label, item.Args, item.Impact)
+		if !reflect.DeepEqual(item.Args, tt.args) || (item.Impact != "") != tt.impact {
+			t.Errorf("%s: args=%v impact=%q", tt.label, item.Args, item.Impact)
 		}
 	}
 }
 
 func TestPrivilegedHelperGatedToMacOS(t *testing.T) {
 	for _, goos := range []string{"linux", "windows"} {
-		view, err := diagnosticsPageForOS(goos).Load(context.Background(), nil)
+		view, err := diagnosticsPageForOS(goos).Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,8 +77,8 @@ func TestDiagnosticExportRequiresAbsoluteFile(t *testing.T) {
 		input string
 		want  [][]string
 	}{
-		{"\n", nil},
-		{"report.json\n", nil},
+		{"\n/tmp/valid.json\n", [][]string{{"diagnostics", "export", "/tmp/valid.json"}}},
+		{"report.json\n/tmp/valid.json\n", [][]string{{"diagnostics", "export", "/tmp/valid.json"}}},
 		{"/tmp/report with spaces.json\n", [][]string{{"diagnostics", "export", "/tmp/report with spaces.json"}}},
 	} {
 		runner := &fakeRunner{}
@@ -93,28 +93,18 @@ func TestDiagnosticExportRequiresAbsoluteFile(t *testing.T) {
 	}
 }
 
-func TestServiceConfirmationAndErrorRecovery(t *testing.T) {
-	for _, tt := range []struct {
-		input string
-		want  bool
-	}{
-		{"d\nb\nq\n", true},
-		{"d\nb\nq\n", true},
-	} {
-		fake := &fakeRunner{results: map[string]Result{"service uninstall": {Code: 1, Error: &CLIError{Code: "service_error", Message: "manager unavailable"}}}}
-		var out bytes.Buffer
-		// Root has service at the ninth position; it is on its first page.
-		Run(context.Background(), NewSession(fake, strings.NewReader("9\n"+tt.input), &out))
-		found := false
-		for _, args := range fake.calls {
-			found = found || reflect.DeepEqual(args, []string{"service", "uninstall"})
+func TestServiceUninstallRunsOnceAndKeepsRecoveryPage(t *testing.T) {
+	fake := &fakeRunner{results: map[string]Result{"service uninstall": {Code: 1, Error: &CLIError{Code: "service_error", Message: "manager unavailable"}}}}
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(fake, strings.NewReader("d\nq\n"), &out), ServicePage())
+	count := 0
+	for _, args := range fake.calls {
+		if reflect.DeepEqual(args, []string{"service", "uninstall"}) {
+			count++
 		}
-		if found != tt.want {
-			t.Errorf("input %q: calls=%v", tt.input, fake.calls)
-		}
-		if tt.want && !strings.Contains(out.String(), "manager unavailable") {
-			t.Errorf("command error not shown: %s", out.String())
-		}
+	}
+	if count != 1 || !strings.Contains(out.String(), "manager unavailable") || strings.Count(out.String(), "\nService and startup\n") != 2 {
+		t.Fatalf("count=%d calls=%v output=%s", count, fake.calls, out.String())
 	}
 }
 
@@ -134,6 +124,27 @@ func TestCompletionCandidatesArguments(t *testing.T) {
 		}
 		if !reflect.DeepEqual(fake.calls, tt.want) {
 			t.Errorf("input %q: calls=%v", tt.input, fake.calls)
+		}
+	}
+}
+
+func TestAdvancedRetainsAllFeatureEntrypoints(t *testing.T) {
+	for _, goos := range []string{"linux", "darwin"} {
+		view, err := advancedPageForOS(goos).Load(context.Background(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"DNS", "Rules", "Connections", "Logs and traffic", "Service and startup"}
+		if goos == "darwin" {
+			want = append(want, "Privileged helper")
+		}
+		if len(view.Items) != 0 || len(view.Actions) != len(want) {
+			t.Fatalf("%s: %+v", goos, view)
+		}
+		for i, label := range want {
+			if view.Actions[i].Label != label || view.Actions[i].Next == nil {
+				t.Fatalf("%s: missing %s", goos, label)
+			}
 		}
 	}
 }

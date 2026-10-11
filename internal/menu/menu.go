@@ -70,16 +70,13 @@ func RegisterPage(key string, factory func() *Page) { registered[key] = factory 
 type rootEntry struct{ key, label string }
 
 var rootEntries = []rootEntry{
-	{"runtime", "Runtime status"},
+	{"runtime", "Runtime control"},
 	{"proxy", "Proxies and groups"},
-	{"profile", "Profiles and subscriptions"},
-	{"dns", "DNS"},
-	{"rules", "Rules"},
+	{"subscription", "Subscriptions"},
+	{"profile", "Local profiles"},
 	{"traffic", "Traffic access"},
-	{"connections", "Connections"},
-	{"logs", "Logs and traffic"},
-	{"service", "Service and startup"},
 	{"diagnostics", "Diagnostics and recovery"},
+	{"advanced", "Advanced features"},
 }
 
 func RootPage() *Page {
@@ -88,6 +85,12 @@ func RootPage() *Page {
 		for _, entry := range rootEntries {
 			entry := entry
 			factory := registered[entry.key]
+			if entry.key == "subscription" && factory == nil {
+				factory = subscriptionListPage
+			}
+			if entry.key == "profile" {
+				factory = profileListPage
+			}
 			if factory == nil {
 				continue
 			}
