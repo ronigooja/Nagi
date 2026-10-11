@@ -33,7 +33,7 @@ func configMutation(args []string) bool {
 	case "profile":
 		return len(args) > 1 && (args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "backup" || args[1] == "override")
 	case "subscription":
-		return len(args) > 1 && args[1] != "list" && args[1] != "preview"
+		return len(args) > 1 && args[1] != "list" && args[1] != "preview" && args[1] != "update"
 	case "rules":
 		return len(args) > 1 && args[1] != "list" && args[1] != "providers" && args[1] != "custom" && args[1] != "conflicts" && args[1] != "connection"
 	case "dns":

@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -112,3 +113,71 @@ func TestRefreshRestoresCacheWhenIndexWriteFails(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestScheduleDefaultsAndLegacyMigration(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, filepath.Join(dir, "cache"), nil)
+	if err := s.Add("new", "https://example.com/x"); err != nil {
+		t.Fatal(err)
+	}
+	e, err := s.Find("new")
+	if err != nil || e.ScheduleSeconds != DefaultScheduleSeconds {
+		t.Fatalf("new schedule: %+v %v", e, err)
+	}
+	old := `{"subscriptions":[{"name":"old","url":"https://example.com/x"}]}`
+	if err := os.WriteFile(s.indexPath(), []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+	e, err = s.Find("old")
+	if err != nil || e.ScheduleSeconds != 0 || !e.NextDue.IsZero() {
+		t.Fatalf("legacy schedule: %+v %v", e, err)
+	}
+}
+
+func TestVersionsRemainDistinctAndURLPrivate(t *testing.T) {
+	s := NewStore(t.TempDir(), t.TempDir(), nil)
+	if err := s.Add("x", "https://secret.example/token"); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("proxies: []\n")
+	if err := s.RecordApplySuccess("x", "x", "cache-one", data); err != nil {
+		t.Fatal(err)
+	}
+	e, err := s.Find("x")
+	if err != nil || e.AppliedCacheVersion != "cache-one" || e.SourceHash != Hash(data) || e.URL != "" {
+		t.Fatalf("metadata: %+v %v", e, err)
+	}
+	b, _ := json.Marshal(e)
+	if strings.Contains(string(b), "secret.example") || strings.Contains(string(b), "cache-one") == false {
+		t.Fatalf("unsafe json: %s", b)
+	}
+}
+
+func TestRefreshDoesNotOverwriteConcurrentSchedule(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+		_, _ = w.Write([]byte("proxies: []\n"))
+	}))
+	defer srv.Close()
+	s := NewStore(t.TempDir(), t.TempDir(), nil)
+	if err := s.Add("x", srv.URL); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { _, err := s.Refresh(context.Background(), "x"); done <- err }()
+	<-started
+	if err := s.Schedule("x", 120); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	e, err := s.Find("x")
+	if err != nil || e.ScheduleSeconds != 120 {
+		t.Fatalf("schedule overwritten: %+v %v", e, err)
+	}
+}
