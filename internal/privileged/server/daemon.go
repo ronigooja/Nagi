@@ -19,7 +19,7 @@ import (
 
 // RunDaemon serves one login session. The caller must pass a UID obtained
 // from root-owned launchd/systemd configuration, never from a client message.
-func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) error {
+func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) (resultErr error) {
 	if os.Geteuid() != 0 {
 		return errors.New("privileged helper requires root")
 	}
@@ -91,7 +91,12 @@ func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) error
 		return err
 	}
 	handler := &RuntimeHandler{SessionUID: uid, BinaryPath: binaryPath, SourceDir: sourceDir, PrivateDir: privateDir, orphaned: markerExists(filepath.Join(privateDir, "child.marker")) || controllerLive(filepath.Join(privateDir, "mihomo.sock"))}
-	defer handler.Close()
+	if !handler.orphaned {
+		if err := handler.dnsManager().RestoreIfStopped(ctx, 0); err != nil {
+			return fmt.Errorf("recover TUN DNS: %w", err)
+		}
+	}
+	defer func() { resultErr = errors.Join(resultErr, handler.Close()) }()
 	return (Server{SessionUID: uid, Policy: privileged.Policy{AllowedPaths: []string{sourceDir, binaryPath, root}}, Handler: handler}).Serve(ctx, listener)
 }
 

@@ -40,11 +40,14 @@ func RuntimeRoot() string {
 type Operation string
 
 const (
-	Start   Operation = "start"
-	Stop    Operation = "stop"
-	Status  Operation = "status"
-	Control Operation = "control"
-	Logs    Operation = "logs"
+	Start         Operation = "start"
+	Stop          Operation = "stop"
+	Status        Operation = "status"
+	Control       Operation = "control"
+	Logs          Operation = "logs"
+	TUNDNSSync    Operation = "tun_dns_sync"
+	TUNDNSRestore Operation = "tun_dns_restore"
+	TUNDNSStatus  Operation = "tun_dns_status"
 )
 
 // Request is one complete helper operation. A request is encoded as one JSON
@@ -110,6 +113,10 @@ func (r Request) Validate(p Policy) error {
 		}
 		if err := validatePath(r.ConfigPath, p.AllowedPaths); err != nil {
 			return fmt.Errorf("config_path: %w", err)
+		}
+	case TUNDNSSync, TUNDNSRestore, TUNDNSStatus:
+		if r.Profile != "" || r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 {
+			return errors.New("DNS operation does not accept parameters")
 		}
 	case Stop, Status:
 		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 {

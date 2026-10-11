@@ -37,12 +37,15 @@ type RuntimeHandler struct {
 	snapshot   string
 	resources  []string
 	orphaned   bool
+	dnsError   error
 }
 
 func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Request) (privileged.Response, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	switch req.Operation {
+	case privileged.TUNDNSSync, privileged.TUNDNSRestore, privileged.TUNDNSStatus:
+		return h.handleDNS(ctx, req.Operation)
 	case privileged.Start:
 		if h.orphaned {
 			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
@@ -57,7 +60,11 @@ func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Reque
 		if h.orphaned {
 			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
 		}
-		return h.status(), nil
+		resp := h.status()
+		if h.dnsError != nil {
+			return privileged.Response{}, h.dnsError
+		}
+		return resp, nil
 	case privileged.Control:
 		if h.child == nil {
 			return privileged.Response{}, errors.New("privileged mihomo is not running")
@@ -65,7 +72,12 @@ func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Reque
 		if req.Method == "PUT" && req.Path == "/configs?force=true" {
 			return h.reload(ctx, req)
 		}
-		return controlRequest(ctx, h.controllerPath(), req)
+		response, err := controlRequest(ctx, h.controllerPath(), req)
+		if err == nil && response.OK && req.Method == "PATCH" && req.Path == "/configs" {
+			_, err = h.syncDNS(ctx)
+			h.dnsError = err
+		}
+		return response, err
 	case privileged.Logs:
 		return h.logs(req)
 	default:
@@ -173,6 +185,9 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 		h.orphaned = true
 		return privileged.Response{}, errors.New("orphaned_privileged_engine: prior root child may still be active")
 	}
+	if err := h.dnsManager().RestoreIfStopped(ctx, 0); err != nil {
+		return privileged.Response{}, fmt.Errorf("restore prior TUN DNS: %w", err)
+	}
 	if err := verifyTrustedBinary(h.BinaryPath); err != nil {
 		return privileged.Response{}, err
 	}
@@ -229,7 +244,19 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	}
 	h.child, h.done, h.snapshot = cmd, make(chan error, 1), snapshot
 	h.resources = resources
-	go func() { h.done <- cmd.Wait() }()
+	done := h.done
+	go func() {
+		done <- cmd.Wait()
+		recoveryCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		err := h.dnsManager().RestoreIfStopped(recoveryCtx, cmd.Process.Pid)
+		if err != nil {
+			h.mu.Lock()
+			h.dnsError = err
+			h.mu.Unlock()
+		}
+	}()
+	go h.watchDNS(cmd.Process.Pid)
 	deadline := time.NewTimer(10 * time.Second)
 	defer deadline.Stop()
 	tick := time.NewTicker(50 * time.Millisecond)
@@ -243,6 +270,12 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 			}
 		}
 		if _, err := QueryController(ctx, controller, ControllerVersion); err == nil {
+			if _, err := h.syncDNS(ctx); err != nil {
+				h.kill()
+				_, restoreErr := h.dnsManager().Disable(context.Background())
+				return privileged.Response{}, fmt.Errorf("start TUN DNS: %w; restore: %v", err, restoreErr)
+			}
+			h.dnsError = nil
 			return privileged.Response{OK: true, Running: true, PID: cmd.Process.Pid}, nil
 		}
 		select {
@@ -264,6 +297,11 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 
 func (h *RuntimeHandler) stop(ctx context.Context) (privileged.Response, error) {
 	if !h.status().Running {
+		_, err := h.dnsManager().Disable(ctx)
+		h.dnsError = err
+		if err != nil {
+			return privileged.Response{}, err
+		}
 		return privileged.Response{}, errors.New("not_running")
 	}
 	_ = h.child.Process.Signal(unix.SIGTERM)
@@ -279,6 +317,11 @@ func (h *RuntimeHandler) stop(ctx context.Context) (privileged.Response, error) 
 	h.removeSnapshots()
 	_ = os.Remove(h.markerPath())
 	h.snapshot = ""
+	_, err := h.dnsManager().Disable(ctx)
+	h.dnsError = err
+	if err != nil {
+		return privileged.Response{}, err
+	}
 	return privileged.Response{OK: true}, nil
 }
 
@@ -297,8 +340,12 @@ func (h *RuntimeHandler) kill() {
 func (h *RuntimeHandler) Close() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.orphaned {
+		return errors.New("orphaned_privileged_engine: refusing DNS cleanup for unobserved child")
+	}
 	if h.child == nil {
-		return nil
+		_, err := h.dnsManager().Disable(context.Background())
+		return err
 	}
 	_, err := h.stop(context.Background())
 	return err
@@ -353,6 +400,10 @@ func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (pr
 	h.resources = append(h.resources, h.snapshot)
 	h.resources = append(h.resources, resources...)
 	h.snapshot = snapshot
+	if err == nil && response.OK {
+		_, err = h.syncDNS(ctx)
+		h.dnsError = err
+	}
 	return response, err
 }
 

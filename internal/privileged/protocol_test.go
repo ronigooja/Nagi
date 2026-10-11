@@ -96,3 +96,20 @@ func TestProtocolRoundTripAndBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestDNSOperationsAreParameterFree(t *testing.T) {
+	_, policy := fixture(t)
+	for _, op := range []Operation{TUNDNSSync, TUNDNSRestore, TUNDNSStatus} {
+		valid := Request{Version: ProtocolVersion, Operation: op}
+		if err := valid.Validate(policy); err != nil {
+			t.Fatal(err)
+		}
+		for _, mutate := range []func(*Request){func(r *Request) { r.Profile = "anything" }, func(r *Request) { r.ConfigPath = "/etc/passwd" }, func(r *Request) { r.Body = []byte(`{"dns":["1.1.1.1"]}`) }, func(r *Request) { r.Path = "/etc/passwd" }, func(r *Request) { r.Method = "exec" }, func(r *Request) { r.BinaryPath = "/bin/sh" }, func(r *Request) { r.WorkDir = "/tmp" }, func(r *Request) { r.PIDPath = "/tmp/pid" }, func(r *Request) { r.SocketPath = "/tmp/socket" }, func(r *Request) { r.LogPath = "/etc/passwd" }, func(r *Request) { r.Lines = 1 }, func(r *Request) { r.Offset = 1 }} {
+			req := valid
+			mutate(&req)
+			if err := req.Validate(policy); err == nil {
+				t.Fatalf("accepted DNS payload %#v", req)
+			}
+		}
+	}
+}

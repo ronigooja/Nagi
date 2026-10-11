@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -213,12 +214,29 @@ func validateConfigPatch(data []byte) error {
 			}
 		case "tun":
 			var tun struct {
-				Enable              *bool `json:"enable"`
-				AutoRoute           *bool `json:"auto-route"`
-				AutoDetectInterface *bool `json:"auto-detect-interface"`
+				Enable              *bool     `json:"enable"`
+				AutoRoute           *bool     `json:"auto-route"`
+				AutoDetectInterface *bool     `json:"auto-detect-interface"`
+				StrictRoute         *bool     `json:"strict-route"`
+				DNSHijack           *[]string `json:"dns-hijack"`
 			}
 			if strictJSON(value, &tun) != nil || tun.Enable == nil {
 				return errors.New("invalid tun patch")
+			}
+			if tun.DNSHijack != nil {
+				if len(*tun.DNSHijack) > 32 {
+					return errors.New("too many DNS interception entries")
+				}
+				for _, endpoint := range *tun.DNSHijack {
+					endpoint = strings.TrimPrefix(strings.TrimPrefix(endpoint, "udp://"), "tcp://")
+					if endpoint == "any:53" {
+						continue
+					}
+					addr, err := netip.ParseAddrPort(endpoint)
+					if err != nil || addr.Port() != 53 {
+						return errors.New("DNS interception must use literal IP addresses on port 53")
+					}
+				}
 			}
 		default:
 			return errors.New("configuration patch field is not allowed")
