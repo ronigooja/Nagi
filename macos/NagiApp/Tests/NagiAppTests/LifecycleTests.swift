@@ -391,7 +391,15 @@ extension LifecycleTests {
         try "fail".write(to: failure, atomically: true, encoding: .utf8)
         let model = AppModel(cli: NagiCLIClient(executable: cli))
         let url = "https://example.invalid/feed?token=private"
+        var observedFailureAfterAnimationStopped = false
+        model.onChange = { [weak model] in
+            guard let model else { return }
+            if model.errorMessage != nil && !model.busy && !model.applyingSetting {
+                observedFailureAfterAnimationStopped = true
+            }
+        }
         let error = await model.addProvider("work", url: url, group: "Work Group")
+        XCTAssertTrue(observedFailureAfterAnimationStopped)
         XCTAssertTrue(error?.contains("already exists") == true)
         XCTAssertFalse(error?.contains(url) == true)
         XCTAssertFalse(model.errorMessage?.contains("private") == true)

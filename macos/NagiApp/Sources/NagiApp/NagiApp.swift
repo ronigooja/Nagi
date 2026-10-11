@@ -421,8 +421,16 @@ import AppKit
                     alert.window.initialFirstResponder = urlField
                     continue
                 }
-                guard !group.isEmpty else {
-                    alert.informativeText = "Choose an existing group or enter a new group name."
+                guard components.user == nil && components.password == nil && components.fragment == nil else {
+                    alert.informativeText = "Use an HTTP or HTTPS URL without a username, password, or fragment."
+                    alert.window.initialFirstResponder = urlField
+                    continue
+                }
+                guard !group.isEmpty, group.utf8.count <= 128,
+                      group.unicodeScalars.allSatisfy({ scalar in
+                          !CharacterSet.controlCharacters.contains(scalar) && !CharacterSet.newlines.contains(scalar)
+                      }) else {
+                    alert.informativeText = "Choose an existing group or enter a printable group name of at most 128 UTF-8 bytes. Spaces inside the name are allowed."
                     alert.window.initialFirstResponder = groupField
                     continue
                 }
