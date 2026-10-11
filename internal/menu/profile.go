@@ -250,7 +250,7 @@ func subscriptionDetailPage(name string) *Page {
 				download = data.Preview
 				return nil
 			}},
-			{Label: "Apply downloaded subscription", Args: []string{"subscription", "apply", name}, Impact: "Replaces target source configuration, clears local overrides and saved node selections; does not start mihomo or enable traffic access"},
+			{Label: "Apply downloaded subscription", Args: []string{"subscription", "apply", name}, Impact: "Replaces target configuration; clears local overrides and saved node selections"},
 			submenu(actionPage("View Changes", changes...)),
 			{Label: "Automatic Updates", Next: func() *Page {
 				return actionPage("Automatic Updates",

@@ -64,11 +64,11 @@ func TestOperationPageStaticCommands(t *testing.T) {
 	}{
 		{DNSPage(), "DNS details", []string{"dns", "status"}, false},
 		{DNSPage(), "Check DNS configuration", []string{"dns", "check"}, false},
-		{DNSPage(), "Disable TUN DNS interception", []string{"dns", "tun", "off"}, true},
+		{DNSPage(), "Disable TUN DNS interception", []string{"dns", "tun", "off"}, false},
 		{TrafficPage(), "TUN details", []string{"tun", "status"}, false},
 		{TrafficPage(), "Listener ports", []string{"ports", "status"}, false},
 		{TrafficPage(), "Disable LAN access", []string{"lan", "disable"}, true},
-		{ConnectionsPage(), "Close all connections", []string{"connections", "close-all"}, true},
+		{ConnectionsPage(), "Close all connections", []string{"connections", "close-all"}, false},
 		{RulesPage(), "List active rule providers", []string{"rules", "providers"}, false},
 	}
 	if runtime.GOOS == "darwin" {
@@ -101,16 +101,6 @@ func TestLinuxTrafficMenuOmitsSystemProxy(t *testing.T) {
 		if len(item.Args) > 0 && item.Args[0] == "system-proxy" {
 			t.Fatalf("unsupported Linux system proxy action: %q", item.Label)
 		}
-	}
-}
-
-func TestDNSPageScope(t *testing.T) {
-	dns, err := DNSPage().Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(dns.Context, "not an OS DNS leak test") {
-		t.Fatal(dns.Context)
 	}
 }
 

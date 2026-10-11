@@ -163,11 +163,11 @@ func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
 		err    bool
 	}{
 		{"stopped", Result{Data: map[string]any{"running": false}}, "Mihomo: stopped |", "Start mihomo through Start / Stop", false},
-		{"unexpected exit", Result{Data: map[string]any{"running": false, "unexpected_exit": true}}, "stopped (unexpected exit)", "`nagi recover`", true},
-		{"running", Result{Data: map[string]any{"running": true}}, "Mihomo: running |", "Inspect `nagi logs` and `nagi status`", true},
-		{"status failure", Result{Code: 1, Error: &CLIError{Message: "status failed: https://private.example/token"}}, "Mihomo: unknown |", "Run `nagi status`", true},
-		{"missing running field", Result{Data: map[string]any{}}, "Mihomo: unknown |", "Run `nagi status`", true},
-		{"null running field", Result{Data: map[string]any{"running": nil}}, "Mihomo: unknown |", "Run `nagi status`", true},
+		{"unexpected exit", Result{Data: map[string]any{"running": false, "unexpected_exit": true}}, "stopped (unexpected exit)", "clean stale runtime records", true},
+		{"running", Result{Data: map[string]any{"running": true}}, "Mihomo: running |", "Check logs in Troubleshooting", true},
+		{"status failure", Result{Code: 1, Error: &CLIError{Message: "status failed: https://private.example/token"}}, "Mihomo: unknown |", "Open Troubleshooting", true},
+		{"missing running field", Result{Data: map[string]any{}}, "Mihomo: unknown |", "Open Troubleshooting", true},
+		{"null running field", Result{Data: map[string]any{"running": nil}}, "Mihomo: unknown |", "Open Troubleshooting", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := &featureRunner{results: map[string]Result{

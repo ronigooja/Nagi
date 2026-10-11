@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
-	"strings"
 	"syscall"
 	"unsafe"
 
@@ -39,7 +38,6 @@ func (s *Session) Fetch(ctx context.Context, args ...string) Result {
 }
 
 func (s *Session) Run(ctx context.Context, args ...string) Result {
-	s.Printf("Executing: %s\n", output.RedactError(strings.Join(args, " ")))
 	result := s.Fetch(ctx, args...)
 	s.ShowResult(args, result)
 	s.discardInterrupts()

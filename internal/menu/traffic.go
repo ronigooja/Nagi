@@ -27,11 +27,11 @@ func TrafficPage() *Page {
 		items := []Item{
 			{Label: "TUN details", Args: []string{"tun", "status"}},
 			{Label: "Enable TUN", Args: []string{"tun", "enable"}},
-			{Label: "Disable TUN", Args: []string{"tun", "disable"}, Impact: "Disables runtime TUN"},
+			{Label: "Disable TUN", Args: []string{"tun", "disable"}},
 			{Label: "Listener ports", Args: []string{"ports", "status"}},
 			{Label: "LAN access details", Args: []string{"lan", "status"}},
 			{Label: "Enable LAN access", Impact: "Exposes listeners on the selected interface", Action: enableLAN},
-			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Impact: "Disables LAN access and binds listeners to loopback"},
+			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Impact: "Binds listeners to loopback"},
 		}
 		tun := statePage("TUN", []string{"tun", "status"}, []string{"enabled"}, items[:3]...)
 		lan := statePage("LAN Access", []string{"lan", "status"}, []string{"enabled", "bind_address"}, items[4:]...)
@@ -77,8 +77,8 @@ func ConnectionsPage() *Page {
 		return PageView{Actions: []Item{
 			{Label: "List active connections", Args: []string{"connections", "list"}},
 			{Label: "Show a connection", Action: connectionAction("show")},
-			{Label: "Close a connection", Impact: "Closes the selected connection", Action: connectionAction("close")},
-			{Label: "Close all connections", Args: []string{"connections", "close-all"}, Impact: "Closes all current connections"},
+			{Label: "Close a connection", Action: connectionAction("close")},
+			{Label: "Close all connections", Args: []string{"connections", "close-all"}},
 		}}, nil
 	}}
 }

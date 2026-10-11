@@ -12,14 +12,14 @@ func init() { RegisterPage("dns", DNSPage) }
 // DNSPage exposes the existing DNS commands without making claims about OS DNS capture.
 func DNSPage() *Page {
 	return &Page{Title: "DNS", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: pageStatus(ctx, s, "DNS", []string{"dns", "status"}, "enabled", "policy", "tun_enabled") + "\ndns check inspects configuration and the mihomo API only; it is not an OS DNS leak test.", Actions: []Item{
+		view := PageView{Context: pageStatus(ctx, s, "DNS", []string{"dns", "status"}, "enabled", "policy", "tun_enabled"), Actions: []Item{
 			submenu(statePage("Servers", []string{"dns", "status"}, []string{"enabled", "policy", "tun_enabled"}, Item{Label: "DNS details", Args: []string{"dns", "status"}},
 				Item{Label: "Set direct DoH upstreams", Impact: "Saves and activates DNS policy", Action: dnsSet("direct")},
 				Item{Label: "Set proxy DoH upstreams", Impact: "Saves and activates DNS policy", Action: dnsSet("proxy")})),
 			submenu(statePage("Domain Exceptions", []string{"dns", "status"}, []string{"enabled", "policy", "tun_enabled"}, Item{Label: "Add DNS exception", Action: dnsExceptionAdd},
 				Item{Label: "Remove DNS exception", Action: dnsExceptionRemove})),
 			submenu(statePage("TUN DNS Interception", []string{"dns", "status"}, []string{"enabled", "policy", "tun_enabled"}, Item{Label: "Enable TUN DNS interception", Args: []string{"dns", "tun", "on"}},
-				Item{Label: "Disable TUN DNS interception", Args: []string{"dns", "tun", "off"}, Impact: "Disables TUN DNS interception in the selected profile"})),
+				Item{Label: "Disable TUN DNS interception", Args: []string{"dns", "tun", "off"}})),
 			submenu(statePage("Checks & Queries", []string{"dns", "status"}, []string{"enabled", "policy", "tun_enabled"}, Item{Label: "Check DNS configuration", Args: []string{"dns", "check"}},
 				Item{Label: "Query a domain", Action: dnsQuery},
 				Item{Label: "Flush mihomo DNS cache", Args: []string{"dns", "flush"}})),

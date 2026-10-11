@@ -34,7 +34,7 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 		{ServicePage(), "Install login service", []string{"service", "install"}, true},
 		{ServicePage(), "Uninstall login service", []string{"service", "uninstall"}, true},
 		{ServicePage(), "Startup details", []string{"startup", "status"}, false},
-		{ServicePage(), "Enable login startup", []string{"startup", "enable"}, true},
+		{ServicePage(), "Enable login startup", []string{"startup", "enable"}, false},
 		{ServicePage(), "Disable login startup", []string{"startup", "disable"}, true},
 		{DiagnosticsPage(), "Repair startup state", []string{"startup", "check"}, false},
 		{DiagnosticsPage(), "Clean stale runtime records", []string{"recover"}, true},

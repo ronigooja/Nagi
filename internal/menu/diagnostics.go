@@ -16,13 +16,13 @@ func init() {
 // ServicePage exposes the existing per-user service and startup commands.
 func ServicePage() *Page {
 	return &Page{Title: "Start at Login", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		return PageView{Context: pageStatus(ctx, s, "Service", []string{"service", "status"}, "installed", "enabled", "active") + "\n" + pageStatus(ctx, s, "Startup", []string{"startup", "status"}, "enabled", "status") + "\nThe login service can stop mihomo when disabled or removed.", Actions: []Item{
+		return PageView{Context: pageStatus(ctx, s, "Service", []string{"service", "status"}, "installed", "enabled", "active") + "\n" + pageStatus(ctx, s, "Startup", []string{"startup", "status"}, "enabled", "status"), Actions: []Item{
 			{Label: "Service details", Args: []string{"service", "status"}},
-			{Label: "Install login service", Args: []string{"service", "install"}, Impact: "Installs and enables the login service"},
+			{Label: "Install login service", Args: []string{"service", "install"}, Impact: "Also enables login startup"},
 			{Label: "Startup details", Args: []string{"startup", "status"}},
-			{Label: "Enable login startup", Args: []string{"startup", "enable"}, Impact: "Enables the installed login service"},
-			{Label: "Disable login startup", Args: []string{"startup", "disable"}, Impact: "Disables the login service; can stop mihomo"},
-			{Label: "Uninstall login service", Args: []string{"service", "uninstall"}, Impact: "Stops and removes the login service; can stop mihomo"},
+			{Label: "Enable login startup", Args: []string{"startup", "enable"}},
+			{Label: "Disable login startup", Args: []string{"startup", "disable"}, Impact: "Can stop mihomo"},
+			{Label: "Uninstall login service", Args: []string{"service", "uninstall"}, Impact: "Can stop mihomo"},
 		}}, nil
 	}}
 }
@@ -41,7 +41,7 @@ func diagnosticsPageForOS(goos string) *Page {
 			{Label: "Show version", Args: []string{"version"}},
 		}
 
-		return PageView{Context: "Reports are redacted. A reachable control API or configured listener does not prove proxy traffic can pass.", Actions: items}, nil
+		return PageView{Actions: items}, nil
 	}}
 }
 

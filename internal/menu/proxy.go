@@ -41,7 +41,7 @@ func ProxyPage() *Page { return proxyGroupsPage() }
 
 func proxyGroupsPage() *Page {
 	return &Page{Title: "Select Node", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: "Choose a group, then a node to switch immediately.", Empty: "No proxy groups returned. Start mihomo and run `nagi proxy groups` to inspect the configuration.", Actions: []Item{
+		view := PageView{Context: "Select a group, then a node to switch.", Empty: "No proxy groups. Check the profile in Profiles.", Actions: []Item{
 			{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
 			{Label: "Proxy Providers", Next: func() *Page { return providerListPage() }},
 		}}
@@ -50,7 +50,7 @@ func proxyGroupsPage() *Page {
 		}
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "groups"), &data); err != nil {
 			view.Context = "Mihomo: unknown | Proxy group state: unknown"
-			view.ReadErrorHint = "Run `nagi status` and inspect `nagi logs`, or open Troubleshooting from the home page. After resolving the error, reopen Select Node."
+			view.ReadErrorHint = "Open Troubleshooting to check status and logs, then return here."
 			view.Actions = append(view.Actions, Item{Label: "Start / Stop", Next: RuntimePage})
 			var status struct {
 				Running        *bool `json:"running"`
@@ -62,13 +62,13 @@ func proxyGroupsPage() *Page {
 				switch {
 				case *status.Running:
 					view.Context = "Mihomo: running | Proxy group state: unknown"
-					view.ReadErrorHint = "Proxy groups could not be read while mihomo is running. Inspect `nagi logs` and `nagi status`; use Start / Stop if a restart is needed, then reopen Select Node."
+					view.ReadErrorHint = "Check logs in Troubleshooting; use Start / Stop if a restart is needed."
 				case status.UnexpectedExit:
 					view.Context = "Mihomo: stopped (unexpected exit) | Proxy group state: unavailable"
-					view.ReadErrorHint = "Inspect `nagi logs`, run `nagi recover` to clean stale runtime records, then start mihomo through Start / Stop or `nagi start` and reopen Select Node."
+					view.ReadErrorHint = "Check logs and clean stale runtime records in Troubleshooting, then start mihomo through Start / Stop."
 				default:
 					view.Context = "Mihomo: stopped | Proxy group state: unavailable"
-					view.ReadErrorHint = "Start mihomo through Start / Stop or `nagi start`, then return to Select Node. Reopening this page alone cannot load groups while mihomo is stopped."
+					view.ReadErrorHint = "Start mihomo through Start / Stop, then return here."
 					view.Empty = view.ReadErrorHint
 					return view, nil
 				}
@@ -136,7 +136,7 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 			view.Actions = append(view.Actions,
 				Item{Label: "Test one node", Next: func() *Page { return proxyNodesPage(name, true) }},
 				Item{Label: "Test all nodes and select from results", Impact: "May clear a fixed choice and its saved selection for automatic groups", Action: func(ctx context.Context, s *Session) error {
-					s.WriteLine("Executing: test all nodes in this group")
+					s.WriteLine("Testing node latency...")
 					result := s.Fetch(ctx, "proxy", "delays", name)
 					var data struct {
 						Results []menuProxyMeasurement `json:"results"`
@@ -151,7 +151,7 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 						order = append(order, measurement.Proxy)
 						measurements[measurement.Proxy] = measurement
 					}
-					s.feedback(fmt.Sprintf("Latency test completed: %d results. Choose a numbered node to switch.", len(order)))
+					s.feedback(fmt.Sprintf("Latency test completed: %d results.", len(order)))
 					return nil
 				}},
 				Item{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
@@ -208,7 +208,7 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 			}
 		}
 		if len(order) > 0 {
-			view.Context += "\nLast latency measurements retained in result order; unmeasured nodes follow."
+			view.Context += "\nLast latency results first; unmeasured nodes follow."
 		}
 		for _, node := range nodes {
 			label := node
