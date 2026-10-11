@@ -52,34 +52,38 @@ func mergeMap(base, patch map[string]any) {
 	}
 }
 
+// EffectiveSource merges a candidate source profile with the named profile's
+// local override and applies Nagi-owned rules. It is used while validating an
+// update before replacing the source file.
+func (s *Store) EffectiveSource(name string, source []byte) ([]byte, error) {
+	patch, err := s.Override(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return rules.Apply(source, s.Dir)
+	}
+	if err != nil {
+		return nil, err
+	}
+	var base, overlay map[string]any
+	if err := yaml.Unmarshal(source, &base); err != nil || base == nil {
+		return nil, errors.New("profile YAML cannot be merged with override")
+	}
+	if err := yaml.Unmarshal(patch, &overlay); err != nil || overlay == nil {
+		return nil, errors.New("override is invalid YAML")
+	}
+	mergeMap(base, overlay)
+	merged, err := yaml.Marshal(base)
+	if err != nil {
+		return nil, err
+	}
+	return rules.Apply(merged, s.Dir)
+}
+
 func (s *Store) Effective(name string) ([]byte, error) {
 	base, err := s.Show(name)
 	if err != nil {
 		return nil, err
 	}
-	patch, err := s.Override(name)
-	if errors.Is(err, fs.ErrNotExist) {
-		return rules.Apply(base, s.Dir)
-	}
-	if err != nil {
-		return nil, err
-	}
-	var source, overlay map[string]any
-	if err := yaml.Unmarshal(base, &source); err != nil {
-		return nil, errors.New("profile YAML cannot be merged with override")
-	}
-	if err := yaml.Unmarshal(patch, &overlay); err != nil {
-		return nil, errors.New("override is invalid YAML")
-	}
-	if source == nil || overlay == nil {
-		return nil, errors.New("profile and override must be YAML mappings")
-	}
-	mergeMap(source, overlay)
-	merged, err := yaml.Marshal(source)
-	if err != nil {
-		return nil, err
-	}
-	return rules.Apply(merged, s.Dir)
+	return s.EffectiveSource(name, base)
 }
 
 // ApplyDefaultOverride copies safe local runtime settings from the default profile

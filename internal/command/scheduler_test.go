@@ -147,8 +147,8 @@ func TestSchedulerPausesChangedSource(t *testing.T) {
 	if e.LastFailureStage != "paused" || e.LastFailureReason != "profile_changed" {
 		t.Fatalf("pause: %+v", e)
 	}
-	if due, err := s.Due(time.Now().Add(time.Hour)); err != nil || len(due) != 0 {
-		t.Fatalf("paused subscription due: %v %v", due, err)
+	if due, err := s.Due(time.Now().Add(time.Hour)); err != nil || len(due) != 1 {
+		t.Fatalf("paused subscription must remain due for download: %v %v", due, err)
 	}
 	if err := s.RecordSuccess("work", time.Now().Add(time.Hour)); err != nil {
 		t.Fatal(err)
@@ -442,5 +442,261 @@ func TestSchedulerPausesUnreadableSource(t *testing.T) {
 	e, _ := s.Find("work")
 	if e.LastFailureStage != "paused" || e.LastFailureReason != "source_unreadable" {
 		t.Fatalf("unreadable source did not pause: %+v", e)
+	}
+}
+
+func TestScheduledApplyUsesEffectiveOverrideForRulesAndSelections(t *testing.T) {
+	p, s, _ := schedulerFixture(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(schedulerTestYAML)) })
+	if _, err := s.Refresh(context.Background(), "work"); err != nil {
+		t.Fatal(err)
+	}
+	old := []byte(schedulerTestYAML + "\n# prior source\n")
+	path := filepath.Join(p.ConfigDir, "profiles", "work.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, old, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p.ConfigDir, "settings.yaml"), []byte("profile: work\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	override := []byte("proxies:\n  - name: local-node\n    type: ss\n    server: 127.0.0.1\n    port: 8388\n    cipher: aes-128-gcm\n    password: example\nproxy-groups:\n  - name: LocalGroup\n    type: select\n    proxies: [local-node]\n")
+	overridePath := filepath.Join(p.ConfigDir, "overrides", "work.yaml")
+	if err := os.MkdirAll(filepath.Dir(overridePath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(overridePath, override, 0600); err != nil {
+		t.Fatal(err)
+	}
+	rule := []byte("entries:\n  - name: local-rule\n    enabled: true\n    kind: rule\n    type: DOMAIN\n    payload: example.com\n    target: LocalGroup\n")
+	if err := os.WriteFile(filepath.Join(p.ConfigDir, "rules.yaml"), rule, 0600); err != nil {
+		t.Fatal(err)
+	}
+	selections := filepath.Join(p.ConfigDir, "proxy-selections.json")
+	if err := os.WriteFile(selections, []byte(`{"work":{"LocalGroup":"local-node","Gone":"node-z"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordApplySuccess("work", "work", "prior-cache", old); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := s.Find("work")
+	profiles := profile.NewStore(p.ConfigDir, func([]byte) error { return nil }, nil)
+	if err := applyScheduledCache(context.Background(), p, s, profiles, e); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(selections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "local-node") || strings.Contains(string(got), "Gone") {
+		t.Fatalf("choices after prune: %s", got)
+	}
+	if gotOverride, _ := os.ReadFile(overridePath); string(gotOverride) != string(override) {
+		t.Fatal("override changed")
+	}
+}
+
+func TestScheduledApplyUnknownRuleTargetPreservesOldConfig(t *testing.T) {
+	p, s, _ := schedulerFixture(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(schedulerTestYAML)) })
+	if _, err := s.Refresh(context.Background(), "work"); err != nil {
+		t.Fatal(err)
+	}
+	old := []byte(schedulerTestYAML + "\n# prior source\n")
+	path := filepath.Join(p.ConfigDir, "profiles", "work.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, old, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p.ConfigDir, "settings.yaml"), []byte("profile: work\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	rule := []byte("entries:\n  - name: bad\n    enabled: true\n    kind: rule\n    type: DOMAIN\n    payload: example.com\n    target: removed\n")
+	if err := os.WriteFile(filepath.Join(p.ConfigDir, "rules.yaml"), rule, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordApplySuccess("work", "work", "prior-cache", old); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := s.Find("work")
+	profiles := profile.NewStore(p.ConfigDir, func([]byte) error { return nil }, nil)
+	if err := applyScheduledCache(context.Background(), p, s, profiles, e); !errors.Is(err, errRuleConflict) {
+		t.Fatalf("target conflict: %v", err)
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != string(old) {
+		t.Fatal("old source changed after conflict")
+	}
+}
+
+func TestSchedulerPauseSurvivesFetchFailureAndSourceRestoration(t *testing.T) {
+	var fail atomic.Bool
+	var downloads atomic.Int32
+	p, s, _ := schedulerFixture(t, func(w http.ResponseWriter, r *http.Request) {
+		downloads.Add(1)
+		if fail.Load() {
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte(schedulerTestYAML))
+	})
+	old := []byte(schedulerTestYAML)
+	path := filepath.Join(p.ConfigDir, "profiles", "work.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, old, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordApplySuccess("work", "work", "old-cache", old); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("external edit"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dueNow(t, s)
+	var applies atomic.Int32
+	apply := func(context.Context, subscription.Entry) error { applies.Add(1); return nil }
+	if err := schedulerStep(context.Background(), p, s, apply, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := s.Find("work")
+	if after.PauseReason != "profile_changed" || after.CacheVersion == "" || !after.NextDue.After(time.Now()) || downloads.Load() != 1 || applies.Load() != 0 {
+		t.Fatalf("paused refresh: %+v, downloads %d applies %d", after, downloads.Load(), applies.Load())
+	}
+	fail.Store(true)
+	if err := s.RecordDownloadSuccess("work", time.Now().Add(-time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if err := schedulerStep(context.Background(), p, s, apply, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	after, _ = s.Find("work")
+	if after.PauseReason != "profile_changed" || after.LastFailureStage != "fetch" || after.LastFailureReason != "network_error" || !after.NextDue.After(time.Now()) || downloads.Load() != 2 || applies.Load() != 0 {
+		t.Fatalf("failure while paused: %+v, downloads %d applies %d", after, downloads.Load(), applies.Load())
+	}
+	if err := os.WriteFile(path, old, 0600); err != nil {
+		t.Fatal(err)
+	}
+	fail.Store(false)
+	if err := s.RecordDownloadSuccess("work", time.Now().Add(-time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if err := schedulerStep(context.Background(), p, s, apply, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	after, _ = s.Find("work")
+	if after.PauseReason != "profile_changed" || after.LastFailureStage != "paused" || downloads.Load() != 3 || applies.Load() != 0 {
+		t.Fatalf("restored bytes resumed apply: %+v, downloads %d applies %d", after, downloads.Load(), applies.Load())
+	}
+	if err := s.RecordApplySuccess("work", "work", after.CacheVersion, old); err != nil {
+		t.Fatal(err)
+	}
+	after, _ = s.Find("work")
+	if after.PauseReason != "" || after.LastFailureStage != "" {
+		t.Fatalf("explicit apply failed to resume: %+v", after)
+	}
+}
+
+func TestSchedulerMetadataCASRejectsSameIntervalRescheduleAndReplacement(t *testing.T) {
+	p, s, server := schedulerFixture(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(schedulerTestYAML)) })
+	old, _ := s.Find("work")
+	if err := s.Schedule("work", old.ScheduleSeconds); err != nil {
+		t.Fatal(err)
+	}
+	if err := recordSchedulerFailure(p, s, old, "fetch", "network_error", time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	current, _ := s.Find("work")
+	if !current.NextDue.After(time.Now()) || current.LastFailureStage != "" {
+		t.Fatalf("stale reschedule overwritten: %+v", current)
+	}
+	if err := s.Remove("work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add("work", server.URL); err != nil {
+		t.Fatal(err)
+	}
+	if err := recordSchedulerFailure(p, s, old, "fetch", "network_error", time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	current, _ = s.Find("work")
+	if current.Generation == old.Generation || current.LastFailureStage != "" {
+		t.Fatalf("replacement overwritten: %+v", current)
+	}
+}
+
+func TestRuleTargetKnownInlineProviderAndUnknownRemoteProvider(t *testing.T) {
+	dir := t.TempDir()
+	rule := []byte("entries:\n  - name: provider-node-rule\n    enabled: true\n    kind: rule\n    type: DOMAIN\n    payload: example.com\n    target: provider-node\n")
+	if err := os.WriteFile(filepath.Join(dir, "rules.yaml"), rule, 0600); err != nil {
+		t.Fatal(err)
+	}
+	inline := []byte("proxy-providers:\n  local:\n    type: inline\n    payload:\n      - name: provider-node\n        type: direct\n")
+	if err := validateRuleTargets(dir, "work", inline); err != nil {
+		t.Fatal(err)
+	}
+	remote := []byte("proxy-providers:\n  remote:\n    type: http\n    url: https://example.invalid/nodes.yaml\n    path: ./remote.yaml\n")
+	if err := validateRuleTargets(dir, "work", remote); err != nil {
+		t.Fatalf("remote provider target cannot be ruled out statically: %v", err)
+	}
+}
+
+func TestScheduledApplyBuildsBackendAfterConfigLock(t *testing.T) {
+	p, s, _ := schedulerFixture(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(schedulerTestYAML)) })
+	if _, err := s.Refresh(context.Background(), "work"); err != nil {
+		t.Fatal(err)
+	}
+	old := []byte(schedulerTestYAML + "\n# prior\n")
+	path := filepath.Join(p.ConfigDir, "profiles", "work.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, old, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p.ConfigDir, "settings.yaml"), []byte("profile: work\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordApplySuccess("work", "work", "prior-cache", old); err != nil {
+		t.Fatal(err)
+	}
+	entry, _ := s.Find("work")
+	var seen string
+	ready := make(chan struct{})
+	done := make(chan error, 1)
+	_, err := withNamedLock(p, "config.lock", func() (any, error) {
+		go func() {
+			close(ready)
+			done <- applyScheduledCacheFactory(context.Background(), p, s, entry, func() (*profile.Store, error) {
+				mode, err := readBackend(p)
+				seen = mode
+				return profile.NewStore(p.ConfigDir, func([]byte) error { return nil }, nil), err
+			})
+		}()
+		<-ready
+		return nil, writeBackend(p, privilegedBackend)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if seen != privilegedBackend {
+		t.Fatalf("backend selected before config lock: %s", seen)
+	}
+}
+
+func TestEffectiveGroupsUseKnownInlineNodesAndPreserveUnknownRemoteChoices(t *testing.T) {
+	candidate := []byte("proxy-providers:\n  local:\n    type: inline\n    payload:\n      - name: inline-node\n        type: direct\n  remote:\n    type: http\n    url: https://example.invalid/nodes.yaml\n    path: ./remote.yaml\nproxy-groups:\n  - name: local-group\n    type: select\n    use: [local]\n  - name: remote-group\n    type: select\n    use: [remote]\n")
+	groups, err := effectiveGroups(t.TempDir(), "work", candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !groups["local-group"]["inline-node"] || groups["local-group"]["*"] || !groups["remote-group"]["*"] {
+		t.Fatalf("provider option knowledge: %+v", groups)
 	}
 }

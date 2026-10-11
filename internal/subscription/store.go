@@ -35,6 +35,7 @@ type Entry struct {
 	NextDue             time.Time `json:"next_due,omitempty"`
 	LastFailureStage    string    `json:"last_failure_stage,omitempty"`
 	LastFailureReason   string    `json:"last_failure_reason,omitempty"`
+	PauseReason         string    `json:"pause_reason,omitempty"`
 	CacheVersion        string    `json:"cache_version,omitempty"`
 	AppliedCacheVersion string    `json:"applied_cache_version,omitempty"`
 	SourceHash          string    `json:"source_hash,omitempty"`
@@ -54,6 +55,7 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 		NextDue             *time.Time `json:"next_due,omitempty"`
 		LastFailureStage    string     `json:"last_failure_stage,omitempty"`
 		LastFailureReason   string     `json:"last_failure_reason,omitempty"`
+		PauseReason         string     `json:"pause_reason,omitempty"`
 		CacheVersion        string     `json:"cache_version,omitempty"`
 		AppliedCacheVersion string     `json:"applied_cache_version,omitempty"`
 		SourceHash          string     `json:"source_hash,omitempty"`
@@ -63,7 +65,7 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 		Upload              int64      `json:"upload,omitempty"`
 		Download            int64      `json:"download,omitempty"`
 		Total               int64      `json:"total,omitempty"`
-	}{Name: e.Name, KeyConfigured: e.KeyConfigured, ScheduleSeconds: e.ScheduleSeconds, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile}
+	}{Name: e.Name, KeyConfigured: e.KeyConfigured, ScheduleSeconds: e.ScheduleSeconds, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile}
 	if !e.NextDue.IsZero() {
 		view.NextDue = &e.NextDue
 	}
@@ -137,6 +139,7 @@ type storedEntry struct {
 	NextDue             time.Time `json:"next_due,omitempty"`
 	LastFailureStage    string    `json:"last_failure_stage,omitempty"`
 	LastFailureReason   string    `json:"last_failure_reason,omitempty"`
+	PauseReason         string    `json:"pause_reason,omitempty"`
 	CacheVersion        string    `json:"cache_version,omitempty"`
 	AppliedCacheVersion string    `json:"applied_cache_version,omitempty"`
 	SourceHash          string    `json:"source_hash,omitempty"`
@@ -165,7 +168,10 @@ func (s *Store) read() ([]Entry, error) {
 	seen := map[string]bool{}
 	result := make([]Entry, 0, len(file.Subscriptions))
 	for _, stored := range file.Subscriptions {
-		e := Entry{Name: stored.Name, URL: stored.URL, Generation: stored.Generation, ScheduleSeconds: stored.ScheduleSeconds, NextDue: stored.NextDue, LastFailureStage: stored.LastFailureStage, LastFailureReason: stored.LastFailureReason, CacheVersion: stored.CacheVersion, AppliedCacheVersion: stored.AppliedCacheVersion, SourceHash: stored.SourceHash, Profile: stored.Profile, UpdatedAt: stored.UpdatedAt, ExpiresAt: stored.ExpiresAt, Upload: stored.Upload, Download: stored.Download, Total: stored.Total}
+		e := Entry{Name: stored.Name, URL: stored.URL, Generation: stored.Generation, ScheduleSeconds: stored.ScheduleSeconds, NextDue: stored.NextDue, LastFailureStage: stored.LastFailureStage, LastFailureReason: stored.LastFailureReason, PauseReason: stored.PauseReason, CacheVersion: stored.CacheVersion, AppliedCacheVersion: stored.AppliedCacheVersion, SourceHash: stored.SourceHash, Profile: stored.Profile, UpdatedAt: stored.UpdatedAt, ExpiresAt: stored.ExpiresAt, Upload: stored.Upload, Download: stored.Download, Total: stored.Total}
+		if e.PauseReason == "" && e.LastFailureStage == "paused" {
+			e.PauseReason = e.LastFailureReason // Migrate indices written before pause_reason existed.
+		}
 		if !validName(e.Name) || !validURL(e.URL) || seen[e.Name] || e.ScheduleSeconds < 0 || e.ScheduleSeconds > MaxScheduleSeconds || (e.Profile != "" && !validName(e.Profile)) {
 			return nil, errors.New("invalid subscriptions index")
 		}
@@ -234,7 +240,7 @@ func (s *Store) Due(now time.Time) ([]Entry, error) {
 	}
 	due := make([]Entry, 0)
 	for _, e := range entries {
-		if e.ScheduleSeconds > 0 && e.LastFailureStage != "paused" && !e.NextDue.After(now) {
+		if e.ScheduleSeconds > 0 && !e.NextDue.After(now) {
 			due = append(due, e)
 		}
 	}
@@ -335,6 +341,7 @@ func (s *Store) RecordApplySuccess(name, profileName, cacheVersion string, sourc
 				entries[i].SourceHash = Hash(source)
 				entries[i].LastFailureStage = ""
 				entries[i].LastFailureReason = ""
+				entries[i].PauseReason = ""
 				return entries, nil
 			}
 		}
@@ -368,7 +375,52 @@ func (s *Store) RecordFailure(name, stage, reason string, nextDue time.Time) err
 			if entries[i].Name == name {
 				entries[i].LastFailureStage = stage
 				entries[i].LastFailureReason = reason
+				if stage == "paused" {
+					entries[i].PauseReason = reason
+				}
 				entries[i].NextDue = nextDue.UTC()
+				return entries, nil
+			}
+		}
+		return nil, errors.New("subscription not found")
+	})
+}
+
+// RecordPause blocks automatic activation until explicit apply, independently
+// of the most recent download failure and its retry schedule.
+func (s *Store) RecordPause(name, reason string) error {
+	if reason != "profile_changed" && reason != "source_unreadable" {
+		return errors.New("invalid pause reason")
+	}
+	return s.mutate(func(entries []Entry) ([]Entry, error) {
+		for i := range entries {
+			if entries[i].Name == name {
+				entries[i].PauseReason = reason
+				if entries[i].LastFailureStage != "fetch" && entries[i].LastFailureStage != "decrypt" && entries[i].LastFailureStage != "validate" {
+					entries[i].LastFailureStage = "paused"
+					entries[i].LastFailureReason = reason
+				}
+				return entries, nil
+			}
+		}
+		return nil, errors.New("subscription not found")
+	})
+}
+
+// RecordDownloadSuccess advances the refresh schedule without clearing a
+// persistent automatic-apply pause.
+func (s *Store) RecordDownloadSuccess(name string, nextDue time.Time) error {
+	return s.mutate(func(entries []Entry) ([]Entry, error) {
+		for i := range entries {
+			if entries[i].Name == name {
+				entries[i].NextDue = nextDue.UTC()
+				if entries[i].PauseReason != "" {
+					entries[i].LastFailureStage = "paused"
+					entries[i].LastFailureReason = entries[i].PauseReason
+				} else {
+					entries[i].LastFailureStage = ""
+					entries[i].LastFailureReason = ""
+				}
 				return entries, nil
 			}
 		}
@@ -382,12 +434,14 @@ func (s *Store) RecordSuccess(name string, nextDue time.Time) error {
 			if entries[i].Name == name {
 				// A successful fetch cannot resume an externally edited or
 				// unreadable source. Explicit apply owns that recovery.
-				if entries[i].LastFailureStage == "paused" {
-					return entries, nil
-				}
-				entries[i].LastFailureStage = ""
-				entries[i].LastFailureReason = ""
 				entries[i].NextDue = nextDue.UTC()
+				if entries[i].PauseReason != "" {
+					entries[i].LastFailureStage = "paused"
+					entries[i].LastFailureReason = entries[i].PauseReason
+				} else {
+					entries[i].LastFailureStage = ""
+					entries[i].LastFailureReason = ""
+				}
 				return entries, nil
 			}
 		}
@@ -609,7 +663,7 @@ func (s *Store) write(entries []Entry) error {
 		Subscriptions []storedEntry `json:"subscriptions"`
 	}{Subscriptions: make([]storedEntry, 0, len(entries))}
 	for _, e := range entries {
-		file.Subscriptions = append(file.Subscriptions, storedEntry{Name: e.Name, URL: e.URL, Generation: e.Generation, ScheduleSeconds: e.ScheduleSeconds, NextDue: e.NextDue, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile, UpdatedAt: e.UpdatedAt, ExpiresAt: e.ExpiresAt, Upload: e.Upload, Download: e.Download, Total: e.Total})
+		file.Subscriptions = append(file.Subscriptions, storedEntry{Name: e.Name, URL: e.URL, Generation: e.Generation, ScheduleSeconds: e.ScheduleSeconds, NextDue: e.NextDue, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile, UpdatedAt: e.UpdatedAt, ExpiresAt: e.ExpiresAt, Upload: e.Upload, Download: e.Download, Total: e.Total})
 	}
 	data, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {

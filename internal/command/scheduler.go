@@ -164,16 +164,10 @@ func schedulerStep(ctx context.Context, p nagiruntime.Paths, store *subscription
 		if err = ctx.Err(); err != nil {
 			return err
 		}
-		// A source edit or unreadable source is a persistent pause. Check before
-		// fetching and recheck under config.lock immediately before activation.
+		// Download remains due even while automatic activation is paused.
+		pauseReason := ""
 		if entry.Profile != "" {
-			reason := sourceConflict(store, entry)
-			if reason != "" {
-				if err = recordSchedulerFailure(p, store, entry, "paused", reason, time.Time{}); err != nil {
-					return err
-				}
-				continue
-			}
+			pauseReason = sourceConflict(store, entry)
 		}
 		_, fetchErr := store.Refresh(ctx, entry.Name)
 		if ctx.Err() != nil {
@@ -183,7 +177,7 @@ func schedulerStep(ctx context.Context, p nagiruntime.Paths, store *subscription
 		if err != nil {
 			continue
 		}
-		if latest.Generation != entry.Generation || latest.ScheduleSeconds != entry.ScheduleSeconds || !latest.NextDue.Equal(entry.NextDue) || latest.LastFailureStage == "paused" {
+		if latest.Generation != entry.Generation || latest.ScheduleSeconds != entry.ScheduleSeconds || !latest.NextDue.Equal(entry.NextDue) {
 			continue
 		}
 		if fetchErr != nil {
@@ -191,11 +185,23 @@ func schedulerStep(ctx context.Context, p nagiruntime.Paths, store *subscription
 			if err = recordSchedulerFailure(p, store, latest, stage, reason, now.Add(retryDelay(latest.ScheduleSeconds))); err != nil {
 				return err
 			}
-		} else if err = recordSchedulerSuccess(p, store, latest, now.Add(time.Duration(latest.ScheduleSeconds)*time.Second)); err != nil {
+		} else if err = recordSchedulerDownloadSuccess(p, store, latest, now.Add(time.Duration(latest.ScheduleSeconds)*time.Second)); err != nil {
 			return err
 		}
 		latest, err = store.Find(entry.Name)
 		if err != nil {
+			continue
+		}
+		if pauseReason != "" {
+			if err = recordSchedulerPause(p, store, latest, pauseReason); err != nil {
+				return err
+			}
+			latest, err = store.Find(entry.Name)
+			if err != nil {
+				continue
+			}
+		}
+		if latest.PauseReason != "" {
 			continue
 		}
 		if latest.Profile == "" || latest.CacheVersion == "" || latest.CacheVersion == latest.AppliedCacheVersion || apply == nil {
@@ -204,7 +210,7 @@ func schedulerStep(ctx context.Context, p nagiruntime.Paths, store *subscription
 		if err = apply(ctx, latest); err != nil {
 			reason := applyFailureReason(err)
 			if reason == "profile_changed" || reason == "source_unreadable" {
-				if e := recordSchedulerFailure(p, store, latest, "paused", reason, time.Time{}); e != nil {
+				if e := recordSchedulerPause(p, store, latest, reason); e != nil {
 					return e
 				}
 			} else if e := recordSchedulerFailure(p, store, latest, "apply", reason, now.Add(retryDelay(latest.ScheduleSeconds))); e != nil {
@@ -238,7 +244,7 @@ func metadataIfSame(p nagiruntime.Paths, store *subscription.Store, expected sub
 		if e != nil {
 			return nil, nil
 		}
-		if now.Generation != expected.Generation || now.ScheduleSeconds != expected.ScheduleSeconds || now.Profile != expected.Profile || now.SourceHash != expected.SourceHash || now.CacheVersion != expected.CacheVersion || now.LastFailureStage == "paused" && expected.LastFailureStage != "paused" {
+		if now.Generation != expected.Generation || now.ScheduleSeconds != expected.ScheduleSeconds || !now.NextDue.Equal(expected.NextDue) || now.Profile != expected.Profile || now.SourceHash != expected.SourceHash || now.CacheVersion != expected.CacheVersion || now.PauseReason != expected.PauseReason {
 			return nil, nil
 		}
 		return nil, fn()
@@ -247,15 +253,21 @@ func metadataIfSame(p nagiruntime.Paths, store *subscription.Store, expected sub
 }
 func recordSchedulerFailure(p nagiruntime.Paths, s *subscription.Store, e subscription.Entry, stage, reason string, next time.Time) error {
 	return metadataIfSame(p, s, e, func() error {
-		if stage == "paused" && sourceConflict(s, e) != reason {
-			return nil
-		}
 		return s.RecordFailure(e.Name, stage, reason, next)
 	})
 }
-func recordSchedulerSuccess(p nagiruntime.Paths, s *subscription.Store, e subscription.Entry, next time.Time) error {
-	return metadataIfSame(p, s, e, func() error { return s.RecordSuccess(e.Name, next) })
+func recordSchedulerPause(p nagiruntime.Paths, s *subscription.Store, e subscription.Entry, reason string) error {
+	return metadataIfSame(p, s, e, func() error {
+		if sourceConflict(s, e) != reason {
+			return nil
+		}
+		return s.RecordPause(e.Name, reason)
+	})
 }
+func recordSchedulerDownloadSuccess(p nagiruntime.Paths, s *subscription.Store, e subscription.Entry, next time.Time) error {
+	return metadataIfSame(p, s, e, func() error { return s.RecordDownloadSuccess(e.Name, next) })
+}
+
 func applyFailureReason(err error) string {
 	switch {
 	case errors.Is(err, errSourceChanged):
@@ -312,29 +324,32 @@ func runSubscriptionWatch(ctx context.Context, stdout, stderr io.Writer, jsonMod
 		return e
 	}
 	apply := func(ctx context.Context, e subscription.Entry) error {
-		client, err := controlClientForCurrentBackend(p)
-		if err != nil {
-			return err
-		}
-		current, err := profile.NewStore(p.ConfigDir, nil, nil).Current()
-		if err != nil {
-			return err
-		}
-		mode, err := readBackend(p)
-		if err != nil {
-			return err
-		}
-		var manager lifecycleBackend
-		if mode == privilegedBackend {
-			manager = helperBackend{profile: current, binary: binary, configPath: filepath.Join(p.ConfigDir, "profiles", current+".yaml"), paths: p}
-		} else {
-			manager, err = engine.New(engine.Options{Binary: binary, ConfigPath: filepath.Join(p.ConfigDir, "profiles", current+".yaml"), Paths: p})
+		return applyScheduledCacheFactory(ctx, p, s, e, func() (*profile.Store, error) {
+			// Construct backend, controller and reload store while config.lock is held.
+			// Backend selection cannot change between the CAS check and activation.
+			client, err := controlClientForCurrentBackend(p)
 			if err != nil {
-				return err
+				return nil, err
 			}
-		}
-		profiles := newProfileStore(p, binary, client, manager)
-		return applyScheduledCache(ctx, p, s, profiles, e)
+			current, err := profile.NewStore(p.ConfigDir, nil, nil).Current()
+			if err != nil {
+				return nil, err
+			}
+			mode, err := readBackend(p)
+			if err != nil {
+				return nil, err
+			}
+			var manager lifecycleBackend
+			if mode == privilegedBackend {
+				manager = helperBackend{profile: current, binary: binary, configPath: filepath.Join(p.ConfigDir, "profiles", current+".yaml"), paths: p}
+			} else {
+				manager, err = engine.New(engine.Options{Binary: binary, ConfigPath: filepath.Join(p.ConfigDir, "profiles", current+".yaml"), Paths: p})
+				if err != nil {
+					return nil, err
+				}
+			}
+			return newProfileStore(p, binary, client, manager), nil
+		})
 	}
 	for {
 		if ctx.Err() != nil {
@@ -359,7 +374,7 @@ func schedulerDelay(s *subscription.Store, now time.Time) time.Duration {
 	}
 	delay := time.Minute
 	for _, entry := range entries {
-		if entry.ScheduleSeconds == 0 || entry.LastFailureStage == "paused" {
+		if entry.ScheduleSeconds == 0 {
 			continue
 		}
 		until := entry.NextDue.Sub(now)

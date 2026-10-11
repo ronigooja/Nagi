@@ -424,6 +424,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			if entry.LastFailureStage != "" {
 				label += "  Last failure: " + entry.LastFailureStage + " (" + entry.LastFailureReason + ")"
 			}
+			if entry.PauseReason != "" {
+				label += "  Automatic apply paused: " + entry.PauseReason
+			}
 
 			if err := line(w, label); err != nil {
 				return err
