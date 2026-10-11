@@ -3,8 +3,8 @@
 set -euo pipefail
 
 project_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-remote=zhuwei@macair
-remote_dir=/Users/zhuwei/terminal/Nagi
+remote=${NAGI_MAC_REMOTE:-user@mac-host}
+remote_dir=${NAGI_MAC_REMOTE_DIR:-/path/to/Nagi}
 
 printf 'Syncing Nagi source to %s:%s\n' "$remote" "$remote_dir"
 
