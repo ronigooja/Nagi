@@ -106,7 +106,7 @@ make build cli
 ./scripts/installer.sh uninstall
 ```
 
-The installer uses existing artifacts and never compiles anything. Build the CLI and macOS App explicitly before installing or updating. As a development example, `./scripts/sync_to_mac.sh` copies source files to a configured remote checkout and leaves remote `.git`, `bin/`, `dist/`, and build caches intact. Set the destination only in your local shell, then run the script:
+The installer uses existing artifacts and never compiles anything. Build the CLI and macOS App explicitly before installing or updating. As a development example, `./scripts/sync_to_mac.sh` copies source files to a configured remote checkout and leaves remote `.git`, `bin/`, `dist/`, and build caches intact. Set the destination in your local shell, or save it in the ignored `.nagi-sync.local` file at the repository root, then run the script:
 
 ```sh
 NAGI_MAC_REMOTE='user@mac-host' \

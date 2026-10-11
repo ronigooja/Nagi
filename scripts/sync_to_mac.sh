@@ -3,6 +3,11 @@
 set -euo pipefail
 
 project_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+local_config="$project_dir/.nagi-sync.local"
+if [[ -f "$local_config" ]]; then
+    # shellcheck disable=SC1090
+    source "$local_config"
+fi
 : "${NAGI_MAC_REMOTE:?Set NAGI_MAC_REMOTE to the SSH target, for example user@mac-host}"
 : "${NAGI_MAC_REMOTE_DIR:?Set NAGI_MAC_REMOTE_DIR to the remote checkout path}"
 remote=$NAGI_MAC_REMOTE
