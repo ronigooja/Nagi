@@ -12,6 +12,7 @@ type menuProxyGroup struct {
 	Name           string   `json:"name"`
 	Type           string   `json:"type"`
 	Now            string   `json:"now"`
+	Fixed          string   `json:"fixed"`
 	All            []string `json:"all"`
 	Alive          bool     `json:"alive"`
 	SelectedStatus string   `json:"selected_status"`
@@ -33,36 +34,32 @@ func decodeMenuResult(result Result, target any) error {
 	return json.Unmarshal(data, target)
 }
 
-// ProxyPage exposes the existing proxy commands through numeric menu choices.
-func ProxyPage() *Page {
-	return &Page{Title: "Proxies and groups", Help: []string{"proxy"},
-		Load: func(_ context.Context, _ *Session) (PageView, error) {
-			return PageView{Items: []Item{
-				{Label: "List proxy groups", Args: []string{"proxy", "groups"}},
-				{Label: "Choose a group", Next: proxyGroupsPage},
-				{Label: "Search nodes", Action: searchProxyNodes},
-				{Label: "Test one node", Action: testOneProxy},
-				{Label: "Test all nodes in a group", Action: testProxyGroup},
-				{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
-			}}, nil
-		}}
-}
+// ProxyPage opens groups directly; selecting a group then a node is the daily flow.
+func ProxyPage() *Page { return proxyGroupsPage() }
 
 func proxyGroupsPage() *Page {
-	return &Page{Title: "Proxy groups", Help: []string{"proxy", "groups"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Proxies and groups", Help: []string{"proxy", "groups"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Context: "Choose a group, then a node to switch immediately. /word filters group names.", Empty: "No proxy groups returned. Start mihomo and run `nagi proxy groups` to inspect the configuration.", Actions: []Item{
+			{Key: "s", Label: "Search node names across groups", Navigate: searchProxyNodes},
+			{Key: "a", Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
+		}}
 		var data struct {
 			Groups []menuProxyGroup `json:"groups"`
 		}
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "groups"), &data); err != nil {
-			return PageView{}, err
+			view.Context = "Proxy group state: unknown"
+			return view, err
 		}
-		view := PageView{Empty: "No proxy groups returned. Start mihomo and run `nagi proxy groups` to inspect the configuration."}
 		for _, group := range data.Groups {
 			group := group
-			view.Items = append(view.Items, Item{Label: proxyGroupLabel(group), Next: func() *Page { return proxyGroupPage(group.Name) }})
+			view.Items = append(view.Items, Item{Name: group.Name, Label: proxyGroupLabel(group), Next: func() *Page { return proxyGroupPage(group.Name) }})
 		}
 		return view, nil
 	}}
+}
+
+func automaticProxyGroup(group menuProxyGroup) bool {
+	return strings.EqualFold(group.Type, "URLTest") || strings.EqualFold(group.Type, "Fallback")
 }
 
 func proxyGroupLabel(group menuProxyGroup) string {
@@ -70,174 +67,171 @@ func proxyGroupLabel(group menuProxyGroup) string {
 	if group.Now != "" {
 		label += " → " + group.Now
 	}
+	if automaticProxyGroup(group) {
+		if group.Fixed == "" {
+			label += " (automatic)"
+		} else {
+			label += " (fixed: " + group.Fixed + ")"
+		}
+	}
 	if group.SelectedStatus != "" && group.SelectedStatus != "available" {
 		label += " (" + group.SelectedStatus + ")"
 	}
 	return label
 }
 
-func proxyGroupPage(name string) *Page {
-	return &Page{Title: "Proxy group: " + name, Help: []string{"proxy", "show"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+type menuProxyMeasurement struct {
+	Proxy   string `json:"proxy"`
+	DelayMS *int   `json:"delay_ms"`
+	Error   string `json:"error"`
+}
+
+func proxyGroupPage(name string) *Page { return proxyNodesPage(name, "", false) }
+
+// Measurements belong to the page, so refresh and node selection retain their
+// original order. Only a new successful batch test replaces that snapshot.
+func proxyNodesPage(name, query string, testOnly bool) *Page {
+	measurements := map[string]menuProxyMeasurement{}
+	order := []string{}
+	title := "Proxy group: " + name
+	if testOnly {
+		title = "Test node latency: " + name
+	}
+	return &Page{Title: title, Help: []string{"proxy", "show"}, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Empty: "No matching nodes. Clear the filter, refresh, or inspect `nagi proxy show`.", Actions: []Item{
+			{Key: "d", Label: "Show group details", Args: []string{"proxy", "show", name}},
+		}}
+		if !testOnly {
+			view.Actions = append(view.Actions,
+				Item{Key: "t", Label: "Test one node", Next: func() *Page { return proxyNodesPage(name, "", true) }},
+				Item{Key: "l", Label: "Test all nodes and select from results", Impact: "May clear a fixed choice and its saved selection for automatic groups", Action: func(ctx context.Context, s *Session) error {
+					s.WriteLine("Executing: test all nodes in this group")
+					result := s.Fetch(ctx, "proxy", "delays", name)
+					var data struct {
+						Results []menuProxyMeasurement `json:"results"`
+					}
+					if err := decodeMenuResult(result, &data); err != nil {
+						s.ShowResult([]string{"proxy", "delays", name}, result)
+						return nil
+					}
+					measurements = map[string]menuProxyMeasurement{}
+					order = nil
+					for _, measurement := range data.Results {
+						order = append(order, measurement.Proxy)
+						measurements[measurement.Proxy] = measurement
+					}
+					s.Printf("Latency test completed: %d results. Choose a numbered node to switch.\n", len(order))
+					return nil
+				}},
+				Item{Key: "s", Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
+			)
+		}
 		var group menuProxyGroup
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "show", name), &group); err != nil {
-			return PageView{}, err
+			view.Context = "Current node and selection state: unknown"
+			return view, err
 		}
-		current := "none"
-		if group.Now != "" {
-			current = group.Now
+		current := group.Now
+		if current == "" {
+			current = "none"
 		}
 		status := group.SelectedStatus
 		if status == "" {
 			status = "unknown"
 		}
-		view := PageView{Context: fmt.Sprintf("Current: %s (%s); available nodes: %d", current, status, len(group.All)), Empty: "No nodes in this group. Check `nagi proxy show`.", Items: []Item{
-			{Label: "Show group details", Args: []string{"proxy", "show", name}},
-			{Label: "Test all nodes", Args: []string{"proxy", "delays", name}},
-			{Label: "Search nodes", Action: func(ctx context.Context, s *Session) error { return searchProxyNodesInGroup(ctx, s, name) }},
-		}}
+		view.Context = fmt.Sprintf("Current: %s (%s); available nodes: %d", current, status, len(group.All))
+		if automaticProxyGroup(group) {
+			if group.Fixed == "" {
+				view.Context += "\nSelection: automatic"
+			} else {
+				view.Context += "\nSelection: fixed to " + group.Fixed
+			}
+			if !testOnly {
+				view.Actions = append(view.Actions, Item{Key: "a", Label: "Resume automatic selection", Impact: "Clears this group's fixed choice and saved selection", Args: []string{"proxy", "auto", name}})
+			}
+		}
+		if testOnly {
+			view.Context += "\nChoose a node to measure latency."
+		} else {
+			view.Context += "\nChoose a node to switch immediately; /word filters node names."
+		}
+		if query != "" {
+			view.Context += "\nSearch: " + query
+		}
+		live := map[string]bool{}
 		for _, node := range group.All {
-			node := node
+			live[node] = true
+		}
+		nodes := []string{}
+		keptOrder := []string{}
+		for _, node := range order {
+			if live[node] {
+				nodes = append(nodes, node)
+				keptOrder = append(keptOrder, node)
+				delete(live, node)
+			} else {
+				delete(measurements, node)
+			}
+		}
+		order = keptOrder
+		for _, node := range group.All {
+			if live[node] {
+				nodes = append(nodes, node)
+			}
+		}
+		if len(order) > 0 {
+			view.Context += "\nLast latency measurements retained in result order; unmeasured nodes follow."
+		}
+		for _, node := range nodes {
+			if !strings.Contains(strings.ToLower(node), strings.ToLower(query)) {
+				continue
+			}
 			label := node
+			if measurement, ok := measurements[node]; ok {
+				if measurement.DelayMS != nil {
+					label += fmt.Sprintf(" — %d ms", *measurement.DelayMS)
+				} else if measurement.Error != "" {
+					label += " — " + measurement.Error
+				} else {
+					label += " — latency unknown"
+				}
+			}
 			if node == group.Now {
 				label += " (selected)"
 			}
-			view.Items = append(view.Items, Item{Label: label, Next: func() *Page { return proxyNodePage(name, node) }})
+			args := []string{"proxy", "select", name, node}
+			if testOnly {
+				args = []string{"proxy", "delay", node}
+			}
+			view.Items = append(view.Items, Item{Name: node, Label: label, Args: args})
 		}
 		return view, nil
 	}}
 }
 
-func proxyNodePage(group, node string) *Page {
-	return &Page{Title: "Proxy node: " + node, Help: []string{"proxy", "select"}, Load: func(_ context.Context, _ *Session) (PageView, error) {
-		return PageView{Context: "Group: " + group, Items: []Item{
-			{Label: "Select this node", Args: []string{"proxy", "select", group, node}},
-			{Label: "Test latency", Args: []string{"proxy", "delay", node}},
-		}}, nil
-	}}
-}
-
-func searchProxyNodes(ctx context.Context, s *Session) error {
-	query, err := s.Prompt("Node name substring")
+func searchProxyNodes(ctx context.Context, s *Session) (Navigation, error) {
+	values := map[string]string{}
+	_, err := s.Form(ctx, []Field{{Key: "query", Label: "Node name substring", Required: true}}, values, func(values map[string]string) Result {
+		result := s.Run(ctx, "proxy", "search", values["query"])
+		return result
+	})
 	if err != nil {
-		return err
+		return Navigation{}, err
 	}
-	if strings.TrimSpace(query) == "" {
-		s.WriteLine("Enter a node name substring to search.")
-		return nil
-	}
-	var data struct {
-		Groups []menuProxyGroup `json:"groups"`
-	}
-	result := s.Fetch(ctx, "proxy", "search", query)
-	if err := decodeMenuResult(result, &data); err != nil {
-		return err
-	}
-	if len(data.Groups) == 0 {
-		s.WriteLine("No matching nodes found.")
-		return nil
-	}
-	groups := make([]string, 0, len(data.Groups))
-	for _, group := range data.Groups {
-		groups = append(groups, proxyGroupLabel(group))
-	}
-	selected, err := s.Select("Matching group", groups)
-	if err != nil {
-		return err
-	}
-	for i, label := range groups {
-		if label == selected {
-			return chooseSearchedNode(ctx, s, data.Groups[i])
+	query := values["query"]
+	return Navigation{Next: &Page{Title: "Matching proxy groups", Load: func(ctx context.Context, s *Session) (PageView, error) {
+		// Re-read on refresh so deleted groups never remain selectable.
+		var data struct {
+			Groups []menuProxyGroup `json:"groups"`
 		}
-	}
-	return nil
-}
-
-func searchProxyNodesInGroup(ctx context.Context, s *Session, groupName string) error {
-	query, err := s.Prompt("Node name substring")
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(query) == "" {
-		s.WriteLine("Enter a node name substring to search.")
-		return nil
-	}
-	var data struct {
-		Groups []menuProxyGroup `json:"groups"`
-	}
-	if err := decodeMenuResult(s.Fetch(ctx, "proxy", "search", query), &data); err != nil {
-		return err
-	}
-	for _, group := range data.Groups {
-		if group.Name == groupName {
-			return chooseSearchedNode(ctx, s, group)
+		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "search", query), &data); err != nil {
+			return PageView{}, err
 		}
-	}
-	s.WriteLine("No matching nodes found in this group.")
-	return nil
-}
-
-func chooseSearchedNode(ctx context.Context, s *Session, group menuProxyGroup) error {
-	node, err := s.Select("Matching node", group.All)
-	if err != nil {
-		return err
-	}
-	if node != "" {
-		s.Run(ctx, "proxy", "select", group.Name, node)
-	}
-	return nil
-}
-
-func testOneProxy(ctx context.Context, s *Session) error {
-	group, err := selectProxyGroup(ctx, s)
-	if err != nil || group.Name == "" {
-		return err
-	}
-	if len(group.All) == 0 {
-		s.WriteLine("No nodes in this group.")
-		return nil
-	}
-	node, err := s.Select("Node to test", group.All)
-	if err != nil {
-		return err
-	}
-	if node != "" {
-		s.Run(ctx, "proxy", "delay", node)
-	}
-	return nil
-}
-
-func testProxyGroup(ctx context.Context, s *Session) error {
-	group, err := selectProxyGroup(ctx, s)
-	if err != nil || group.Name == "" {
-		return err
-	}
-	s.Run(ctx, "proxy", "delays", group.Name)
-	return nil
-}
-
-func selectProxyGroup(ctx context.Context, s *Session) (menuProxyGroup, error) {
-	var data struct {
-		Groups []menuProxyGroup `json:"groups"`
-	}
-	if err := decodeMenuResult(s.Fetch(ctx, "proxy", "groups"), &data); err != nil {
-		return menuProxyGroup{}, err
-	}
-	if len(data.Groups) == 0 {
-		s.WriteLine("No proxy groups returned. Start mihomo and run `nagi proxy groups`.")
-		return menuProxyGroup{}, nil
-	}
-	choices := make([]string, len(data.Groups))
-	for i, group := range data.Groups {
-		choices[i] = proxyGroupLabel(group)
-	}
-	choice, err := s.Select("Proxy group", choices)
-	if err != nil {
-		return menuProxyGroup{}, err
-	}
-	for i, label := range choices {
-		if label == choice {
-			return data.Groups[i], nil
+		view := PageView{Context: "Node search: " + query, Empty: "No matching nodes found."}
+		for _, group := range data.Groups {
+			group := group
+			view.Items = append(view.Items, Item{Name: group.Name, Label: proxyGroupLabel(group), Next: func() *Page { return proxyNodesPage(group.Name, query, false) }})
 		}
-	}
-	return menuProxyGroup{}, nil
+		return view, nil
+	}}}, nil
 }
