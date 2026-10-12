@@ -72,6 +72,17 @@ func (s *Store) EffectiveSource(name string, source []byte) ([]byte, error) {
 	if err := yaml.Unmarshal(patch, &overlay); err != nil || overlay == nil {
 		return nil, errors.New("override is invalid YAML")
 	}
+	if replace, exists := overlay[DNSReplaceKey]; exists {
+		if replace != true {
+			return nil, errors.New("nagi-dns-replace must be true")
+		}
+		if _, ok := overlay["dns"].(map[string]any); !ok {
+			return nil, errors.New("nagi-dns-replace requires a DNS mapping")
+		}
+		delete(base, "dns")
+	}
+	delete(overlay, DNSReplaceKey)
+	delete(overlay, DNSProxyGroupKey)
 	mergeMap(base, overlay)
 	merged, err := yaml.Marshal(base)
 	if err != nil {
@@ -90,7 +101,20 @@ func (s *Store) Effective(name string) ([]byte, error) {
 
 // ApplyDefaultOverride copies safe local runtime settings from the default profile
 // onto the named profile, excluding nodes, groups, rules, and Nagi-managed fields.
-func (s *Store) ApplyDefaultOverride(ctx context.Context, name string) error {
+func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy ...string) error {
+	if len(dnsProxy) > 1 {
+		return errors.New("at most one DNS proxy group is allowed")
+	}
+	group := ""
+	if len(dnsProxy) == 1 {
+		group = dnsProxy[0]
+	} else {
+		var err error
+		group, err = s.DefaultDNSProxyGroup(name)
+		if err != nil {
+			return err
+		}
+	}
 	data, err := s.Show("default")
 	if err != nil {
 		return fmt.Errorf("default profile is unavailable: %w", err)
@@ -102,6 +126,12 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string) error {
 	for key := range defaultOverrideExcludedKeys {
 		delete(source, key)
 	}
+	source["dns"] = DefaultDNS(group)
+	source["preserve-proxy-hostname"] = false
+	source[DNSReplaceKey] = true
+	if group != "" {
+		source[DNSProxyGroupKey] = group
+	}
 	// Applying defaults to an existing profile must not disconnect applications
 	// that currently reach mihomo through its TUN adapter.
 	current, err := s.Effective(name)
@@ -112,14 +142,28 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string) error {
 	if err := yaml.Unmarshal(current, &target); err != nil || target == nil {
 		return errors.New("target profile must be a YAML mapping")
 	}
+	if group == "" {
+		_, nodes, providers, err := dnsGroups(current)
+		if err != nil {
+			return err
+		}
+		if len(nodes) > 0 || len(providers) > 0 {
+			return errors.New("choose a DNS proxy group for a profile with proxy nodes or providers")
+		}
+	}
+	if group != "" {
+		if err := dnsGroupWithSavedSelection(current, s.Dir, name, group); err != nil {
+			return err
+		}
+	}
 	currentTUN, _ := target["tun"].(map[string]any)
-	if currentTUN["enable"] == true {
+	if enabled, ok := currentTUN["enable"].(bool); ok {
 		defaultTUN, _ := source["tun"].(map[string]any)
 		if defaultTUN == nil {
 			defaultTUN = map[string]any{}
 			source["tun"] = defaultTUN
 		}
-		defaultTUN["enable"] = true
+		defaultTUN["enable"] = enabled
 	}
 	filtered, err := yaml.Marshal(source)
 	if err != nil {
@@ -128,6 +172,21 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string) error {
 	old, oldErr := s.Override(name)
 	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
 		return oldErr
+	}
+	if oldErr == nil {
+		var previous map[string]any
+		if err := yaml.Unmarshal(old, &previous); err != nil || previous == nil {
+			return errors.New("existing override must be a YAML mapping")
+		}
+		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers"} {
+			if value, ok := previous[key]; ok {
+				source[key] = value
+			}
+		}
+		filtered, err = yaml.Marshal(source)
+		if err != nil {
+			return fmt.Errorf("default profile settings could not be prepared: %w", err)
+		}
 	}
 	statePath, err := s.defaultOverrideStatePath(name)
 	if err != nil {
