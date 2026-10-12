@@ -14,17 +14,17 @@ service operations. It does not configure mihomo protocols, DNS, or forwarding.
 The terminal menu calls ordinary CLI commands. The macOS App calls only the CLI
 JSON interface and retains its existing normal launch/quit responsibilities.
 
-`scripts/installer.sh` owns file integrity validation, staged replacement,
+`scripts/installer.sh` owns managed path validation, staged replacement,
 privileged-helper changes, and rollback. The CLI embeds this same source through
 the `scripts` Go package for local verification, App-only operations, and
 uninstall. Whole updates run the installer contained in the verified release so
 its file transaction agrees with the candidate version. The existing shell
 online installer remains a separate first-install and recovery entry point.
 
-The installer record remains `nagi-installer-v3`: App path, CLI SHA-256, mihomo
-SHA-256, and App bundle digest. App-only operations preserve the binary hashes
-and replace only the App fields. The App digest covers content, directories,
-and link layout using the same implementation as ordinary artifact installation.
+New installations use `nagi-installer-v4`, which records only the managed App
+path. The installer accepts an existing v3 record once so update or App-only
+maintenance can replace it with v4; removal deletes either version. No file
+digest is used to authorize maintenance.
 
 ## Download and preparation
 
@@ -41,11 +41,16 @@ files, links, and special files, and requires regular executable CLI, engine,
 and installer files. The package App must exist when requested or already
 recorded; an optional packaged App is discarded for a CLI-only update.
 
-The embedded installer performs read-only `--verify` validation of current
-managed hashes, App layout, and candidate executables before the CLI prepares
-runtime state. Verification does not require the engine to be stopped or its
-login service to be removed. Downloads and verification failures leave runtime
-and service state untouched.
+The embedded installer performs read-only `--verify` validation of the
+installation record, managed path types, and candidate executables before the
+CLI prepares runtime state. Verification does not require the engine to be
+stopped or its login service to be removed. Downloads and verification failures
+leave runtime and service state untouched.
+
+Whole updates and removal accept changed contents at recorded paths. An update
+replaces those files; removal deletes them. App-only operations also accept
+changed recorded contents. Missing or invalid records and symbolic links
+remain errors.
 
 ## Transactions and recovery
 

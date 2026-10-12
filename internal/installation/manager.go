@@ -60,8 +60,13 @@ func (m *Manager) record() (record, error) {
 		return r, fmt.Errorf("no readable installer record; install Nagi using the release installer first: %w", err)
 	}
 	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
-	if len(lines) != 5 || lines[0] != "nagi-installer-v3" || !strings.HasPrefix(lines[1], "app=") ||
-		!strings.HasPrefix(lines[2], "nagi_sha256=") || !strings.HasPrefix(lines[3], "mihomo_sha256=") || !strings.HasPrefix(lines[4], "app_sha256=") {
+	if len(lines) < 2 || !strings.HasPrefix(lines[1], "app=") {
+		return r, fmt.Errorf("invalid installer record; repair the installation before retrying")
+	}
+	current := len(lines) == 2 && lines[0] == "nagi-installer-v4"
+	legacy := len(lines) == 5 && lines[0] == "nagi-installer-v3" &&
+		strings.HasPrefix(lines[2], "nagi_sha256=") && strings.HasPrefix(lines[3], "mihomo_sha256=") && strings.HasPrefix(lines[4], "app_sha256=")
+	if !current && !legacy {
 		return r, fmt.Errorf("invalid installer record; repair the installation before retrying")
 	}
 	r.App = strings.TrimPrefix(lines[1], "app=")

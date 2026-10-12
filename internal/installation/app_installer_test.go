@@ -14,7 +14,7 @@ import (
 // Exercise the actual App transaction on an isolated prefix. Only the platform
 // probe and fixed /usr/local boundary are replaced; no system paths are touched.
 func TestAppOnlyInstallerPreservesBinariesAndRollsBack(t *testing.T) {
-	for _, mode := range []string{"normal", "running", "state-write-failure", "uninstall-state-write-failure"} {
+	for _, mode := range []string{"normal", "current", "running", "state-write-failure", "uninstall-state-write-failure"} {
 		t.Run(mode, func(t *testing.T) {
 			m, prefix := fixture(t)
 			root := filepath.Dir(prefix)
@@ -45,7 +45,18 @@ func TestAppOnlyInstallerPreservesBinariesAndRollsBack(t *testing.T) {
 				t.Fatal(err)
 			}
 			statePath := filepath.Join(prefix, "share/nagi/install-state")
+			if mode == "current" {
+				if err := os.WriteFile(statePath, []byte("nagi-installer-v4\napp=\n"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
 			beforeState, _ := os.ReadFile(statePath)
+			if mode == "normal" {
+				cli, _ := os.ReadFile(m.Executable)
+				if err := os.WriteFile(m.Executable, append(cli, []byte("# outside modification\n")...), 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
 			beforeCLI, _ := os.ReadFile(m.Executable)
 			beforeEngine, _ := os.ReadFile(filepath.Join(prefix, "bin/mihomo"))
 			args := []string{installer, "app-install", "--prefix", prefix, "--app-dest", app, "--artifact-dir", artifact}
@@ -84,14 +95,19 @@ func TestAppOnlyInstallerPreservesBinariesAndRollsBack(t *testing.T) {
 					}
 					os.Remove(filepath.Join(tools, "mv"))
 				}
+				if mode == "normal" {
+					if err := os.WriteFile(filepath.Join(app, "Contents/Info.plist"), []byte("modified plist"), 0755); err != nil {
+						t.Fatal(err)
+					}
+				}
 				if _, err := runProcess(context.Background(), "bash", installer, "app-uninstall", "--prefix", prefix); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := os.Stat(app); !os.IsNotExist(err) {
 					t.Fatal("App not removed")
 				}
-				if after, _ := os.ReadFile(statePath); !bytes.Equal(beforeState, after) {
-					t.Fatal("binary record changed")
+				if after, _ := os.ReadFile(statePath); string(after) != "nagi-installer-v4\napp=\n" {
+					t.Fatalf("App removal did not migrate record: %s", after)
 				}
 			}
 			if after, _ := os.ReadFile(m.Executable); !bytes.Equal(beforeCLI, after) {

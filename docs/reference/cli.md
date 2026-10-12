@@ -378,10 +378,10 @@ require a valid active profile merely to display help or manage the App.
 | `app install [TAG]` | macOS only; requires `/usr/local/bin/nagi` and no recorded App. Without TAG, download the release matching this CLI's version. Install only `/Applications/Nagi.app` and update its installer record. CLI, mihomo, profiles, engine state, and engine login service are preserved. A development CLI without a release version requires an explicit TAG. |
 | `app update [TAG]` | macOS only; requires a recorded App. Run the same whole-installation operation as `update`. |
 | `app uninstall` | macOS only; remove only the recorded App and clear its installer record fields. Keep the managed CLI and mihomo and user data. An absent recorded App is a successful no-op. No download. |
-| `update [TAG]` | Download latest by default, or the specified release. Verify the platform archive checksum and current installation and candidate executables, stop Nagi, temporarily remove its engine login service, and update the CLI, mihomo, and any recorded App. Refresh the built-in default profile. Restore engine login service installation/enabled preferences and restart an engine that was running before preparation. A CLI-only installation remains CLI-only. |
+| `update [TAG]` | Download latest by default, or the specified release. Verify the platform archive checksum, installation record, paths, and candidate executables, stop Nagi, temporarily remove its engine login service, and update the CLI, mihomo, and any recorded App. Modified recorded files are replaced. Refresh the built-in default profile. Restore engine login service installation/enabled preferences and restart an engine that was running before preparation. A CLI-only installation remains CLI-only. |
 | `update --terminal` | macOS only; requires a recorded App. Open Terminal and schedule `nagi update` after the App exits; reopen its recorded path after success. Wait at most 60 seconds for App exit. Returns after launching Terminal; the caller must quit the App. No tag argument can accompany this option. |
 | `update --app` | macOS only; requires a recorded App. Schedule `nagi update` in the background after the App exits, then reopen its recorded path after success. Returns before installation completes; the App uses this mode for About → Update. No tag argument can accompany this option. |
-| `uninstall` | Stop Nagi and remove its engine login service, managed CLI, mihomo, App, privileged helper, and installation record. Preserve user profiles, subscriptions, settings, and logs. No download. |
+| `uninstall` | Stop Nagi and remove its engine login service, recorded CLI, mihomo, App, privileged helper, and installation record, even when recorded files have changed. Preserve user profiles, subscriptions, settings, and logs. No download. |
 
 TAG accepts `vX.Y.Z` or `X.Y.Z`, with an optional alphanumeric/dot/hyphen release
 suffix introduced by `-` or `+`. Invalid arguments exit `2` with `usage`.
@@ -409,7 +409,7 @@ string for an absent App). Whole updates return `action: "update"`,
 `action: "update"`, `scheduled: true`, and `background: true`.
 
 Operational failures exit `1` with `installation_error`, including unsupported
-platforms, missing installation records, modified managed files, download or
+platforms, missing or invalid installation records, unsafe managed paths, download or
 checksum failures, authorization/installer failures, running Apps, and another
 maintenance operation for the same user. Download and preflight failures occur
 before stopping Nagi. After preparation, a failed transaction leaves the engine

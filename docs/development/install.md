@@ -55,7 +55,7 @@ The terminal menu offers these operations under **Settings & Maintenance →
 Nagi App & Updates**.
 
 `nagi update` downloads the latest matching platform release and verifies its
-checksum, current managed files, and candidate executables before stopping
+checksum, installation record, paths, and candidate executables before stopping
 anything. It updates the CLI, mihomo, and an already installed App together.
 It refreshes the `default` profile, preserves other user data, temporarily
 removes an installed engine login service, and restores its installed/enabled
@@ -80,10 +80,11 @@ download a release.
 
 Run maintenance as the intended user, not with `sudo`; the installer requests
 administrator authorization for protected files and the macOS helper. Terminal
-access is required when authorization is needed. Modified managed files are
-refused. A failed download or preflight leaves the running engine and services
-untouched. A failed installation reports installer rollback details and leaves
-the engine stopped; login service preferences are restored when possible.
+access is required when authorization is needed. Whole updates replace modified
+recorded files; removal deletes them. A failed download or preflight leaves
+the running engine and services untouched. A failed installation reports
+installer rollback details and leaves the engine stopped; login service
+preferences are restored when possible.
 After resolving the reported failure, inspect `nagi status` and run `nagi start`.
 If files were updated but service restoration or restart failed, the error says
 which step needs recovery. See the [maintenance design](../design/installation.md).
@@ -124,7 +125,7 @@ It replaces remote source files, including local edits, and removes remote sourc
 
 The macOS app invokes `/usr/local/bin/nagi` directly. Keep the default prefix when installing the app; an alternate prefix does not change the path compiled into the app. Install the app in Applications before enabling “Open menu bar app at login.” `--app-dest` cannot enable App installation without a `Nagi.app` in the artifact directory. On update, an installation that includes the App requires an updated App in the artifact directory. A CLI-only installation gains the App when the update artifact contains it and the destination is free.
 
-The installer stores hashes for the two binaries and, if installed, the entire App bundle content and layout in `<prefix>/share/nagi/install-state`. It refuses to change files whose recorded hashes no longer match; resolve a manually changed installation before retrying. It stages replacements and attempts to restore the previous files if an operation fails. A failed operation restores the previous default profile; after a successful operation, the temporary rollback copy is deleted. Other user profiles, subscriptions, settings, and logs are preserved. Uninstall preserves the installed default profile along with other user data; it does not remove user login service definitions. Updating and uninstalling require removing any installed login service first. On macOS with `/usr/local`, the installer manages the privileged helper using `sudo`; run it as the intended user, not as root. Stop mihomo before update or uninstall. Uninstall leaves the user backend selected. If the helper was present before an update, its backend selection is restored; if it was absent, the update installs and selects it. TUN itself remains a runtime setting and must be enabled again after mihomo restarts. On macOS, disable the App login item before uninstalling the App. A privileged helper requires a root-owned, non-symlink `/usr/local/bin/nagi` and root-controlled parent directories. The installer does not change parent-directory ownership or permissions; check them before installation, especially on machines where `/usr/local` is user-writable.
+The installer record at `<prefix>/share/nagi/install-state` identifies managed files. New records contain only a version marker and the App path. Existing v3 records are accepted for update or removal; a successful update writes the smaller v4 record. Content changes at recorded paths do not block update, removal, or App-only operations. An absent or invalid installation record and symbolic links at managed paths are refused. The installer stages replacements and attempts to restore the previous files if an operation fails. A failed operation restores the previous default profile; after a successful operation, the temporary rollback copy is deleted. Other user profiles, subscriptions, settings, and logs are preserved. Uninstall preserves the installed default profile along with other user data; it does not remove user login service definitions. Updating and uninstalling require removing any installed login service first. On macOS with `/usr/local`, the installer manages the privileged helper using `sudo`; run it as the intended user, not as root. Stop mihomo before update or uninstall. Uninstall leaves the user backend selected. If the helper was present before an update, its backend selection is restored; if it was absent, the update installs and selects it. TUN itself remains a runtime setting and must be enabled again after mihomo restarts. On macOS, disable the App login item before uninstalling the App. A privileged helper requires a root-owned, non-symlink `/usr/local/bin/nagi` and root-controlled parent directories. The installer does not change parent-directory ownership or permissions; check them before installation, especially on machines where `/usr/local` is user-writable.
 
 The online wrapper requires Bash, `curl`, `tar`, and `shasum`. It expects each GitHub
 Release to contain `nagi-linux-amd64.tar.gz`, `nagi-linux-arm64.tar.gz`,

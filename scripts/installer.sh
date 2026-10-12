@@ -124,34 +124,7 @@ remove_orphan_helper() {
         orphan_removed=1
     fi
 }
-command -v shasum >/dev/null || fail "shasum is required to record and verify installed files"
-hash_file() { shasum -a 256 "$1" | cut -d ' ' -f 1; }
 valid_hash() { [[ "$1" =~ ^[0-9a-f]{64}$ ]]; }
-verify_hash() {
-    [[ -f "$1" && ! -L "$1" && "$(hash_file "$1")" == "$2" ]] || fail "installed file changed outside the installer: $1"
-}
-app_hash() {
-    local root=$1 entry
-    (
-        cd "$root" || exit 1
-        # Sorting lines is portable across Linux and macOS. Reject filenames that
-        # could make the sorted digest ambiguous before using that representation.
-        while IFS= read -r -d '' entry; do
-            [[ "$entry" != *$'\n'* && "$entry" != *$'\r'* ]] || fail "App contains an unsupported newline in a path"
-        done < <(find . -print0)
-        find . -print | LC_ALL=C sort | while IFS= read -r entry; do
-            if [[ -L "$entry" ]]; then
-                printf 'link %s %s\n' "$entry" "$(readlink "$entry")"
-            elif [[ -f "$entry" ]]; then
-                printf 'file %s %s\n' "$entry" "$(hash_file "$entry")"
-            elif [[ -d "$entry" ]]; then
-                printf 'dir %s\n' "$entry"
-            else
-                fail "unsupported App entry: $entry"
-            fi
-        done
-    ) | shasum -a 256 | cut -d ' ' -f 1
-}
 [[ ! -L "$bin_dir" && ! -L "$state_dir" && ! -L "$state" && ! -L "$nagi" && ! -L "$mihomo" ]] || fail "installation paths must not be symbolic links"
 if [[ "$action" != uninstall ]]; then
     [[ ! -L "$profile_dir" && ! -L "$default_profile" ]] || fail "default profile paths must not be symbolic links"
@@ -181,15 +154,21 @@ else
         fi
         fail "no installer record at $state; refusing to change unmanaged files"
     fi
-    [[ -f "$state" && "$(sed -n '1p' "$state")" == 'nagi-installer-v3' ]] || fail "invalid installer record: $state"
+    [[ -f "$state" ]] || fail "invalid installer record: $state"
+    record_version=$(sed -n '1p' "$state")
     recorded_app=$(sed -n '2s/^app=//p' "$state")
-    [[ $(wc -l < "$state") -eq 5 && $(sed -n '2p' "$state") == app=* ]] || fail "invalid installer record: $state"
-    recorded_nagi=$(sed -n '3s/^nagi_sha256=//p' "$state")
-    recorded_mihomo=$(sed -n '4s/^mihomo_sha256=//p' "$state")
-    recorded_app_hash=$(sed -n '5s/^app_sha256=//p' "$state")
-    if ! valid_hash "$recorded_nagi" || ! valid_hash "$recorded_mihomo"; then fail "invalid installer record: $state"; fi
-    verify_hash "$nagi" "$recorded_nagi"
-    verify_hash "$mihomo" "$recorded_mihomo"
+    [[ $(sed -n '2p' "$state") == app=* ]] || fail "invalid installer record: $state"
+    case "$record_version" in
+        nagi-installer-v4)
+            [[ $(wc -l < "$state") -eq 2 ]] || fail "invalid installer record: $state" ;;
+        nagi-installer-v3)
+            [[ $(wc -l < "$state") -eq 5 ]] || fail "invalid installer record: $state"
+            recorded_nagi=$(sed -n '3s/^nagi_sha256=//p' "$state")
+            recorded_mihomo=$(sed -n '4s/^mihomo_sha256=//p' "$state")
+            recorded_app_hash=$(sed -n '5s/^app_sha256=//p' "$state")
+            valid_hash "$recorded_nagi" && valid_hash "$recorded_mihomo" || fail "invalid installer record: $state" ;;
+        *) fail "invalid installer record: $state" ;;
+    esac
     if [[ -n "$recorded_app" ]]; then
         if ! valid_path "$recorded_app" || [[ "$recorded_app" != */Nagi.app ]]; then fail "invalid App path in installer record"; fi
         [[ "$platform" == Darwin ]] || fail "App installation record is only supported on macOS"
@@ -197,12 +176,11 @@ else
             [[ "$app_dest" == "$recorded_app" ]] || fail "--app-dest differs from installed App path: $recorded_app"
         fi
         app_dest=$recorded_app
-        valid_hash "$recorded_app_hash" || fail "invalid installer record: $state"
-        [[ -d "$app_dest" && ! -L "$app_dest" && "$(app_hash "$app_dest")" == "$recorded_app_hash" ]] || fail "installed App changed outside the installer: $app_dest"
+        if [[ "$record_version" == nagi-installer-v3 ]]; then valid_hash "$recorded_app_hash" || fail "invalid installer record: $state"; fi
     elif (( app_dest_given )) && [[ -z "$source_app" ]]; then
         fail "--app-dest specified but no App is installed"
     else
-        [[ -z "$recorded_app_hash" ]] || fail "invalid installer record: $state"
+        if [[ "$record_version" == nagi-installer-v3 ]]; then [[ -z "$recorded_app_hash" ]] || fail "invalid installer record: $state"; fi
     fi
     if [[ "$action" == update ]]; then
         [[ -f "$nagi" && -x "$nagi" && -f "$mihomo" && -x "$mihomo" ]] || fail "installed binaries are missing; repair the installation manually"
@@ -223,7 +201,7 @@ else
             exit 0
         fi
         if pgrep -x NagiApp >/dev/null 2>&1; then fail 'quit Nagi.app before changing it'; fi
-        # Keep the binary digests and update only the App portion of v3 state.
+        # App-only operations retain the binary files and write the current record format.
         app_needs_sudo=0
         [[ -w "$state_dir" && -w "$(dirname "$app_dest")" ]] || app_needs_sudo=1
         if (( app_needs_sudo && EUID != 0 )); then
@@ -261,16 +239,12 @@ else
         trap app_cleanup EXIT
         trap 'exit 130' INT TERM
         app_write cp -- "$state" "$state_stage/old-state"
-        new_app_hash=
         new_app_path=
         if [[ "$app_only" == install ]]; then
             app_write cp -R -- "$source_app" "$app_stage/new-app"
-            new_app_hash=$(app_hash "$app_stage/new-app")
-            valid_hash "$new_app_hash" || fail 'cannot hash staged App'
             new_app_path=$app_dest
         fi
-        printf 'nagi-installer-v3\napp=%s\nnagi_sha256=%s\nmihomo_sha256=%s\napp_sha256=%s\n' \
-            "$new_app_path" "$recorded_nagi" "$recorded_mihomo" "$new_app_hash" \
+        printf 'nagi-installer-v4\napp=%s\n' "$new_app_path" \
             | app_write tee "$state_stage/new-state" >/dev/null
         app_write chmod 0644 "$state_stage/new-state"
         if [[ "$app_only" == install ]]; then
@@ -414,14 +388,7 @@ if [[ "$action" != uninstall ]]; then
     write_fs install -m 0755 -- "$artifact_dir/nagi" "$stage/new-nagi"
     write_fs install -m 0755 -- "$artifact_dir/mihomo" "$stage/new-mihomo"
     if [[ -n "$source_app" ]]; then write_fs cp -R -- "$source_app" "$app_stage/new-app"; fi
-    new_app_hash=
-    if [[ -n "$source_app" ]]; then new_app_hash=$(app_hash "$app_stage/new-app"); fi
-    new_nagi_hash=$(hash_file "$stage/new-nagi")
-    new_mihomo_hash=$(hash_file "$stage/new-mihomo")
-    valid_hash "$new_nagi_hash" && valid_hash "$new_mihomo_hash" || fail "cannot hash staged executables"
-    if [[ -n "$source_app" ]]; then valid_hash "$new_app_hash" || fail "cannot hash staged App"; fi
-    printf 'nagi-installer-v3\napp=%s\nnagi_sha256=%s\nmihomo_sha256=%s\napp_sha256=%s\n' \
-        "${source_app:+$app_dest}" "$new_nagi_hash" "$new_mihomo_hash" "$new_app_hash" \
+    printf 'nagi-installer-v4\napp=%s\n' "${source_app:+$app_dest}" \
         | write_fs tee "$stage/new-state" >/dev/null
     write_fs chmod 0644 "$stage/new-state"
 fi
