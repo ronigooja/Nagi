@@ -28,6 +28,16 @@ func (s *Session) readLine(label string) (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
+// readChoice adds the menu-wide quit key to numeric choice prompts. Text
+// prompts use readLine directly so values such as "q" remain literal.
+func (s *Session) readChoice() (string, error) {
+	value, err := s.readLine("Choice: ")
+	if err == nil && value == "q" {
+		return "", ErrQuit
+	}
+	return value, err
+}
+
 // Prompt treats all text literally. Ctrl-C cancels the current flow.
 func (s *Session) Prompt(label string) (string, error) {
 	return s.readLine(label + " (Ctrl-C cancels): ")
@@ -48,7 +58,7 @@ func (s *Session) Select(label string, choices []string) (string, error) {
 			s.render(&Page{Title: label}, view, page, 0)
 			redraw = false
 		}
-		value, err := s.readLine("Choice: ")
+		value, err := s.readChoice()
 		if err != nil {
 			return "", err
 		}
@@ -137,7 +147,7 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 		s.writeChoice(0, "Cancel")
 		s.flushResult()
 		for {
-			value, err := s.readLine("Choice: ")
+			value, err := s.readChoice()
 			if err != nil {
 				return result, err
 			}

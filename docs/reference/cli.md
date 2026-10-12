@@ -123,7 +123,7 @@ Selected styling reflects the actual current node or profile; color is never the
 
 DNS groups operations under Servers, Domain Exceptions, TUN DNS Interception, and Checks & Queries. Routing Rules groups viewing, custom-rule management, and rule-set imports. Start at Login contains service installation, enable/disable, details, and uninstallation; recovery operations are in Troubleshooting. Shell completion and cross-group node search remain available through ordinary CLI commands only.
 
-All selectable entries use numbers. Resources show at most ten per page, followed by actions and numeric Next page/Previous page entries, with consecutive numbering across the page. Read the displayed numbers on each page: action and pagination numbers depend on the number of visible resources. `0` returns from a subpage, cancels a resource selector or failed form, and exits at home. There are no letter shortcuts, manual refresh, filtering, menu search, or page-help entries.
+All selectable entries use numbers. Resources show at most ten per page, followed by actions and numeric Next page/Previous page entries, with consecutive numbering across the page. Read the displayed numbers on each page: action and pagination numbers depend on the number of visible resources. `0` returns from a subpage, cancels a resource selector or failed form, and exits at home. Entering `q` at any numeric choice exits the menu with status `0`; no hint is displayed. There are no other letter shortcuts, manual refresh, filtering, menu search, or page-help entries.
 
 State reloads on entry, after an operation, and on return from a child page. Pagination uses the existing snapshot without another read. The page index survives reload and clamps to the last available page. Blank input repeats only the prompt; invalid input asks for a listed number without reprinting the page. Failed reads clear stale resource choices and display unknown/unavailable state, preserving available recovery actions.
 
@@ -139,7 +139,7 @@ Subscription timestamps in the list and details use the local time zone and `YYY
 
 Success and failure results appear after the reloaded page and before its next input prompt. The menu does not echo internal command arguments. Pages show current state and concise recovery guidance; DNS and diagnostic check limitations are documented in their reference sections rather than repeated on menu pages. Configuration, local override, profile comparison, and recent log output pause with `Press Enter to return` before the page reappears. Requested configuration and logs retain their raw content. URL-shaped text in errors, lists, and context is redacted. Failures preserve the underlying reason and known state; a failed action does not determine the menu process's exit status.
 
-Ctrl-C during `logs follow` or `traffic watch` cancels the child stream and returns to its page while user-mode mihomo keeps running. `0` at home, EOF, or Ctrl-C at home exits `0` without stopping mihomo. An unrecoverable menu input error exits `1`.
+Ctrl-C during `logs follow` or `traffic watch` cancels the child stream and returns to its page while user-mode mihomo keeps running. `q`, `0` at home, EOF, or Ctrl-C at home exits `0` without stopping mihomo. An unrecoverable menu input error exits `1`.
 
 Both standard input and standard output must be terminals. Redirected input/output or `--json` produces a `usage` error on stderr and exits `2`. `nagi menu --help` works without a terminal and exits `0`. Automation should invoke ordinary commands with `--json`.
 

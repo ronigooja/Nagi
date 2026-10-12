@@ -85,7 +85,7 @@ func TestPaginationDoesNotReloadAndNumbersMatchDisplay(t *testing.T) {
 
 func TestSelectorRejectsOldKeysWithoutRedrawAndTreatsZeroAsCancel(t *testing.T) {
 	var out bytes.Buffer
-	s := NewSession(&fakeRunner{}, strings.NewReader("\nr\nq\n/one\n+1\n01\n0\n"), &out)
+	s := NewSession(&fakeRunner{}, strings.NewReader("\nr\nx\n/one\n+1\n01\n0\n"), &out)
 	_, err := s.Select("Names", []string{"one"})
 	if err != ErrBack || strings.Count(out.String(), "\nNames\n") != 1 || strings.Count(out.String(), "Choose a listed number.") != 5 {
 		t.Fatalf("err=%v output=%s", err, out.String())

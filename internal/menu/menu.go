@@ -143,7 +143,7 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			current.render = false
 			s.flushResult()
 		}
-		value, err := s.readLine("Choice: ")
+		value, err := s.readChoice()
 		if errors.Is(err, ErrQuit) || errors.Is(err, context.Canceled) {
 			return 0
 		}
