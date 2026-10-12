@@ -5,7 +5,34 @@ import AppKit
     static func main() {
         let app = NSApplication.shared
         app.delegate = appDelegate
+        app.mainMenu = makeMainMenu()
         app.run()
+    }
+
+    private static func makeMainMenu() -> NSMenu {
+        let mainMenu = NSMenu()
+        let appItem = NSMenuItem(title: "Nagi", action: nil, keyEquivalent: "")
+        let appMenu = NSMenu(title: "Nagi")
+        appMenu.addItem(withTitle: "Quit Nagi", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        mainMenu.addItem(appItem)
+
+        // Accessory apps still need a main menu to route editing shortcuts to
+        // the focused field editor, including while an NSAlert runs modally.
+        let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        // Leave targets nil so AppKit uses the responder chain.
+        editItem.submenu = editMenu
+        mainMenu.addItem(editItem)
+        return mainMenu
     }
 }
 
