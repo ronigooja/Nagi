@@ -1,6 +1,12 @@
 name: publish release
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
   push:
     tags:
       - 'v*'
@@ -11,11 +17,14 @@ permissions:
 jobs:
   publish:
     runs-on: macos-14
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
     steps:
       - name: Check out tagged source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: refs/tags/${{ inputs.release_tag || github.ref_name }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -25,17 +34,17 @@ jobs:
 
       - name: Verify release tag
         shell: bash
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           case "$RELEASE_TAG" in
             v*) ;;
             *) echo "release must use a v-prefixed tag: $RELEASE_TAG" >&2; exit 1 ;;
           esac
-          [[ "$(git describe --tags --exact-match "$GITHUB_SHA")" == "$RELEASE_TAG" ]]
+          [[ "$(git describe --tags --exact-match HEAD)" == "$RELEASE_TAG" ]]
           [[ -z "$(git status --porcelain)" ]]
 
       - name: Run tests
+        env:
+          TMPDIR: /private/tmp
         run: make test
 
       - name: Build unsigned macOS App
@@ -63,8 +72,6 @@ jobs:
 
       - name: Prepare release notes
         shell: bash
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           previous=$(git tag --list 'v*' --sort=-version:refname | awk -v tag="$RELEASE_TAG" '$0 != tag { print; exit }')
@@ -85,8 +92,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "Nagi $GITHUB_REF_NAME" \
+          gh release create "$RELEASE_TAG" \
+            --title "Nagi $RELEASE_TAG" \
             --notes-file release-notes.md \
             dist/nagi-linux-amd64.tar.gz \
             dist/nagi-linux-arm64.tar.gz \
