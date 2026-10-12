@@ -98,11 +98,11 @@ path only after success. The CLI's response describes scheduling, not
 installation completion; failures are appended to the per-user update log.
 
 The detached updater creates a private temporary `sudo` adapter and prepends
-its directory to its own `PATH`. The adapter supports the installer's validation
-and command forms and executes privileged operations through AppleScript
-`do shell script ... with administrator privileges`. macOS handles credentials;
-Nagi does not collect passwords. Authorization Services can reuse authorization
-for subsequent operations, but may prompt again when necessary. Downloads,
+its directory to its own `PATH`. The first privileged operation starts one
+update-scoped worker through AppleScript `do shell script ... with administrator
+privileges`; subsequent installer operations are forwarded to that worker, so
+the update normally needs one administrator authorization. macOS handles
+credentials; Nagi does not collect passwords. Downloads,
 verification, lifecycle management, and user configuration remain unprivileged.
 The adapter passes the invoking user's `SUDO_UID`, `SUDO_GID`, and `SUDO_USER`
 to privileged commands so helper installation retains the correct session owner,

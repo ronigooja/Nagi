@@ -12,10 +12,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ronigooja/Nagi/scripts"
 )
@@ -318,5 +320,48 @@ func TestNativeUpdateAuthorizationUsesSystemDialog(t *testing.T) {
 		!strings.Contains(nativeUpdateSudo, "SUDO_UID=$session_uid") ||
 		strings.Contains(nativeUpdateSudo, `"SUDO_UID=$(/usr/bin/id -u)"`) {
 		t.Fatal("native authorization adapter must preserve the pre-authorization session user")
+	}
+}
+
+func TestNativeUpdateAuthorizationSharesWorker(t *testing.T) {
+	bridge := t.TempDir()
+	// Simulate Authorization Services without prompting or requiring root.
+	authorizer := filepath.Join(bridge, "authorize")
+	if err := os.WriteFile(authorizer, []byte("#!/bin/bash\necho launch >> \"$(dirname \"$0\")/launches\"\nexec /bin/bash -c \"$3\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	adapter := strings.ReplaceAll(nativeUpdateSudo, "/usr/bin/osascript", shellQuote(authorizer))
+	for name, source := range map[string]string{"sudo": adapter, "worker": nativeUpdateWorker} {
+		if err := os.WriteFile(filepath.Join(bridge, name), []byte(source), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	script := `export NAGI_UPDATE_OWNER_PID=$$
+trap 'rm -f "$bridge/alive"' EXIT
+"$bridge/sudo" -v < /dev/null || exit 1
+"$bridge/sudo" -n true || exit 2
+printf 'input bytes' | "$bridge/sudo" /usr/bin/tee "$bridge/copied" || exit 3
+"$bridge/sudo" /bin/bash -c 'echo diagnostic >&2; exit 7' < /dev/null
+[[ $? == 7 ]] || exit 4
+"$bridge/sudo" /bin/bash -c 'printf "%s" "$SUDO_UID"' < /dev/null || exit 5
+rm -f "$bridge/alive"
+for ((i=0; i<50; i++)); do [[ -e "$bridge/ended" ]] && exit 0; sleep 0.1; done
+exit 6
+`
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", script)
+	cmd.Env = append(os.Environ(), "bridge="+bridge)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("authorization session: %v: %s", err, out)
+	}
+	launches, _ := os.ReadFile(filepath.Join(bridge, "launches"))
+	if string(launches) != "launch\n" {
+		t.Fatalf("expected one authorization, got %q", launches)
+	}
+	input, _ := os.ReadFile(filepath.Join(bridge, "copied"))
+	if string(input) != "input bytes" || !bytes.Contains(out, []byte("diagnostic")) {
+		t.Fatalf("stdin/stderr lost: %q %q", input, out)
 	}
 }
