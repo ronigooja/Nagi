@@ -39,9 +39,19 @@ embedded value with:
 The `nagi` field must equal the release tag. The `mihomo_commit` field must
 match `engine.lock`.
 
-These version rules are release policy. The current scripts do not reject an
-invalid tag, dirty checkout, or untagged build, so the release checklist must be
-completed manually.
+The App packaging script uses the same `git describe --tags --always --dirty`
+value for `CFBundleShortVersionString`, removing the leading `v`. A clean build
+at `v1.0.1`, for example, displays `Version 1.0.1` in About Nagi.
+`CFBundleVersion` is the number of commits reachable from `HEAD`.
+Development builds retain the commit suffix or `dirty` marker rather than
+claiming to be the tagged release. These unsigned development bundles are not
+intended for App Store submission.
+
+The release workflow verifies a clean tagged checkout, runs the host CLI to
+check its release version and locked engine commit, and checks the App's
+`CFBundleShortVersionString` inside the uploaded macOS archive. A missing App
+or version mismatch fails publication. Local build scripts do not enforce all
+release policy, so the remaining checklist still requires review.
 
 ## Preparing a release
 
@@ -132,5 +142,7 @@ omit that category rather than implying that it was reviewed incompletely.
 - [ ] The tag-triggered publish workflow completed and the created release was reviewed.
 - [ ] `./bin/nagi --json version` reports the release tag and locked mihomo
       commit.
+- [ ] The packaged App's `CFBundleShortVersionString` equals the release tag
+      without its leading `v`.
 - [ ] Release notes include compatibility or migration information where
       applicable.

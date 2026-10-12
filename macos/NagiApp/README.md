@@ -43,6 +43,8 @@ open bin/Nagi.app
 
 `make build app` calls the packaging script on macOS and creates `bin/Nagi.app` with `LSUIElement` set to true. You can also run `macos/NagiApp/package-app.sh` directly to rebuild only the App bundle. SwiftPM alone builds an executable, not an app bundle with the menu-only activation setting. Install the built app in Applications before enabling its login item; include the bundle in the [artifact directory](../../docs/development/install.md) to install it alongside the CLI. The app is not signed or notarized by this script. `make release` includes it in the matching macOS archive when the bundle exists on the release host.
 
+About Nagi displays the version derived from the Git checkout, with the leading `v` removed. Release metadata and the cloud checks that keep App and CLI versions consistent are defined in the [release process](../../docs/development/release.md#version-numbers).
+
 ## Icon resources
 
 The Calm Current icon family uses a continuous N for the menu bar and a teal-to-blue application tile for Finder and About. Runtime resources and editable artwork have separate locations:

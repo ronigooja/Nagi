@@ -90,6 +90,44 @@ jobs:
             test -f "$asset"
           done
           (cd dist && shasum -a 256 -c SHA256SUMS)
+          case "$(uname -m)" in
+            arm64) host_arch=arm64 ;;
+            x86_64) host_arch=amd64 ;;
+            *) echo 'unsupported release host architecture' >&2; exit 1 ;;
+          esac
+          "dist/darwin-$host_arch/nagi" --json version > "$RUNNER_TEMP/nagi-version.json"
+          python3 - <<'PY'
+          import json
+          import os
+          import plistlib
+          import tarfile
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          response = json.loads((Path(os.environ["RUNNER_TEMP"]) / "nagi-version.json").read_text())
+          if response.get("ok") is not True:
+              raise SystemExit("CLI version command did not return a successful response")
+          version = response["data"]
+          if version.get("nagi") != tag:
+              raise SystemExit(f"CLI version does not match {tag}: {version.get('nagi')}")
+          commit = next(line.removeprefix("commit: ").strip() for line in Path("engine.lock").read_text().splitlines() if line.startswith("commit: "))
+          if version.get("mihomo_commit") != commit:
+              raise SystemExit("CLI engine commit does not match engine.lock")
+          app_count = 0
+          for archive in Path("dist").glob("nagi-macos-*.tar.gz"):
+              with tarfile.open(archive, "r:gz") as package:
+                  try:
+                      metadata = package.extractfile("Nagi.app/Contents/Info.plist")
+                  except KeyError:
+                      continue
+                  info = plistlib.load(metadata)
+                  if info.get("CFBundleShortVersionString") != tag.removeprefix("v"):
+                      raise SystemExit(f"App version in {archive} does not match {tag}")
+                  app_count += 1
+          if app_count != 1:
+              raise SystemExit(f"Expected one packaged App, found {app_count}")
+          print(f"CLI and packaged App versions match {tag}; engine commit matches engine.lock")
+          PY
 
       - name: Prepare release notes
         shell: bash
