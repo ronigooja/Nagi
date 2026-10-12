@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -109,8 +110,13 @@ func TestTrafficDoesNotBlockRuntimeSnapshots(t *testing.T) {
 
 func TestConfigSnapshotRejectedAfterConfigMutation(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
+	var reads int32
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	h := runtimeController(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
+		// Darwin's successful PATCH performs another GET while synchronizing
+		// DNS. Only the stale initial read should wait for the mutation.
+		if r.Method == "GET" && atomic.AddInt32(&reads, 1) == 1 {
 			close(started)
 			select {
 			case <-release:
@@ -118,16 +124,16 @@ func TestConfigSnapshotRejectedAfterConfigMutation(t *testing.T) {
 				return
 			}
 		}
-		w.Write([]byte(`{"mode":"rule"}`))
+		w.Write([]byte(`{"mode":"rule","tun":{"enable":false}}`))
 	})
 	defer close(release)
 	finished := make(chan error, 1)
 	go func() {
-		_, err := h.Handle(context.Background(), 0, privileged.Request{Operation: privileged.Control, Method: "GET", Path: "/configs"})
+		_, err := h.Handle(ctx, 0, privileged.Request{Operation: privileged.Control, Method: "GET", Path: "/configs"})
 		finished <- err
 	}()
 	waitSignal(t, started)
-	if _, err := h.Handle(context.Background(), 0, privileged.Request{Operation: privileged.Control, Method: "PATCH", Path: "/configs", Body: []byte(`{"mode":"direct"}`)}); err != nil {
+	if _, err := h.Handle(ctx, 0, privileged.Request{Operation: privileged.Control, Method: "PATCH", Path: "/configs", Body: []byte(`{"mode":"direct"}`)}); err != nil {
 		t.Fatal(err)
 	}
 	release <- struct{}{}
