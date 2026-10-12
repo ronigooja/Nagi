@@ -86,8 +86,9 @@ assert_installed_from() {
     local dir=$1
     cmp -s "$dir/nagi" "$prefix/bin/nagi" || fail_test 'nagi content changed unexpectedly'
     cmp -s "$dir/mihomo" "$prefix/bin/mihomo" || fail_test 'mihomo content changed unexpectedly'
-    [[ $(sed -n '1p' "$prefix/share/nagi/install-state") == nagi-installer-v3 ]] || fail_test 'installer record changed unexpectedly'
+    [[ $(sed -n '1p' "$prefix/share/nagi/install-state") == nagi-installer-v4 ]] || fail_test 'installer record changed unexpectedly'
     [[ $(sed -n '2p' "$prefix/share/nagi/install-state") == app= ]] || fail_test 'unexpected App record'
+    [[ $(wc -l < "$prefix/share/nagi/install-state") -eq 2 ]] || fail_test 'unexpected installer record fields'
 }
 
 make_artifact "$artifact_v1" v1
@@ -118,11 +119,20 @@ bash "$installer" install --artifact-dir "$artifact_v1" --prefix "$prefix" > "$l
 assert_installed_from "$artifact_v1"
 [[ $(cat "$profile_dir/default.yaml") == 'mode: v1' ]] || fail_test 'install did not write default profile'
 expect_failure 'already installed' bash "$installer" install --artifact-dir "$artifact_v2" --prefix "$prefix"
-# A manually changed binary must not be overwritten or removed by the installer.
+# A recorded installation can be updated after its binaries change outside the installer.
 printf '# outside modification\n' >> "$prefix/bin/mihomo"
-expect_failure 'installed file changed outside the installer' bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
-cmp -s "$artifact_v1/nagi" "$prefix/bin/nagi" || fail_test 'nagi changed after rejected update'
-cp "$artifact_v1/mihomo" "$prefix/bin/mihomo"
+printf '# outside modification\n' >> "$prefix/bin/nagi"
+# Existing v3 installations are accepted once and rewritten as v4 by update.
+printf 'nagi-installer-v3\napp=\nnagi_sha256=%064d\nmihomo_sha256=%064d\napp_sha256=\n' 0 0 > "$prefix/share/nagi/install-state"
+cp "$prefix/bin/nagi" "$test_dir/modified-nagi"
+cp "$prefix/bin/mihomo" "$test_dir/modified-mihomo"
+expect_failure 'installed nagi failed its version check' env NAGI_TEST_FAIL_INSTALLED_VERSION=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
+cmp -s "$test_dir/modified-nagi" "$prefix/bin/nagi" || fail_test 'update rollback lost modified nagi'
+cmp -s "$test_dir/modified-mihomo" "$prefix/bin/mihomo" || fail_test 'update rollback lost modified mihomo'
+bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix" > "$log"
+assert_installed_from "$artifact_v2"
+bash "$installer" update --artifact-dir "$artifact_v1" --prefix "$prefix" > "$log"
+assert_installed_from "$artifact_v1"
 
 invalid_version=$test_dir/invalid-version
 mkdir "$invalid_version"
@@ -156,6 +166,10 @@ assert_installed_from "$artifact_v2"
 expect_failure 'login service is installed' env NAGI_TEST_SERVICE_INSTALLED=1 bash "$installer" uninstall --prefix "$prefix"
 assert_installed_from "$artifact_v2"
 
+printf '# outside modification\n' >> "$prefix/bin/nagi"
+printf '# outside modification\n' >> "$prefix/bin/mihomo"
+# Removal also accepts an existing v3 record.
+printf 'nagi-installer-v3\napp=\nnagi_sha256=%064d\nmihomo_sha256=%064d\napp_sha256=\n' 0 0 > "$prefix/share/nagi/install-state"
 bash "$installer" uninstall --prefix "$prefix" > "$log"
 [[ ! -e "$prefix/bin/nagi" && ! -e "$prefix/bin/mihomo" && ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'uninstall left managed files behind'
 [[ $(cat "$prefix/share/nagi/profiles/default.yaml") == 'user profile' ]] || fail_test 'uninstall removed user profile'

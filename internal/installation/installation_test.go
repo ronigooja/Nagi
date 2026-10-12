@@ -115,6 +115,9 @@ func standardArchive(t *testing.T) []byte {
 
 func TestVerifiedUpdateRestoresServicePreferenceAndRestarts(t *testing.T) {
 	m, prefix := fixture(t)
+	if err := os.WriteFile(filepath.Join(prefix, "share/nagi/install-state"), []byte("nagi-installer-v4\napp=\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	m.ReleaseBase = releaseServer(t, standardArchive(t), false, nil).URL
 	var events []string
 	m.Run = func(ctx context.Context, exe string, args ...string) ([]byte, error) {
@@ -156,13 +159,10 @@ func TestVerifiedUpdateRestoresServicePreferenceAndRestarts(t *testing.T) {
 }
 
 func TestBadChecksumAndPreflightLeaveEngineUntouched(t *testing.T) {
-	for _, kind := range []string{"checksum", "modified-installation", "missing-app"} {
+	for _, kind := range []string{"checksum", "missing-app"} {
 		t.Run(kind, func(t *testing.T) {
 			m, prefix := fixture(t)
 			m.ReleaseBase = releaseServer(t, standardArchive(t), kind == "checksum", nil).URL
-			if kind == "modified-installation" {
-				os.WriteFile(m.Executable, []byte(cliArtifact("edited")), 0755)
-			}
 			if kind == "missing-app" {
 				path := filepath.Join(prefix, "share/nagi/install-state")
 				data, _ := os.ReadFile(path)
@@ -182,6 +182,25 @@ func TestBadChecksumAndPreflightLeaveEngineUntouched(t *testing.T) {
 				t.Fatal("engine/service mutated before successful verification")
 			}
 		})
+	}
+}
+
+func TestUpdateReplacesModifiedRecordedExecutable(t *testing.T) {
+	m, prefix := fixture(t)
+	m.ReleaseBase = releaseServer(t, standardArchive(t), false, nil).URL
+	if err := os.WriteFile(m.Executable, []byte(cliArtifact("edited")), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Manage(context.Background(), "update", ""); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(prefix, "bin/nagi"))
+	if err != nil || !strings.Contains(string(data), "v2.0.0") {
+		t.Fatalf("updated executable: %s %v", data, err)
+	}
+	state, err := os.ReadFile(filepath.Join(prefix, "share/nagi/install-state"))
+	if err != nil || string(state) != "nagi-installer-v4\napp=\n" {
+		t.Fatalf("migrated installer record: %s %v", state, err)
 	}
 }
 
