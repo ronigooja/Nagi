@@ -55,7 +55,9 @@ func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Reque
 		h.mu.Unlock()
 		response, err := controlRequest(ctx, socket, req)
 		h.mu.Lock()
-		if h.child != child || h.generation != generation || !h.status().Running {
+		// Traffic counters belong to the process, not a configuration generation.
+		// Mode changes and reloads must not interrupt that process's traffic watch.
+		if h.child != child || (req.Path != "/traffic" && h.generation != generation) || !h.status().Running {
 			return privileged.Response{}, errors.New("stale_controller_response: privileged engine changed during request")
 		}
 		return response, err

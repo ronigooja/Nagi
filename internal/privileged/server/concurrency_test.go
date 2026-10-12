@@ -97,13 +97,42 @@ func TestTrafficDoesNotBlockRuntimeSnapshots(t *testing.T) {
 			t.Fatal("traffic blocked a snapshot")
 		}
 	}
-	// A successful config mutation invalidates the still-pending traffic result.
+	// Traffic counters remain valid across same-process configuration changes.
 	if _, err := h.Handle(ctx, 0, privileged.Request{Operation: privileged.Control, Method: "PATCH", Path: "/configs", Body: []byte(`{"mode":"direct"}`)}); err != nil {
 		t.Fatal(err)
 	}
 	release <- struct{}{}
+	if err := <-finished; err != nil {
+		t.Fatalf("config mutation interrupted traffic: %v", err)
+	}
+}
+
+func TestConfigSnapshotRejectedAfterConfigMutation(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	h := runtimeController(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			close(started)
+			select {
+			case <-release:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		w.Write([]byte(`{"mode":"rule"}`))
+	})
+	defer close(release)
+	finished := make(chan error, 1)
+	go func() {
+		_, err := h.Handle(context.Background(), 0, privileged.Request{Operation: privileged.Control, Method: "GET", Path: "/configs"})
+		finished <- err
+	}()
+	waitSignal(t, started)
+	if _, err := h.Handle(context.Background(), 0, privileged.Request{Operation: privileged.Control, Method: "PATCH", Path: "/configs", Body: []byte(`{"mode":"direct"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	release <- struct{}{}
 	if err := <-finished; err == nil || !strings.Contains(err.Error(), "stale_controller_response") {
-		t.Fatalf("stale result accepted: %v", err)
+		t.Fatalf("stale config accepted: %v", err)
 	}
 }
 
