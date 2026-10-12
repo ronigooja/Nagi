@@ -534,8 +534,12 @@ enum EngineState { case starting, running, stopped, unavailable }
                     throw CLIError.invalidJSON("The CLI did not schedule an update.")
                 }
                 errorMessage = nil
-                busy = false
                 readyToQuit()
+                // Request termination before releasing busy. This lets
+                // applicationShouldTerminate mark quitting first, so the
+                // busy observer cannot start a queued refresh in the gap
+                // between scheduling the updater and quitting the App.
+                busy = false
             } catch {
                 errorMessage = "Update could not start: \(error.localizedDescription)"
                 busy = false

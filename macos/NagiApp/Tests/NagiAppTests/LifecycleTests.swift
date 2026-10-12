@@ -174,8 +174,13 @@ extension LifecycleTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let model = AppModel(cli: NagiCLIClient(executable: cli))
         var ready = false
-        model.updateNagi { ready = true }
+        var callbackSawBusy = false
+        model.updateNagi {
+            callbackSawBusy = model.busy
+            ready = true
+        }
         await expectUntil { ready }
+        XCTAssertTrue(callbackSawBusy, "termination must be requested before update releases busy")
         XCTAssertFalse(model.busy)
         XCTAssertEqual(lines(log), ["--json update --app"])
         var quit = false
