@@ -210,7 +210,34 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 		if value == nil {
 			value = "unknown"
 		}
-		s.Printf("%s%s: %s\n", indent, label, output.RedactError(fmt.Sprint(value)))
+		if label == "running" {
+			state := "stopped"
+			if running, ok := value.(bool); ok && running {
+				state = "running"
+			}
+			s.Printf("%sMihomo: %s\n", indent, output.StyleStateText(state, s.styles))
+			return
+		}
+		text := output.RedactError(fmt.Sprint(value))
+		if statusLabel(label) {
+			if flag, ok := value.(bool); ok {
+				text = "no"
+				if flag {
+					text = "yes"
+				}
+			}
+			text = output.StyleStateText(text, s.styles)
+		}
+		s.Printf("%s%s: %s\n", indent, label, text)
+	}
+}
+
+func statusLabel(label string) bool {
+	switch strings.ToLower(label) {
+	case "active", "automatic", "backend", "enabled", "healthy", "installed", "mode", "policy", "scheduler", "selected status", "selection status", "status", "state", "tun enabled":
+		return true
+	default:
+		return false
 	}
 }
 

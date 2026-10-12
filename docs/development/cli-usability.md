@@ -15,6 +15,7 @@ This document defines development and review rules for Nagi's command-line inter
 - Print requested log lines and configuration text directly. Do not wrap them in JSON or add prose to nonempty raw content.
 - Explain empty lists and unavailable information. Do not imply that an empty result is an error or that a missing value was verified.
 - Keep human formatting separate from the JSON interface. Preserve documented JSON fields, envelope, output streams, and exit codes when changing presentation. Scripts should use `--json`.
+- Color recognized status values in human-readable CLI summaries only on a capable terminal. Keep JSON and redirected output plain, and preserve raw configuration, logs, and live streams byte for byte.
 - Send failures to stderr and successful results to stdout. Help requested for a valid command must succeed. Usage errors must include corrective guidance.
 
 ## Results, failures, and next steps

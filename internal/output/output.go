@@ -53,32 +53,32 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return writeLifecycle(w, v)
 	case diagnostic.FullReport:
 		if v.Healthy {
-			if err := line(w, "Diagnostics: healthy"); err != nil {
+			if err := stateLine(w, "Diagnostics", "healthy"); err != nil {
 				return err
 			}
 		} else {
-			if err := line(w, "Diagnostics: needs attention"); err != nil {
+			if err := line(w, "Diagnostics: needs "+stateValue(w, "attention")); err != nil {
 				return err
 			}
 		}
 		for _, check := range v.Checks {
-			if err := line(w, fmt.Sprintf("[%s] %s: %s", strings.ToUpper(check.Status), check.Name, check.Message)); err != nil {
+			if err := line(w, "["+stateValue(w, strings.ToUpper(check.Status))+"] "+check.Name+": "+check.Message); err != nil {
 				return err
 			}
 		}
 		return nil
 	case diagnostic.Report:
 		if v.Healthy {
-			if err := line(w, "Nagi doctor: healthy"); err != nil {
+			if err := stateLine(w, "Nagi doctor", "healthy"); err != nil {
 				return err
 			}
 		} else {
-			if err := line(w, "Nagi doctor: needs attention"); err != nil {
+			if err := line(w, "Nagi doctor: needs "+stateValue(w, "attention")); err != nil {
 				return err
 			}
 		}
 		for _, check := range v.Checks {
-			if err := line(w, fmt.Sprintf("[%s] %s: %s", strings.ToUpper(check.Status), check.Name, check.Message)); err != nil {
+			if err := line(w, "["+stateValue(w, strings.ToUpper(check.Status))+"] "+check.Name+": "+check.Message); err != nil {
 				return err
 			}
 		}
@@ -143,7 +143,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			}
 		}
 		for _, item := range v.Unavailable {
-			if err := line(w, "Unavailable or removed: "+item); err != nil {
+			if err := line(w, stateValue(w, "unavailable")+" or "+stateValue(w, "removed")+": "+item); err != nil {
 				return err
 			}
 		}
@@ -177,7 +177,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		if v.Enabled {
 			state = "enabled"
 		}
-		if err := line(w, "System proxy: "+state+" ("+v.Backend+")"); err != nil {
+		if err := line(w, "System proxy: "+stateValue(w, state)+" ("+stateValue(w, v.Backend)+")"); err != nil {
 			return err
 		}
 		for _, item := range []struct {
@@ -194,7 +194,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		}
 		return nil
 	case service.Result:
-		return line(w, fmt.Sprintf("Service manager: %s\nService file: %s", v.Manager, v.Path))
+		return writeServiceResult(w, v)
 	case map[string]any:
 		return writeHumanMap(w, v)
 	default:
@@ -209,12 +209,16 @@ func line(w io.Writer, s string) error {
 	return err
 }
 
+func stateLine(w io.Writer, label, value string) error {
+	return line(w, label+": "+stateValue(w, value))
+}
+
 func writeLifecycle(w io.Writer, v engine.Status) error {
 	state := "stopped"
 	if v.Running {
 		state = "running"
 	}
-	if err := line(w, "Mihomo: "+state); err != nil {
+	if err := stateLine(w, "Mihomo", state); err != nil {
 		return err
 	}
 	if v.PID != 0 {
@@ -252,7 +256,7 @@ func writeGroup(w io.Writer, g proxy.Group) error {
 		heading += " -> " + g.Now
 	}
 	if g.SelectedStatus == "unavailable" || g.SelectedStatus == "removed" {
-		heading += " (" + g.SelectedStatus + ")"
+		heading += " (" + stateValue(w, g.SelectedStatus) + ")"
 	}
 	if err := line(w, heading); err != nil {
 		return err
@@ -285,6 +289,15 @@ func writeProvider(w io.Writer, p proxy.Provider) error {
 }
 
 func writeHumanMap(w io.Writer, v map[string]any) error {
+	if svc, ok := v["service"].(service.Result); ok {
+		if err := writeServiceResult(w, svc); err != nil {
+			return err
+		}
+		if engineStatus, ok := v["engine"].(engine.Status); ok {
+			return writeLifecycle(w, engineStatus)
+		}
+		return nil
+	}
 	if action, ok := v["action"].(string); ok && (v["completed"] == true || v["scheduled"] == true) {
 		if v["scheduled"] == true {
 			if v["background"] == true {
@@ -313,7 +326,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		return line(w, "Nagi App is not installed. Run `nagi app install`.")
 	}
 	if v["quit"] == true {
-		return line(w, "Nagi stopped for this login session. Login startup preference is unchanged.")
+		return line(w, "Nagi "+stateValue(w, "stopped")+" for this login session. Login startup preference is unchanged.")
 	}
 	if v["flushed"] == true {
 		return line(w, "Cleared mihomo DNS cache.")
@@ -323,7 +336,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	}
 	if v["saved"] == true {
 		if enabled, ok := v["tun_enabled"].(bool); ok {
-			return line(w, fmt.Sprintf("Saved TUN DNS interception setting: %t.", enabled))
+			return line(w, "Saved TUN DNS interception setting: "+stateValue(w, yesNo(enabled))+".")
 		}
 		return line(w, fmt.Sprintf("Saved DNS policy for profile %v.", v["profile"]))
 	}
@@ -331,7 +344,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		return line(w, fmt.Sprintf("Mihomo DNS response for %s (%v): %v", domain, v["type"], v["response"]))
 	}
 	if _, ok := v["upstream_hosts"].([]string); ok {
-		if err := line(w, fmt.Sprintf("DNS profile: %v | enabled: %v | IPv6: %v | DoH policy: %v | TUN: %v", v["profile"], v["enabled"], v["ipv6"], v["policy"], v["tun_enabled"])); err != nil {
+		if err := line(w, fmt.Sprintf("DNS profile: %v | enabled: %s | IPv6: %s | DoH policy: %s | TUN: %s", v["profile"], stateValue(w, yesNo(v["enabled"] == true)), stateValue(w, yesNo(v["ipv6"] == true)), stateValue(w, fmt.Sprint(v["policy"])), stateValue(w, yesNo(v["tun_enabled"] == true)))); err != nil {
 			return err
 		}
 		if queryOK, ok := v["engine_query_ok"].(bool); ok {
@@ -414,7 +427,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if v["scheduler_running"] == true {
 			scheduler = "running"
 		}
-		if _, err := fmt.Fprintln(w, "Scheduler: "+scheduler); err != nil {
+		if _, err := fmt.Fprintln(w, "Scheduler: "+stateValue(w, scheduler)); err != nil {
 			return err
 		}
 		if len(entries) == 0 {
@@ -494,7 +507,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			if entry.Enabled {
 				state = "enabled"
 			}
-			if err := line(w, entry.Name+" ("+state+"): "+rules.Line(entry)); err != nil {
+			if err := line(w, entry.Name+" ("+stateValue(w, state)+"): "+rules.Line(entry)); err != nil {
 				return err
 			}
 		}
@@ -535,7 +548,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if running {
 			state = "running"
 		}
-		if err := line(w, "Mihomo: "+state); err != nil {
+		if err := stateLine(w, "Mihomo", state); err != nil {
 			return err
 		}
 		if err := printField(w, "Profile", v, "profile"); err != nil {
@@ -568,7 +581,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if _, ok := v["bind_address"]; ok {
 			kind = "LAN access"
 		}
-		if err := line(w, kind+": "+label); err != nil {
+		if err := stateLine(w, kind, label); err != nil {
 			return err
 		}
 		if err := printSystemDNS(w, v); err != nil {
@@ -577,9 +590,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if status, ok := v["adapter_status"].(string); ok {
 			name, _ := v["adapter_name"].(string)
 			if name != "" {
-				return line(w, "Adapter "+name+": "+status)
+				return line(w, "Adapter "+name+": "+stateValue(w, status))
 			}
-			return line(w, "Adapter: "+status)
+			return stateLine(w, "Adapter", status)
 		}
 		return printField(w, "Bind address", v, "bind_address")
 	}
@@ -655,7 +668,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	}
 	if group, ok := v["group"].(string); ok {
 		if v["automatic"] == true {
-			return line(w, "Automatic selection resumed for "+group+"; saved choice removed.")
+			return line(w, stateValue(w, "Automatic")+" selection resumed for "+group+"; saved choice removed.")
 		}
 		if node, ok := v["node"].(string); ok {
 			return line(w, fmt.Sprintf("Selected %s in proxy group %s.", node, group))
@@ -675,14 +688,14 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	if mode, ok := v["mode"].(string); ok {
 		if v["persistent"] == true {
 			if v["changed"] == true {
-				return line(w, "Saved "+mode+" mode in the selected profile. If mihomo was running, its configuration was reloaded.")
+				return line(w, "Saved "+stateValue(w, mode)+" mode in the selected profile. If mihomo was running, its configuration was reloaded.")
 			}
-			return line(w, "Saved profile mode: "+mode)
+			return line(w, "Saved profile mode: "+stateValue(w, mode))
 		}
 		if v["changed"] == true {
-			return line(w, "Set temporary mihomo mode to "+mode+".")
+			return line(w, "Set temporary mihomo mode to "+stateValue(w, mode)+".")
 		}
-		return line(w, "Mihomo mode: "+mode)
+		return stateLine(w, "Mihomo mode", mode)
 	}
 	if v["reloaded"] == true {
 		return line(w, fmt.Sprintf("Reloaded validated profile %v in the running mihomo instance.", v["profile"]))
@@ -704,6 +717,21 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(v)
+}
+
+func writeServiceResult(w io.Writer, result service.Result) error {
+	if err := line(w, "Service manager: "+stateValue(w, result.Manager)); err != nil {
+		return err
+	}
+	for _, item := range []struct {
+		label string
+		value bool
+	}{{"Installed", result.Installed}, {"Enabled", result.Enabled}, {"Active", result.Active}} {
+		if err := stateLine(w, item.label, yesNo(item.value)); err != nil {
+			return err
+		}
+	}
+	return line(w, "Service file: "+result.Path)
 }
 
 func writePreview(w io.Writer, p subscription.Preview) error {
@@ -806,7 +834,7 @@ func WriteError(w io.Writer, jsonMode bool, code, message string) {
 		_ = json.NewEncoder(w).Encode(Envelope{OK: false, Error: &Failure{Code: code, Message: message}})
 		return
 	}
-	_, _ = fmt.Fprintf(w, "Error (%s): %s\n", code, message)
+	_, _ = fmt.Fprintf(w, "%s (%s): %s\n", stateValue(w, "Error"), code, message)
 	if code == "usage" {
 		_, _ = io.WriteString(w, "Run `nagi --help` for usage.\n")
 	}
@@ -814,7 +842,7 @@ func WriteError(w io.Writer, jsonMode bool, code, message string) {
 
 func printSystemDNS(w io.Writer, data map[string]any) error {
 	if state, ok := data["system_dns"].(traffic.DNSState); ok && state.Supported {
-		if err := line(w, "System DNS: "+state.Status); err != nil {
+		if err := stateLine(w, "System DNS", state.Status); err != nil {
 			return err
 		}
 		if len(state.Targets) > 0 {

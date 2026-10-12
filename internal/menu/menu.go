@@ -8,10 +8,10 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"runtime"
 	"strconv"
 	"syscall"
-	"unsafe"
+
+	"github.com/ronigooja/Nagi/internal/terminal"
 )
 
 type Session struct {
@@ -275,14 +275,5 @@ func (s *Session) discardInterrupts() {
 
 // IsTerminal checks that a file is attached to an interactive terminal.
 func IsTerminal(file *os.File) bool {
-	if file == nil {
-		return false
-	}
-	request := uintptr(0x5401) // Linux TCGETS
-	if runtime.GOOS == "darwin" {
-		request = 0x40487413 // macOS TIOCGETA
-	}
-	var state syscall.Termios
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, file.Fd(), request, uintptr(unsafe.Pointer(&state)))
-	return errno == 0
+	return terminal.IsTerminal(file)
 }
