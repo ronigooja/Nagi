@@ -74,7 +74,7 @@ Details show available update time, quota, and expiry, with missing metadata exp
 
 The combined action discloses that applying replaces the target source configuration and clears local overrides and saved selections. Existing command validation and the apply transaction remain authoritative. The flow does not implicitly start mihomo or enable traffic access. Feedback states successful completion or the failed stage and its known resulting state, without dumping command metadata.
 
-Successful removal returns to the parent list; failure stays in detail. Profile imports and other multi-field flows reuse retained-value forms. Local profile operations keep their existing CLI effects.
+Successful removal returns to the parent list; failure stays in detail. Profile imports and other multi-field flows reuse retained-value forms. Profile removal discloses deletion of configuration, backups, local overrides, and saved proxy choices while keeping subscriptions. The CLI owns cleanup and selected-profile protection; see [profile removal](../reference/cli.md#profile-removal).
 
 ## Failure handling and verification
 

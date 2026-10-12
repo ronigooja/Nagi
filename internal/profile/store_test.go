@@ -265,7 +265,7 @@ func TestApplyRepairsInvalidProfileAndSelection(t *testing.T) {
 	}
 }
 
-func TestRemoveProfilePreservesBackupAndOtherState(t *testing.T) {
+func TestRemoveProfileCleansRelatedFilesAndPreservesOtherState(t *testing.T) {
 	dir := t.TempDir()
 	s := NewStore(dir, func([]byte) error { return nil }, nil)
 	ctx := context.Background()
@@ -278,6 +278,16 @@ func TestRemoveProfilePreservesBackupAndOtherState(t *testing.T) {
 	if err := s.Write(ctx, "other", []byte("replacement")); err != nil {
 		t.Fatal(err)
 	}
+	override, _ := s.overridePath("other")
+	state, _ := s.defaultOverrideStatePath("other")
+	if err := os.MkdirAll(filepath.Dir(override), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{override, override + ".bak", state, filepath.Join(dir, "profiles", ".effective-other.yaml")} {
+		if err := os.WriteFile(path, []byte("old state"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := s.Remove("other"); err != nil {
 		t.Fatal(err)
 	}
@@ -285,8 +295,16 @@ func TestRemoveProfilePreservesBackupAndOtherState(t *testing.T) {
 		t.Fatalf("removed profile remains: %v", err)
 	}
 	backup := filepath.Join(dir, "profiles", "other.yaml.bak")
-	if got, err := os.ReadFile(backup); err != nil || string(got) != "original" {
-		t.Fatalf("backup = %q, %v", got, err)
+	for _, path := range []string{backup, override, override + ".bak", state, filepath.Join(dir, "profiles", ".effective-other.yaml")} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("cleanup target remains: %s, %v", path, err)
+		}
+	}
+	if err := s.Write(ctx, "other", []byte("new profile")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Override("other"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("old override on recreation: %v", err)
 	}
 	if got, err := s.Show("default"); err != nil || string(got) != "active" {
 		t.Fatalf("active profile = %q, %v", got, err)
@@ -337,5 +355,33 @@ func TestRemoveRefusesActiveInvalidSelectionAndNonregularTargets(t *testing.T) {
 	}
 	if _, err := os.Lstat(path); err != nil {
 		t.Fatalf("symlink removed: %v", err)
+	}
+}
+
+func TestRemoveRefusesNonregularCleanupTargetBeforeDeleting(t *testing.T) {
+	for _, suffix := range []string{".bak", "override", "state"} {
+		t.Run(suffix, func(t *testing.T) {
+			s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+			if err := s.Write(context.Background(), "other", []byte("config")); err != nil {
+				t.Fatal(err)
+			}
+			path, _ := s.path("other")
+			target := path + ".bak"
+			if suffix != ".bak" {
+				target, _ = s.overridePath("other")
+				if suffix == "state" {
+					target, _ = s.defaultOverrideStatePath("other")
+				}
+			}
+			if err := os.MkdirAll(target, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Remove("other"); err == nil {
+				t.Fatal("removed nonregular cleanup target")
+			}
+			if got, err := s.Show("other"); err != nil || string(got) != "config" {
+				t.Fatalf("profile changed: %q, %v", got, err)
+			}
+		})
 	}
 }

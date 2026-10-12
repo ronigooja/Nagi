@@ -137,8 +137,8 @@ func (s *Store) RestoreBackup(ctx context.Context, name string) error {
 	return nil
 }
 
-// Remove deletes an unselected profile. Its existing .bak file, if any, is
-// retained as a recovery copy.
+// Remove deletes an unselected profile and its backup and local override state.
+// Callers use a configuration transaction to recover from cleanup failures.
 func (s *Store) Remove(name string) error {
 	path, err := s.path(name)
 	if err != nil {
@@ -158,7 +158,28 @@ func (s *Store) Remove(name string) error {
 	if current == name {
 		return errors.New("cannot remove the selected profile; select another profile first")
 	}
-	return os.Remove(path)
+	override, _ := s.overridePath(name)
+	state, _ := s.defaultOverrideStatePath(name)
+	paths := []string{path + ".bak", override, override + ".bak", state, filepath.Join(s.Dir, "profiles", ".effective-"+name+".yaml"), path}
+	// Check all targets before deleting anything; never remove directories or links.
+	for _, target := range paths {
+		info, err := os.Lstat(target)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("profile cleanup target is not a regular file: %s", target)
+		}
+	}
+	for _, target := range paths {
+		if err := os.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Use(ctx context.Context, name string) error {

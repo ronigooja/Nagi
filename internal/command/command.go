@@ -1489,6 +1489,9 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 		if err := store.Remove(args[2]); err != nil {
 			return nil, fail("profile_error", err)
 		}
+		if err := (proxy.SelectionStore{Path: filepath.Join(store.Dir, "proxy-selections.json")}).Clear(args[2]); err != nil {
+			return nil, fail("profile_error", err)
+		}
 		if subs != nil {
 			if err := subs.DetachProfile(args[2]); err != nil {
 				return nil, fail("profile_error", err)

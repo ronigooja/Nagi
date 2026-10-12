@@ -466,6 +466,9 @@ enum EngineState { case starting, running, stopped, unavailable }
                     case ("profile", "use"):
                         profile = result["current"]?.string
                         await requestRefresh([.profiles, .runtime], force: true)
+                    case ("profile", "remove"):
+                        notice = "Profile deleted."
+                        await requestRefresh([.profiles, .subscriptions], force: true)
                     case ("profile", "override"):
                         await requestRefresh([.profiles, .runtime], force: true)
                     case ("proxy", "auto"):
@@ -518,6 +521,16 @@ enum EngineState { case starting, running, stopped, unavailable }
             errorMessage = message
             return message
         }
+    }
+
+    var deletableProfiles: [String] {
+        guard let profile, !profile.isEmpty else { return [] }
+        return profiles.filter { $0 != profile && $0 != "default" }
+    }
+
+    func removeProfile(_ name: String) {
+        guard !busy, deletableProfiles.contains(name) else { return }
+        perform(["profile", "remove", name])
     }
 
     func switchToDefaultProfile() {

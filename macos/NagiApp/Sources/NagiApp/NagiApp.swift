@@ -295,6 +295,10 @@ import AppKit
                     enabled: !model.busy, to: profileMenu)
             }
         }
+        profileMenu.addItem(.separator())
+        let deleteProfileItem = add("Delete Profile…", action: #selector(deleteProfile),
+                                    enabled: !model.busy && !model.deletableProfiles.isEmpty, to: profileMenu)
+        deleteProfileItem.toolTip = "Switch to another profile before deleting the current one. The default template is kept."
         addSubmenu("Profiles", profileMenu, enabled: !model.profiles.isEmpty)
 
         let subscriptionMenu = NSMenu()
@@ -601,6 +605,28 @@ import AppKit
             model.addAndApplySubscription(name, url: url)
             return
         }
+    }
+    @objc private func deleteProfile() {
+        let names = model.deletableProfiles
+        guard !model.busy, !names.isEmpty else { return }
+        let picker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 280, height: 26), pullsDown: false)
+        picker.addItems(withTitles: names)
+        let selection = NSAlert()
+        selection.messageText = "Choose a profile to delete"
+        selection.informativeText = "The current profile and default template are excluded."
+        selection.accessoryView = picker
+        selection.addButton(withTitle: "Continue")
+        selection.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        guard selection.runModal() == .alertFirstButtonReturn,
+              let name = picker.titleOfSelectedItem else { return }
+        let alert = NSAlert()
+        alert.messageText = "Delete profile “\(name)”?"
+        alert.informativeText = "This permanently deletes its configuration, backup, local overrides, and saved proxy choices, and disconnects its subscription association. Subscription records and cached downloads are kept."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete Profile")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn { model.removeProfile(name) }
     }
     @objc private func deleteSubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }

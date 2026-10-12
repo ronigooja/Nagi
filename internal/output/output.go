@@ -653,7 +653,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			return line(w, fmt.Sprintf("Imported profile %s. Run `nagi profile use %s` to select it.", name, name))
 		case v["removed"] == true:
 			if kind, _ := v["kind"].(string); kind == "profile" {
-				return line(w, "Removed profile "+name+". Any existing backup was retained.")
+				return line(w, "Removed profile "+name+" and its backups, local overrides, and saved proxy choices. Subscriptions and cached downloads were kept.")
 			}
 			return line(w, "Removed subscription "+name+" and its cache.")
 		case v["applied"] == true:

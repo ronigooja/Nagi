@@ -6,6 +6,7 @@ import XCTest
         var calls: [[String]] = []
         var date = Date(timeIntervalSince1970: 1_000)
         var profile = "one"
+        var profiles = ["default", "one", "two"]
         var running = false
         var schedule: Int64 = 3600
         var failures: Set<String> = []
@@ -24,9 +25,10 @@ import XCTest
             let json: String
             switch command {
             case "status": json = "{\"running\":\(running),\"profile\":\"\(profile)\"}"
-            case "profile list": json = "{\"current\":\"\(profile)\",\"profiles\":[\"one\",\"two\"]}"
+            case "profile list": json = "{\"current\":\"\(profile)\",\"profiles\":\(String(data: try JSONEncoder().encode(profiles), encoding: .utf8)!)}"
             case "subscription list": json = "{\"subscriptions\":[{\"name\":\"feed\",\"schedule_seconds\":\(capturedSchedule)}]}"
             case "subscription schedule feed off": schedule = 0; json = "{}"
+            case "profile remove two": profiles.removeAll { $0 == "two" }; json = "{\"removed\":true}"
             case "profile use two": profile = "two"; json = "{\"current\":\"two\"}"
             default: json = "{\"default_override_applied\":false,\"dns_proxy_group\":\"\(profile)\",\"installed\":false}"
             }
@@ -45,6 +47,38 @@ import XCTest
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
         XCTFail("Condition did not become true")
+    }
+
+    func testProfileDeletionRefreshesListsAndProtectsCurrentAndDefault() async {
+        let commands = Commands(), model = commands.model()
+        await model.refresh()
+        XCTAssertEqual(model.deletableProfiles, ["two"])
+        model.removeProfile("one")
+        model.removeProfile("default")
+        XCTAssertEqual(commands.count("profile remove one"), 0)
+        XCTAssertEqual(commands.count("profile remove default"), 0)
+        let profilesBefore = commands.count("profile list")
+        let subscriptionsBefore = commands.count("subscription list")
+        model.removeProfile("two")
+        await waitUntil { !model.busy }
+        XCTAssertEqual(commands.count("profile remove two"), 1)
+        XCTAssertEqual(model.profiles, ["default", "one"])
+        XCTAssertEqual(model.profile, "one")
+        XCTAssertEqual(commands.count("profile list"), profilesBefore + 1)
+        XCTAssertEqual(commands.count("subscription list"), subscriptionsBefore + 1)
+        XCTAssertEqual(model.notice, "Profile deleted.")
+    }
+
+    func testFailedProfileDeletionKeepsListAndShowsError() async {
+        let commands = Commands(), model = commands.model()
+        await model.refresh()
+        commands.failures.insert("profile remove two")
+        model.removeProfile("two")
+        await waitUntil { !model.busy }
+        XCTAssertEqual(commands.count("profile remove two"), 1)
+        XCTAssertEqual(model.profiles, ["default", "one", "two"])
+        XCTAssertNotNil(model.errorMessage)
+        XCTAssertNil(model.notice)
     }
 
     func testConcurrentPeriodicAndMenuReadsAreCoalesced() async {

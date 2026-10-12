@@ -113,6 +113,22 @@ func TestProfileRemoveRestoresAssociationWhenIndexWriteFails(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(config, "settings.yaml"), []byte("profile: default\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	related := map[string]string{
+		filepath.Join(profiles, ".effective-old.yaml"): "generated config",
+		oldPath + ".bak": "previous config",
+		filepath.Join(config, "overrides", "old.yaml"):                    "mixed-port: 17892\n",
+		filepath.Join(config, "overrides", "old.yaml.bak"):                "mixed-port: 17893\n",
+		filepath.Join(config, "overrides", "old.yaml.default-state.json"): "{}",
+		filepath.Join(config, "proxy-selections.json"):                    `{"old":{"Manual":"A"},"default":{"Manual":"B"}}`,
+	}
+	for path, contents := range related {
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	index := `{"subscriptions":[{"name":"work","url":"https://example.com/sub","profile":"old"}]}`
 	if err := os.WriteFile(filepath.Join(config, "subscriptions.yaml"), []byte(index), 0600); err != nil {
 		t.Fatal(err)
@@ -134,9 +150,56 @@ func TestProfileRemoveRestoresAssociationWhenIndexWriteFails(t *testing.T) {
 	if got, readErr := os.ReadFile(oldPath); readErr != nil || string(got) != "mixed-port: 17891\n" {
 		t.Fatalf("profile was not restored: %q, %v", got, readErr)
 	}
+	for path, contents := range related {
+		if got, err := os.ReadFile(path); err != nil || string(got) != contents {
+			t.Fatalf("state not restored: %s, %q, %v", path, got, err)
+		}
+	}
 	entries, listErr := subs.List()
 	if listErr != nil || len(entries) != 1 || entries[0].Profile != "old" {
 		t.Fatalf("association was not restored: %+v, %v", entries, listErr)
+	}
+	// Retry after correcting the index failure: cleanup and detach succeed together.
+	if err := os.Remove(filepath.Join(config, "subscriptions.yaml.bak")); err != nil {
+		t.Fatal(err)
+	}
+	cache := filepath.Join(dir, "cache", "work.yaml")
+	if err := os.MkdirAll(filepath.Dir(cache), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cache, []byte("cached feed"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := applyTransaction(context.Background(), paths, []string{"profile", "remove", "old"}, func() (any, error) {
+		return profileCommand(context.Background(), []string{"profile", "remove", "old"}, profilesStore, subs)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.(map[string]any)["removed"] != true {
+		t.Fatalf("result: %v", result)
+	}
+	for path := range related {
+		if filepath.Base(path) == "proxy-selections.json" {
+			continue
+		}
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("state remains: %s, %v", path, err)
+		}
+	}
+	if _, err := os.Lstat(oldPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("profile remains: %v", err)
+	}
+	choices, err := os.ReadFile(filepath.Join(config, "proxy-selections.json"))
+	if err != nil || strings.Contains(string(choices), `"old"`) || !strings.Contains(string(choices), `"default"`) {
+		t.Fatalf("choices: %q, %v", choices, err)
+	}
+	entries, err = subs.List()
+	if err != nil || len(entries) != 1 || entries[0].Profile != "" {
+		t.Fatalf("subscription: %+v, %v", entries, err)
+	}
+	if got, err := os.ReadFile(cache); err != nil || string(got) != "cached feed" {
+		t.Fatalf("cache: %q, %v", got, err)
 	}
 }
 

@@ -107,7 +107,7 @@ func profileDetailPage(name string) *Page {
 			{Label: "Export configuration", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "export", name) }},
 			submenu(actionPage("Backup & Restore", Item{Label: "Back up configuration", Args: []string{"profile", "backup", name}}, Item{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Impact: "Replaces configuration; reloads if active"}, Item{Label: "Compare with backup or another profile", Action: func(ctx context.Context, s *Session) error { return diffProfile(ctx, s, name) }})),
 			submenu(actionPage("Local Overrides", defaultItem, Item{Label: "Show local override", Args: []string{"profile", "override", "show", name}}, Item{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }}, Item{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Restores original settings; reloads if active"})),
-			{Label: "Remove profile", Navigate: removeResource("profile", name), Impact: "Deletes configuration; keeps backups and local overrides"},
+			{Label: "Remove profile", Navigate: removeResource("profile", name), Impact: "Deletes configuration, backups, local overrides, and saved choices; keeps subscriptions"},
 		}}
 		var data menuProfiles
 		if err := decodeMenuResult(s.Fetch(ctx, "profile", "list"), &data); err != nil {
