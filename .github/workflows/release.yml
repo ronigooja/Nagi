@@ -51,6 +51,26 @@ jobs:
       - name: Build unsigned macOS App
         run: make build app
 
+      - name: Read pinned engine source
+        id: engine
+        shell: bash
+        run: |
+          repository=$(sed -n 's/^repository: https:\/\/github.com\///p' engine.lock)
+          repository=${repository%.git}
+          commit=$(sed -n 's/^commit: //p' engine.lock)
+          [[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          printf 'repository=%s\ncommit=%s\n' "$repository" "$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned private engine
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.engine.outputs.repository }}
+          ref: ${{ steps.engine.outputs.commit }}
+          path: .build/mihomo
+          fetch-depth: 0
+          ssh-key: ${{ secrets.NAGI_MIHOMO_DEPLOY_KEY }}
+
       - name: Build release archives
         env:
           APPLE_SIGN_IDENTITY: ''
