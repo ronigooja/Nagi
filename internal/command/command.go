@@ -149,6 +149,8 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		var ce *commandError
 		var ae *control.APIError
 		switch {
+		case errors.Is(err, control.ErrResponseTooLarge):
+			code = "response_too_large"
 		case errors.As(err, &ce):
 			code = ce.code
 		case errors.Is(err, engine.ErrAlreadyRunning):

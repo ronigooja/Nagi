@@ -31,6 +31,12 @@ type APIError struct {
 	Message string
 }
 
+// MaxResponseBytes bounds one ordinary mihomo control API response. Streaming
+// traffic requests use their own per-sample limit instead.
+const MaxResponseBytes = 4 << 20
+
+var ErrResponseTooLarge = errors.New("mihomo response exceeds the 4 MiB limit")
+
 func (e *APIError) Error() string { return fmt.Sprintf("mihomo API %d: %s", e.Status, e.Message) }
 
 func New(socketPath string) *Client {
@@ -91,7 +97,16 @@ func (c *Client) request(ctx context.Context, method, path string, body, out any
 		return fmt.Errorf("mihomo control unavailable: %w", err)
 	}
 	defer resp.Body.Close()
-	limited := io.LimitReader(resp.Body, 4<<20)
+	// Read one extra byte to distinguish the exact boundary from truncation.
+	// Check the entire response even when the caller does not decode a body.
+	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponseBytes+1))
+	if err != nil {
+		return fmt.Errorf("read mihomo response: %w", err)
+	}
+	if len(data) > MaxResponseBytes {
+		return ErrResponseTooLarge
+	}
+	limited := bytes.NewReader(data)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var detail struct {
 			Message string `json:"message"`

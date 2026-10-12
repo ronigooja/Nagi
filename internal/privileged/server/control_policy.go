@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/privileged"
 )
 
@@ -60,20 +61,19 @@ func sendControl(ctx context.Context, socket string, req privileged.Request) (pr
 		return privileged.Response{}, err
 	}
 	defer response.Body.Close()
-	const maxBody = 4 << 20
 	// /traffic never finishes. One validated sample per helper call keeps the
 	// protocol framed and lets the user CLI retain its existing NDJSON stream.
 	var body []byte
 	if req.Path == "/traffic" {
 		body, err = readTrafficSample(response.Body)
 	} else {
-		body, err = io.ReadAll(io.LimitReader(response.Body, maxBody+1))
+		body, err = io.ReadAll(io.LimitReader(response.Body, control.MaxResponseBytes+1))
 	}
 	if err != nil {
 		return privileged.Response{}, err
 	}
-	if len(body) > maxBody {
-		return privileged.Response{}, errors.New("controller response too large")
+	if len(body) > control.MaxResponseBytes {
+		return privileged.Response{}, control.ErrResponseTooLarge
 	}
 	if len(bytes.TrimSpace(body)) != 0 && !json.Valid(body) {
 		return privileged.Response{}, errors.New("invalid controller JSON response")

@@ -3,10 +3,13 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +43,49 @@ func TestUnixSocketAndError(t *testing.T) {
 	}
 	if err := client.Get(context.Background(), "/absent", nil); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestResponseSizeLimit(t *testing.T) {
+	for _, size := range []int{(1 << 20) + 1, MaxResponseBytes, MaxResponseBytes + 1} {
+		for _, status := range []int{http.StatusOK, http.StatusBadGateway} {
+			t.Run(fmt.Sprintf("bytes_%d_status_%d", size, status), func(t *testing.T) {
+				path := filepath.Join(t.TempDir(), "mihomo.sock")
+				listener, err := net.Listen("unix", path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer listener.Close()
+				// Padding is valid JSON and exercises the complete response size,
+				// including bytes following an otherwise complete JSON value.
+				base := `{"connections":[],"message":"upstream failure"}`
+				body := base + strings.Repeat(" ", size-len(base))
+				server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(status)
+					_, _ = w.Write([]byte(body))
+				})}
+				go server.Serve(listener)
+				defer server.Close()
+				var result struct {
+					Connections []any `json:"connections"`
+				}
+				err = New(path).Get(context.Background(), "/connections", &result)
+				if size > MaxResponseBytes {
+					if !errors.Is(err, ErrResponseTooLarge) {
+						t.Fatalf("expected explicit overflow, got %v", err)
+					}
+				} else if status == http.StatusOK {
+					if err != nil || result.Connections == nil {
+						t.Fatalf("boundary list failed: %+v, %v", result, err)
+					}
+				} else {
+					var api *APIError
+					if !errors.As(err, &api) || api.Status != status || api.Message != "upstream failure" {
+						t.Fatalf("API error changed: %v", err)
+					}
+				}
+			})
+		}
 	}
 }
 

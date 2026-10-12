@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/privileged"
+	"github.com/ronigooja/Nagi/internal/proxy"
 )
 
 func TestHelperBackendLifecycleAndControlContract(t *testing.T) {
@@ -70,6 +74,61 @@ func TestHelperBackendLifecycleAndControlContract(t *testing.T) {
 	read := <-requests
 	if read.Operation != privileged.Status || read.Profile != "" {
 		t.Fatalf("status request: %+v", read)
+	}
+}
+
+func TestHelperBackendMapsResponseTooLarge(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "helper.sock")
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _ = privileged.ReadRequest(conn)
+		_ = privileged.WriteResponse(conn, privileged.Response{Version: privileged.ProtocolVersion, Error: "response_too_large"})
+	}()
+	err = (helperBackend{socketPath: path}).controlClient().Get(context.Background(), "/connections", nil)
+	if !errors.Is(err, control.ErrResponseTooLarge) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestHelperBackendLargeConnectionLists(t *testing.T) {
+	for _, size := range []int{(1 << 20) + 1, control.MaxResponseBytes} {
+		t.Run(fmt.Sprintf("bytes_%d", size), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "helper.sock")
+			listener, err := net.Listen("unix", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			prefix := `{"connections":[{"id":"one","metadata":{"processPath":"`
+			suffix := `"},"upload":2,"download":3}]}`
+			payloadSize := size - len(prefix) - len(suffix)
+			body := prefix + strings.Repeat("a", payloadSize) + suffix
+			go func() {
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				defer conn.Close()
+				_, _ = privileged.ReadRequest(conn)
+				_ = privileged.WriteResponse(conn, privileged.Response{Version: privileged.ProtocolVersion, OK: true, Status: 200, Body: json.RawMessage(body)})
+			}()
+			connections, err := proxy.NewService((helperBackend{socketPath: path}).controlClient()).Connections(context.Background())
+			if err != nil || len(connections) != 1 {
+				t.Fatalf("connection list: count=%d err=%v", len(connections), err)
+			}
+			if connections[0].ID != "one" || len(connections[0].Metadata["processPath"].(string)) != payloadSize {
+				t.Fatal("helper connection data was truncated or changed")
+			}
+		})
 	}
 }
 

@@ -76,6 +76,8 @@ func (b helperBackend) call(ctx context.Context, req privileged.Request) (privil
 			return resp, engine.ErrAlreadyRunning
 		case "not_running":
 			return resp, engine.ErrNotRunning
+		case "response_too_large":
+			return resp, control.ErrResponseTooLarge
 		}
 		return resp, fmt.Errorf("privileged helper rejected %s: %s", req.Operation, resp.Error)
 	}

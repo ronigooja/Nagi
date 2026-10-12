@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/privileged"
 )
 
@@ -98,6 +99,9 @@ func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 	resp, err := s.Handler.Handle(ctx, uid, req)
 	if err != nil {
 		resp = privileged.Response{Version: privileged.ProtocolVersion, Error: err.Error()}
+		if errors.Is(err, control.ErrResponseTooLarge) {
+			resp.Error = "response_too_large"
+		}
 	}
 	resp.Version = privileged.ProtocolVersion
 	if err := resp.Validate(); err != nil {
