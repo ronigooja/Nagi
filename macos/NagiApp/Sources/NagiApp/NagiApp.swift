@@ -374,7 +374,33 @@ import AppKit
         model.perform(command)
     }
     @objc private func switchToDefaultProfile() { model.switchToDefaultProfile() }
-    @objc private func applyDefaultOverride() { model.applyDefaultOverrideToCurrentProfile() }
+    @objc private func applyDefaultOverride() {
+        if model.defaultOverrideApplied == true {
+            model.applyDefaultOverrideToCurrentProfile()
+            return
+        }
+        guard model.dnsProxyRequired else {
+            model.applyDefaultOverrideToCurrentProfile()
+            return
+        }
+        guard !model.dnsProxyGroups.isEmpty else {
+            model.applyDefaultOverrideToCurrentProfile()
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Choose DNS Proxy Group"
+        alert.informativeText = "Primary DNS queries will follow the group's selected proxy node."
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 26), pullsDown: false)
+        popup.addItems(withTitles: model.dnsProxyGroups)
+        if !model.dnsProxyGroup.isEmpty, let index = model.dnsProxyGroups.firstIndex(of: model.dnsProxyGroup) { popup.selectItem(at: index) }
+        alert.accessoryView = popup
+        alert.addButton(withTitle: "Apply")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn, let group = popup.selectedItem?.title {
+            model.applyDefaultOverrideToCurrentProfile(group: group)
+        }
+    }
     @objc private func updateAndApplySubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         model.updateAndApplySubscription(name)

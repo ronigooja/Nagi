@@ -94,6 +94,9 @@ enum EngineState { case starting, running, stopped, unavailable }
     private(set) var profile: String?
     private(set) var profiles: [String] = []
     private(set) var defaultOverrideApplied: Bool?
+    private(set) var dnsProxyRequired = false
+    private(set) var dnsProxyGroups: [String] = []
+    private(set) var dnsProxyGroup: String = ""
     private(set) var groups: [ProxyGroup] = []
     private(set) var subscriptions: [Subscription] = []
     private(set) var providers: [ProxyProvider] = []
@@ -218,9 +221,13 @@ enum EngineState { case starting, running, stopped, unavailable }
                     let status = try await cli.run(["profile", "override", "default-status", profile])
                     guard generation == settingsGeneration else { return }
                     defaultOverrideApplied = status["default_override_applied"]?.bool
+                    dnsProxyRequired = status["dns_proxy_required"]?.bool == true
+                    dnsProxyGroups = status["dns_proxy_groups"]?.array.compactMap(\.string) ?? []
+                    dnsProxyGroup = status["dns_proxy_group"]?.string ?? ""
                 } catch {
                     guard generation == settingsGeneration else { return }
                     defaultOverrideApplied = nil
+                    dnsProxyRequired = false; dnsProxyGroups = []; dnsProxyGroup = ""
                 }
             } else { defaultOverrideApplied = nil }
             if let problem = value["current_error"]?.string { errorMessage = "Profile selection unavailable: \(problem)" }
@@ -409,7 +416,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         }
     }
 
-    func applyDefaultOverrideToCurrentProfile() {
+    func applyDefaultOverrideToCurrentProfile(group: String? = nil) {
         guard let profile, !profile.isEmpty else {
             errorMessage = "No current profile is selected."
             return
@@ -418,9 +425,13 @@ enum EngineState { case starting, running, stopped, unavailable }
             errorMessage = "Local default settings status is unavailable. Try again after refreshing."
             return
         }
-        perform(defaultOverrideApplied
-            ? ProfileCommands.restoreDefaultOverride(for: profile)
-            : ProfileCommands.applyDefaultOverride(for: profile))
+        if defaultOverrideApplied {
+            perform(ProfileCommands.restoreDefaultOverride(for: profile))
+            return
+        }
+        var command = ProfileCommands.applyDefaultOverride(for: profile)
+        if let group, !group.isEmpty { command += ["--dns-proxy", group] }
+        perform(command)
     }
     func updateAndApplySubscription(_ name: String) {
         saveDownloadAndApplySubscription(name, url: nil)
