@@ -54,6 +54,7 @@ import AppKit
     private var deferredMenuRebuild = false
     private var loadingTimer: Timer?
     private var loadingFrame = 0
+    private var updateCleanupComplete = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -80,6 +81,7 @@ import AppKit
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if updateCleanupComplete { return .terminateNow }
         model.quit { succeeded in
             sender.reply(toApplicationShouldTerminate: succeeded)
         }
@@ -637,10 +639,15 @@ import AppKit
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func updateNagi() {
         model.updateNagi {
-            // Leave the update task before entering AppKit's termination
-            // handshake; calling terminate inline can block the main actor
-            // while applicationShouldTerminate waits for its async cleanup.
-            DispatchQueue.main.async { NSApp.terminate(nil) }
+            // Finish CLI cleanup before entering AppKit's termination
+            // handshake. AppKit waits for applicationShouldTerminate while
+            // the main actor is blocked, so starting model.quit from that
+            // callback would deadlock.
+            self.model.quit { succeeded in
+                guard succeeded else { return }
+                self.updateCleanupComplete = true
+                DispatchQueue.main.async { NSApp.terminate(nil) }
+            }
         }
     }
     @objc private func willSleep(_ notification: Notification) { model.pauseForSleep() }
