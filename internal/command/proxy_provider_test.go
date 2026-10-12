@@ -81,7 +81,7 @@ func TestDNSBindingAllowsGroupsAndRejectsMissing(t *testing.T) {
 	}
 }
 func TestProviderAndAutoInvocationPreflight(t *testing.T) {
-	for _, args := range [][]string{{"proxy", "auto"}, {"proxy", "provider", "show"}, {"proxy", "provider", "remove", "name"}, {"completion", "candidates", "providers", "extra"}} {
+	for _, args := range [][]string{{"proxy", "auto"}, {"proxy", "provider", "show"}, {"proxy", "provider", "remove"}, {"completion", "candidates", "providers", "extra"}} {
 		if err := validateInvocation(args); err == nil {
 			t.Fatalf("accepted %v", args)
 		}

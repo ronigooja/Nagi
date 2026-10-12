@@ -274,7 +274,7 @@ extension LifecycleTests {
                                 selectedStatus: nil, nodes: ["Node A"], hidden: true, icon: nil)
         XCTAssertNil(hidden.selectCommand("Node A"))
         let provider = ProxyProvider(name: "work", type: "HTTP", vehicleType: "HTTP", nodes: [])
-        for command in [provider.updateCommand, provider.healthcheckCommand] {
+        for command in [provider.updateCommand, provider.healthcheckCommand, provider.removeCommand] {
             model.perform(command)
             await expectUntil { !model.busy }
             XCTAssertTrue(lines(log).contains("--json \(command.joined(separator: " "))"))

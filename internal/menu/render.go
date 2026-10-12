@@ -283,7 +283,7 @@ func mutationFeedback(args []string) string {
 	case "proxy":
 		if args[1] == "provider" && len(args) > 2 {
 			return map[string]string{
-				"add": "Provider added.", "update": "Provider updated.", "healthcheck": "Healthcheck started.",
+				"add": "Provider added.", "remove": "Provider removed.", "update": "Provider updated.", "healthcheck": "Healthcheck started.",
 			}[args[2]]
 		}
 	case "dns":

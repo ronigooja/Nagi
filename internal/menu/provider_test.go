@@ -176,3 +176,27 @@ func TestProviderAddRejectsInvalidURLAndGroupWhileRetainingName(t *testing.T) {
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
 	}
 }
+
+func TestProviderDeleteReturnsToListOnlyOnSuccess(t *testing.T) {
+	for _, fails := range []bool{false, true} {
+		r := &fakeRunner{results: map[string]Result{"proxy provider remove work": {Data: map[string]any{"removed": true}}}}
+		if fails {
+			r.results["proxy provider remove work"] = Result{Code: 1, Error: &CLIError{Message: "removal failed"}}
+		}
+		s := NewSession(r, strings.NewReader(""), &bytes.Buffer{})
+		view, _ := providerDetailPage("work").Load(context.Background(), s)
+		nav, err := view.Actions[2].Navigate(context.Background(), s)
+		if err != nil || nav.Back == fails {
+			t.Fatalf("fails=%t navigation=%v err=%v", fails, nav, err)
+		}
+		count := 0
+		for _, call := range r.calls {
+			if reflect.DeepEqual(call, []string{"proxy", "provider", "remove", "work"}) {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("delete requests=%d", count)
+		}
+	}
+}

@@ -271,6 +271,7 @@ import AppKit
             let actions = NSMenu()
             add("Update", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
             add("Healthcheck", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: actions)
+            add("Delete Provider", command: provider.removeCommand, enabled: !model.busy, to: actions)
             let metadata = NSMenuItem(title: "\(provider.type) · \(provider.nodes.count) nodes", action: nil, keyEquivalent: "")
             metadata.isEnabled = false; actions.addItem(metadata)
             addSubmenu(provider.name, actions, to: providersMenu)

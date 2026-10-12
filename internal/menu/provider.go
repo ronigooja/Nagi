@@ -87,6 +87,11 @@ func providerDetailPage(name string) *Page {
 		view := PageView{Context: "Provider state: unknown", Actions: []Item{
 			{Label: "Update provider", Args: []string{"proxy", "provider", "update", name}},
 			{Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", name}},
+			{Label: "Delete provider", Impact: "Removes provider and group references; reloads running mihomo", Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
+				result := s.Run(ctx, "proxy", "provider", "remove", name)
+				s.ShowResult([]string{"proxy", "provider", "remove", name}, result)
+				return Navigation{Back: result.Code == 0 && result.Error == nil}, nil
+			}},
 		}}
 		var p menuProvider
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "provider", "show", name), &p); err != nil {

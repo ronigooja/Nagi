@@ -96,8 +96,9 @@ var commandSpecs = []commandSpec{
 	{"proxy tailscale unbind", "proxy tailscale unbind node|provider TARGET", "Clear a Tailscale binding", "Writes an explicit empty front proxy on a node or provider so a source binding cannot reappear. Provider changes affect ALL nodes, including future refreshes. Validates and saves locally, reloading only when running.", "nagi proxy tailscale unbind node \"Node A\"", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 2, 2},
 	{"proxy tailscale remove", "proxy tailscale remove NAME", "Remove an unbound Tailscale proxy", "Removes a top-level Tailscale node only after node, provider, and DNS references are removed. Mihomo validation protects rules and groups. Saves the full node snapshot and reloads only when running; persistent identity state is retained.", "nagi proxy tailscale remove \"TS Exit\"", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 1, 1},
 	{"proxy providers", "proxy providers", "List proxy providers", "Lists provider names, types, update time, and node names without revealing URLs or credentials.", "nagi proxy providers", "", 0, 0},
-	{"proxy provider", "proxy provider <add NAME URL GROUP [SECONDS]|show NAME|update NAME|healthcheck NAME>", "Manage one proxy provider", "Adds provider configuration through the selected profile override; inspections, updates, and healthchecks use mihomo APIs.", "nagi proxy provider show work", "", 0, -1},
+	{"proxy provider", "proxy provider <add NAME URL GROUP [SECONDS]|remove NAME|show NAME|update NAME|healthcheck NAME>", "Manage one proxy provider", "Adds provider configuration through the selected profile override; inspections, updates, and healthchecks use mihomo APIs.", "nagi proxy provider show work", "", 0, -1},
 	{"proxy provider add", "proxy provider add NAME URL GROUP [SECONDS]", "Add an HTTP proxy provider", "Adds a provider to the selected profile local override and attaches it to GROUP. Creates a select group with DIRECT fallback if absent. NAME uses 1..128 ASCII letters, digits, _ or -; GROUP permits internal spaces. URL must be absolute HTTP(S) without userinfo or fragment. SECONDS defaults to 3600 (1..31536000). Uses the target automatic group's healthcheck URL and requests an immediate native healthcheck after a running reload, without separate check output. mihomo downloads and healthchecks nodes; routing rules remain unchanged. Reloads only when running.", "nagi proxy provider add work https://example.com/nodes.yaml \"My Proxy\"", "Run `nagi proxy groups` to find a running group, or choose a new GROUP name.", 3, 4},
+	{"proxy provider remove", "proxy provider remove NAME", "Remove a proxy provider", "Removes the provider definition and all group use references from the selected profile and local override. Retains groups and routing rules. Validates and reloads if running; failure restores prior settings. NAME is printable, 1..128 bytes, without surrounding whitespace; COMPATIBLE is reserved.", "nagi proxy provider remove work", "Inspect the selected profile and override for provider names while stopped.", 1, 1},
 	{"proxy provider show", "proxy provider show NAME", "Show a proxy provider", "Reports redacted provider metadata and node names.", "nagi proxy provider show work", "", 1, 1},
 	{"proxy provider update", "proxy provider update NAME", "Update a proxy provider", "Asks mihomo to download the provider again.", "nagi proxy provider update work", "", 1, 1},
 	{"proxy provider healthcheck", "proxy provider healthcheck NAME", "Check provider nodes", "Asks mihomo to start its provider healthcheck.", "nagi proxy provider healthcheck work", "", 1, 1},
@@ -267,6 +268,11 @@ func validateInvocation(args []string) error {
 		}
 	}
 
+	if spec.path == "proxy provider remove" {
+		if err := profile.ValidateProviderRemoval(args[3]); err != nil {
+			return syntaxError(err.Error(), spec)
+		}
+	}
 	if spec.path == "proxy provider add" {
 		interval := profile.DefaultProviderInterval
 		if n == 4 {

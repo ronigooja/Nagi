@@ -61,6 +61,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `proxy auto GROUP` | Remove a fixed choice from a URLTest or Fallback group and its saved selection, resuming mihomo automatic selection. |
 | `proxy providers`, `proxy provider show NAME` | List or inspect proxy providers with redacted metadata and node names. |
 | `proxy provider add NAME URL GROUP [SECONDS]` | Save an HTTP provider in the selected profile's local override, attach it to a group, validate, and reload if running. |
+| `proxy provider remove NAME` | Remove a provider and group references from the selected profile, validate, and reload if running. |
 | `proxy provider update NAME`, `proxy provider healthcheck NAME` | Ask mihomo to update a proxy provider or start its native healthcheck. |
 | `proxy tailscale list`, `proxy tailscale show NAME`, `proxy tailscale targets` | Inspect selected-profile Tailscale nodes and binding targets without a running engine. |
 | `proxy tailscale add`, `edit`, `bind`, `unbind`, `remove` | Validate and save Tailscale nodes or front-proxy bindings, reloading only while running. See [Tailscale management](#tailscale-management). |
@@ -200,6 +201,14 @@ The provider uses mihomo's automatic cache path, the requested update interval, 
 Nagi merges the provider into `config/overrides/PROFILE.yaml` and stores the full effective `proxy-groups` list there because override lists replace source lists. Existing source content, DNS, rules, nodes, and unrelated override settings are retained. This group snapshot also takes precedence over later source imports and preserving-source automatic subscription refreshes. Explicit `subscription apply`, `profile override clear`, or replacement of the override removes these local additions. Source export, backup, and `config show` do not include the override.
 
 The command takes the configuration lock and uses the existing activation transaction. Mihomo validates the effective configuration before activation. A running engine is reloaded; after initial provider loading completes, Nagi requests an immediate native provider healthcheck without adding output or failing the addition if that check fails. A stopped engine stays stopped; mihomo performs the initial check when it next loads the provider at startup. An immediate check reduces fallback caused by missing measurements; it cannot make unavailable nodes usable. On validation or reload failure, Nagi restores disk settings and attempts confirmed runtime recovery when the activation changed; uncertain runtime recovery is reported. Operational failures exit `1` with `proxy_provider_error`. Success omits the subscription URL and reports the affected profile and group; `group_created` identifies a new group. See the [provider guide](../guides/proxy-providers.md) for menu and CLI steps.
+
+### Removing proxy providers
+
+`proxy provider remove NAME` removes a proxy provider from the selected profile, including definitions in the source and local override and every group `use` reference in both layers. `NAME` contains 1 through 128 printable bytes without surrounding whitespace; `COMPATIBLE` is reserved. Invalid arguments exit `2` before resolving runtime configuration. Names need not follow the stricter add-name syntax, so imported names with spaces or Unicode can be removed.
+
+Groups, their remaining members and settings, routing rules, and unrelated override settings are retained. Removing the last provider from a group uses mihomo's configured empty-group behavior; Nagi does not insert a direct member. References to individual provider nodes in other fields are not rewritten; mihomo validation can reject such a removal. Saved node choices that become unavailable remain stored under the existing selection restore contract.
+
+The command works while stopped and does not start the engine. It takes the configuration lock, validates the remaining effective configuration, and reloads a running engine once through the activation transaction. Missing providers, validation, persistence, and activation failures exit `1` with `proxy_provider_error`; failures restore disk settings and attempt confirmed runtime recovery under the existing transaction contract. A source-defined provider is removed from the source profile, so a later subscription replacement can restore it. Such source edits follow the automatic subscription apply source-change pause rules. Source exports include source removals; locally added provider removal leaves the source unchanged. Both menu entry points dispatch the same CLI operation.
 
 ### Tailscale management
 
@@ -343,6 +352,7 @@ Additional success payloads are defined below; all appear in `data`:
 | `proxy providers` | `providers` array of redacted `name`, `type`, `vehicle_type`, optional `updated_at`, and `nodes` names. URLs, node definitions, and credentials are excluded. |
 | `proxy provider show` | One redacted provider object with the same fields. |
 | `proxy provider add` | `provider`, `group`, `profile` (strings), `interval_seconds` (integer), `added: true`, and `group_created` (boolean). URL and credentials are excluded. |
+| `proxy provider remove` | `provider`, `profile` (strings), and `removed: true`. |
 | `proxy provider update` | `provider` and `updated: true`. |
 | `proxy provider healthcheck` | `provider` and `healthcheck_started: true`. |
 | `proxy delays` | `group`, `url`, `timeout_ms`, `results` array of `proxy`, optional `delay_ms` or `error`. Uses mihomo’s native group test. For URLTest and Fallback, a confirmed handler run clears the fixed node and Nagi removes the saved choice. The `url` field records the requested URL. In the pinned mihomo version, URLTest uses its configured test URL despite the request’s `url` parameter; other group types use the supplied or default URL. Successful automatic-group tests add `automatic_reset: true` and `saved_selection_removed: true`. |

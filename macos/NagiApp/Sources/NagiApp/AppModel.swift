@@ -38,6 +38,7 @@ struct Subscription {
 struct ProxyProvider {
     let name: String; let type: String; let vehicleType: String; let nodes: [String]
     var updateCommand: [String] { ["proxy", "provider", "update", name] }
+    var removeCommand: [String] { ["proxy", "provider", "remove", name] }
     var healthcheckCommand: [String] { ["proxy", "provider", "healthcheck", name] }
 }
 enum TrafficDisplay: String, CaseIterable {

@@ -45,3 +45,13 @@ nagi proxy provider healthcheck airport
 ```
 
 Provider updates refresh nodes within the current configuration. Nagi's subscription download and apply operations manage whole profile configurations instead. Explicitly applying a subscription or clearing/replacing the profile's override removes locally added providers and group attachments. Automatic subscription refreshes retain the local override, including its full group snapshot. See the [persistence contract](../reference/cli.md#adding-proxy-providers) before combining the two workflows.
+
+## Remove a provider
+
+Open a provider's details in `nagi menu` and choose **Delete provider**, or choose **Proxy Providers → PROVIDER → Delete Provider** in the macOS app. The terminal returns to the provider list only after successful deletion. From the CLI:
+
+```sh
+nagi proxy provider remove airport
+```
+
+Deletion removes its definition and group `use` references from the selected profile and local override, then validates and reloads if running. It retains groups and routing rules. It also works while stopped. A failed deletion restores the previous settings. If other fields reference individual nodes supplied by the provider, update those references before retrying. A later subscription replacement can restore a provider originally supplied by that subscription. See the [removal contract](../reference/cli.md#removing-proxy-providers) for persistence and failure behavior.

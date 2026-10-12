@@ -555,7 +555,8 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		return err
 	}
 	addingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "add"
-	needsProfile := tailscaleInvocation(args) || addingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	removingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "remove"
+	needsProfile := tailscaleInvocation(args) || addingProvider || removingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -893,6 +894,16 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return result, nil
 		}
 
+		if removingProvider {
+			store, err := getProfiles()
+			if err != nil {
+				return nil, fail("proxy_provider_error", err)
+			}
+			if err := store.RemoveProvider(ctx, profileName, args[3]); err != nil {
+				return nil, fail("proxy_provider_error", fmt.Errorf("provider removal failed; inspect the selected profile and override: %w", err))
+			}
+			return map[string]any{"provider": args[3], "profile": profileName, "removed": true}, nil
+		}
 		if addingProvider {
 			store, err := getProfiles()
 			if err != nil {
