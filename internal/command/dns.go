@@ -130,7 +130,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		policy := "direct"
 		proxied, ruled := 0, 0
 		for _, server := range servers {
-			if parsed, err := url.Parse(server); err == nil && parsed.Fragment != "" {
+			if parsed, err := url.Parse(server); err == nil && parsed.Fragment != "" && parsed.Fragment != "DIRECT" {
 				if parsed.Fragment == "RULES" {
 					ruled++
 				} else {
@@ -200,41 +200,25 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 				return nil, fail("dns_error", err)
 			}
 		}
-		for i, server := range servers {
+		for _, server := range servers {
 			if err := dnsURL(server, false); err != nil {
 				return nil, fail("dns_error", err)
-			}
-			if group != "" {
-				parsed, _ := url.Parse(server)
-				parsed.Fragment = group
-				servers[i] = parsed.String()
 			}
 		}
 		override, err := dnsOverride(store, name)
 		if err != nil {
 			return nil, fail("dns_error", err)
 		}
-		dns := dnsSection(override)
+		previousDNS := dnsSection(override)
+		dns := profile.DNSSettings(serverArgs, bootstrap, group)
+		// Keep deliberate local domain exceptions; generated defaults start empty.
+		if policy, ok := previousDNS["nameserver-policy"]; ok {
+			dns["nameserver-policy"] = policy
+		}
+		override["dns"] = dns
+		override[profile.DNSReplaceKey] = true
+		delete(override, profile.DNSProxyGroupKey)
 		override["ipv6"] = true
-		dns["enable"] = true
-		dns["resolve-proxy-destinations"] = true
-		dns["ipv6"] = true
-		dns["listen"] = "127.0.0.1:1053"
-		dns["enhanced-mode"] = "fake-ip"
-		dns["default-nameserver"] = bootstrap
-		dns["nameserver"] = servers
-		dns["fallback"] = []string{}
-		if policy == "proxy" {
-			dns["direct-nameserver"] = bootstrap
-		} else {
-			dns["direct-nameserver"] = servers
-		}
-		dns["proxy-server-nameserver-policy"] = map[string]any{}
-		dns["respect-rules"] = false
-		dns["proxy-server-nameserver"] = bootstrap
-		if _, ok := dns["nameserver-policy"]; !ok {
-			dns["nameserver-policy"] = map[string]any{}
-		}
 		if err := saveDNS(ctx, store, name, override); err != nil {
 			return nil, fail("dns_error", err)
 		}
@@ -487,5 +471,70 @@ func validateManagedDNSProxyTargets(override, effective []byte) error {
 	if len(local.DNS.NameServer) == 0 {
 		return nil
 	}
+	var metadata map[string]any
+	if err := yaml.Unmarshal(override, &metadata); err != nil {
+		return err
+	}
+	if group, _ := metadata[profile.DNSProxyGroupKey].(string); group != "" {
+		if err := profile.ValidateDNSGroup(effective, group); err != nil {
+			return err
+		}
+	}
 	return validateDNSProxyTargets(effective)
+}
+
+// A live selector can differ from its persisted default. Refuse applying the
+// protected defaults when its actual chain currently ends at a direct adapter.
+func validateDefaultDNSLiveTarget(ctx context.Context, args []string, store *profile.Store, current string, client *control.Client) error {
+	if len(args) < 4 || args[3] != current {
+		return nil
+	}
+	group := ""
+	if len(args) == 6 && args[4] == "--dns-proxy" {
+		group = args[5]
+	} else {
+		var err error
+		group, err = store.DefaultDNSProxyGroup(args[3])
+		if err != nil {
+			return err
+		}
+	}
+	if group == "" {
+		return nil
+	}
+	var response struct {
+		Proxies map[string]struct {
+			Type  string   `json:"type"`
+			Now   string   `json:"now"`
+			Fixed string   `json:"fixed"`
+			All   []string `json:"all"`
+		} `json:"proxies"`
+	}
+	// A stopped engine has no live selection; the profile checks saved defaults.
+	if err := client.Get(ctx, "/proxies", &response); err != nil {
+		return nil
+	}
+	visited := map[string]bool{}
+	for {
+		item, ok := response.Proxies[group]
+		if !ok || visited[group] {
+			return errors.New("DNS proxy group has no usable live selection; run `nagi proxy groups` and choose an available proxy")
+		}
+		visited[group] = true
+		switch strings.ToLower(item.Type) {
+		case "direct", "reject", "rejectdrop", "pass":
+			return errors.New("DNS proxy group currently selects a direct or rejecting adapter; select a proxy with `nagi proxy select GROUP NODE` before applying defaults")
+		}
+		if len(item.All) == 0 {
+			return nil
+		}
+		next := item.Fixed
+		if next == "" {
+			next = item.Now
+		}
+		if next == "" {
+			return errors.New("DNS proxy group has no current proxy selection; run `nagi proxy groups` before applying defaults")
+		}
+		group = next
+	}
 }

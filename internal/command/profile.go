@@ -17,9 +17,10 @@ import (
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
+	"gopkg.in/yaml.v3"
 )
 
-const defaultProfile = `mixed-port: 17890
+const defaultProfileBase = `mixed-port: 17890
 allow-lan: false
 ipv6: true
 mode: rule
@@ -28,26 +29,6 @@ proxies: []
 proxy-groups: []
 rules:
   - MATCH,DIRECT
-dns:
-  enable: true
-  resolve-proxy-destinations: true
-  listen: 127.0.0.1:1053
-  ipv6: true
-  enhanced-mode: fake-ip
-  default-nameserver:
-    - https://223.5.5.5/dns-query
-    - https://223.6.6.6/dns-query
-  nameserver:
-    - https://223.5.5.5/dns-query
-    - https://223.6.6.6/dns-query
-  direct-nameserver:
-    - https://223.5.5.5/dns-query
-    - https://223.6.6.6/dns-query
-  proxy-server-nameserver:
-    - https://223.5.5.5/dns-query
-    - https://223.6.6.6/dns-query
-  fallback: []
-  respect-rules: false
 tun:
   enable: false
   stack: system
@@ -58,6 +39,20 @@ tun:
     - any:53
     - tcp://any:53
 `
+
+// The installer and first-run profile use the same DNS generator as overrides.
+var defaultProfile = func() string {
+	var config map[string]any
+	if err := yaml.Unmarshal([]byte(defaultProfileBase), &config); err != nil {
+		panic(err)
+	}
+	config["dns"] = profile.DefaultDNS("")
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
+}()
 
 func ensureDefaultProfile(path, selected string) error {
 	if selected != "default" {
