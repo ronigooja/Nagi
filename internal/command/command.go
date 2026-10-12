@@ -46,6 +46,14 @@ func (e *commandError) Unwrap() error   { return e.err }
 func fail(code string, err error) error { return &commandError{code, err} }
 
 func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
+	return RunWithInput(args, os.Stdin, stdout, stderr, version, commit)
+}
+
+// RunWithInput keeps command input separate from argv, including pasted keys.
+func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, version, commit string) int {
+	if stdin == nil {
+		stdin = strings.NewReader("")
+	}
 	if len(args) == 1 && args[0] == "__default-profile" {
 		if _, err := io.WriteString(stdout, defaultProfile); err != nil {
 			fmt.Fprintln(stderr, err)
@@ -123,7 +131,8 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		return 2
 	}
 	if len(filtered) == 1 && filtered[0] == "menu" {
-		if jsonMode || !menu.IsTerminal(os.Stdin) {
+		inputFile, inputOK := stdin.(*os.File)
+		if jsonMode || !inputOK || !menu.IsTerminal(inputFile) {
 			output.WriteError(stderr, jsonMode, "usage", "menu requires interactive terminal input and output; use an ordinary command or --json for automation")
 			return 2
 		}
@@ -132,10 +141,10 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 			output.WriteError(stderr, jsonMode, "usage", "menu requires interactive terminal input and output; use an ordinary command or --json for automation")
 			return 2
 		}
-		runner := menu.NewCommandRunner(func(argv []string, out, errOut io.Writer) int {
-			return Run(argv, out, errOut, version, commit)
+		runner := menu.NewInputCommandRunner(func(argv []string, input io.Reader, out, errOut io.Writer) int {
+			return RunWithInput(argv, input, out, errOut, version, commit)
 		})
-		return menu.Run(context.Background(), menu.NewSession(runner, os.Stdin, stdout))
+		return menu.Run(context.Background(), menu.NewSession(runner, stdin, stdout))
 	}
 	if len(filtered) == 2 && filtered[0] == "subscription" && filtered[1] == "watch" {
 		return runForegroundSubscriptionWatch(stdout, stderr, jsonMode, version, commit)
@@ -143,7 +152,21 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
 		return runTrafficWatch(stdout, stderr, jsonMode)
 	}
-	data, err := execute(context.Background(), filtered, version, commit)
+	ctx := context.Background()
+	var inputErr error
+	if tailscaleInvocation(filtered) {
+		options, _ := tailscaleArguments(filtered) // Invocation was validated above.
+		if options.AuthKey != nil {
+			var key *string
+			key, inputErr = prepareTailscaleAuthInput(filtered, stdin, stderr, jsonMode, options.stdin)
+			ctx = context.WithValue(ctx, tailscaleAuthInputKey{}, tailscaleAuthInput{key: key})
+		}
+	}
+	var data any
+	err := inputErr
+	if err == nil {
+		data, err = execute(ctx, filtered, version, commit)
+	}
 	if err != nil {
 		code := "internal_error"
 		var ce *commandError

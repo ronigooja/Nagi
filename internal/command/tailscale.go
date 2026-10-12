@@ -3,12 +3,22 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strings"
 
+	"github.com/ronigooja/Nagi/internal/menu"
 	"github.com/ronigooja/Nagi/internal/profile"
 )
 
-func tailscaleArguments(args []string) (profile.TailscaleOptions, error) {
-	o := profile.TailscaleOptions{}
+type tailscaleOptions struct {
+	profile.TailscaleOptions
+	stdin bool
+}
+
+func tailscaleArguments(args []string) (tailscaleOptions, error) {
+	o := tailscaleOptions{}
 	if len(args) < 3 {
 		return o, errors.New("missing Tailscale action")
 	}
@@ -23,12 +33,15 @@ func tailscaleArguments(args []string) (profile.TailscaleOptions, error) {
 	}
 	start := 4
 	if action == "add" {
-		if len(args) < 6 {
-			return o, errors.New("add requires NAME EXIT_NODE KEY_FILE")
+		if len(args) < 5 {
+			return o, errors.New("add requires NAME EXIT_NODE")
 		}
 		o.ExitNode = &args[4]
-		o.AuthKeyFile = &args[5]
-		start = 6
+		start = 5
+		if len(args) > 5 && !strings.HasPrefix(args[5], "--") {
+			o.AuthKeyFile = &args[5]
+			start = 6
+		}
 	}
 	if action == "bind" || action == "unbind" {
 		index := 4
@@ -50,15 +63,25 @@ func tailscaleArguments(args []string) (profile.TailscaleOptions, error) {
 		return o, nil
 	}
 	seen := map[string]bool{}
-	for i := start; i < len(args); i += 2 {
-		if i+1 >= len(args) {
-			return o, errors.New("option requires a value")
-		}
+	for i := start; i < len(args); {
 		flag := args[i]
 		if seen[flag] {
 			return o, errors.New("duplicate Tailscale option")
 		}
 		seen[flag] = true
+		if flag == "--auth-key" || flag == "--auth-key-stdin" {
+			if o.AuthKeyFile != nil || o.AuthKey != nil {
+				return o, errors.New("choose one auth key input method")
+			}
+			key := ""
+			o.AuthKey = &key // Input is resolved before taking configuration locks.
+			o.stdin = flag == "--auth-key-stdin"
+			i++
+			continue
+		}
+		if i+1 >= len(args) {
+			return o, errors.New("option requires a value")
+		}
 		switch flag {
 		case "--exit-node":
 			if action != "edit" {
@@ -77,14 +100,19 @@ func tailscaleArguments(args []string) (profile.TailscaleOptions, error) {
 		default:
 			return o, errors.New("unknown Tailscale option")
 		}
+		i += 2
 	}
 	if action == "edit" && len(seen) == 0 {
 		return o, errors.New("edit requires at least one option")
 	}
+	if action == "add" && o.AuthKeyFile == nil && o.AuthKey == nil {
+		key := ""
+		o.AuthKey = &key
+	}
 	if err := profile.ValidateTailscaleName(args[3]); err != nil {
 		return o, err
 	}
-	return o, profile.ValidateTailscaleOptions(o)
+	return o, profile.ValidateTailscaleOptions(o.TailscaleOptions)
 }
 func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, name string, reloaded bool) (any, error) {
 	action := args[2]
@@ -102,6 +130,13 @@ func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, 
 	o, err := tailscaleArguments(args)
 	if err != nil {
 		return nil, err
+	}
+	if o.AuthKey != nil {
+		input, ok := ctx.Value(tailscaleAuthInputKey{}).(tailscaleAuthInput)
+		if !ok {
+			return nil, errors.New("auth key input unavailable")
+		}
+		o.AuthKey = input.key
 	}
 	node, kind, target := "", "", ""
 	if action == "unbind" {
@@ -123,7 +158,7 @@ func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, 
 			return nil
 		}
 	}
-	if err := store.MutateTailscale(ctx, name, action, node, kind, target, o); err != nil {
+	if err := store.MutateTailscale(ctx, name, action, node, kind, target, o.TailscaleOptions); err != nil {
 		return nil, err
 	}
 	result := map[string]any{"profile": name, "action": action, "saved": true, "reloaded": reloaded}
@@ -135,6 +170,49 @@ func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, 
 		result["target"] = target
 	}
 	return result, nil
+}
+
+type tailscaleAuthInputKey struct{}
+type tailscaleAuthInput struct{ key *string }
+
+// Input is kept outside argv and read before configuration locking. Prompts
+// deliberately use the terminal's normal echo, matching the menu paste flow.
+func prepareTailscaleAuthInput(args []string, in io.Reader, prompt io.Writer, jsonMode, stdinMode bool) (*string, error) {
+	if stdinMode {
+		data, err := io.ReadAll(io.LimitReader(in, profile.MaxTailscaleAuthKeyBytes+1))
+		if err != nil {
+			return nil, fail("proxy_tailscale_error", errors.New("could not read auth key from stdin"))
+		}
+		key := string(data)
+		if err := profile.ValidateTailscaleAuthKey(key); err != nil {
+			return nil, fail("proxy_tailscale_error", err)
+		}
+		key = strings.TrimSpace(key)
+		return &key, nil
+	}
+	file, ok := in.(*os.File)
+	if jsonMode || !ok || !menu.IsTerminal(file) {
+		return nil, fail("usage", errors.New("auth key paste requires terminal input without --json; use KEY_FILE, --auth-key-file FILE, or --auth-key-stdin for automation"))
+	}
+	label := "Paste Auth Key (input is visible)"
+	if args[2] == "edit" {
+		label += "; blank keeps the existing key"
+	}
+	session := menu.NewSession(nil, in, prompt)
+	for {
+		key, err := session.Prompt(label)
+		if err != nil {
+			return nil, fail("proxy_tailscale_error", errors.New("auth key input cancelled; no changes saved"))
+		}
+		if key == "" && args[2] == "edit" {
+			return nil, nil
+		}
+		if err := profile.ValidateTailscaleAuthKey(key); err != nil {
+			fmt.Fprintln(prompt, err)
+			continue
+		}
+		return &key, nil
+	}
 }
 func tailscaleRead(args []string) bool {
 	return len(args) > 2 && args[0] == "proxy" && args[1] == "tailscale" && (args[2] == "list" || args[2] == "show" || args[2] == "targets")

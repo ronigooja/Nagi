@@ -27,6 +27,11 @@ type Runner interface {
 	Run(context.Context, []string) Result
 }
 
+// InputRunner submits command input separately from arguments and results.
+type InputRunner interface {
+	RunInput(context.Context, []string, io.Reader) Result
+}
+
 // ReadRunner is optional. It runs independent read-only commands and returns
 // results in argument order. Run itself need not support concurrent calls.
 // Session rendering, feedback, and input must remain outside the batch.
@@ -43,18 +48,40 @@ type StreamRunner interface {
 // CommandFunc must support concurrent independent reads. Each invocation receives
 // private stdout/stderr buffers; business operations are dispatched sequentially.
 type CommandFunc func([]string, io.Writer, io.Writer) int
+type InputCommandFunc func([]string, io.Reader, io.Writer, io.Writer) int
 
-type commandRunner struct{ run CommandFunc }
+type commandRunner struct {
+	run      CommandFunc
+	runInput InputCommandFunc
+}
 
 func NewCommandRunner(run CommandFunc) Runner { return &commandRunner{run: run} }
 
+func NewInputCommandRunner(run InputCommandFunc) Runner {
+	return &commandRunner{runInput: run, run: func(args []string, out, errOut io.Writer) int {
+		return run(args, strings.NewReader(""), out, errOut)
+	}}
+}
+
 func (r *commandRunner) Run(ctx context.Context, args []string) Result {
+	return r.RunInput(ctx, args, nil)
+}
+
+func (r *commandRunner) RunInput(ctx context.Context, args []string, input io.Reader) Result {
 	if err := ctx.Err(); err != nil {
 		return Result{Code: 1, Error: &CLIError{Code: "cancelled", Message: err.Error()}}
 	}
 	var stdout, stderr bytes.Buffer
 	argv := append([]string{"--json"}, args...)
-	code := r.run(argv, &stdout, &stderr)
+	var code int
+	if input != nil {
+		if r.runInput == nil {
+			return Result{Code: 1, Error: &CLIError{Code: "input_unavailable", Message: "Command runner does not support input"}}
+		}
+		code = r.runInput(argv, input, &stdout, &stderr)
+	} else {
+		code = r.run(argv, &stdout, &stderr)
+	}
 	var envelope struct {
 		OK    bool      `json:"ok"`
 		Data  any       `json:"data"`

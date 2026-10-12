@@ -69,6 +69,7 @@ The Tailscale implementation was checked against engine commit `e8555db99bb89111
 | Isolated real-engine CLI validation and activation with SS, Hysteria2, inline and HTTP providers | Passed; refreshed HTTP provider nodes inherited the binding and unbind cleared it; no authenticated transit |
 | Linux root helper harness with real restricted engine, reload, restart and state retention | Passed; TUN disabled, no tailnet login |
 | CLI and engine Darwin AMD64/ARM64 builds | Passed |
+| Visible Auth Key paste in Linux CLI/menu PTY, blank edit preservation, Ctrl-C/EOF cancellation, and stdin result redaction | Passed against the real engine in isolated directories; terminal echo and settings unchanged |
 | Bash and Bash 3.2 completion execution | Passed |
 | Zsh/Fish generated completion content | Checked; executable shell checks unavailable because those shells are not installed |
 | Documentation relative paths and changed command/field examples | Reviewed |

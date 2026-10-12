@@ -8,17 +8,18 @@ This guide covers managing top-level Tailscale nodes and connecting ordinary pro
 
 ## Prepare a profile and key
 
-Import or select a profile containing your proxy nodes. Have a dedicated tailnet, an approved exit node, and a Tailscale Auth Key available. Store the key in a private regular file outside shared directories. For Headscale, use its HTTPS control-service address and a key issued by that service.
+Import or select a profile containing your proxy nodes. Have a dedicated tailnet, an approved exit node, and a Tailscale Auth Key available. Copy the Auth Key for pasting at the prompt. For Headscale, use its HTTPS control-service address and a key issued by that service.
 
 ```sh
 nagi profile use work
 nagi proxy tailscale targets
-nagi proxy tailscale add 'TS Exit' EXIT_NODE ./auth-key.txt --hostname nagi-work
+nagi proxy tailscale add 'TS Exit' EXIT_NODE --hostname nagi-work
+# Paste the Auth Key when prompted; input is visible.
 # Headscale instead of the official service:
-nagi proxy tailscale edit 'TS Exit' --control-url https://headscale.example.com --auth-key-file ./headscale-key.txt
+nagi proxy tailscale edit 'TS Exit' --control-url https://headscale.example.com --auth-key
 ```
 
-Replace `EXIT_NODE` with your exit-node IP or name accepted by mihomo. Replace file paths and the example control address with your own values. Ordinary results report whether a key is configured, without printing its value or source file path. Keys remain sensitive configuration data: protect profile overrides and avoid sharing raw configuration output.
+Replace `EXIT_NODE` with your exit-node IP or name accepted by mihomo. Replace the example control address with your own value. Editing with `--auth-key` prompts for a replacement; pressing Enter keeps the existing key. Ordinary results report whether a key is configured, without printing its value or source file path. Keys remain sensitive configuration data: protect profile overrides and avoid sharing raw configuration output.
 
 ## Bind a node or provider
 
@@ -32,7 +33,7 @@ The path becomes application → Nagi/mihomo → Tailscale exit → selected pro
 
 A provider binding affects **all its nodes**, including nodes added by refresh. It changes `override.dialer-proxy`, retaining the provider's download proxy. A pre-existing non-Tailscale front proxy must be removed deliberately before binding; Nagi allows switching an existing Tailscale binding to another Tailscale exit.
 
-For the terminal menu, open **Select Node → Tailscale**. Add a node, open its details, and choose a target from Bind. Provider entries disclose their all-node effect. Forms keep entered values after a failed submission and require an explicit retry.
+For the terminal menu, open **Select Node → Tailscale**. Paste the Auth Key directly in the add or edit form; input is visible, and an empty edit field preserves the current key. Add a node, open its details, and choose a target from Bind. Provider entries disclose their all-node effect. Forms keep entered values after a failed submission and require an explicit retry.
 
 ## Activation and persistence
 
@@ -51,6 +52,6 @@ nagi proxy tailscale unbind provider work-feed
 nagi proxy tailscale remove 'TS Exit'
 ```
 
-Omitting `--auth-key-file` during edit keeps the current key. Remove is refused while a node or provider references the Tailscale node; known provider payload and DNS references also block removal, while effective configuration validation protects rule and group references. Unbind writes an explicit empty front proxy so a source binding cannot reappear. Removing configuration leaves identity state available for reuse.
+Omitting key options during edit keeps the current key. For scripts, the existing file interface remains available (`add NAME EXIT_NODE KEY_FILE`, `edit NAME --auth-key-file FILE`); `--auth-key-stdin` accepts a key from stdin for pipelines or JSON use. Remove is refused while a node or provider references the Tailscale node; known provider payload and DNS references also block removal, while effective configuration validation protects rule and group references. Unbind writes an explicit empty front proxy so a source binding cannot reappear. Removing configuration leaves identity state available for reuse.
 
 If activation fails, inspect `nagi status` and the selected profile override. Nagi restores saved configuration and attempts runtime recovery; a timed-out reload may still apply, so heed any uncertain-recovery error and retry `nagi config reload` after it settles. Login and exit failures during forwarding belong to mihomo: check your service's key, exit approval, and access policy.

@@ -77,10 +77,10 @@ func bashCompletion(roots []string, children map[string][]string) string {
     if [[ ${#semantic[@]} -eq 4 && ${semantic[2]} == unbind || ${#semantic[@]} -eq 5 && ${semantic[2]} == bind ]]; then
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates tailscale-targets "${semantic[${#semantic[@]}-1]}" 2>/dev/null); return 0
     fi
-    if [[ ${#semantic[@]} -eq 5 && ${semantic[2]} == add || ${semantic[${#semantic[@]}-1]} == --auth-key-file ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
     if [[ "$cur" == --* && ( ${semantic[2]} == add || ${semantic[2]} == edit ) ]]; then
-      local flags='--hostname --control-url'; [[ ${semantic[2]} == edit ]] && flags+=' --exit-node --auth-key-file'; COMPREPLY=( $(compgen -W "$flags" -- "$cur") ); return 0
+      local flags='--hostname --control-url --auth-key --auth-key-stdin'; [[ ${semantic[2]} == edit ]] && flags+=' --exit-node --auth-key-file'; COMPREPLY=( $(compgen -W "$flags" -- "$cur") ); return 0
     fi
+    if [[ ${#semantic[@]} -eq 5 && ${semantic[2]} == add || ${semantic[${#semantic[@]}-1]} == --auth-key-file ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
   fi
   if [[ "$cur" == --* || "$cur" == -* ]]; then
     COMPREPLY=( $(compgen -W '--json --help -h' -- "$cur") ); return 0
@@ -178,8 +178,8 @@ _nagi() {
     if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == show || ${semantic[3]} == edit || ${semantic[3]} == bind || ${semantic[3]} == remove ]]; then compadd -- ${(f)"$(nagi completion candidates tailscale-nodes 2>/dev/null)"}; return; fi
     if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == unbind ]] || (( ${#semantic} == 4 )) && [[ ${semantic[3]} == bind ]]; then compadd -- node provider; return; fi
     if (( ${#semantic} == 4 )) && [[ ${semantic[3]} == unbind ]] || (( ${#semantic} == 5 )) && [[ ${semantic[3]} == bind ]]; then compadd -- ${(f)"$(nagi completion candidates tailscale-targets "${semantic[-1]}" 2>/dev/null)"}; return; fi
+    if [[ ${words[CURRENT]} == --* && ( ${semantic[3]} == add || ${semantic[3]} == edit ) ]]; then compadd -- --hostname --control-url --auth-key --auth-key-stdin; [[ ${semantic[3]} == edit ]] && compadd -- --exit-node --auth-key-file; return; fi
     if (( ${#semantic} == 5 )) && [[ ${semantic[3]} == add ]] || [[ ${semantic[-1]} == --auth-key-file ]]; then _files; return; fi
-    if [[ ${words[CURRENT]} == --* && ( ${semantic[3]} == add || ${semantic[3]} == edit ) ]]; then compadd -- --hostname --control-url; [[ ${semantic[3]} == edit ]] && compadd -- --exit-node --auth-key-file; return; fi
   fi
   if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi
   if (( ${#semantic} == 0 )); then compadd -- %s; return; fi
@@ -274,6 +274,7 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and t
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -eq 3; and test "$s[3]" = unbind; or test (count $s) -eq 4; and test "$s[3]" = bind; end' -a 'node provider'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -eq 4; and test "$s[3]" = unbind; or test (count $s) -eq 5; and test "$s[3]" = bind; end' -a '(set -l s (__nagi_semantic); nagi completion candidates tailscale-targets "$s[-1]" 2>/dev/null)'
 complete -c nagi -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -eq 5; and test "$s[3]" = add; or test "$s[-1]" = --auth-key-file; end' -F
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] add edit' -l auth-key -l auth-key-stdin
 complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] add edit' -l hostname
 complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] add edit' -l control-url
 complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and test "$s[3]" = edit' -l exit-node

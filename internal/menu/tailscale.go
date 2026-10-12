@@ -3,9 +3,12 @@ package menu
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
 	"unicode"
+
+	"github.com/ronigooja/Nagi/internal/profile"
 )
 
 const tailscaleControlURL = "https://controlplane.tailscale.com"
@@ -110,7 +113,7 @@ func tailscaleName(value string) error {
 
 func tailscaleFields(edit bool) []Field {
 	fields := []Field{}
-	keyLabel := "Auth key file path (never enter the key itself)"
+	keyLabel := "Paste Auth Key (input is visible)"
 	if edit {
 		keyLabel += " (blank preserves existing key)"
 	}
@@ -127,27 +130,32 @@ func tailscaleFields(edit bool) []Field {
 			}
 			return nil
 		}},
-		Field{Key: "keyfile", Label: keyLabel, Required: !edit},
+		Field{Key: "authkey", Label: keyLabel, Required: !edit, Validate: func(value string) error {
+			if value == "" && edit {
+				return nil
+			}
+			return profile.ValidateTailscaleAuthKey(value)
+		}},
 	)
 	return fields
 }
 
 func addTailscale(ctx context.Context, s *Session) error {
 	s.WriteLine(tailscaleEffects)
-	s.WriteLine("Use the official Tailscale control server or an HTTPS Headscale server. The CLI reads the auth key from a file; the menu does not read it.")
+	s.WriteLine("Use the official Tailscale control server or an HTTPS Headscale server. Paste the Auth Key below; input is visible.")
 	_, err := s.Form(ctx, tailscaleFields(false), map[string]string{"control": tailscaleControlURL}, func(v map[string]string) Result {
-		args := []string{"add", v["name"], v["exit"], v["keyfile"], "--control-url", v["control"]}
+		args := []string{"add", v["name"], v["exit"], "--auth-key-stdin", "--control-url", v["control"]}
 		if v["hostname"] != "" {
 			args = append(args, "--hostname", v["hostname"])
 		}
-		return runTailscale(ctx, s, args...)
+		return runTailscaleInput(ctx, s, strings.NewReader(v["authkey"]), args...)
 	})
 	return err
 }
 
 func editTailscale(ctx context.Context, s *Session, node menuTailscaleNode) error {
 	s.WriteLine(tailscaleEffects)
-	s.WriteLine("Blank keeps current values. Leave auth key file blank to preserve the existing key.")
+	s.WriteLine("Blank keeps current values. Leave Auth Key blank to preserve the existing key; pasted input is visible.")
 	control := node.ControlURL
 	if control == "" {
 		control = tailscaleControlURL
@@ -157,8 +165,9 @@ func editTailscale(ctx context.Context, s *Session, node menuTailscaleNode) erro
 		if v["hostname"] != "" {
 			args = append(args, "--hostname", v["hostname"])
 		}
-		if v["keyfile"] != "" {
-			args = append(args, "--auth-key-file", v["keyfile"])
+		if v["authkey"] != "" {
+			args = append(args, "--auth-key-stdin")
+			return runTailscaleInput(ctx, s, strings.NewReader(v["authkey"]), args...)
 		}
 		return runTailscale(ctx, s, args...)
 	})
@@ -211,8 +220,19 @@ func tailscaleTargetForm(ctx context.Context, s *Session, name string, targets [
 }
 
 func runTailscale(ctx context.Context, s *Session, args ...string) Result {
+	return runTailscaleInput(ctx, s, nil, args...)
+}
+
+func runTailscaleInput(ctx context.Context, s *Session, input io.Reader, args ...string) Result {
 	command := append([]string{"proxy", "tailscale"}, args...)
-	result := s.Fetch(ctx, command...)
+	var result Result
+	if input == nil {
+		result = s.Fetch(ctx, command...)
+	} else if runner, ok := s.runner.(InputRunner); ok {
+		result = runner.RunInput(ctx, command, input)
+	} else {
+		result = Result{Code: 1, Error: &CLIError{Code: "input_unavailable", Message: "Auth Key input unavailable"}}
+	}
 	s.discardInterrupts()
 	if result.Code != 0 || result.Error != nil {
 		s.ShowResult(command, result)

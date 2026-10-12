@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -13,10 +14,20 @@ import (
 // This runner models only the public CLI contract; it never reads configuration,
 // auth-key files, or mihomo state. Mutations alter the subsequent read snapshots.
 type tailscaleRunner struct {
-	calls   [][]string
-	nodes   []menuTailscaleNode
-	targets []menuTailscaleTarget
-	fail    map[string]int
+	calls     [][]string
+	nodes     []menuTailscaleNode
+	targets   []menuTailscaleTarget
+	fail      map[string]int
+	keyInputs []string
+}
+
+func (r *tailscaleRunner) RunInput(ctx context.Context, args []string, input io.Reader) Result {
+	key, err := io.ReadAll(input)
+	if err != nil {
+		return Result{Code: 1, Error: &CLIError{Message: "input read failed"}}
+	}
+	r.keyInputs = append(r.keyInputs, string(key))
+	return r.Run(ctx, args)
 }
 
 func (r *tailscaleRunner) Run(_ context.Context, args []string) Result {
@@ -135,17 +146,17 @@ func TestTailscaleOneNodeSharedAcrossProtocolsAndProvider(t *testing.T) {
 
 func TestTailscaleRetainedAddAndEdit(t *testing.T) {
 	r := tailscaleFixture()
-	first := "proxy tailscale add Tail New 100.64.0.2 /tmp/key --control-url https://controlplane.tailscale.com"
+	first := "proxy tailscale add Tail New 100.64.0.2 --auth-key-stdin --control-url https://controlplane.tailscale.com"
 	r.fail[first] = 1
 	var out bytes.Buffer
-	s := NewSession(r, strings.NewReader("Tail New\n100.64.0.2\n\n\n/tmp/key\n2\n100.64.0.3\n6\n"), &out)
+	s := NewSession(r, strings.NewReader("Tail New\n100.64.0.2\n\n\ntskey-PASTED\n2\n100.64.0.3\n6\n"), &out)
 	if err := addTailscale(context.Background(), s); err != nil {
 		t.Fatal(err)
 	}
-	if countTailscaleCall(r.calls, "proxy", "tailscale", "add", "Tail New", "100.64.0.2", "/tmp/key", "--control-url", tailscaleControlURL) != 1 || countTailscaleCall(r.calls, "proxy", "tailscale", "add", "Tail New", "100.64.0.3", "/tmp/key", "--control-url", tailscaleControlURL) != 1 {
+	if countTailscaleCall(r.calls, "proxy", "tailscale", "add", "Tail New", "100.64.0.2", "--auth-key-stdin", "--control-url", tailscaleControlURL) != 1 || countTailscaleCall(r.calls, "proxy", "tailscale", "add", "Tail New", "100.64.0.3", "--auth-key-stdin", "--control-url", tailscaleControlURL) != 1 {
 		t.Fatalf("calls=%v", r.calls)
 	}
-	if strings.Contains(out.String(), "secret.invalid") || !strings.Contains(out.String(), "Values are retained") {
+	if !reflect.DeepEqual(r.keyInputs, []string{"tskey-PASTED", "tskey-PASTED"}) || strings.Contains(out.String(), "tskey-PASTED") || strings.Contains(out.String(), "secret.invalid") || !strings.Contains(out.String(), "Values are retained") {
 		t.Fatal(out.String())
 	}
 	r.calls = nil
@@ -255,7 +266,7 @@ func TestTailscaleEmptyAndFailedReadsDoNotExposeStaleChoices(t *testing.T) {
 func TestTailscaleAddRequiredFieldsAndEOF(t *testing.T) {
 	r := tailscaleFixture()
 	var out bytes.Buffer
-	if err := addTailscale(context.Background(), NewSession(r, strings.NewReader("\nTail New\n\n100.64.0.2\n\nhttp://bad.invalid\nhttps://headscale.example.invalid\n\n/tmp/key\n"), &out)); err != nil {
+	if err := addTailscale(context.Background(), NewSession(r, strings.NewReader("\nTail New\n\n100.64.0.2\n\nhttp://bad.invalid\nhttps://headscale.example.invalid\n\ntskey-PASTED\n"), &out)); err != nil {
 		t.Fatal(err)
 	}
 	if len(r.calls) != 1 || !strings.Contains(out.String(), "This field is required") || !strings.Contains(out.String(), "Invalid value") {
@@ -267,12 +278,12 @@ func TestTailscaleAddRequiredFieldsAndEOF(t *testing.T) {
 	}
 }
 
-func TestTailscaleEditFailureRetainsKeyFileAndExplicitResubmit(t *testing.T) {
+func TestTailscaleEditFailureRetainsPastedKeyAndExplicitResubmit(t *testing.T) {
 	r := tailscaleFixture()
-	r.fail["proxy tailscale edit Tail Shared --exit-node 100.64.0.1 --control-url https://controlplane.tailscale.com --auth-key-file /tmp/first"] = 1
+	r.fail["proxy tailscale edit Tail Shared --exit-node 100.64.0.1 --control-url https://controlplane.tailscale.com --auth-key-stdin"] = 1
 	var out bytes.Buffer
-	err := editTailscale(context.Background(), NewSession(r, strings.NewReader("\n\n\n/tmp/first\n4\n/tmp/second\n5\n"), &out), r.nodes[0])
-	if err != nil || len(r.calls) != 2 || !reflect.DeepEqual(r.calls[1], []string{"proxy", "tailscale", "edit", "Tail Shared", "--exit-node", "100.64.0.1", "--control-url", tailscaleControlURL, "--auth-key-file", "/tmp/second"}) {
+	err := editTailscale(context.Background(), NewSession(r, strings.NewReader("\n\n\ntskey-FIRST\n4\ntskey-SECOND\n5\n"), &out), r.nodes[0])
+	if err != nil || !reflect.DeepEqual(r.keyInputs, []string{"tskey-FIRST", "tskey-SECOND"}) || strings.Contains(out.String(), "tskey-FIRST") || strings.Contains(out.String(), "tskey-SECOND") || len(r.calls) != 2 || !reflect.DeepEqual(r.calls[1], []string{"proxy", "tailscale", "edit", "Tail Shared", "--exit-node", "100.64.0.1", "--control-url", tailscaleControlURL, "--auth-key-stdin"}) {
 		t.Fatalf("err=%v calls=%v output=%s", err, r.calls, out.String())
 	}
 }

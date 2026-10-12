@@ -17,6 +17,7 @@ COMP_WORDS=(nagi proxy tailscale bind 'My Tail' ''); COMP_CWORD=5; _nagi_complet
 COMP_WORDS=(nagi proxy tailscale bind 'My Tail' node Node); COMP_CWORD=6; _nagi_complete; printf 'NODE:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
 COMP_WORDS=(nagi proxy tailscale unbind provider Provider); COMP_CWORD=5; _nagi_complete; printf 'PROVIDER:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
 COMP_WORDS=(nagi proxy tailscale edit 'My Tail' --a); COMP_CWORD=5; _nagi_complete; printf 'EDIT:%s\n' "${COMPREPLY[*]}"
+COMP_WORDS=(nagi proxy tailscale add Tail exit --c); COMP_CWORD=6; _nagi_complete; printf 'PASTE:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi proxy tailscale add Tail exit key --c); COMP_CWORD=7; _nagi_complete; printf 'ADD:%s\n' "${COMPREPLY[*]}"
 `
 	shells := []string{"bash"}
@@ -29,7 +30,7 @@ COMP_WORDS=(nagi proxy tailscale add Tail exit key --c); COMP_CWORD=7; _nagi_com
 			if err != nil {
 				t.Fatalf("%v %s", err, out)
 			}
-			for _, want := range []string{"ACTIONS:list show targets add edit bind unbind remove", "SHOW:1:My Tail", "KIND:node provider", "NODE:1:Node One", "PROVIDER:1:Provider One", "EDIT:--auth-key-file", "ADD:--control-url"} {
+			for _, want := range []string{"ACTIONS:list show targets add edit bind unbind remove", "SHOW:1:My Tail", "KIND:node provider", "NODE:1:Node One", "PROVIDER:1:Provider One", "EDIT:--auth-key --auth-key-stdin --auth-key-file", "ADD:--control-url", "PASTE:--control-url"} {
 				if !strings.Contains(string(out), want) {
 					t.Fatalf("missing %s in %s", want, out)
 				}
@@ -43,7 +44,7 @@ func TestTailscaleCompletionAllShells(t *testing.T) {
 		if !ok {
 			t.Fatal(shell)
 		}
-		for _, want := range []string{"tailscale-nodes", "tailscale-targets", "list show targets add edit bind unbind remove", "hostname", "control-url", "exit-node", "auth-key-file"} {
+		for _, want := range []string{"tailscale-nodes", "tailscale-targets", "list show targets add edit bind unbind remove", "hostname", "control-url", "exit-node", "auth-key-file", "auth-key-stdin"} {
 			if !strings.Contains(script, want) {
 				t.Fatalf("%s omitted %s", shell, want)
 			}

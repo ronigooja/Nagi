@@ -36,7 +36,7 @@ type TailscaleBinding struct {
 	Name        string `json:"name"`
 	DialerProxy string `json:"dialer_proxy"`
 }
-type TailscaleOptions struct{ ExitNode, Hostname, ControlURL, AuthKeyFile *string }
+type TailscaleOptions struct{ ExitNode, Hostname, ControlURL, AuthKeyFile, AuthKey *string }
 
 func ValidateTailscaleName(value string) error {
 	if value == "" || len(value) > 128 || strings.TrimSpace(value) != value {
@@ -54,6 +54,9 @@ func ValidateTailscaleName(value string) error {
 	return nil
 }
 func ValidateTailscaleOptions(o TailscaleOptions) error {
+	if o.AuthKey != nil && o.AuthKeyFile != nil {
+		return errors.New("choose one auth key input method")
+	}
 	if o.AuthKeyFile != nil && strings.TrimSpace(*o.AuthKeyFile) == "" {
 		return errors.New("auth key file must be specified")
 	}
@@ -98,15 +101,27 @@ func readTailscaleAuthKey(path string) (string, error) {
 		return "", errors.New("could not read bounded auth key file")
 	}
 	key := strings.TrimSpace(string(data))
+	if err := ValidateTailscaleAuthKey(key); err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+// ValidateTailscaleAuthKey never includes the supplied key in an error.
+func ValidateTailscaleAuthKey(value string) error {
+	if len(value) > MaxTailscaleAuthKeyBytes {
+		return errors.New("auth key must contain at most 16384 bytes")
+	}
+	key := strings.TrimSpace(value)
 	if key == "" {
-		return "", errors.New("auth key file must not be empty")
+		return errors.New("auth key must not be empty")
 	}
 	for _, r := range key {
 		if unicode.IsSpace(r) || !unicode.IsPrint(r) {
-			return "", errors.New("auth key file must contain one printable key")
+			return errors.New("auth key must contain one printable key")
 		}
 	}
-	return key, nil
+	return nil
 }
 func tsString(m map[string]any, key string) string { value, _ := m[key].(string); return value }
 func tsNode(m map[string]any) TailscaleNode {
@@ -255,6 +270,11 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 	if err := ValidateTailscaleOptions(o); err != nil {
 		return err
 	}
+	if o.AuthKey != nil {
+		if err := ValidateTailscaleAuthKey(*o.AuthKey); err != nil {
+			return err
+		}
+	}
 	cfg, err := s.tailscaleConfig(profileName)
 	if err != nil {
 		return err
@@ -280,8 +300,8 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 				return errors.New("NAME conflicts with an existing group")
 			}
 		}
-		if o.ExitNode == nil || o.AuthKeyFile == nil {
-			return errors.New("add requires EXIT_NODE and KEY_FILE")
+		if o.ExitNode == nil || o.AuthKeyFile == nil && o.AuthKey == nil {
+			return errors.New("add requires EXIT_NODE and an auth key")
 		}
 		node = map[string]any{"name": name, "type": "tailscale", "udp": true, "control-url": nagiruntime.TailscaleControlURL}
 		cfg["proxies"] = append(tsProxies(cfg), node)
@@ -305,6 +325,9 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 				return err
 			}
 			node["auth-key"] = key
+		}
+		if o.AuthKey != nil {
+			node["auth-key"] = strings.TrimSpace(*o.AuthKey)
 		}
 		path, err := nagiruntime.TailscaleStatePath(s.Dir, profileName, name, tsString(node, "control-url"))
 		if err != nil {
