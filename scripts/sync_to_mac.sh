@@ -21,7 +21,6 @@ if ! ssh "$remote" "test -d '$remote_dir/.git'"; then
 fi
 
 if ! rsync -rlptz --delete \
-    --exclude='/.git/' \
     --exclude='/bin/' \
     --exclude='/dist/' \
     --exclude='/.build/' \

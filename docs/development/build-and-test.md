@@ -16,6 +16,14 @@ GO=/path/to/go make test
 
 For installation, updates, or removal, use `./scripts/installer.sh install`, `./scripts/installer.sh update`, or `./scripts/installer.sh uninstall` with artifacts already in `bin/`. Use `./scripts/sync_to_mac.sh` to copy the source tree to the macair checkout without copying local build artifacts. The script prints the destination when it starts and reports success or failure when it finishes. The [installation workflow](install.md) defines artifact layout, installer options, app installation, and cleanup.
 
+Source sync also mirrors `.git`, replacing the destination's Git history,
+refs, and index with those from the source checkout. Use the destination only
+as a development mirror; changes made there can be overwritten by the next
+sync. CLI and App builds therefore derive their versions from the same Git
+state as the source checkout, including its `dirty` marker. After syncing,
+rebuild with `make build cli` and `make build app`, then quit and reopen the
+rebuilt App to see the updated About version.
+
 `make test` runs the Go unit tests and the installer integration test with a temporary installation prefix. The CLI test package isolates its home and XDG directories and replaces inherited `NAGI_MIHOMO_BIN` with a nonexistent fixture path. Tests that require mihomo validation or lifecycle behavior must explicitly provide a fixture executable; ordinary CLI unit tests must not launch an installed engine. The installer test isolates its home and installation prefix. For a macOS test run, use a private checkout and set `HOME` to a temporary directory before invoking `make test`; this also isolates other test packages from the interactive user's Nagi files. Keep the checkout and `TMPDIR` paths short enough for Darwin's Unix socket path limit (for example, use a private directory under `/private/tmp` and `TMPDIR=/private/tmp`). These paths are for tests only; macOS runtime configuration remains under `~/Library/Application Support/Nagi`.
 
 To check runtime integration manually with the built mihomo executable, run these commands from the repository root in order:
