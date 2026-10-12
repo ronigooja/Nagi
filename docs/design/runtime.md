@@ -72,6 +72,8 @@ Subscription metadata is committed under a persistent cache lock whose inode is 
 
 ## Tailscale configuration and identity
 
+The local source implementation requires the [matching engine pending publication](../guides/tailscale.md#engine-compatibility).
+
 The CLI reads top-level Tailscale nodes and binding targets from the effective selected profile. Management writes the existing local override and uses the same configuration lock, effective validation, activation ID, and rollback path as other profile mutations. A node-list mutation stores a full list snapshot; provider bindings merge `override.dialer-proxy`. Explicit subscription apply removes local overrides. Menu pages dispatch these commands and do not own configuration or networking. Exact commands and JSON fields are in the [CLI reference](../reference/cli.md#tailscale-management).
 
 Managed user-mode identity state lives under `config/.tailscale-state`, keyed by profile, node, and normalized control service. Configuration snapshots and rollback exclude this precise subtree, while other configuration files remain covered. Ordinary node deletion and process restart retain identity state.

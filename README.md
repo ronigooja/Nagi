@@ -12,7 +12,7 @@ Use the macOS menu bar app for daily controls, live traffic rates, and active co
 
 - **macOS menu bar app:** engine status, proxy selection, system proxy and TUN controls, profiles, subscriptions, live upload/download rates, and a native Connections window.
 - **Terminal menu and CLI:** step-by-step operations, JSON output for scripts and applications, and Bash, Zsh, and Fish completion.
-- **Tailscale exits:** manage top-level Tailscale nodes and bind ordinary proxy nodes or entire providers through an exit node, with optional HTTPS Headscale control. See the [Tailscale guide](docs/guides/tailscale.md).
+- **Tailscale exits:** manage top-level Tailscale nodes and bind ordinary proxy nodes or entire providers through an exit node, with optional HTTPS Headscale control. The matching engine pin is [pending publication](docs/guides/tailscale.md#engine-compatibility). See the [Tailscale guide](docs/guides/tailscale.md).
 - **Proxy selection:** search nodes, compare latency, save group selections, and add or refresh proxy providers.
 - **Subscription management:** cached updates, previews of node changes, scheduled refresh, and optional age-encrypted feeds.
 - **Configuration profiles:** import, switch, export, back up, restore, and compare profiles; apply local overrides separately from source configuration.

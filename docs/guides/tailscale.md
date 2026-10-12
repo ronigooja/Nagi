@@ -2,6 +2,10 @@
 
 This guide covers managing top-level Tailscale nodes and connecting ordinary proxy servers through a Tailscale exit node. Mihomo owns Tailscale login, exit selection, and forwarding; Nagi saves and activates configuration.
 
+## Engine compatibility
+
+**Status:** local implementation verified; matching engine publication and lock update pending authorization. Use engine commit `e8555db99bb891112f880c9e06f2c6edc4bd5cc3` for this implementation. The current `engine.lock` still selects the earlier engine, which lacks the new privileged Tailscale policy and lifecycle fixes. The steps below require the matching engine and are not yet a capability of the ordinary locked build.
+
 ## Prepare a profile and key
 
 Import or select a profile containing your proxy nodes. Have a dedicated tailnet, an approved exit node, and a Tailscale Auth Key available. Store the key in a private regular file outside shared directories. For Headscale, use its HTTPS control-service address and a key issued by that service.
