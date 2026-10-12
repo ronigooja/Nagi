@@ -36,7 +36,7 @@ func TestProfileListAndFileAction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := profileAction(t, detail, "Export source YAML").Action(ctx, s); err != nil {
+	if err := profileAction(t, detail, "Export configuration").Action(ctx, s); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"profile", "export", "default", "/tmp/Profile A.yaml"}
@@ -167,7 +167,7 @@ func TestSubscriptionUpdateAndApplyStages(t *testing.T) {
 					}
 				}
 				if stage == "apply" {
-					feedback = "apply failed; the new cache remains"
+					feedback = "apply failed. cache retained"
 				}
 				if !strings.Contains(strings.ToLower(out.String()), feedback) || strings.Contains(out.String(), "secret.example") {
 					t.Fatal(out.String())

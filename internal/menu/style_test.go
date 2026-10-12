@@ -294,7 +294,7 @@ func TestMenuStyledSubscriptionCompletionAndPartialFailure(t *testing.T) {
 			}
 			state := "Subscription saved, but download failed; apply was not attempted."
 			if stage == "apply" {
-				state = "Download completed, but apply failed; the new cache remains available. Retry Update and Apply, or use `nagi subscription apply NAME` to retry the cache."
+				state = "Downloaded, but apply failed. Cache retained; retry with `nagi subscription apply NAME`."
 			}
 			assertMenuStyled(t, out.String(), state, "33")
 			assertMenuStyled(t, out.String(), "Error: stage failed", "31")

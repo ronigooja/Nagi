@@ -37,7 +37,7 @@ func diagnosticsPageForOS(goos string) *Page {
 			{Label: "Export diagnostics", Action: exportDiagnostics},
 			{Label: "Logs and traffic", Next: LogsPage},
 			{Label: "Repair startup state", Args: []string{"startup", "check"}},
-			{Label: "Clean stale runtime records", Args: []string{"recover"}, Impact: "Removes stale PID and socket markers after an unexpected exit"},
+			{Label: "Clean stale runtime records", Args: []string{"recover"}, Impact: "Clears records left by an unexpected exit"},
 			{Label: "Show version", Args: []string{"version"}},
 		}
 
@@ -46,7 +46,7 @@ func diagnosticsPageForOS(goos string) *Page {
 }
 
 func exportDiagnostics(ctx context.Context, s *Session) error {
-	_, err := s.Form(ctx, []Field{{Key: "path", Label: "Absolute destination file for owner-only JSON report", Required: true, Validate: func(v string) error {
+	_, err := s.Form(ctx, []Field{{Key: "path", Label: "Destination file (absolute path)", Required: true, Validate: func(v string) error {
 		if !filepath.IsAbs(v) {
 			return fmt.Errorf("enter an absolute file path (for example, /tmp/nagi-diagnostics.json)")
 		}
@@ -80,17 +80,17 @@ func maintenancePageForOS(goos string) *Page {
 	items := []Item{}
 	if goos == "darwin" {
 		items = append(items,
-			Item{Label: "Install menu bar App", Args: []string{"app", "install"}, Impact: "Installs only the App matching this CLI release; may require administrator authorization"},
-			Item{Label: "Uninstall menu bar App", Args: []string{"app", "uninstall"}, Impact: "Removes only the App; quit it and disable its login item first"},
+			Item{Label: "Install menu bar App", Args: []string{"app", "install"}, Impact: "Installs the App for this Nagi version"},
+			Item{Label: "Uninstall menu bar App", Args: []string{"app", "uninstall"}, Impact: "Quit the App and disable its login item first"},
 		)
 	}
-	items = append(items, Item{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates CLI and mihomo; also updates an installed App on macOS; refreshes the default profile; may require administrator authorization"})
-	uninstallImpact := "Stops Nagi and removes managed executables and services; preserves user data (CLI --purge-data removes it); may require administrator authorization"
+	items = append(items, Item{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates Nagi, mihomo and any installed App; resets the default profile"})
+	uninstallImpact := "Removes Nagi and services; keeps user data"
 	if goos == "darwin" {
-		uninstallImpact = "Stops Nagi and removes managed executables, services, helper, and any installed App; preserves user data; may require administrator authorization"
+		uninstallImpact = "Removes Nagi, App, helper and services; keeps user data"
 	}
 	items = append(items, Item{Label: "Uninstall Nagi", Args: []string{"uninstall"}, Impact: uninstallImpact})
-	items = append(items, Item{Label: "Uninstall Nagi and clear user data", Args: []string{"uninstall", "--purge-data"}, Impact: "Permanently removes Nagi configuration, data, state, runtime, and cache, including profiles and subscriptions; may require administrator authorization"})
+	items = append(items, Item{Label: "Uninstall Nagi and clear user data", Args: []string{"uninstall", "--purge-data"}, Impact: "Permanently deletes all Nagi user data, including profiles and subscriptions"})
 	return actionPage("Nagi Maintenance", items...)
 }
 
@@ -101,10 +101,10 @@ func helperPageForOS(goos string) *Page {
 		}
 		return PageView{Context: pageStatus(ctx, s, "Privileged helper", []string{"privileged-helper", "status"}, "installed", "enabled", "backend"), Actions: []Item{
 			{Label: "Privileged helper details", Args: []string{"privileged-helper", "status"}},
-			{Label: "Install privileged helper", Args: []string{"privileged-helper", "install"}, Impact: "Requires administrator privileges and root-owned /usr/local/bin/nagi"},
-			{Label: "Select privileged backend", Args: []string{"privileged-helper", "enable"}, Impact: "Changes subsequent starts; the user mihomo process must be stopped"},
-			{Label: "Select user backend", Args: []string{"privileged-helper", "disable"}, Impact: "Changes subsequent starts; privileged mihomo must be stopped"},
-			{Label: "Uninstall privileged helper", Args: []string{"privileged-helper", "uninstall"}, Impact: "Stops and removes the system helper; stop privileged mihomo and select the user backend first"},
+			{Label: "Install privileged helper", Args: []string{"privileged-helper", "install"}, Impact: "Requires administrator privileges"},
+			{Label: "Select privileged backend", Args: []string{"privileged-helper", "enable"}, Impact: "Applies on next start; stop user mihomo first"},
+			{Label: "Select user backend", Args: []string{"privileged-helper", "disable"}, Impact: "Applies on next start; stop privileged mihomo first"},
+			{Label: "Uninstall privileged helper", Args: []string{"privileged-helper", "uninstall"}, Impact: "Stop privileged mihomo and select the user backend first"},
 		}}, nil
 	}}
 }

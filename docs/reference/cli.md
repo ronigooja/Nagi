@@ -104,6 +104,8 @@ The optional `Subscription-Userinfo` response header supplies `upload`, `downloa
 | 8 | Settings & Maintenance | Current Configuration (show, validate, reload), DNS, Routing Rules, Connections, Start at Login, and Nagi Maintenance on both macOS and Linux. Nagi Maintenance offers `update`, `uninstall` (preserve user data), and `uninstall --purge-data` (remove user data). macOS lists menu bar App install/removal first, followed by Nagi maintenance; its privileged helper is a separate entry. |
 | 0 | Exit menu | Leaves mihomo running. |
 
+Menu effects are brief and appear beside relevant actions. Tailscale pages display selected-profile configuration; save feedback reports configuration saving and confirmed reload only, without verifying login or connectivity. Target selectors disclose that provider bindings affect all current and future nodes. Known profile, provider, DNS, and rule mutations use short completion messages; detail reads, export destinations, diagnostics, and errors retain detailed output. DNS child pages show only relevant state. These presentation choices do not change ordinary CLI output, JSON fields, or exit codes.
+
 Terminal styling for human-readable CLI output and the menu enables automatically only when output is a terminal, `TERM` is nonempty and is not `dumb`, and `NO_COLOR` is absent or empty. A nonempty `NO_COLOR` disables color and dimming. Piped output and JSON remain unstyled. Only the home title `Nagi menu` uses bold styling. Input and output must still be terminals to open the menu.
 
 | Text | Style when enabled |

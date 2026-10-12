@@ -91,7 +91,7 @@ func TestProviderAddAccessibleWithEmptyOrUnavailableRead(t *testing.T) {
 			if code != 0 || !reflect.DeepEqual(r.calls, want) {
 				t.Fatalf("code=%d calls=%v output=%s", code, r.calls, out.String())
 			}
-			for _, text := range []string{"Add provider", "default 3600", "A stopped engine stays stopped", "Routing rules are unchanged", "Global mode"} {
+			for _, text := range []string{"Add provider", "default 3600", "reloads mihomo if running", "Routing rules are unchanged", "Global mode"} {
 				if !strings.Contains(out.String(), text) {
 					t.Fatalf("missing %q: %s", text, out.String())
 				}
@@ -121,7 +121,7 @@ func TestProviderAddRetainsFieldsAndRequiresExplicitResubmit(t *testing.T) {
 	if !reflect.DeepEqual(r.calls, want) || !strings.Contains(out.String(), "Values are retained") || !strings.Contains(out.String(), "existing profile retained") {
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
 	}
-	if strings.Contains(out.String(), "New select group created") {
+	if strings.Contains(out.String(), "New group created") {
 		t.Fatalf("existing group reported as created: %s", out.String())
 	}
 }

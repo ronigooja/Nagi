@@ -54,7 +54,7 @@ If the group read fails, Select Node queries the existing `status` command, clea
 
 The provider entry lists redacted names and node counts. Opening a provider and every read after an operation call `proxy provider show NAME`; update and healthcheck actions use their corresponding CLI commands. A failed provider read clears selectable nodes while leaving those actions available for recovery.
 
-The provider list always offers Add provider, including when empty or unreadable. Its shared form collects the provider name, HTTP(S) URL, existing or new group name, and update interval, then calls `proxy provider add`. Submission errors retain the form values for explicit editing and retry. The form explains that creation updates the selected profile and reloads a running engine, while a new select group leaves routing rules unchanged. Configuration persistence and activation remain CLI responsibilities; the menu does not require a successful live group read to add a provider while stopped.
+The provider list always offers Add provider, including when empty or unreadable. Its shared form collects the provider name, HTTP(S) URL, existing or new group name, and update interval, then calls `proxy provider add`. Submission errors retain the form values for explicit editing and retry. The form briefly describes saving and reload; successful creation of a new group reports its DIRECT selection and unchanged routing rules. Configuration persistence and activation remain CLI responsibilities; the menu does not require a successful live group read to add a provider while stopped.
 
 Details, latency tests, restoring saved choices, and returning an automatic group to automatic selection are fixed actions. Ordinary nodes and latency-ranked nodes all switch with the same numeric action. A group page retains its last measurements and ordering across selections and refreshes, pruning records for nodes absent from the refreshed group. Automatic groups show fixed or automatic state. Latency actions disclose possible release of a fixed choice and preserve underlying errors about partial completion or unknown state.
 
@@ -64,7 +64,7 @@ Select Node includes a Tailscale entry whose list and details read selected-prof
 
 Bind loads eligible local node/provider targets; provider entries disclose that all nodes, including refreshed additions, are affected. Unbind selects an existing binding. Delete dispatches once and returns to the list only after success; CLI validation owns reference protection. Forms and selectors use the ordinary numeric pagination and cancellation rules. Read failures clear stale choices while keeping applicable recovery/add actions accessible.
 
-Pages disclose full node-list override snapshots and explicit subscription apply clearing them. Saved/reloaded feedback does not claim Tailscale login or connectivity. The macOS App menu is unchanged. See the [CLI contract](../reference/cli.md#tailscale-management) and [user guide](../guides/tailscale.md).
+Mutation actions disclose that subscription apply clears these changes and that a running engine reloads. Target selectors explain that providers affect all nodes, including future additions. List and detail pages show configuration values without repeated activation explanations. Completion feedback reports configuration saving and any confirmed reload without claiming Tailscale login or connectivity. The macOS App menu is unchanged. See the [CLI contract](../reference/cli.md#tailscale-management) and [user guide](../guides/tailscale.md).
 
 ## Subscription and profile flows
 
@@ -89,6 +89,8 @@ install files itself; the
 [maintenance design](installation.md) defines those operations.
 
 Failed reads replace old resources, preventing selection of stale targets. Views can retain fixed recovery actions and state unknown/unavailable explicitly. Command failures display existing messages and known resulting state; the menu never infers successful saving, activation, or rollback. URLs in errors, page context, and list labels are redacted. Raw requested configuration and log content retain their ordinary command content.
+
+Known profile, provider, DNS, and rule mutations show short completion messages rather than command metadata. Export destinations, requested details, diagnostics, and errors retain their detailed output. DNS child pages show only relevant state instead of repeating the full DNS summary. Maintenance and helper actions use brief effects while retaining data removal and process-stop prerequisites.
 
 Action failures leave the menu usable and do not determine its exit status. Ordinary exit is `0`; unrecoverable input errors return `1`. Terminal/usage rejection returns `2` as defined in the reference.
 

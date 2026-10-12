@@ -38,8 +38,7 @@ func providerListPage() *Page {
 }
 
 func addProvider(ctx context.Context, s *Session) error {
-	s.WriteLine("Add an HTTP(S) provider to the selected profile and reload mihomo if running. A stopped engine stays stopped.")
-	s.WriteLine("Enter an existing group name or a new one. A new select group includes DIRECT and does not change routing rules; use existing rules or Global mode to route through it.")
+	s.WriteLine("Saves to the selected profile; reloads mihomo if running.")
 	values := map[string]string{"seconds": "3600"}
 	result, err := s.Form(ctx, []Field{
 		nameField("New provider name"),
@@ -50,7 +49,7 @@ func addProvider(ctx context.Context, s *Session) error {
 			}
 			return nil
 		}},
-		{Key: "group", Label: "Target group name (existing or new; spaces allowed)", Required: true, Validate: func(value string) error {
+		{Key: "group", Label: "Target group (existing or new)", Required: true, Validate: func(value string) error {
 			if len(value) == 0 || len(value) > 128 {
 				return fmt.Errorf("enter a printable group name from 1 to 128 bytes")
 			}
@@ -78,7 +77,7 @@ func addProvider(ctx context.Context, s *Session) error {
 		GroupCreated bool `json:"group_created"`
 	}
 	if decodeMenuResult(result, &added) == nil && added.GroupCreated {
-		s.feedback(feedbackWarning, "New select group created with DIRECT. Routing rules are unchanged; use existing rules or Global mode to route through the group.")
+		s.feedback(feedbackWarning, "New group created with DIRECT. Routing rules are unchanged; select the group in Global mode or use a rule targeting it.")
 	}
 	return nil
 }

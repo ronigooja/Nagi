@@ -42,3 +42,25 @@ func TestRequestedConfigurationAndLogsKeepRawContent(t *testing.T) {
 		}
 	}
 }
+
+func TestMutationFeedbackPreservesReadsAndErrors(t *testing.T) {
+	for _, test := range []struct {
+		args   []string
+		result Result
+		want   string
+		omit   string
+	}{
+		{[]string{"proxy", "provider", "add", "work"}, Result{Data: map[string]any{"added": true, "interval_seconds": 3600}}, "Provider added.", "interval seconds"},
+		{[]string{"dns", "set", "direct"}, Result{Data: map[string]any{"saved": true, "upstream_count": 2}}, "DNS policy saved.", "upstream count"},
+		{[]string{"dns", "status"}, Result{Data: map[string]any{"policy": "direct"}}, "policy: direct", "DNS policy saved."},
+		{[]string{"profile", "export", "work", "out.yaml"}, Result{Data: map[string]any{"file": "out.yaml"}}, "file: out.yaml", "Profile selected."},
+		{[]string{"dns", "set", "direct"}, Result{Code: 1, Error: &CLIError{Message: "Reload failed; runtime state uncertain"}}, "runtime state uncertain", "DNS policy saved."},
+	} {
+		var out bytes.Buffer
+		s := NewSession(&fakeRunner{}, strings.NewReader(""), &out)
+		s.ShowResult(test.args, test.result)
+		if !strings.Contains(out.String(), test.want) || strings.Contains(out.String(), test.omit) {
+			t.Fatalf("%v: %s", test.args, out.String())
+		}
+	}
+}

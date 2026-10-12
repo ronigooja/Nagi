@@ -112,7 +112,7 @@ func TestTailscaleOfflineEntryThroughHome(t *testing.T) {
 	if countTailscaleCall(r.calls, "proxy", "tailscale", "show", "Tail Shared") != 1 {
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
 	}
-	for _, text := range []string{"engine", "Tailscale", "Auth key: configured (hidden)", "login", "subscription apply clears local overrides"} {
+	for _, text := range []string{"Mihomo: stopped", "Tailscale", "Auth key: configured", "Profile: work", "Exit node: 100.64.0.1"} {
 		if !strings.Contains(out.String(), text) {
 			t.Fatalf("missing %q: %s", text, out.String())
 		}
@@ -128,7 +128,7 @@ func TestTailscaleOneNodeSharedAcrossProtocolsAndProvider(t *testing.T) {
 			if countTailscaleCall(r.calls, "proxy", "tailscale", "bind", "Tail Shared", target.Kind, target.Name) != 1 || r.targets[index].DialerProxy != "Tail Shared" {
 				t.Fatalf("calls=%v output=%s", r.calls, out.String())
 			}
-			if !strings.Contains(out.String(), "ALL nodes") || !strings.Contains(out.String(), "Saved: true; reloaded: false") {
+			if !strings.Contains(out.String(), "all nodes") || !strings.Contains(out.String(), "Configuration saved.") {
 				t.Fatal(out.String())
 			}
 		})

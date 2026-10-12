@@ -164,9 +164,13 @@ func (s *Session) presentResult(args []string, result Result) {
 			s.writeFeedback(feedbackSuccess, "Cache downloaded.")
 			return
 		case "apply":
-			s.writeFeedback(feedbackSuccess, "Cached subscription applied. Starting mihomo and enabling traffic access are separate actions.")
+			s.writeFeedback(feedbackSuccess, "Cached subscription applied.")
 			return
 		}
+	}
+	if message := mutationFeedback(args); message != "" {
+		s.writeFeedback(feedbackSuccess, message)
+		return
 	}
 	keys := make([]string, 0, len(data))
 	for key := range data {
@@ -257,4 +261,45 @@ func (s *Session) writeChoice(number int, label string) {
 		label = s.styled(styleChoice, label)
 	}
 	s.Printf("%d. %s\n", number, label)
+}
+
+// Only known mutations use short feedback; reads and diagnostics keep their data.
+func mutationFeedback(args []string) string {
+	if len(args) < 2 {
+		return ""
+	}
+	switch args[0] {
+	case "profile":
+		if args[1] == "override" && len(args) > 2 {
+			return map[string]string{
+				"set": "Local override saved.", "clear": "Local override cleared.",
+				"apply-default": "Default settings applied.", "restore-default": "Previous local settings restored.",
+			}[args[2]]
+		}
+		return map[string]string{
+			"use": "Profile selected.", "import": "Configuration imported.",
+			"backup": "Configuration backed up.", "restore": "Backup restored.", "remove": "Profile removed.",
+		}[args[1]]
+	case "proxy":
+		if args[1] == "provider" && len(args) > 2 {
+			return map[string]string{
+				"add": "Provider added.", "update": "Provider updated.", "healthcheck": "Healthcheck started.",
+			}[args[2]]
+		}
+	case "dns":
+		if args[1] == "exception" && len(args) > 2 {
+			return map[string]string{"add": "DNS exception saved.", "remove": "DNS exception removed."}[args[2]]
+		}
+		if args[1] == "tun" && len(args) > 2 {
+			return map[string]string{"on": "TUN DNS interception enabled.", "off": "TUN DNS interception disabled."}[args[2]]
+		}
+		return map[string]string{"set": "DNS policy saved.", "flush": "DNS cache cleared."}[args[1]]
+	case "rules":
+		return map[string]string{
+			"add": "Rule saved.", "remove": "Rule or set removed.",
+			"enable": "Rule or set enabled.", "disable": "Rule or set disabled.",
+			"import-local": "Rule set imported.", "import-remote": "Rule set imported.",
+		}[args[1]]
+	}
+	return ""
 }

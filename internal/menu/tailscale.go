@@ -13,7 +13,7 @@ import (
 
 const tailscaleControlURL = "https://controlplane.tailscale.com"
 
-const tailscaleEffects = "Saves a full local proxy-node snapshot; explicit subscription apply clears local overrides. Reloads running mihomo; a stopped engine stays stopped."
+const tailscaleEffects = "Subscription apply clears these changes; reloads mihomo if running."
 
 type menuTailscaleNode struct {
 	Name              string `json:"name"`
@@ -32,7 +32,7 @@ type menuTailscaleTarget struct {
 
 func tailscaleListPage() *Page {
 	return &Page{Title: "Tailscale", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: "Offline configuration for the selected profile. Saved/reloaded does not establish Tailscale login or a working traffic path.", Empty: "No Tailscale nodes configured. Choose Add Tailscale node.", Actions: []Item{
+		view := PageView{Empty: "No Tailscale nodes configured. Choose Add Tailscale node.", Actions: []Item{
 			{Label: "Add Tailscale node", Impact: tailscaleEffects, Action: addTailscale},
 		}}
 		var data struct {
@@ -42,7 +42,7 @@ func tailscaleListPage() *Page {
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "tailscale", "list"), &data); err != nil {
 			return view, err
 		}
-		view.Context = "Profile: " + data.Profile + "\n" + view.Context
+		view.Context = "Profile: " + data.Profile
 		for _, node := range data.Nodes {
 			node := node
 			view.Items = append(view.Items, Item{Name: node.Name, Label: node.Name + " → " + node.ExitNode, Next: func() *Page { return tailscaleDetailPage(node.Name) }})
@@ -64,7 +64,7 @@ func tailscaleDetailPage(name string) *Page {
 		}
 		key := "not configured"
 		if data.Node.AuthKeyConfigured {
-			key = "configured (hidden)"
+			key = "configured"
 		}
 		control := "official Tailscale"
 		if data.Node.ControlURL != "" && data.Node.ControlURL != tailscaleControlURL {
@@ -74,10 +74,14 @@ func tailscaleDetailPage(name string) *Page {
 		if hostname == "" {
 			hostname = "default"
 		}
-		view.Context = fmt.Sprintf("Profile: %s\nExit node: %s; hostname: %s; control server: %s\nAuth key: %s\n%s\nSaved/reloaded does not establish Tailscale login or a working traffic path.", data.Profile, data.Node.ExitNode, hostname, control, key, tailscaleEffects)
+		view.Context = fmt.Sprintf("Profile: %s\nExit node: %s; hostname: %s; control server: %s\nAuth key: %s", data.Profile, data.Node.ExitNode, hostname, control, key)
 		for _, binding := range data.Bindings {
 			binding := binding
-			view.Items = append(view.Items, Item{Name: binding.Name, Label: tailscaleTargetLabel(binding), Impact: "Unbinds this target; provider changes cover ALL nodes, including refreshed nodes", Action: func(ctx context.Context, s *Session) error {
+			impact := "Unbinds this target"
+			if binding.Kind == "provider" {
+				impact += "; affects all current and future nodes"
+			}
+			view.Items = append(view.Items, Item{Name: binding.Name, Label: tailscaleTargetLabel(binding), Impact: impact, Action: func(ctx context.Context, s *Session) error {
 				_, err := s.Form(ctx, nil, nil, func(map[string]string) Result {
 					return runTailscale(ctx, s, "unbind", binding.Kind, binding.Name)
 				})
@@ -86,11 +90,11 @@ func tailscaleDetailPage(name string) *Page {
 		}
 		view.Actions = []Item{
 			{Label: "Edit Tailscale node", Impact: tailscaleEffects, Action: func(ctx context.Context, s *Session) error { return editTailscale(ctx, s, data.Node) }},
-			{Label: "Bind target", Impact: "Replaces target dialer-proxy; providers bind ALL nodes, including refreshed nodes", Action: func(ctx context.Context, s *Session) error { return bindTailscale(ctx, s, name) }},
-			{Label: "Unbind target", Impact: "Clears target dialer-proxy; provider changes cover ALL nodes, including refreshed nodes", Action: func(ctx context.Context, s *Session) error {
+			{Label: "Bind target", Impact: "Changes the target's Tailscale exit", Action: func(ctx context.Context, s *Session) error { return bindTailscale(ctx, s, name) }},
+			{Label: "Unbind target", Impact: "Removes the target's Tailscale exit", Action: func(ctx context.Context, s *Session) error {
 				return tailscaleTargetForm(ctx, s, name, data.Bindings, true)
 			}},
-			{Label: "Delete Tailscale node", Impact: "Removes this node; fails while configuration still references it", Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
+			{Label: "Delete Tailscale node", Impact: "Unbind references first", Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
 				result := runTailscale(ctx, s, "remove", name)
 				return Navigation{Back: result.Code == 0 && result.Error == nil}, nil
 			}},
@@ -141,8 +145,6 @@ func tailscaleFields(edit bool) []Field {
 }
 
 func addTailscale(ctx context.Context, s *Session) error {
-	s.WriteLine(tailscaleEffects)
-	s.WriteLine("Use the official Tailscale control server or an HTTPS Headscale server. Paste the Auth Key below; input is visible.")
 	_, err := s.Form(ctx, tailscaleFields(false), map[string]string{"control": tailscaleControlURL}, func(v map[string]string) Result {
 		args := []string{"add", v["name"], v["exit"], "--auth-key-stdin", "--control-url", v["control"]}
 		if v["hostname"] != "" {
@@ -154,8 +156,6 @@ func addTailscale(ctx context.Context, s *Session) error {
 }
 
 func editTailscale(ctx context.Context, s *Session, node menuTailscaleNode) error {
-	s.WriteLine(tailscaleEffects)
-	s.WriteLine("Blank keeps current values. Leave Auth Key blank to preserve the existing key; pasted input is visible.")
 	control := node.ControlURL
 	if control == "" {
 		control = tailscaleControlURL
@@ -201,7 +201,7 @@ func tailscaleTargetForm(ctx context.Context, s *Session, name string, targets [
 		return nil
 	}
 	s.WriteLine(tailscaleEffects)
-	s.WriteLine("A provider binding applies to ALL nodes in that provider, including nodes obtained by later refreshes.")
+	s.WriteLine("Providers: affects all nodes, including future additions.")
 	choices := []string{}
 	byLabel := map[string]menuTailscaleTarget{}
 	for _, target := range targets {
@@ -246,6 +246,13 @@ func runTailscaleInput(ctx context.Context, s *Session, input io.Reader, args ..
 		s.feedback(feedbackError, "Could not decode Tailscale operation result.")
 		return Result{Code: 1, Error: &CLIError{Message: "Could not decode Tailscale operation result"}}
 	}
-	s.feedback(feedbackSuccess, fmt.Sprintf("Saved: %t; reloaded: %t. Tailscale login and traffic path are not verified.", data.Saved, data.Reloaded))
+	message := "Configuration unchanged."
+	if data.Saved {
+		message = "Configuration saved."
+	}
+	if data.Reloaded {
+		message += " Mihomo reloaded."
+	}
+	s.feedback(feedbackSuccess, message)
 	return result
 }
