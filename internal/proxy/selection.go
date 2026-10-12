@@ -4,15 +4,89 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // SelectionStore records successful user choices per profile. The engine remains
 // authoritative: a stored choice is replayed only when its group and node exist.
 type SelectionStore struct{ Path string }
+
+// ApplyDefaults places saved selector choices in the generated runtime profile.
+// mihomo reads these before its DNS and TUN listeners can accept traffic.
+// A provider may supply a saved node later, so provider groups retain their
+// default even when the node is not among the statically listed members.
+func (s SelectionStore) ApplyDefaults(profile string, data []byte) ([]byte, bool, error) {
+	all, err := s.read()
+	if err != nil {
+		return nil, false, err
+	}
+	choices := all[profile]
+	if len(choices) == 0 {
+		return data, false, nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(data, &doc); err != nil || doc == nil {
+		return nil, false, errors.New("effective profile is invalid YAML")
+	}
+	groups, _ := doc["proxy-groups"].([]any)
+	changed := false
+	for _, entry := range groups {
+		group, ok := entry.(map[string]any)
+		if !ok || group["type"] != "select" {
+			continue
+		}
+		name, _ := group["name"].(string)
+		choice := choices[name]
+		if choice == "" {
+			continue
+		}
+		valid := false
+		for _, member := range stringList(group["proxies"]) {
+			if member == choice {
+				valid = true
+				break
+			}
+		}
+		if !valid && (len(stringList(group["use"])) > 0 || group["include-all"] == true || group["include-all-providers"] == true || group["include-all-proxies"] == true) {
+			valid = true
+		}
+		if !valid {
+			continue
+		}
+		group["default-selected"] = choice
+		changed = true
+	}
+	if !changed {
+		return data, false, nil
+	}
+	settings, _ := doc["profile"].(map[string]any)
+	if settings == nil {
+		settings = map[string]any{}
+		doc["profile"] = settings
+	}
+	// Nagi's per-profile selections must win over mihomo's process-wide cache.
+	settings["store-selected"] = false
+	encoded, err := yaml.Marshal(doc)
+	return encoded, true, err
+}
+
+func stringList(value any) []string {
+	items, _ := value.([]any)
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		if value, ok := item.(string); ok {
+			result = append(result, value)
+		}
+	}
+	return result
+}
 
 func (s SelectionStore) read() (map[string]map[string]string, error) {
 	data, err := os.ReadFile(s.Path)
@@ -143,10 +217,11 @@ func (s SelectionStore) Clear(profile string) error {
 type RestoreResult struct {
 	Restored    []string `json:"restored"`
 	Unavailable []string `json:"unavailable"`
+	Failed      []string `json:"failed"`
 }
 
 func (s SelectionStore) Restore(ctx context.Context, profile string, service *Service) (RestoreResult, error) {
-	result := RestoreResult{Restored: []string{}, Unavailable: []string{}}
+	result := RestoreResult{Restored: []string{}, Unavailable: []string{}, Failed: []string{}}
 	all, err := s.read()
 	if err != nil {
 		return result, err
@@ -183,10 +258,13 @@ func (s SelectionStore) Restore(ctx context.Context, profile string, service *Se
 			continue
 		}
 		if _, err := service.SelectKnown(ctx, g, node); err != nil {
-			result.Unavailable = append(result.Unavailable, group+" -> "+node)
+			result.Failed = append(result.Failed, group+" -> "+node)
 			continue
 		}
 		result.Restored = append(result.Restored, group+" -> "+node)
+	}
+	if len(result.Failed) > 0 {
+		return result, fmt.Errorf("saved proxy selections could not be applied (%s); check `nagi proxy groups` and retry `nagi proxy restore`", strings.Join(result.Failed, ", "))
 	}
 	return result, nil
 }

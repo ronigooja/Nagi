@@ -142,7 +142,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if err != nil {
 			return err
 		}
-		path, err := materializeProfile(store, paths.ConfigDir, current)
+		path, err := materializeProfileWithSelections(store, paths.ConfigDir, current, ctx.Value(skipSelectionRestoreKey{}) != true)
 		if err != nil {
 			return err
 		}
@@ -157,7 +157,9 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 			return err
 		}
 		if ctx.Value(skipSelectionRestoreKey{}) != true {
-			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, current, proxy.NewService(client))
+			if _, err := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, current, proxy.NewService(client)); err != nil {
+				return fmt.Errorf("mihomo reloaded, but saved proxy selections were not fully restored: %w", err)
+			}
 		}
 		return nil
 	}
@@ -183,15 +185,33 @@ func orderedProxyService(client proxy.Client, configDir string) *proxy.Service {
 }
 
 func materializeProfile(store *profile.Store, configDir, name string) (string, error) {
+	return materializeProfileWithSelections(store, configDir, name, true)
+}
+
+func materializeProfileWithSelections(store *profile.Store, configDir, name string, includeSelections bool) (string, error) {
 	path := filepath.Join(configDir, "profiles", name+".yaml")
-	if _, err := store.Override(name); errors.Is(err, os.ErrNotExist) && !rules.Exists(configDir) {
+	selectionStore := proxy.SelectionStore{Path: filepath.Join(configDir, "proxy-selections.json")}
+	_, overrideErr := store.Override(name)
+	if overrideErr != nil && !errors.Is(overrideErr, os.ErrNotExist) {
+		return "", overrideErr
+	}
+	needsOverlay := overrideErr == nil || rules.Exists(configDir)
+	if !needsOverlay && !includeSelections {
 		return path, nil
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", err
 	}
 	data, err := store.Effective(name)
 	if err != nil {
 		return "", err
+	}
+	if includeSelections {
+		var selected bool
+		data, selected, err = selectionStore.ApplyDefaults(name, data)
+		if err != nil {
+			return "", err
+		}
+		if !needsOverlay && !selected {
+			return path, nil
+		}
 	}
 	if override, err := store.Override(name); err == nil {
 		if err := validateManagedDNSProxyTargets(override, data); err != nil {

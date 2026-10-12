@@ -29,7 +29,6 @@ import (
 	privilegedservice "github.com/ronigooja/Nagi/internal/privileged/service"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
-	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/runtimecontrol"
 	"github.com/ronigooja/Nagi/internal/service"
@@ -517,15 +516,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if manager != nil {
 			return manager, nil
 		}
-		if command == "start" || command == "restart" || command == "config" {
+		if command == "start" || command == "restart" || (command == "config" && len(args) > 1 && args[1] != "show") {
 			store := newProfileStore(paths, binary, client, nil)
-			if _, overrideErr := store.Override(profileName); overrideErr == nil || (errors.Is(overrideErr, os.ErrNotExist) && rules.Exists(paths.ConfigDir)) {
-				configPath, err = materializeProfile(store, paths.ConfigDir, profileName)
-				if err != nil {
-					return nil, err
-				}
-			} else if !errors.Is(overrideErr, os.ErrNotExist) {
-				return nil, overrideErr
+			configPath, err = materializeProfile(store, paths.ConfigDir, profileName)
+			if err != nil {
+				return nil, err
 			}
 		}
 		manager, err = engine.New(engine.Options{Binary: binary, ConfigPath: configPath, Paths: paths})
@@ -569,7 +564,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		result, err := startWithTUNDNS(ctx, paths, m, client, configPath, profileName)
 		if err == nil {
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
-			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies)
+			if _, restoreErr := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies); restoreErr != nil {
+				return nil, fail("proxy_selection_error", fmt.Errorf("mihomo started, but saved proxy selections were not fully restored: %w", restoreErr))
+			}
 		}
 		return result, err
 	case "stop":
@@ -618,7 +615,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		result, err := startWithTUNDNS(ctx, paths, m, client, configPath, profileName)
 		if err == nil {
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
-			_, _ = (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies)
+			if _, restoreErr := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies); restoreErr != nil {
+				return nil, fail("proxy_selection_error", fmt.Errorf("mihomo restarted, but saved proxy selections were not fully restored: %w", restoreErr))
+			}
 		}
 		return result, err
 	case "status":
@@ -1575,7 +1574,11 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		if err != nil {
 			return nil, fail("proxy_selection_error", err)
 		}
-		return selections.Restore(ctx, current, service)
+		result, err := selections.Restore(ctx, current, service)
+		if err != nil {
+			return nil, fail("proxy_selection_error", err)
+		}
+		return result, nil
 	case "search":
 		if err := arity(args, 3); err != nil {
 			return nil, err

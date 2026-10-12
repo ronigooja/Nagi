@@ -219,6 +219,37 @@ func TestMaterializeRulesWithoutOverride(t *testing.T) {
 	}
 }
 
+func TestMaterializeSavedSelectionWithoutOverride(t *testing.T) {
+	store, dir := validationStore(t, writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\nexit 0\n"))
+	source := []byte("proxy-groups:\n  - name: choice\n    type: select\n    proxies: [DIRECT, nested]\n  - name: nested\n    type: select\n    proxies: [DIRECT]\nrules:\n  - MATCH,choice\n")
+	if err := profile.NewStore(dir, func([]byte) error { return nil }, nil).Apply(context.Background(), "work", source); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(dir, "profiles", "work.yaml")
+	path, err := materializeProfile(store, dir, "work")
+	if err != nil || path != sourcePath {
+		t.Fatalf("no saved choice path=%q err=%v", path, err)
+	}
+	if err := (proxy.SelectionStore{Path: filepath.Join(dir, "proxy-selections.json")}).Save("work", "choice", "nested"); err != nil {
+		t.Fatal(err)
+	}
+	path, err = materializeProfile(store, dir, "work")
+	if err != nil || path == sourcePath {
+		t.Fatalf("saved choice path=%q err=%v", path, err)
+	}
+	effective, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(effective), "default-selected: nested") {
+		t.Fatalf("effective=%s err=%v", effective, err)
+	}
+	if original, err := os.ReadFile(sourcePath); err != nil || string(original) != string(source) {
+		t.Fatalf("source changed: %s err=%v", original, err)
+	}
+	path, err = materializeProfileWithSelections(store, dir, "work", false)
+	if err != nil || path != sourcePath {
+		t.Fatalf("replacement path=%q err=%v", path, err)
+	}
+}
+
 func TestChangedRuntimeWithInvalidOldConfigIsNotRestored(t *testing.T) {
 	dir := t.TempDir()
 	config := filepath.Join(dir, "config")

@@ -134,7 +134,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		}
 		return nil
 	case proxy.RestoreResult:
-		if len(v.Restored) == 0 && len(v.Unavailable) == 0 {
+		if len(v.Restored) == 0 && len(v.Unavailable) == 0 && len(v.Failed) == 0 {
 			return line(w, "No saved proxy selections for this profile.")
 		}
 		for _, item := range v.Restored {
@@ -144,6 +144,11 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		}
 		for _, item := range v.Unavailable {
 			if err := line(w, "Unavailable or removed: "+item); err != nil {
+				return err
+			}
+		}
+		for _, item := range v.Failed {
+			if err := line(w, "Could not restore: "+item); err != nil {
 				return err
 			}
 		}
