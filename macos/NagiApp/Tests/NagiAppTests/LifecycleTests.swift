@@ -452,6 +452,7 @@ extension LifecycleTests {
         let model = AppModel(cli: NagiCLIClient(executable: cli))
         defer { model.pauseForSleep() }
         await model.refresh()
+        await expectUntil { model.uploadBPS != nil }
         let before = providerCalls(log).count
         let error = await model.addProvider("work", url: "http://example.invalid/feed", group: "Work Group", intervalSeconds: 60)
         XCTAssertNil(error)
