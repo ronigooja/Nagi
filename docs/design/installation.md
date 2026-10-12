@@ -67,6 +67,15 @@ removes an installed login service. The explicit stop prevents a restored login
 monitor from starting mihomo during maintenance. The installer then performs
 the existing file/helper transaction.
 
+For updates, the installer copies the old CLI into its rollback directory
+without moving the installed executable, then renames the staged replacement
+over `PREFIX/bin/nagi`. On Linux, a still-running CLI therefore retains its
+installed executable path even after the old inode is unlinked. Companion
+mihomo lookup and later CLI invocations continue to use `PREFIX/bin`, rather
+than a deleted rollback directory. The rollback copy preserves file metadata
+and is restored if the transaction fails. Uninstall still moves the old CLI
+out of the installation directory before deleting it.
+
 After a whole update succeeds, the CLI restores login service installed/enabled
 preferences and starts an engine that was running before preparation. A whole
 uninstall succeeds without restoring services. User data is retained by

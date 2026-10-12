@@ -423,7 +423,16 @@ if (( manage_helper && ${helper_was_installed:-0} )); then
     helper_removed=1
 fi
 if [[ "$action" != install ]]; then
-    if exists "$nagi"; then write_fs mv -- "$nagi" "$stage/old-nagi"; old_nagi=1; changed=1; fi
+    if exists "$nagi"; then
+        if [[ "$action" == update ]]; then
+            # Keep a running CLI's executable path in bin/. Moving its inode
+            # changes /proc/self/exe on Linux and breaks companion lookup.
+            write_fs cp -p -- "$nagi" "$stage/old-nagi"
+        else
+            write_fs mv -- "$nagi" "$stage/old-nagi"
+        fi
+        old_nagi=1; changed=1
+    fi
     if exists "$mihomo"; then write_fs mv -- "$mihomo" "$stage/old-mihomo"; old_mihomo=1; changed=1; fi
     if [[ -n "${recorded_app:-}" ]] && exists "$app_dest"; then write_fs mv -- "$app_dest" "$app_stage/old-app"; old_app=1; changed=1; fi
     write_fs mv -- "$state" "$stage/old-state"; old_state=1; changed=1

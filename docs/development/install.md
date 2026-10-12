@@ -69,6 +69,12 @@ removes an installed engine login service, and restores its installed/enabled
 preferences afterward. A previously running engine is restarted after success.
 OS settings managed by Nagi are restored when the engine stops; runtime TUN,
 system proxy, and other temporary settings must be enabled again as needed.
+
+An already-open terminal menu retains access to the installed mihomo after a
+successful update. Exit and reopen the menu to run the new CLI version. See the
+[maintenance design](../design/installation.md#transactions-and-recovery) for
+replacement and rollback behavior.
+
 `nagi app update` invokes the same whole-installation update and requires an
 installed App.
 

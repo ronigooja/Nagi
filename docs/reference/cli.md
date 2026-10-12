@@ -381,6 +381,10 @@ artifact installer. They find the prefix from the running `PREFIX/bin/nagi`;
 they do not use `NAGI_MIHOMO_BIN` to select files for replacement. They do not
 require a valid active profile merely to display help or manage the App.
 
+After a successful update, an already-open terminal menu can still find the
+installed mihomo; exit and reopen it to use the new CLI version. See the
+[maintenance design](../design/installation.md#transactions-and-recovery).
+
 | Command | Release selection and effect |
 | --- | --- |
 | `app status` | macOS only. Read the managed App path and report whether that directory exists; no download. |
