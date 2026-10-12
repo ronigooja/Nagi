@@ -99,17 +99,28 @@ final class CLIClientTests: XCTestCase {
     }
 
     func testTimeoutRemainsTimeoutWhenCancellationArrivesDuringKillGrace() async throws {
-        let script = try fixture("trap '' TERM; printf 'ready' > \"$0.ready\"; exec /bin/sleep 30")
-        let marker = URL(fileURLWithPath: script.path + ".ready")
-        addTeardownBlock { try? FileManager.default.removeItem(at: marker) }
-        let start = Date()
-        let task = Task { try await NagiCLIClient(executable: script, timeout: 0.1).run([]) }
-        try await waitForMarker(marker)
-        try await Task.sleep(nanoseconds: 300_000_000)
+        // Observe the actual timeout signal instead of assuming that launch and
+        // timeout have happened after a fixed sleep. Once this marker exists,
+        // the client has classified timeout and is waiting for SIGKILL fallback.
+        let script = try fixture(#"""
+        trap 'printf timeout > "$0.timedout"; trap "" TERM' TERM
+        printf ready > "$0.ready"
+        while :; do :; done
+        """#)
+        let ready = URL(fileURLWithPath: script.path + ".ready")
+        let timedOut = URL(fileURLWithPath: script.path + ".timedout")
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: ready)
+            try? FileManager.default.removeItem(at: timedOut)
+        }
+        let task = Task { try await NagiCLIClient(executable: script, timeout: 2).run([]) }
+        try await waitForMarker(ready)
+        try await waitForMarker(timedOut)
+        let cancellationStart = Date()
         task.cancel()
         do { _ = try await task.value; XCTFail("Expected timeout") }
         catch CLIError.timeout { }
-        XCTAssertLessThan(Date().timeIntervalSince(start), 3)
+        XCTAssertLessThan(Date().timeIntervalSince(cancellationStart), 2)
     }
 
     func testExitedChildDoesNotWaitForDescendantHeldPipes() async throws {
