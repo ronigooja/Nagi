@@ -5,10 +5,23 @@ import Darwin
 struct NagiCLIClient {
     static let installedExecutable = URL(fileURLWithPath: "/usr/local/bin/nagi")
     let executable: URL
-    private let timeout: TimeInterval = 45
-    init(executable: URL = installedExecutable) { self.executable = executable }
+    private let timeout: TimeInterval
+    init(executable: URL = installedExecutable, timeout: TimeInterval = 45) {
+        self.executable = executable; self.timeout = timeout
+    }
 
     func run(_ arguments: [String]) async throws -> JSONValue {
+        try await run(arguments, stdoutLimit: 1_048_576, as: JSONValue.self)
+    }
+
+    /// Connections are decoded directly on the worker queue, without building a
+    /// generic JSON tree or doing per-connection work on the main actor.
+    func connections() async throws -> [Connection] {
+        let result = try await run(["connections", "list"], stdoutLimit: 8_388_608, as: ConnectionList.self)
+        return result.connections
+    }
+
+    private func run<Value: Decodable>(_ arguments: [String], stdoutLimit: Int, as type: Value.Type) async throws -> Value {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw CLIError.missingCLI(executable.path)
         }
@@ -16,7 +29,7 @@ struct NagiCLIClient {
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
-                    do { continuation.resume(returning: try runBlocking(arguments, holder: holder)) }
+                    do { continuation.resume(returning: try runBlocking(arguments, holder: holder, stdoutLimit: stdoutLimit, as: type)) }
                     catch { continuation.resume(throwing: error) }
                 }
             }
@@ -35,7 +48,7 @@ struct NagiCLIClient {
         return try SubscriptionWatch(executable: executable)
     }
 
-    private func runBlocking(_ arguments: [String], holder: ProcessHolder) throws -> JSONValue {
+    private func runBlocking<Value: Decodable>(_ arguments: [String], holder: ProcessHolder, stdoutLimit: Int, as type: Value.Type) throws -> Value {
         let process = Process()
         process.executableURL = executable
         process.arguments = ["--json"] + arguments
@@ -47,12 +60,12 @@ struct NagiCLIClient {
         let readers = DispatchGroup()
         readers.enter()
         DispatchQueue.global(qos: .userInitiated).async {
-            output.setStdout(Self.readLimited(stdout.fileHandleForReading))
+            output.setStdout(Self.readLimited(stdout.fileHandleForReading, limit: stdoutLimit))
             readers.leave()
         }
         readers.enter()
         DispatchQueue.global(qos: .userInitiated).async {
-            output.setStderr(Self.readLimited(stderr.fileHandleForReading))
+            output.setStderr(Self.readLimited(stderr.fileHandleForReading, limit: 1_048_576))
             readers.leave()
         }
         let deadline = Date().addingTimeInterval(timeout)
@@ -65,10 +78,11 @@ struct NagiCLIClient {
         readers.wait()
         if holder.cancelled && !timedOut { throw CancellationError() }
         if timedOut { throw CLIError.timeout }
-        let (out, err, overflow) = output.snapshot()
-        if overflow { throw CLIError.invalidJSON("CLI output exceeded 1 MiB.") }
+        let (out, err, stdoutOverflow, stderrOverflow) = output.channelSnapshot()
+        if stdoutOverflow { throw CLIError.outputTooLarge(stdoutLimit) }
+        if stderrOverflow { throw CLIError.invalidJSON("CLI stderr exceeded 1 MiB.") }
         let responseData = out.isEmpty ? err : out
-        guard let response = try? JSONDecoder().decode(CLIEnvelope.self, from: responseData) else {
+        guard let response = try? JSONDecoder().decode(CLIEnvelope<Value>.self, from: responseData) else {
             let diagnostic = String(data: err, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
             throw CLIError.invalidJSON(diagnostic?.isEmpty == false ? diagnostic! : "The CLI returned invalid JSON.")
         }
@@ -80,10 +94,10 @@ struct NagiCLIClient {
                                response.error?.message ?? "The CLI exited with status \(process.terminationStatus).")
     }
 
-    private static func readLimited(_ handle: FileHandle) -> (Data, Bool) {
+    private static func readLimited(_ handle: FileHandle, limit: Int) -> (Data, Bool) {
         var bytes = Data(), overflow = false
         while let chunk = try? handle.read(upToCount: 4096), !chunk.isEmpty {
-            if bytes.count + chunk.count <= 1_048_576 { bytes.append(chunk) }
+            if bytes.count + chunk.count <= limit { bytes.append(chunk) }
             else { overflow = true }
         }
         return (bytes, overflow)
@@ -142,7 +156,7 @@ final class SubscriptionWatch: @unchecked Sendable {
         if !pending.isEmpty { parse(pending, isError: isError) }
     }
     private func parse(_ data: Data, isError: Bool) {
-        guard let envelope = try? JSONDecoder().decode(CLIEnvelope.self, from: data) else { return }
+        guard let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: data) else { return }
         lock.lock(); defer { lock.unlock() }
         if !isError && envelope.ok && envelope.data?["scheduler_running"]?.bool == true { announced = true }
         if isError, let error = envelope.error { outputError = CLIError.command(error.code, error.message) }
@@ -206,10 +220,11 @@ private final class ProcessHolder: @unchecked Sendable {
 
 private final class BoundedOutput {
     private let lock = NSLock()
-    private var stdout = Data(), stderr = Data(), overflow = false
-    func setStdout(_ value: (Data, Bool)) { lock.lock(); stdout = value.0; overflow = overflow || value.1; lock.unlock() }
-    func setStderr(_ value: (Data, Bool)) { lock.lock(); stderr = value.0; overflow = overflow || value.1; lock.unlock() }
-    func snapshot() -> (Data, Data, Bool) { lock.lock(); defer { lock.unlock() }; return (stdout, stderr, overflow) }
+    private var stdout = Data(), stderr = Data(), stdoutOverflow = false, stderrOverflow = false
+    func setStdout(_ value: (Data, Bool)) { lock.lock(); stdout = value.0; stdoutOverflow = value.1; lock.unlock() }
+    func setStderr(_ value: (Data, Bool)) { lock.lock(); stderr = value.0; stderrOverflow = value.1; lock.unlock() }
+    func snapshot() -> (Data, Data, Bool) { lock.lock(); defer { lock.unlock() }; return (stdout, stderr, stdoutOverflow || stderrOverflow) }
+    func channelSnapshot() -> (Data, Data, Bool, Bool) { lock.lock(); defer { lock.unlock() }; return (stdout, stderr, stdoutOverflow, stderrOverflow) }
 }
 
 // Worker queues share this stream; the lock guards failure/stopped, and semaphores coordinate completion.
@@ -243,7 +258,7 @@ final class TrafficStream: @unchecked Sendable {
                     let line = pending.prefix(upTo: newline)
                     pending.removeSubrange(...newline)
                     guard !line.isEmpty else { continue }
-                    guard let envelope = try? JSONDecoder().decode(CLIEnvelope.self, from: line),
+                    guard let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: line),
                           envelope.ok, let data = envelope.data else {
                         setFailure(CLIError.invalidJSON("Traffic stream returned an invalid sample."))
                         invalid = true; stop(); break
@@ -288,7 +303,7 @@ final class TrafficStream: @unchecked Sendable {
                     if wasStopped { continuation.resume(throwing: CancellationError()); return }
                     if process.terminationStatus == 0 { continuation.resume(returning: ()); return }
                     let (_, stderr, _) = output.snapshot()
-                    if let envelope = try? JSONDecoder().decode(CLIEnvelope.self, from: stderr),
+                    if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: stderr),
                        let error = envelope.error {
                         continuation.resume(throwing: CLIError.command(error.code, error.message))
                     } else { continuation.resume(throwing: CLIError.invalidJSON("Traffic stream exited unexpectedly.")) }
@@ -298,10 +313,10 @@ final class TrafficStream: @unchecked Sendable {
     }
 }
 
-private struct CLIEnvelope: Decodable { let ok: Bool; let data: JSONValue?; let error: CLIMessage? }
+private struct CLIEnvelope<Value: Decodable>: Decodable { let ok: Bool; let data: Value?; let error: CLIMessage? }
 private struct CLIMessage: Decodable { let code: String; let message: String }
 enum CLIError: LocalizedError {
-    case missingCLI(String), launch(String), timeout, invalidJSON(String), command(String, String)
+    case missingCLI(String), launch(String), timeout, invalidJSON(String), command(String, String), outputTooLarge(Int)
     var errorDescription: String? {
         switch self {
         case .missingCLI(let path): return "Nagi CLI is missing at \(path). Install the CLI there."
@@ -309,6 +324,7 @@ enum CLIError: LocalizedError {
         case .timeout: return "Nagi CLI did not respond within 45 seconds."
         case .invalidJSON(let reason): return "Nagi CLI response error: \(reason)"
         case .command(let code, let message): return "\(message) (\(code))"
+        case .outputTooLarge(let limit): return "Nagi CLI output exceeded \(limit / 1_048_576) MiB."
         }
     }
 }
@@ -331,5 +347,5 @@ indirect enum JSONValue: Decodable {
     var array: [JSONValue] { if case .arrayValue(let value) = self { return value }; return [] }
     var string: String? { if case .stringValue(let value) = self { return value }; return nil }
     var bool: Bool? { if case .boolValue(let value) = self { return value }; return nil }
-    var int64: Int64? { if case .numberValue(let value) = self, value.isFinite, value >= 0, value <= Double(Int64.max) { return Int64(value) }; return nil }
+    var int64: Int64? { if case .numberValue(let value) = self, value.isFinite, value >= 0, value < Double(Int64.max) { return Int64(value) }; return nil }
 }

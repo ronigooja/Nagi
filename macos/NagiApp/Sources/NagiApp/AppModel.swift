@@ -65,6 +65,7 @@ enum EngineState { case starting, running, stopped, unavailable }
 
     var onChange: (() -> Void)?
     private let cli: NagiCLIClient
+    let connections: ConnectionsModel
     private let watchDelay: (Int, Bool) -> UInt64
     private var refreshTask: Task<Void, Never>?
     private var trafficTask: Task<Void, Never>?
@@ -73,21 +74,27 @@ enum EngineState { case starting, running, stopped, unavailable }
     private var subscriptionWatchTask: Task<Void, Never>?
     private var watchGeneration = 0
     private var watchRetry = 0
-    init(cli: NagiCLIClient = NagiCLIClient(), watchDelay: @escaping (Int, Bool) -> UInt64 = { attempt, duplicate in
+    init(cli: NagiCLIClient = NagiCLIClient(), connections: ConnectionsModel? = nil, watchDelay: @escaping (Int, Bool) -> UInt64 = { attempt, duplicate in
         duplicate ? 15_000_000_000 : UInt64(1 << attempt) * 1_000_000_000
     }) {
         self.cli = cli
+        self.connections = connections ?? ConnectionsModel(cli: cli)
         self.watchDelay = watchDelay
     }
     private var trafficGeneration = 0
     private var settingsGeneration = 0
     private var lastSample = Date.distantPast
     private var streamStartedAt = Date.distantPast
-    private var sleeping = false
-    private var quitting = false
-    private(set) var busy = false { didSet { notify() } }
+    private var sleeping = false { didSet { connections.setSuspended(sleeping || quitting) } }
+    private var quitting = false {
+        didSet {
+            connections.setSuspended(sleeping || quitting)
+            connections.setOperationBlocked(busy || quitting)
+        }
+    }
+    private(set) var busy = false { didSet { connections.setOperationBlocked(busy || quitting); notify() } }
     private(set) var applyingSetting = false { didSet { notify() } }
-    private(set) var state: EngineState = .starting { didSet { notify() } }
+    private(set) var state: EngineState = .starting { didSet { connections.setEngineState(state); notify() } }
     private(set) var errorMessage: String? { didSet { notify() } }
     private(set) var quitErrorMessage: String? { didSet { notify() } }
     private(set) var notice: String? { didSet { notify() } }
@@ -155,7 +162,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     func retryStart() {
         guard !busy && !quitting else { return }
         busy = true
-        Task { await startEngine(); await refresh(); busy = false }
+        Task { await waitForConnectionsOperation(); await startEngine(); await refresh(); busy = false }
     }
     private func startEngine() async {
         state = .starting
@@ -321,6 +328,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         notice = nil
         Task {
             defer { applyingSetting = false; busy = false }
+            await waitForConnectionsOperation()
             do {
                 let result = try await cli.run(arguments)
                 settingsGeneration += 1
@@ -371,6 +379,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         applyingSetting = true
         notice = nil
         defer { applyingSetting = false; busy = false }
+        await waitForConnectionsOperation()
         do {
             let result = try await cli.run(["proxy", "provider", "add", name, url, group, String(intervalSeconds)])
             settingsGeneration += 1
@@ -401,6 +410,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         guard !busy && !quitting else { return }
         busy = true
         Task {
+            await waitForConnectionsOperation()
             do {
                 let result = try await cli.run(["update", "--app"])
                 guard result["scheduled"]?.bool == true else {
@@ -447,6 +457,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         notice = nil
         Task {
             defer { applyingSetting = false; busy = false }
+            await waitForConnectionsOperation()
             if let url {
                 do {
                     _ = try await cli.run(["subscription", "add", name, url])
@@ -492,6 +503,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         notice = nil
         Task {
             defer { applyingSetting = false; busy = false }
+            await waitForConnectionsOperation()
             do {
                 _ = try await cli.run(["subscription", "remove", name])
                 settingsGeneration += 1
@@ -517,22 +529,30 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
     func clearSubscriptionKey(_ name: String) { perform(["subscription", "key", name, "clear"]) }
     func setSubscriptionKey(_ name: String, file: String) { perform(["subscription", "key", name, file]) }
+    private func waitForConnectionsOperation() async {
+        // busy is acquired synchronously before reaching this wait, so new
+        // close requests cannot slip in while an earlier close drains.
+        while connections.operationInProgress { try? await Task.sleep(nanoseconds: 20_000_000) }
+        await connections.waitForCancelledRead()
+    }
     func quit(completion: @escaping (Bool) -> Void) {
         guard !quitting else { return }
         quitting = true
         quitErrorMessage = nil
         Task {
-            while busy { try? await Task.sleep(nanoseconds: 100_000_000) }
+            while busy || connections.operationInProgress { try? await Task.sleep(nanoseconds: 100_000_000) }
+            await connections.waitForCancelledRead()
             busy = true
             do {
                 _ = try await cli.run(["quit"])
                 stopTraffic(); stopSubscriptionWatch(); refreshTask?.cancel()
+                busy = false
                 completion(true)
             } catch {
                 quitErrorMessage = "Quit failed: \(error.localizedDescription)"
+                busy = false; quitting = false
                 completion(false)
             }
-            busy = false; quitting = false
         }
     }
     func setAppLogin(_ enabled: Bool) {
