@@ -37,10 +37,13 @@ import AppKit
 }
 
 @MainActor final class MenuAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let model = AppModel()
+    private let model: AppModel
     private let groupIcons = GroupIconLoader()
     private var statusItem: NSStatusItem!
-    private let menu = NSMenu()
+    let menu = NSMenu()
+    private var statusMenuItem: NSMenuItem?
+    private var menuMutationSnapshot: [[String]] = []
+    private var trackedMutationsInvalidated = false
     private var pulse: Timer?
     private var menuRefreshTask: Task<Void, Never>?
     private var menuTracking = false
@@ -48,19 +51,70 @@ import AppKit
     private var loadingTimer: Timer?
     private var loadingFrame = 0
 
+    init(model: AppModel? = nil) {
+        self.model = model ?? AppModel()
+        super.init()
+        menu.autoenablesItems = false
+        menu.delegate = self
+        self.model.onChange = { [weak self] in self?.modelDidChange() }
+    }
+
+    private func modelDidChange() {
+        renderStatus()
+        if menuTracking {
+            deferredMenuRebuild = true
+            // Keep the tracked tree intact. Never re-enable a mutation with
+            // arguments or checkmarks from an older model snapshot.
+            statusMenuItem?.title = stateTitle
+            if model.busy || mutationSnapshot != menuMutationSnapshot { disableMutations(in: menu) }
+            updateDisplayChecks()
+        } else {
+            rebuildMenu()
+        }
+    }
+
+    // Traffic samples and display changes leave command validity unchanged.
+    // Configuration changes invalidate the tracked tree until it closes.
+    private var mutationSnapshot: [[String]] {
+        var rows = [[String(describing: model.state), model.profile ?? "", model.mode ?? "",
+                     String(describing: model.systemProxy), String(describing: model.tun),
+                     String(describing: model.serviceInstalled), String(describing: model.defaultOverrideApplied),
+                     String(model.dnsProxyRequired), model.dnsProxyGroup, String(model.appLoginEnabled)],
+                    model.profiles, model.dnsProxyGroups]
+        rows += model.groups.map { [$0.name, $0.kind, $0.selected, $0.fixed ?? "", String($0.hidden)] + $0.nodes }
+        rows += model.providers.map { [$0.name, $0.type] + $0.nodes }
+        rows += model.subscriptions.map { [$0.name, String($0.scheduleSeconds), String($0.keyConfigured)] }
+        return rows
+    }
+
+    private var mutationsAllowed: Bool {
+        !model.busy && (!menuTracking || !trackedMutationsInvalidated)
+    }
+
+    private func disableMutations(in menu: NSMenu) {
+        trackedMutationsInvalidated = true
+        for item in menu.items {
+            if let submenu = item.submenu { disableMutations(in: submenu) }
+            if let action = item.action,
+               action != #selector(setDisplay(_:)), action != #selector(openHelp), action != #selector(showAbout) {
+                item.isEnabled = false
+            }
+        }
+    }
+
+    private func updateDisplayChecks() {
+        for item in menu.items {
+            guard let submenu = item.submenu else { continue }
+            for option in submenu.items where option.action == #selector(setDisplay(_:)) {
+                option.state = option.representedObject as? String == model.display.rawValue ? .on : .off
+            }
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.menu = menu
-        menu.delegate = self
-        model.onChange = { [weak self] in
-            guard let self else { return }
-            self.renderStatus()
-            // Model refreshes can complete while the menu is detached during
-            // an operation. Rebuild the tree before it is opened again so
-            // profile override checkmarks reflect the completed CLI action.
-            if !self.menuTracking && !self.model.busy { self.rebuildMenu() }
-        }
         renderStatus()
         pulse = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.model.ensureFreshTraffic(); self?.renderStatus() }
@@ -81,12 +135,6 @@ import AppKit
 
     private func renderStatus() {
         guard let button = statusItem?.button else { return }
-        if model.busy {
-            menu.cancelTracking()
-            if statusItem.menu != nil { statusItem.menu = nil }
-        } else {
-            if statusItem.menu !== menu { statusItem.menu = menu }
-        }
         if model.applyingSetting {
             if loadingTimer == nil {
                 loadingFrame = 0
@@ -119,10 +167,10 @@ import AppKit
         case .stopped: state = "stopped"
         case .unavailable: state = "status unavailable"
         }
-        button.setAccessibilityLabel(model.applyingSetting ? "Nagi, applying setting" : "Nagi \(state), \(model.accessibilityTraffic)")
+        button.setAccessibilityLabel(model.busy ? "Nagi \(state), operation in progress" : "Nagi \(state), \(model.accessibilityTraffic)")
     }
 
-    func menuShouldOpen(_ menu: NSMenu) -> Bool { !model.busy }
+    func menuShouldOpen(_ menu: NSMenu) -> Bool { true }
 
     func menuWillOpen(_ menu: NSMenu) {
         // Build the initial tree before AppKit starts tracking submenu items.
@@ -153,19 +201,27 @@ import AppKit
         }
     }
 
-    private func rebuildMenu() {
-        menu.removeAllItems()
-        let errors = [model.quitErrorMessage, model.errorMessage].compactMap { $0 }
-        let stateTitle: String
+    private var stateTitle: String {
+        let title: String
         switch model.state {
-        case .starting: stateTitle = "Nagi · Starting…"
-        case .running: stateTitle = errors.isEmpty ? "Nagi · Running" : "Nagi · Running ⚠"
-        case .stopped: stateTitle = "Nagi · Stopped"
-        case .unavailable: stateTitle = "Nagi · Status unavailable"
+        case .starting: title = "Nagi · Starting…"
+        case .running: title = model.quitErrorMessage == nil && model.errorMessage == nil ? "Nagi · Running" : "Nagi · Running ⚠"
+        case .stopped: title = "Nagi · Stopped"
+        case .unavailable: title = "Nagi · Status unavailable"
         }
+        return model.busy ? "\(title) · Operation in progress…" : title
+    }
+
+    private func rebuildMenu() {
+        guard !menuTracking else { deferredMenuRebuild = true; return }
+        menu.removeAllItems()
+        menuMutationSnapshot = mutationSnapshot
+        trackedMutationsInvalidated = model.busy
+        let errors = [model.quitErrorMessage, model.errorMessage].compactMap { $0 }
         let status = NSMenuItem(title: stateTitle, action: nil, keyEquivalent: "")
         if !errors.isEmpty {
             let details = NSMenu()
+            details.autoenablesItems = false
             for error in errors {
                 let item = NSMenuItem(title: "⚠ \(error)", action: nil, keyEquivalent: "")
                 item.isEnabled = false; item.toolTip = error; details.addItem(item)
@@ -174,6 +230,7 @@ import AppKit
         } else {
             status.isEnabled = false
         }
+        statusMenuItem = status
         menu.addItem(status)
         if let notice = model.notice {
             let item = NSMenuItem(title: notice, action: nil, keyEquivalent: "")
@@ -259,7 +316,7 @@ import AppKit
             metadata.isEnabled = false; actions.addItem(metadata)
             addSubmenu(provider.name, actions, to: providersMenu)
         }
-        addSubmenu("Proxy Providers", providersMenu, enabled: !model.busy)
+        addSubmenu("Proxy Providers", providersMenu)
         menu.addItem(.separator())
 
         let profileMenu = NSMenu()
@@ -272,7 +329,7 @@ import AppKit
                 add("Apply Local Default Settings to Current Profile", action: #selector(applyDefaultOverride),
                     checked: model.defaultOverrideApplied == true,
                     enabled: !model.busy && model.defaultOverrideApplied != nil, to: actions)
-                addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
+                addSubmenu(name, actions, to: profileMenu)
             } else {
                 add(name, command: ["profile", "use", name], checked: model.profile == name,
                     enabled: !model.busy, to: profileMenu)
@@ -317,7 +374,7 @@ import AppKit
         }
         addSubmenu("Display", displayMenu)
         let startupMenu = NSMenu()
-        add("Open menu bar app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
+        add("Open menu bar app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, enabled: !model.busy, to: startupMenu)
         let startupCommand = model.serviceInstalled == true ? ["service", "uninstall"] : ["service", "install"]
         add("Run engine at login", command: startupCommand,
             checked: model.serviceInstalled == true, enabled: model.serviceInstalled != nil && !model.busy, to: startupMenu)
@@ -344,6 +401,7 @@ import AppKit
     }
     @discardableResult private func addSubmenu(_ title: String, _ submenu: NSMenu, enabled: Bool = true, to target: NSMenu? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        submenu.autoenablesItems = false
         item.submenu = submenu; item.isEnabled = enabled
         (target ?? menu).addItem(item)
         return item
@@ -397,11 +455,16 @@ import AppKit
         item.isEnabled = false; target.addItem(item)
     }
     @objc private func runCommand(_ sender: NSMenuItem) {
-        guard let command = sender.representedObject as? [String] else { return }
+        guard mutationsAllowed else { return }
+        guard sender.isEnabled, let command = sender.representedObject as? [String] else { return }
         model.perform(command)
     }
-    @objc private func switchToDefaultProfile() { model.switchToDefaultProfile() }
+    @objc private func switchToDefaultProfile() {
+        guard mutationsAllowed else { return }
+        model.switchToDefaultProfile()
+    }
     @objc private func applyDefaultOverride() {
+        guard mutationsAllowed else { return }
         if model.defaultOverrideApplied == true {
             model.applyDefaultOverrideToCurrentProfile()
             return
@@ -429,19 +492,23 @@ import AppKit
         }
     }
     @objc private func updateAndApplySubscription(_ sender: NSMenuItem) {
+        guard mutationsAllowed else { return }
         guard let name = sender.representedObject as? String else { return }
         model.updateAndApplySubscription(name)
     }
     @objc private func scheduleSubscription(_ sender: NSMenuItem) {
+        guard mutationsAllowed else { return }
         guard let name = sender.representedObject as? String,
               let sub = model.subscriptions.first(where: { $0.name == name }) else { return }
         model.scheduleSubscription(name, seconds: sub.scheduleSeconds > 0 ? nil : 3600)
     }
     @objc private func scheduleHour(_ sender: NSMenuItem) {
+        guard mutationsAllowed else { return }
         guard let name = sender.representedObject as? String else { return }
         model.scheduleSubscription(name, seconds: 3600)
     }
     @objc private func subscriptionKey(_ sender: NSMenuItem) {
+        guard mutationsAllowed else { return }
         guard let name = sender.representedObject as? String,
               let sub = model.subscriptions.first(where: { $0.name == name }) else { return }
         if sub.keyConfigured { model.clearSubscriptionKey(name); return }
@@ -450,7 +517,7 @@ import AppKit
         if panel.runModal() == .OK, let url = panel.url { model.setSubscriptionKey(name, file: url.path) }
     }
     @objc private func addProvider() {
-        guard !model.busy else { return }
+        guard mutationsAllowed else { return }
         let alert = NSAlert()
         alert.messageText = "Add Provider"
         let instructions = "Add an HTTP(S) provider to the selected profile. Choose an existing group or enter a new name. A new Select group includes DIRECT and leaves routing rules unchanged. Its choices appear in Select Node (Proxy Groups); use Global mode or existing routing rules to route through it. Saving while stopped does not start the engine."
@@ -532,6 +599,7 @@ import AppKit
         }
     }
     @objc private func addAndApplySubscription() {
+        guard mutationsAllowed else { return }
         let alert = NSAlert()
         alert.messageText = "Add and Apply Subscription"
         alert.informativeText = "Save, download, and apply this subscription. Applying replaces the target configuration and clears local overrides and saved selections. This does not start mihomo or enable traffic access."
@@ -585,6 +653,7 @@ import AppKit
         }
     }
     @objc private func deleteSubscription(_ sender: NSMenuItem) {
+        guard mutationsAllowed else { return }
         guard let name = sender.representedObject as? String else { return }
         let alert = NSAlert()
         alert.messageText = "Delete subscription “\(name)”?"
@@ -595,11 +664,17 @@ import AppKit
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn { model.removeSubscription(name) }
     }
-    @objc private func retryStart() { model.retryStart() }
+    @objc private func retryStart() {
+        guard mutationsAllowed else { return }
+        model.retryStart()
+    }
     @objc private func setDisplay(_ sender: NSMenuItem) {
         if let value = sender.representedObject as? String, let display = TrafficDisplay(rawValue: value) { model.display = display }
     }
-    @objc private func toggleAppLogin() { model.setAppLogin(!model.appLoginEnabled) }
+    @objc private func toggleAppLogin() {
+        guard mutationsAllowed else { return }
+        model.setAppLogin(!model.appLoginEnabled)
+    }
     @objc private func openHelp() {
         NSWorkspace.shared.open(URL(string: "https://github.com/ronigooja/Nagi#documentation")!)
     }
@@ -618,8 +693,12 @@ import AppKit
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertSecondButtonReturn { updateNagi() }
     }
-    @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func quit() {
+        guard mutationsAllowed else { return }
+        NSApp.terminate(nil)
+    }
     @objc private func updateNagi() {
+        guard mutationsAllowed else { return }
         model.updateNagi { NSApp.terminate(nil) }
     }
     @objc private func willSleep(_ notification: Notification) { model.pauseForSleep() }
