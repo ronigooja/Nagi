@@ -186,6 +186,8 @@ enum EngineState { case starting, running, stopped, unavailable }
         Task { await startEngine(); await refresh(); busy = false }
     }
     private func startEngine() async {
+        settingsGeneration += 1
+        defer { settingsGeneration += 1 }
         state = .starting
         do { _ = try await runCommand(["start"]); errorMessage = nil }
         catch CLIError.command(let code, _) where code == "already_running" { errorMessage = nil }
