@@ -7,6 +7,7 @@ Use Go 1.20 or newer. `engine.lock` records the mihomo repository, ref, and exac
 ```sh
 make build cli
 # On macOS:
+swift test --package-path macos/NagiApp
 make build app
 # To rebuild the pinned mihomo as well:
 GO=/path/to/go MIHOMO_DIR=/path/to/mihomo ./scripts/build.sh
@@ -29,6 +30,8 @@ To check runtime integration manually with the built mihomo executable, run thes
 ```
 
 `start` creates the default profile if none exists. TUN is disabled in that profile, so this integration check does not alter routes unless you explicitly run `nagi tun enable`; enabling it requires suitable permissions and, on macOS, may require the privileged helper. Expect `status` to report a running process, `config validate` to report a valid profile, and the proxy and connection commands to succeed; an empty connection list is valid. Inspect `nagi tun status` and `nagi logs` after explicitly enabling TUN. On Linux, set `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_RUNTIME_DIR` to directories in a temporary test location before running the commands if you need to isolate them from a normal Nagi instance. `XDG_RUNTIME_DIR` must be an absolute path. On macOS, Nagi uses `~/Library/Application Support/Nagi` rather than XDG paths. The macOS app is under `macos/NagiApp`; its [packaging script](../../macos/NagiApp/README.md) builds with Swift Package Manager and creates an `LSUIElement` bundle in `bin/`. Signing and notarization require an Apple developer identity and are not part of the local build.
+
+For Connections changes, run the Swift tests and package on macOS. Verify a repeated **Connections…** selection brings the same window forward, table selection follows IDs during sorting and snapshot replacement, details and cumulative columns remain readable at the minimum window size, and close-all confirmation includes connections outside the current search. Check read cancellation on close, minimize, hide, sleep, and quit; a failed quit must restore reading. Use an injected CLI and private temporary checkout for fixtures, preserving the user's installed App and runtime. Run sustained near-limit snapshots while searching, scrolling, and resizing, and inspect CPU and memory. Linux tests and source inspection do not replace native macOS window acceptance. Restricted desktop sessions can decline native minimization and prevent screen capture; exercise the hide fallback and its cancellation, and distinguish cached AppKit view rendering from a full desktop screenshot. The [window design](../design/connections-window.md) defines the state and operation contract.
 
 The tag-triggered [release workflow](../../.github/workflows/release.yml) runs release checks before publishing unsigned release archives.
 

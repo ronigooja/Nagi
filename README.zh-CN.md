@@ -4,13 +4,13 @@
 
 Nagi 是一款适用于 macOS 和 Linux 的代理客户端，提供原生 macOS 菜单栏应用、交互式终端菜单和命令行界面（CLI）。你可以用它切换代理节点、管理订阅和配置文件、设置路由规则与 DNS，以及控制 TUN 接入。
 
-日常操作和实时流量速率可通过 macOS 菜单栏应用查看和控制。高级配置、自动化、诊断与故障恢复可在两个平台上通过 CLI 完成。
+日常操作、实时流量速率和当前活动连接可通过 macOS 菜单栏应用查看和控制。高级配置、自动化、诊断与故障恢复可在两个平台上通过 CLI 完成。
 
 [安装 Nagi](#安装) · [快速开始](#快速开始) · [用户指南](#用户指南) · [CLI 参考文档](docs/reference/cli.md)
 
 ## 功能
 
-- **macOS 菜单栏应用**：查看引擎状态、选择代理、控制系统代理和 TUN、管理配置文件及订阅，并查看实时上传和下载速率。
+- **macOS 菜单栏应用**：查看引擎状态、选择代理、控制系统代理和 TUN、管理配置文件及订阅，并查看实时上传和下载速率；独立的 Connections 窗口支持搜索、排序、详情和断开连接。
 - **终端菜单和 CLI**：提供分步操作、供脚本和应用使用的 JSON 输出，以及 Bash、Zsh 和 Fish 命令补全。
 - **代理选择**：搜索节点、比较延迟、保存代理组选择，以及添加或刷新代理提供者。
 - **订阅管理**：缓存更新、预览节点变化、定时刷新，并可选用 age 加密订阅源。
@@ -86,6 +86,7 @@ Nagi 使用 [mihomo](https://github.com/MetaCubeX/mihomo) 实现代理协议、D
 - [DNS 配置](docs/reference/cli.md#dns-policy-and-checks)：DoH 策略、域名例外设置和配置检查。
 - [macOS 特权 TUN 辅助程序](docs/reference/cli.md#traffic-access)：TUN 接入的安装和后端选择。
 - [架构](ARCHITECTURE.md)：系统边界和模块关系。
+- [macOS 连接窗口设计](docs/design/connections-window.md)：快照调度、取消和操作协调。
 - [终端菜单设计](docs/design/terminal-menu.md)：当前菜单的职责、导航、命令调用和故障处理。
 - [运行时设计](docs/design/runtime.md)：进程、Socket、配置和恢复行为。
 - [架构决策](docs/decisions/0001-pin-mihomo-commit.md)：mihomo 源码版本锁定。

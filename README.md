@@ -4,13 +4,13 @@
 
 Nagi is a proxy client for macOS and Linux with a native macOS menu bar app, an interactive terminal menu, and a command-line interface (CLI). Switch proxy nodes, manage subscriptions and profiles, configure routing rules and DNS, and control TUN access from one tool.
 
-Use the macOS menu bar app for daily controls and live traffic rates. Use the CLI for advanced configuration, automation, diagnostics, and recovery on either platform.
+Use the macOS menu bar app for daily controls, live traffic rates, and active connections. Use the CLI for advanced configuration, automation, diagnostics, and recovery on either platform.
 
 [Install Nagi](#installation) · [Quick start](#quick-start) · [User guides](#user-guides) · [CLI reference](docs/reference/cli.md)
 
 ## Features
 
-- **macOS menu bar app:** engine status, proxy selection, system proxy and TUN controls, profiles, subscriptions, and live upload/download rates.
+- **macOS menu bar app:** engine status, proxy selection, system proxy and TUN controls, profiles, subscriptions, live upload/download rates, and a native Connections window.
 - **Terminal menu and CLI:** step-by-step operations, JSON output for scripts and applications, and Bash, Zsh, and Fish completion.
 - **Proxy selection:** search nodes, compare latency, save group selections, and add or refresh proxy providers.
 - **Subscription management:** cached updates, previews of node changes, scheduled refresh, and optional age-encrypted feeds.
@@ -86,6 +86,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [DNS configuration](docs/reference/cli.md#dns-policy-and-checks): DoH policy, domain exceptions, and configuration checks.
 - [macOS privileged TUN helper](docs/reference/cli.md#traffic-access): installation and backend selection for TUN access.
 - [Architecture](ARCHITECTURE.md): system boundaries and module relationships.
+- [macOS connections window](docs/design/connections-window.md): snapshot scheduling, cancellation, and operation coordination.
 - [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
