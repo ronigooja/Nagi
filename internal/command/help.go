@@ -80,12 +80,21 @@ var commandSpecs = []commandSpec{
 	{"dns tun off", "dns tun off", "Disable TUN DNS interception", "Disables TUN in the selected profile override.", "nagi dns tun off", "", 0, 0},
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
-	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|tailscale SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups in the current profile's order with their live selections.", "nagi proxy groups", "", 0, 0},
 	{"proxy show", "proxy show GROUP", "Show a proxy group", "Shows one group and its available nodes.", "nagi proxy show 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 1},
 	{"proxy search", "proxy search QUERY", "Search nodes", "Lists case-insensitive node-name matches by group.", "nagi proxy search Hong", "Run `nagi proxy groups` to inspect all nodes.", 1, 1},
 	{"proxy select", "proxy select GROUP NODE", "Select a proxy node", "Selects a node in a group and saves the choice for the selected profile.", "nagi proxy select 'Proxy Group' 'Node A'", "Run `nagi proxy groups` and `nagi proxy show GROUP` to find names.", 2, 2},
 	{"proxy auto", "proxy auto GROUP", "Resume automatic selection", "Clears the fixed node of a URLTest or Fallback group and removes its saved choice.", "nagi proxy auto 'Auto Group'", "Run `nagi proxy groups` to find an automatic group.", 1, 1},
+	{"proxy tailscale", "proxy tailscale <list|show NAME|targets|add NAME EXIT_NODE KEY_FILE [OPTIONS]|edit NAME OPTIONS|bind NAME node|provider TARGET|unbind node|provider TARGET|remove NAME>", "Manage Tailscale exit-node chaining", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 0, -1},
+	{"proxy tailscale list", "proxy tailscale list", "List configured Tailscale nodes", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 0, 0},
+	{"proxy tailscale show", "proxy tailscale show NAME", "Show a Tailscale node and its bindings", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 1, 1},
+	{"proxy tailscale targets", "proxy tailscale targets", "List eligible local binding targets", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 0, 0},
+	{"proxy tailscale add", "proxy tailscale add NAME EXIT_NODE KEY_FILE [--hostname HOSTNAME] [--control-url URL]", "Add a Tailscale exit-node proxy", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 3, 7},
+	{"proxy tailscale edit", "proxy tailscale edit NAME [--exit-node VALUE] [--hostname HOSTNAME] [--control-url URL] [--auth-key-file FILE]", "Edit a Tailscale proxy", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 3, 9},
+	{"proxy tailscale bind", "proxy tailscale bind NAME node|provider TARGET", "Chain a proxy or provider through Tailscale", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 3, 3},
+	{"proxy tailscale unbind", "proxy tailscale unbind node|provider TARGET", "Clear a Tailscale binding", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 2, 2},
+	{"proxy tailscale remove", "proxy tailscale remove NAME", "Remove an unbound Tailscale proxy", "Offline inspection reads the selected effective profile. Mutations validate and save its local override, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 1, 1},
 	{"proxy providers", "proxy providers", "List proxy providers", "Lists provider names, types, update time, and node names without revealing URLs or credentials.", "nagi proxy providers", "", 0, 0},
 	{"proxy provider", "proxy provider <add NAME URL GROUP [SECONDS]|show NAME|update NAME|healthcheck NAME>", "Manage one proxy provider", "Adds provider configuration through the selected profile override; inspections, updates, and healthchecks use mihomo APIs.", "nagi proxy provider show work", "", 0, -1},
 	{"proxy provider add", "proxy provider add NAME URL GROUP [SECONDS]", "Add an HTTP proxy provider", "Adds a provider to the selected profile local override and attaches it to GROUP. Creates a select group with DIRECT fallback if absent. NAME uses 1..128 ASCII letters, digits, _ or -; GROUP permits internal spaces. URL must be absolute HTTP(S) without userinfo or fragment. SECONDS defaults to 3600 (1..31536000). mihomo downloads and healthchecks nodes; routing rules remain unchanged. Reloads only when running.", "nagi proxy provider add work https://example.com/nodes.yaml \"My Proxy\"", "Run `nagi proxy groups` to find a running group, or choose a new GROUP name.", 3, 4},
@@ -148,7 +157,7 @@ var commandSpecs = []commandSpec{
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
-	{"completion candidates", "completion candidates profile|subscription|profile-groups NAME|groups|nodes [GROUP]|providers", "List completion candidates", "Lists local names, eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
+	{"completion candidates", "completion candidates profile|subscription|profile-groups NAME|groups|nodes [GROUP]|providers|tailscale-nodes|tailscale-targets [node|provider]", "List completion candidates", "Lists local names, eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
 }
 
 func findSpec(path string) *commandSpec {
@@ -252,6 +261,12 @@ func validateInvocation(args []string) error {
 			return syntaxError("TAG must be vX.Y.Z (an optional release suffix is allowed)", spec)
 		}
 	}
+	if strings.HasPrefix(spec.path, "proxy tailscale ") {
+		if _, err := tailscaleArguments(args); err != nil {
+			return syntaxError(err.Error(), spec)
+		}
+	}
+
 	if spec.path == "proxy provider add" {
 		interval := profile.DefaultProviderInterval
 		if n == 4 {
@@ -274,12 +289,16 @@ func validateInvocation(args []string) error {
 		}
 	}
 	if spec.path == "completion candidates" {
-		if args[2] != "profile" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" {
-			return syntaxError("RESOURCE must be profile, subscription, profile-groups, groups, nodes, or providers", spec)
+		if args[2] != "profile" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" && args[2] != "tailscale-nodes" && args[2] != "tailscale-targets" {
+			return syntaxError("RESOURCE must be profile, subscription, profile-groups, groups, nodes, providers, tailscale-nodes, or tailscale-targets", spec)
 		}
-		if n == 2 && args[2] != "nodes" && args[2] != "profile-groups" {
-			return syntaxError("second argument is only valid for nodes or profile-groups", spec)
+		if n == 2 && args[2] != "nodes" && args[2] != "profile-groups" && args[2] != "tailscale-targets" {
+			return syntaxError("second argument is only valid for nodes, profile-groups, or tailscale-targets", spec)
 		}
+		if n == 2 && args[2] == "tailscale-targets" && args[3] != "node" && args[3] != "provider" {
+			return syntaxError("KIND must be node or provider", spec)
+		}
+
 		if n == 1 && args[2] == "profile-groups" {
 			return syntaxError("profile-groups requires NAME", spec)
 		}

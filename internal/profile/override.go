@@ -60,7 +60,12 @@ func mergeMap(base, patch map[string]any) {
 func (s *Store) EffectiveSource(name string, source []byte) ([]byte, error) {
 	patch, err := s.Override(name)
 	if errors.Is(err, fs.ErrNotExist) {
-		return rules.Apply(source, s.Dir)
+		applied, err := rules.Apply(source, s.Dir)
+		if err != nil {
+			return nil, err
+		}
+		rewritten, _, err := RewriteTailscaleState(applied, s.Dir, name, false)
+		return rewritten, err
 	}
 	if err != nil {
 		return nil, err
@@ -88,7 +93,12 @@ func (s *Store) EffectiveSource(name string, source []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return rules.Apply(merged, s.Dir)
+	applied, err := rules.Apply(merged, s.Dir)
+	if err != nil {
+		return nil, err
+	}
+	rewritten, _, err := RewriteTailscaleState(applied, s.Dir, name, false)
+	return rewritten, err
 }
 
 func (s *Store) Effective(name string) ([]byte, error) {

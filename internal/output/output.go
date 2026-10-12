@@ -9,6 +9,7 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
+	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
 	"github.com/ronigooja/Nagi/internal/service"
@@ -334,6 +335,14 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	if v["exception_changed"] == true {
 		return line(w, fmt.Sprintf("Updated DNS exception for %v.", v["domain"]))
 	}
+	if v["saved"] == true && v["action"] != nil {
+		state := "Saved; mihomo is stopped. Run `nagi start` to activate."
+		if v["reloaded"] == true {
+			state = "Saved and reloaded mihomo."
+		}
+		return line(w, fmt.Sprintf("Tailscale %s in profile %s. %s", v["action"], v["profile"], state))
+	}
+
 	if v["saved"] == true {
 		if enabled, ok := v["tun_enabled"].(bool); ok {
 			return line(w, "Saved TUN DNS interception setting: "+stateValue(w, yesNo(enabled))+".")
@@ -673,6 +682,47 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if node, ok := v["node"].(string); ok {
 			return line(w, fmt.Sprintf("Selected %s in proxy group %s.", node, group))
 		}
+	}
+	if nodes, ok := v["nodes"].([]profile.TailscaleNode); ok {
+		if len(nodes) == 0 {
+			return line(w, "No Tailscale nodes configured in profile "+fmt.Sprint(v["profile"])+".")
+		}
+		for _, n := range nodes {
+			if err := line(w, fmt.Sprintf("%s: exit node %s; hostname %s; control URL %s; auth key configured: %t", n.Name, n.ExitNode, n.Hostname, n.ControlURL, n.AuthKeyConfigured)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if n, ok := v["node"].(profile.TailscaleNode); ok {
+		if err := line(w, fmt.Sprintf("Tailscale %s: exit node %s; hostname %s; control URL %s; auth key configured: %t", n.Name, n.ExitNode, n.Hostname, n.ControlURL, n.AuthKeyConfigured)); err != nil {
+			return err
+		}
+		bindings, _ := v["bindings"].([]profile.TailscaleBinding)
+		if len(bindings) == 0 {
+			return line(w, "No targets bound to this node.")
+		}
+		for _, b := range bindings {
+			if err := line(w, fmt.Sprintf("%s %s -> %s", b.Kind, b.Name, b.DialerProxy)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if targets, ok := v["targets"].([]profile.TailscaleTarget); ok {
+		if len(targets) == 0 {
+			return line(w, "No eligible proxy nodes or providers.")
+		}
+		for _, t := range targets {
+			dialer := t.DialerProxy
+			if dialer == "" {
+				dialer = "none"
+			}
+			if err := line(w, fmt.Sprintf("%s %s (%s): dialer proxy %s", t.Kind, t.Name, t.Type, dialer)); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	if provider, ok := v["provider"].(string); ok {
 		if v["added"] == true {

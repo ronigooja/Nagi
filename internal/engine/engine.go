@@ -87,6 +87,7 @@ func (m *Manager) Validate(ctx context.Context) error {
 		return err
 	}
 	cmd := exec.CommandContext(ctx, binary, "-t", "--check-json", "-f", m.options.ConfigPath, "-d", filepath.Dir(m.options.ConfigPath))
+	cmd.Env = nagiruntime.TailscaleEnv(filteredEnv(os.Environ()), m.options.Paths.ConfigDir)
 	// Validation output can contain configuration values. Return a fixed error instead.
 	out, err := cmd.Output()
 	if err != nil {
@@ -161,7 +162,7 @@ func (m *Manager) Start(ctx context.Context) (Status, error) {
 		// Ctrl-C should cancel a stream without interrupting the engine.
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		// Clear inherited controller overrides; mihomo receives the explicit Unix path above.
-		cmd.Env = filteredEnv(os.Environ())
+		cmd.Env = nagiruntime.TailscaleEnv(filteredEnv(os.Environ()), m.options.Paths.ConfigDir)
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("start mihomo: %w", err)
 		}

@@ -83,6 +83,15 @@ func ensureDefaultProfile(path, selected string) error {
 
 func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Client, manager lifecycleBackend) *profile.Store {
 	validate := func(data []byte) error {
+		current, e := profile.NewStore(paths.ConfigDir, nil, nil).Current()
+		if e != nil {
+			current = "default"
+		}
+		var hasTailscale bool
+		data, hasTailscale, e = profile.RewriteTailscaleState(data, paths.ConfigDir, current, true)
+		if e != nil {
+			return e
+		}
 		if strings.TrimSpace(string(data)) == "" {
 			return errors.New("empty profile")
 		}
@@ -110,10 +119,14 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 			return err
 		}
 		cmd := exec.Command(resolved, "-t", "--check-json", "-f", file.Name(), "-d", filepath.Dir(file.Name()))
+		cmd.Env = nagiruntime.TailscaleEnv(os.Environ(), paths.ConfigDir)
 		out, err := cmd.Output()
 		if err != nil {
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
+				if hasTailscale {
+					return errors.New("profile validation failed; Tailscale diagnostics are private; validate a local copy with mihomo -t --check-json")
+				}
 				var result struct {
 					Errors []struct {
 						Path    string `json:"path"`
@@ -190,7 +203,15 @@ func materializeProfileWithSelections(store *profile.Store, configDir, name stri
 	if overrideErr != nil && !errors.Is(overrideErr, os.ErrNotExist) {
 		return "", overrideErr
 	}
-	needsOverlay := overrideErr == nil || rules.Exists(configDir)
+	source, err := store.Show(name)
+	if err != nil {
+		return "", err
+	}
+	_, hasTailscale, err := profile.RewriteTailscaleState(source, configDir, name, false)
+	if err != nil {
+		return "", err
+	}
+	needsOverlay := hasTailscale || overrideErr == nil || rules.Exists(configDir)
 	if !needsOverlay && !includeSelections {
 		return path, nil
 	}
@@ -213,6 +234,10 @@ func materializeProfileWithSelections(store *profile.Store, configDir, name stri
 			return "", err
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	data, _, err = profile.RewriteTailscaleState(data, configDir, name, true)
+	if err != nil {
 		return "", err
 	}
 	if err := store.Validate(data); err != nil {

@@ -43,6 +43,9 @@ func configMutation(args []string) bool {
 		if len(args) < 2 {
 			return false
 		}
+		if args[1] == "tailscale" {
+			return !tailscaleRead(args)
+		}
 		if args[1] == "provider" {
 			return len(args) > 2 && (args[2] == "add" || args[2] == "update" || args[2] == "healthcheck")
 		}
@@ -63,7 +66,7 @@ func transactionalMutation(args []string) bool {
 	}
 	switch args[0] {
 	case "proxy":
-		return len(args) > 2 && args[1] == "provider" && args[2] == "add"
+		return tailscaleInvocation(args) && !tailscaleRead(args) || len(args) > 2 && args[1] == "provider" && args[2] == "add"
 	case "profile":
 		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override" && (len(args) < 3 || args[2] != "default-status")
 	case "subscription":
@@ -147,6 +150,12 @@ func snapshotConfig(dir string) (map[string]fileImage, error) {
 		}
 		if err != nil {
 			return err
+		}
+		if path == filepath.Join(dir, ".tailscale-state") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if entry.IsDir() {
 			return nil

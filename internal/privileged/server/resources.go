@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"errors"
+	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"path/filepath"
 	"strings"
 
@@ -44,6 +45,27 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 				}
 			}
 		case "proxies":
+			name := strings.TrimSuffix(filepath.Base(source), filepath.Ext(source))
+			name = strings.TrimPrefix(name, ".effective-")
+			name = strings.TrimPrefix(name, ".restore-")
+			for _, proxy := range root.Content[i+1].Content {
+				if field(proxy, "type") != "tailscale" {
+					continue
+				}
+				path, err := nagiruntime.TailscaleStatePath(h.PrivateDir, name, field(proxy, "name"), field(proxy, "control-url"))
+				if err != nil {
+					return fail()
+				}
+				state := fieldNode(proxy, "state-dir")
+				if state == nil {
+					proxy.Content = append(proxy.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "state-dir"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: path})
+				} else {
+					state.Kind = yaml.ScalarNode
+					state.Tag = "!!str"
+					state.Value = path
+					state.Content = nil
+				}
+			}
 			if err := h.snapshotProxyResources(source, root.Content[i+1], &resources); err != nil {
 				return fail()
 			}

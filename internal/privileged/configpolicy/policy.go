@@ -146,7 +146,7 @@ func validateProviders(node *yaml.Node, context string) error {
 				return fmt.Errorf("%w: %s.%s is not supported", ErrUnsupported, context, key)
 			}
 			if key == "payload" && context == "proxy-providers" {
-				if err := validateProxies(value); err != nil {
+				if err := validateProviderProxies(value); err != nil {
 					return err
 				}
 				continue
@@ -172,7 +172,7 @@ func validateProxies(node *yaml.Node) error {
 		if !ok {
 			return fmt.Errorf("%w: proxy type is required", ErrUnsupported)
 		}
-		if err := literal(kind, "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic", "http", "socks5", "snell", "wireguard", "anytls"); err != nil {
+		if err := literal(kind, "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic", "http", "socks5", "snell", "wireguard", "anytls", "tailscale"); err != nil {
 			return fieldError("proxies.type", err)
 		}
 		if plugin := fields["plugin"]; plugin != nil {
@@ -465,3 +465,18 @@ func securePrivateDirectory(path string) error {
 
 // IsUnsupported distinguishes a policy refusal from an I/O failure.
 func IsUnsupported(err error) bool { return errors.Is(err, ErrUnsupported) }
+
+func validateProviderProxies(node *yaml.Node) error {
+	if node != nil && node.Kind == yaml.SequenceNode {
+		for _, proxy := range node.Content {
+			fields, err := mapping(proxy)
+			if err != nil {
+				return err
+			}
+			if kind := fields["type"]; kind != nil && kind.Value == "tailscale" {
+				return fmt.Errorf("%w: provider Tailscale nodes are not supported", ErrUnsupported)
+			}
+		}
+	}
+	return validateProxies(node)
+}

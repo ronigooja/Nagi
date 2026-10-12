@@ -260,6 +260,38 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	}
 	if command == "completion" {
 		if len(args) >= 2 && args[1] == "candidates" {
+			if args[2] == "tailscale-nodes" || args[2] == "tailscale-targets" {
+				paths, e := nagiruntime.Resolve()
+				if e != nil {
+					return nil, e
+				}
+				store := profile.NewStore(paths.ConfigDir, nil, nil)
+				name, e := store.Current()
+				if e != nil {
+					return nil, e
+				}
+				names := output.Candidates{}
+				if args[2] == "tailscale-nodes" {
+					nodes, e := store.TailscaleNodes(name)
+					if e != nil {
+						return nil, e
+					}
+					for _, n := range nodes {
+						names = append(names, n.Name)
+					}
+				} else {
+					targets, e := store.TailscaleTargets(name)
+					if e != nil {
+						return nil, e
+					}
+					for _, t := range targets {
+						if len(args) == 3 || args[3] == t.Kind {
+							names = append(names, t.Name)
+						}
+					}
+				}
+				return names, nil
+			}
 			if len(args) == 4 && args[2] == "profile-groups" {
 				paths, e := nagiruntime.Resolve()
 				if e != nil {
@@ -500,7 +532,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		return err
 	}
 	addingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "add"
-	needsProfile := addingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	needsProfile := tailscaleInvocation(args) || addingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -810,6 +842,34 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
+		if tailscaleInvocation(args) {
+			var store *profile.Store
+			reloaded := false
+			if tailscaleRead(args) {
+				store = profile.NewStore(paths.ConfigDir, nil, nil)
+			} else {
+				var e error
+				store, e = getProfiles()
+				if e != nil {
+					return nil, fail("proxy_tailscale_error", e)
+				}
+				backend, e := getLifecycle()
+				if e != nil {
+					return nil, fail("proxy_tailscale_error", e)
+				}
+				status, e := backend.Status(ctx)
+				if e != nil {
+					return nil, fail("proxy_tailscale_error", e)
+				}
+				reloaded = status.Running
+			}
+			result, e := tailscaleCommand(ctx, args, store, profileName, reloaded)
+			if e != nil {
+				return nil, fail("proxy_tailscale_error", e)
+			}
+			return result, nil
+		}
+
 		if addingProvider {
 			store, err := getProfiles()
 			if err != nil {
