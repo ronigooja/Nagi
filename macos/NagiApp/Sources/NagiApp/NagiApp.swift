@@ -32,6 +32,12 @@ import AppKit
         // Leave targets nil so AppKit uses the responder chain.
         editItem.submenu = editMenu
         mainMenu.addItem(editItem)
+        let windowItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowItem.submenu = windowMenu
+        mainMenu.addItem(windowItem)
         return mainMenu
     }
 }
@@ -39,6 +45,7 @@ import AppKit
 @MainActor final class MenuAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model = AppModel()
     private let groupIcons = GroupIconLoader()
+    private lazy var connectionsWindow = ConnectionsWindowController(model: model.connections)
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var pulse: Timer?
@@ -315,6 +322,7 @@ import AppKit
             let item = add(option.title, action: #selector(setDisplay(_:)), checked: model.display == option, to: displayMenu)
             item.representedObject = option.rawValue
         }
+        add("Connections…", action: #selector(showConnections))
         addSubmenu("Display", displayMenu)
         let startupMenu = NSMenu()
         add("Open menu bar app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
@@ -618,6 +626,7 @@ import AppKit
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertSecondButtonReturn { updateNagi() }
     }
+    @objc private func showConnections() { connectionsWindow.present() }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func updateNagi() {
         model.updateNagi { NSApp.terminate(nil) }
