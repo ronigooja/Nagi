@@ -1,5 +1,7 @@
 # Nagi — Proxy Client for macOS and Linux
 
+[简体中文](README.zh-CN.md)
+
 Nagi is a proxy client for macOS and Linux with a native macOS menu bar app, an interactive terminal menu, and a command-line interface (CLI). Switch proxy nodes, manage subscriptions and profiles, configure routing rules and DNS, and control TUN access from one tool.
 
 Use the macOS menu bar app for daily controls and live traffic rates. Use the CLI for advanced configuration, automation, diagnostics, and recovery on either platform.
