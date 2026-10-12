@@ -10,6 +10,10 @@ matching operating system and architecture, downloads the archive and
 local installer. GitHub is the distribution service; no Nagi download server is
 required.
 
+The online wrapper supports the system Bash 3.2 on macOS and newer Bash
+versions on Linux. It compares SHA256 digests case-insensitively without
+requiring a newer Bash installation.
+
 Install the CLI with the repository's raw script:
 
 ```sh

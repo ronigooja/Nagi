@@ -118,7 +118,10 @@ download "$base/SHA256SUMS" "$checksums" || fail 'release is missing SHA256SUMS'
 expected=$(awk -v file="$asset" '$2 == file || $2 == "*" file { print $1; exit }' "$checksums")
 [[ "$expected" =~ ^[0-9a-fA-F]{64}$ ]] || fail "SHA256SUMS has no entry for $asset"
 actual=$(shasum -a 256 "$archive" | awk '{print $1}')
-[[ "${actual,,}" == "${expected,,}" ]] || fail 'release archive checksum mismatch'
+# macOS ships Bash 3.2, which does not support ${value,,}.
+actual=$(printf '%s' "$actual" | tr 'A-F' 'a-f')
+expected=$(printf '%s' "$expected" | tr 'A-F' 'a-f')
+[[ "$actual" == "$expected" ]] || fail 'release archive checksum mismatch'
 
 artifact_dir="$temp_dir/artifact"
 mkdir -p "$artifact_dir"
