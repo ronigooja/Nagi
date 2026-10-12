@@ -102,15 +102,16 @@ The optional `Subscription-Userinfo` response header supplies `upload`, `downloa
 | 8 | Settings & Maintenance | Current Configuration (show, validate, reload), DNS, Routing Rules, Connections, Start at Login, and Nagi Maintenance on both macOS and Linux. Nagi Maintenance offers `update`, `uninstall` (preserve user data), and `uninstall --purge-data` (remove user data). macOS lists menu bar App install/removal first, followed by Nagi maintenance; its privileged helper is a separate entry. |
 | 0 | Exit menu | Leaves mihomo running. |
 
-Terminal styling for human-readable CLI output and the menu enables automatically only when output is a terminal, `TERM` is nonempty and is not `dumb`, and `NO_COLOR` is absent or empty. A nonempty `NO_COLOR` disables color and dimming. Piped output and JSON remain unstyled. The menu adds no bold styling in either mode. Input and output must still be terminals to open the menu.
+Terminal styling for human-readable CLI output and the menu enables automatically only when output is a terminal, `TERM` is nonempty and is not `dumb`, and `NO_COLOR` is absent or empty. A nonempty `NO_COLOR` disables color and dimming. Piped output and JSON remain unstyled. Only the home title `Nagi menu` uses bold styling. Input and output must still be terminals to open the menu.
 
 | Text | Style when enabled |
 | --- | --- |
-| Page title | ANSI standard yellow (amber) |
+| Home title `Nagi menu` | ANSI bold bright cyan |
+| Other page titles | ANSI standard yellow (amber) |
 | Choice numbers | Terminal default, without added styling |
 | Menu, resource, action, form, and pagination labels | ANSI bright blue |
 | Selected node or profile label | Green, retaining the `(selected)` text marker |
-| Recognized state values in CLI summaries, menu operation results, and page context (including TUN `yes`/`no`, lifecycle and availability, DNS modes, and service states) | Green for positive, yellow for warning or unknown, red for error, bright blue for neutral mode/state values; surrounding explanation stays terminal default |
+| State values in CLI summaries, menu operation results, and page context (including profile names, TUN `yes`/`no`, lifecycle and availability, DNS modes, and service states) | Green for positive and selected profile values, yellow for warning or unknown, red for error, bright blue for neutral mode/state values; field labels such as `enabled:` stay terminal default |
 | Page count | Terminal default, without added styling |
 | Successful completion feedback | Green |
 | Warnings, partial completion, and input validation | Yellow |

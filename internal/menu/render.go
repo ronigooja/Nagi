@@ -13,7 +13,11 @@ func (s *Session) Printf(format string, args ...any) { fmt.Fprintf(s.out, format
 func (s *Session) WriteLine(line string)             { fmt.Fprintln(s.out, line) }
 
 func (s *Session) render(page *Page, view PageView, index int, depth int) {
-	fmt.Fprintf(s.out, "\n%s\n", s.styled(styleTitle, output.RedactError(page.Title)))
+	titleStyle := styleTitle
+	if page.Title == "Nagi menu" {
+		titleStyle = styleRootTitle
+	}
+	fmt.Fprintf(s.out, "\n%s\n", s.styled(titleStyle, output.RedactError(page.Title)))
 	if view.Context != "" {
 		fmt.Fprintln(s.out, s.styledContext(output.RedactError(view.Context)))
 	}
@@ -215,18 +219,20 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 			if running, ok := value.(bool); ok && running {
 				state = "running"
 			}
-			s.Printf("%sMihomo: %s\n", indent, output.StyleStateText(state, s.styles))
+			s.Printf("%sMihomo: %s\n", indent, output.StyleStateValue(state, s.styles))
 			return
 		}
 		text := output.RedactError(fmt.Sprint(value))
-		if statusLabel(label) {
+		if strings.EqualFold(label, "profile") || strings.EqualFold(label, "selected profile") {
+			text = output.StyleProfileValue(text, s.styles)
+		} else if statusLabel(label) {
 			if flag, ok := value.(bool); ok {
 				text = "no"
 				if flag {
 					text = "yes"
 				}
 			}
-			text = output.StyleStateText(text, s.styles)
+			text = output.StyleStateValue(text, s.styles)
 		}
 		s.Printf("%s%s: %s\n", indent, label, text)
 	}

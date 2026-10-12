@@ -12,6 +12,7 @@ type textStyle uint8
 
 const (
 	styleTitle textStyle = iota
+	styleRootTitle
 	styleSelected
 	styleChoice
 	styleImpact
@@ -34,6 +35,8 @@ func (s *Session) styled(style textStyle, text string) string {
 	switch style {
 	case styleTitle:
 		code = "33"
+	case styleRootTitle:
+		code = "1;96"
 	case styleSelected:
 		code = "32"
 	case styleChoice:

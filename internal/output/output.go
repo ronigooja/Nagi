@@ -789,7 +789,11 @@ func printField(w io.Writer, label string, fields map[string]any, key string) er
 	if text, ok := value.(string); ok && text == "" {
 		return nil
 	}
-	return line(w, fmt.Sprintf("%s: %v", label, value))
+	text := fmt.Sprint(value)
+	if label == "Profile" {
+		text = StyleProfileValue(text, StylesEnabled(w))
+	}
+	return line(w, fmt.Sprintf("%s: %s", label, text))
 }
 
 func connectionDestination(metadata map[string]any) string {
