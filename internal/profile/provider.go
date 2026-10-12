@@ -158,9 +158,32 @@ func (s *Store) AddProvider(ctx context.Context, profileName, name, rawURL, grou
 	if localProviders == nil {
 		localProviders = map[string]any{}
 	}
+	healthcheck := map[string]any{"enable": true, "url": "https://www.gstatic.com/generate_204", "interval": 300}
+	switch target["type"] {
+	case "url-test", "fallback", "load-balance":
+		// Match mihomo's group URL selection, including groups that inherit
+		// their test URL from the first provider already attached to them.
+		testURL, _ := target["url"].(string)
+		if testURL == "" {
+			for _, value := range use {
+				existing, _ := providers[value.(string)].(map[string]any)
+				check, _ := existing["health-check"].(map[string]any)
+				testURL, _ = check["url"].(string)
+				if testURL != "" {
+					break
+				}
+			}
+		}
+		if testURL != "" {
+			healthcheck["url"] = testURL
+		}
+		if expected, exists := target["expected-status"]; exists {
+			healthcheck["expected-status"] = expected
+		}
+	}
 	localProviders[name] = map[string]any{
 		"type": "http", "url": rawURL, "interval": interval,
-		"health-check": map[string]any{"enable": true, "url": "https://www.gstatic.com/generate_204", "interval": 300},
+		"health-check": healthcheck,
 	}
 	overlay["proxy-providers"] = localProviders
 	overlay["proxy-groups"] = groups

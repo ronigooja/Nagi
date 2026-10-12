@@ -92,6 +92,45 @@ func TestAddProviderPreservesUnrelatedConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestAddProviderUsesAutomaticGroupHealthcheck(t *testing.T) {
+	for _, kind := range []string{"url-test", "fallback", "load-balance"} {
+		for _, inherited := range []bool{false, true} {
+			t.Run(kind+"/"+map[bool]string{false: "explicit", true: "inherited"}[inherited], func(t *testing.T) {
+				s, _, _ := providerFixture(t)
+				data, _ := s.Show("default")
+				doc := yamlMapping(t, data)
+				group := doc["proxy-groups"].([]any)[1].(map[string]any)
+				group["type"] = kind
+				group["url"] = "http://example.com/generate_204"
+				group["expected-status"] = "204"
+				if inherited {
+					delete(group, "url")
+					doc["proxy-providers"].(map[string]any)["original"].(map[string]any)["health-check"] = map[string]any{"url": "http://example.com/generate_204"}
+				}
+				data, _ = yaml.Marshal(doc)
+				if err := s.Write(context.Background(), "default", data); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := s.AddProvider(context.Background(), "default", "work", "https://example.com/feed", "Auto", 3600); err != nil {
+					t.Fatal(err)
+				}
+				data, _ = s.Effective("default")
+				current := yamlMapping(t, data)
+				check := current["proxy-providers"].(map[string]any)["work"].(map[string]any)["health-check"].(map[string]any)
+				if check["url"] != "http://example.com/generate_204" || check["expected-status"] != "204" || check["enable"] != true {
+					t.Fatalf("healthcheck=%v", check)
+				}
+				currentGroup := current["proxy-groups"].([]any)[1].(map[string]any)
+				delete(currentGroup, "use")
+				delete(group, "use")
+				if !reflect.DeepEqual(currentGroup, group) {
+					t.Fatalf("group settings changed: %v", currentGroup)
+				}
+			})
+		}
+	}
+}
 func TestAddProviderFailuresPreserveFiles(t *testing.T) {
 	for _, stage := range []string{"validation", "reload", "duplicate", "builtin", "node", "provider", "unsupported", "malformed"} {
 		t.Run(stage, func(t *testing.T) {
