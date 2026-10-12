@@ -261,6 +261,13 @@ import AppKit
             add(value.capitalized, command: ["mode", value], checked: model.mode == value,
                 enabled: model.state == .running && !model.busy, to: modeMenu)
         }
+        modeMenu.addItem(.separator())
+        if let mode = model.mode {
+            add("Save Current Mode as Default", command: ["mode", "save", mode],
+                enabled: model.state == .running && !model.busy, to: modeMenu)
+        } else {
+            disabled("Current mode unavailable", to: modeMenu)
+        }
         addSubmenu("Mode", modeMenu, enabled: model.state == .running)
 
         let groupsMenu = NSMenu()
