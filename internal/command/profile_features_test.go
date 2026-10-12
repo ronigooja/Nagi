@@ -112,6 +112,9 @@ func TestApplyDefaultOverrideCLI(t *testing.T) {
 	if got := run("profile", "override", "apply-default", "work"); got["default_override_applied"] != true || got["name"] != "work" {
 		t.Fatal(got)
 	}
+	if got := run("profile", "override", "default-status", "work"); got["default_override_applied"] != true {
+		t.Fatal(got)
+	}
 	override, err := os.ReadFile(filepath.Join(config, "overrides", "work.yaml"))
 	if err != nil || !strings.Contains(string(override), "17891") || !strings.Contains(string(override), "enable: true") {
 		t.Fatalf("work override = %q, %v", override, err)
@@ -122,5 +125,14 @@ func TestApplyDefaultOverrideCLI(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join(config, "profiles", "work.yaml"))
 	if err != nil || !strings.Contains(string(source), "Subscription Node") || strings.Contains(string(source), "17891") {
 		t.Fatalf("work source = %q, %v", source, err)
+	}
+	if got := run("profile", "override", "restore-default", "work"); got["default_override_restored"] != true {
+		t.Fatal(got)
+	}
+	if got := run("profile", "override", "default-status", "work"); got["default_override_applied"] != false {
+		t.Fatal(got)
+	}
+	if _, err := os.Stat(filepath.Join(config, "overrides", "work.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("override after restore: %v", err)
 	}
 }

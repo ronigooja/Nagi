@@ -86,7 +86,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
     COMPREPLY=( $(compgen -W 'clear' -- "$cur") ); while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0
   fi
   if [[ "$root" == profile && "${semantic[1]}" == override && ${#semantic[@]} -eq 2 ]]; then
-    COMPREPLY=( $(compgen -W 'set show clear apply-default' -- "$cur") ); return 0
+    COMPREPLY=( $(compgen -W 'set show clear apply-default default-status restore-default' -- "$cur") ); return 0
   fi
   if [[ "$root" == dns && "${semantic[1]}" == exception && ${#semantic[@]} -eq 2 ]]; then
     COMPREPLY=( $(compgen -W 'add remove' -- "$cur") ); return 0
@@ -154,7 +154,7 @@ _nagi() {
   fi
   if [[ ${semantic[1]} == profile && ( ${semantic[2]} == import || ${semantic[2]} == export ) && ${#semantic} == 3 || ${semantic[1]} == profile && ${semantic[2]} == override && ${semantic[3]} == set && ${#semantic} == 4 ]]; then _files; return; fi
   if [[ ${semantic[1]} == subscription && ${semantic[2]} == key && ${#semantic} == 4 ]]; then compadd -- clear; _files; return; fi
-  if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${#semantic} == 2 ]]; then compadd -- set show clear apply-default; return; fi
+  if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${#semantic} == 2 ]]; then compadd -- set show clear apply-default default-status restore-default; return; fi
   if [[ ${semantic[1]} == dns && ${#semantic} == 2 ]]; then case ${semantic[2]} in exception) compadd -- add remove; return ;; tun) compadd -- on off; return ;; set) compadd -- direct proxy; return ;; esac; fi
   if [[ ${semantic[1]} == dns && ${semantic[2]} == query && ${#semantic} == 3 ]]; then compadd -- A AAAA; return; fi
   if [[ ${semantic[1]} == proxy ]]; then
@@ -218,7 +218,7 @@ end
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = import' -F\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = export' -F\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test \"$s[1]\" = profile; and test \"$s[2]\" = override; and test \"$s[3]\" = set' -F\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and test \"$s[2]\" = override' -a 'set show clear apply-default'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and test \"$s[2]\" = override' -a 'set show clear apply-default default-status restore-default'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = exception' -a 'add remove'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = tun' -a 'on off'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = set' -a 'direct proxy'\n")

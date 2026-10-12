@@ -34,6 +34,8 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `profile override show NAME` | Print the local override YAML. |
 | `profile override clear NAME` | Remove the local override and reload if selected and running. |
 | `profile override apply-default NAME` | Copy safe local runtime settings from `profiles/default.yaml` onto NAME; nodes, groups, rules, and Nagi-managed fields are excluded. |
+| `profile override default-status NAME` | Report whether the applied local default override is still active. |
+| `profile override restore-default NAME` | Restore the override that existed before `apply-default`, or remove it if none existed. |
 | `profile remove NAME` | Delete an unselected regular profile file, retaining any existing `.bak` file. |
 | `dns status` | Show selected profile DNS policy, upstream hosts, IPv6, TUN configuration, and warnings. |
 | `dns set direct URL [URL...] [--bootstrap IP_DOH_URL ...]` | Save one or more HTTPS DoH upstreams for direct connection, optionally selecting direct bootstrap resolvers. |
@@ -157,7 +159,9 @@ A completed diagnostic report exits with status `0`, even when `healthy` is fals
 
 Overrides live in `config/overrides/NAME.yaml`, separate from `config/profiles/NAME.yaml` and subscription cache. The override must be a YAML mapping; its keys replace corresponding source keys, and nested mappings merge recursively except DNS `nameserver-policy` and `proxy-server-nameserver-policy`, which replace their source maps. Lists, including `rules` and DNS server lists, are replaced as a whole. `profile override set` validates the merged configuration with mihomo and reloads it when selected and running. The merged file is generated as `config/profiles/.effective-NAME.yaml` for mihomo, keeping relative file paths anchored in the profiles directory; `profile export`, `config show`, and backups continue to use the source YAML. `profile override clear` restores the source configuration. Removing a profile retains its override file, so clear it explicitly before reusing the name if needed. Overrides can contain credentials and are stored with private permissions.
 
-`profile override apply-default NAME` extracts safe local runtime settings from `config/profiles/default.yaml` and replaces `NAME`'s local override with them. It excludes proxies, proxy providers, proxy groups, rules, rule providers, controller settings, and credentials. The default profile itself is unchanged, and subscription nodes remain in the target source. It validates the resulting effective configuration, reloads when `NAME` is selected and mihomo is running, and restores the previous target override if validation or reload fails.
+`profile override apply-default NAME` extracts safe local runtime settings from `config/profiles/default.yaml` and replaces `NAME`'s local override with them. It excludes proxies, proxy providers, proxy groups, rules, rule providers, controller settings, and credentials. The default profile itself is unchanged, and subscription nodes remain in the target source. It validates the resulting effective configuration, reloads when `NAME` is selected and mihomo is running, and restores the previous target override if validation or reload fails. It also saves the previous override in a private restore point under `config/overrides/`. Reapplying while the default override remains active retains the original restore point.
+
+`profile override default-status NAME` returns `default_override_applied: true` only while the current override matches the one written by `apply-default`. Other override edits make this status false; applying defaults again after such an edit saves the edited override as the new restore point. `profile override restore-default NAME` restores the saved override byte for byte, or clears the override when it was previously absent; it validates and reloads a selected running profile. It refuses to overwrite an override changed since `apply-default`. A successful restore removes the restore point. Both commands use the ordinary `profile_error` on failure.
 
 ## DNS policy and checks
 
@@ -281,6 +285,8 @@ Additional success payloads are defined below; all appear in `data`:
 | `profile override show NAME` | `name`, `yaml` (strings). |
 | `profile override clear NAME` | `name` (string), `override_cleared: true`. |
 | `profile override apply-default NAME` | `name` (string), `default_override_applied: true`. |
+| `profile override default-status NAME` | `name` (string), `default_override_applied` (boolean). |
+| `profile override restore-default NAME` | `name` (string), `default_override_applied: false`, `default_override_restored: true`. |
 | `profile remove NAME` | `name` (string), `removed: true`, `kind: "profile"`. |
 | `dns status` | `profile`, `policy` (strings), `enabled`, `ipv6`, `tun_enabled` (booleans), `upstream_hosts`, `issues` (string arrays). |
 | `dns check` | DNS status fields plus `scope` (string) and `engine_query_ok` (boolean). Scope is `configuration and mihomo API`. |

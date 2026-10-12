@@ -236,7 +236,8 @@ import AppKit
                 add("Use Default Profile", action: #selector(switchToDefaultProfile),
                     checked: model.profile == name, enabled: !model.busy, to: actions)
                 add("Apply Local Default Settings to Current Profile", action: #selector(applyDefaultOverride),
-                    enabled: !model.busy, to: actions)
+                    checked: model.defaultOverrideApplied == true,
+                    enabled: !model.busy && model.defaultOverrideApplied != nil, to: actions)
                 addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
             } else {
                 add(name, command: ["profile", "use", name], checked: model.profile == name,

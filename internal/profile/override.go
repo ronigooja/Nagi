@@ -2,6 +2,8 @@ package profile
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -104,7 +106,119 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string) error {
 	if err != nil {
 		return fmt.Errorf("default profile settings could not be prepared: %w", err)
 	}
-	return s.SetOverride(ctx, name, filtered)
+	old, oldErr := s.Override(name)
+	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
+		return oldErr
+	}
+	statePath, err := s.defaultOverrideStatePath(name)
+	if err != nil {
+		return err
+	}
+	previousState, stateErr := os.ReadFile(statePath)
+	if stateErr != nil && !errors.Is(stateErr, fs.ErrNotExist) {
+		return stateErr
+	}
+	if stateErr == nil {
+		active, err := s.DefaultOverrideStatus(name)
+		if err == nil && active {
+			var saved defaultOverrideState
+			if err := json.Unmarshal(previousState, &saved); err != nil {
+				return err
+			}
+			old, oldErr = saved.Previous, nil
+			if !saved.HadPrevious {
+				old, oldErr = nil, fs.ErrNotExist
+			}
+		}
+	}
+	state := defaultOverrideState{HadPrevious: oldErr == nil, Previous: old, AppliedHash: sha256.Sum256(filtered)}
+	encoded, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(statePath), 0700); err != nil {
+		return err
+	}
+	if err := writeReplace(statePath, encoded); err != nil {
+		return err
+	}
+	if err := s.SetOverride(ctx, name, filtered); err != nil {
+		return errors.Join(err, restore(statePath, previousState, errors.Is(stateErr, fs.ErrNotExist)))
+	}
+	return nil
+}
+
+type defaultOverrideState struct {
+	HadPrevious bool     `json:"had_previous"`
+	Previous    []byte   `json:"previous"`
+	AppliedHash [32]byte `json:"applied_hash"`
+}
+
+func (s *Store) defaultOverrideStatePath(name string) (string, error) {
+	path, err := s.overridePath(name)
+	if err != nil {
+		return "", err
+	}
+	return path + ".default-state.json", nil
+}
+
+// DefaultOverrideStatus reports whether the saved default overlay still matches the active override.
+func (s *Store) DefaultOverrideStatus(name string) (bool, error) {
+	path, err := s.defaultOverrideStatePath(name)
+	if err != nil {
+		return false, err
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var state defaultOverrideState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return false, fmt.Errorf("saved default override state is invalid: %w", err)
+	}
+	current, err := s.Override(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return sha256.Sum256(current) == state.AppliedHash, nil
+}
+
+// RestoreDefaultOverride restores the exact local override that preceded apply-default.
+func (s *Store) RestoreDefaultOverride(ctx context.Context, name string) error {
+	active, err := s.DefaultOverrideStatus(name)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return errors.New("local default settings are not active; current override was changed or no restore point exists")
+	}
+	path, err := s.defaultOverrideStatePath(name)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var state defaultOverrideState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return err
+	}
+	if state.HadPrevious {
+		err = s.SetOverride(ctx, name, state.Previous)
+	} else {
+		err = s.ClearOverride(ctx, name)
+	}
+	if err != nil {
+		return err
+	}
+	return os.Remove(path)
 }
 
 var defaultOverrideExcludedKeys = map[string]struct{}{

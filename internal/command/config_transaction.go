@@ -31,7 +31,7 @@ func configMutation(args []string) bool {
 	case "config":
 		return len(args) > 1 && args[1] == "reload"
 	case "profile":
-		return len(args) > 1 && (args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "backup" || args[1] == "override")
+		return len(args) > 1 && (args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "backup" || args[1] == "override" && (len(args) < 3 || args[2] != "default-status"))
 	case "subscription":
 		return len(args) > 1 && args[1] != "list" && args[1] != "preview" && args[1] != "update"
 	case "rules":
@@ -64,7 +64,7 @@ func transactionalMutation(args []string) bool {
 	case "proxy":
 		return len(args) > 2 && args[1] == "provider" && args[2] == "add"
 	case "profile":
-		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override"
+		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override" && (len(args) < 3 || args[2] != "default-status")
 	case "subscription":
 		return args[1] == "apply"
 	case "rules":
