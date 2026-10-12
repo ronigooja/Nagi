@@ -143,6 +143,14 @@ import AppKit
 
     private func renderStatus() {
         guard let button = statusItem?.button else { return }
+        if model.busy {
+            if statusItem.menu != nil {
+                menu.cancelTracking()
+                statusItem.menu = nil
+            }
+        } else if statusItem.menu !== menu {
+            statusItem.menu = menu
+        }
         if model.applyingSetting {
             if loadingTimer == nil {
                 loadingFrame = 0
@@ -178,7 +186,7 @@ import AppKit
         button.setAccessibilityLabel(model.busy ? "Nagi \(state), operation in progress" : "Nagi \(state), \(model.accessibilityTraffic)")
     }
 
-    func menuShouldOpen(_ menu: NSMenu) -> Bool { true }
+    func menuShouldOpen(_ menu: NSMenu) -> Bool { !model.busy }
 
     func menuWillOpen(_ menu: NSMenu) {
         // Build the initial tree before AppKit starts tracking submenu items.

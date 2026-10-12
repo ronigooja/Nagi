@@ -8,6 +8,7 @@ import XCTest
         let script: URL
         var hold: URL { directory.appendingPathComponent("hold") }
         var installed: URL { directory.appendingPathComponent("installed") }
+        var failure: URL { directory.appendingPathComponent("failure") }
         var log: URL { directory.appendingPathComponent("events") }
     }
 
@@ -28,6 +29,10 @@ import XCTest
             printf '{"ok":true,"data":{"installed":%s}}\\n' "$value" ;;
           '--json service install')
             while [ -f '\(fixture.hold.path)' ]; do sleep 0.02; done
+            if [ -f '\(fixture.failure.path)' ]; then
+              printf '{"ok":false,"error":{"code":"fixture_failure","message":"Service install failed"}}\\n' >&2
+              exit 1
+            fi
             touch '\(fixture.installed.path)'
             printf '{"ok":true,"data":{"installed":true}}\\n' ;;
           *) printf '{"ok":true,"data":{}}\\n' ;;
@@ -54,22 +59,19 @@ import XCTest
         return condition()
     }
 
-    func testBusyMenuAllowsInspectionAndDisplayButGuardsMutations() async throws {
+    func testBusyMenuBlocksOpeningAndReopensAfterOperation() async throws {
         let fixture = try fixture()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let model = AppModel(cli: NagiCLIClient(executable: fixture.script))
         let delegate = MenuAppDelegate(model: model)
         await model.refresh()
+        XCTAssertTrue(delegate.menuShouldOpen(delegate.menu))
         try Data().write(to: fixture.hold)
         model.perform(["service", "install"])
         XCTAssertTrue(model.busy)
-        XCTAssertTrue(delegate.menuShouldOpen(delegate.menu))
-        delegate.menuWillOpen(delegate.menu)
+        XCTAssertFalse(delegate.menuShouldOpen(delegate.menu))
         XCTAssertTrue(delegate.menu.items.first?.title.contains("Operation in progress") == true)
         XCTAssertFalse(delegate.menu.autoenablesItems)
-        for title in ["Help", "About Nagi", "Traffic rates", "Icon only", "Connections…"] {
-            XCTAssertTrue(try XCTUnwrap(item(title, in: delegate.menu)).isEnabled, title)
-        }
         for title in ["Retry Start", "Run engine at login", "Open menu bar app at login", "work", "Add Provider…", "Add and Apply Subscription…", "Quit Nagi"] {
             XCTAssertFalse(try XCTUnwrap(item(title, in: delegate.menu)).isEnabled, title)
         }
@@ -78,15 +80,37 @@ import XCTest
         // Dispatch directly as a stale AppKit event would; disabled UI alone
         // must not be the serialization boundary.
         _ = delegate.perform(NSSelectorFromString("runCommand:"), with: login)
-        let display = try XCTUnwrap(item("Icon only", in: delegate.menu))
-        let previousDisplay = model.display
-        _ = delegate.perform(NSSelectorFromString("setDisplay:"), with: display)
-        XCTAssertEqual(model.display, .icon)
-        model.display = previousDisplay
         try FileManager.default.removeItem(at: fixture.hold)
         let completed = await waitUntil { !model.busy }
         XCTAssertTrue(completed)
+        XCTAssertTrue(delegate.menuShouldOpen(delegate.menu))
         XCTAssertEqual(try String(contentsOf: fixture.log).components(separatedBy: "--json service install").count - 1, 1)
+        delegate.menuWillOpen(delegate.menu)
+        let refreshedLogin = try XCTUnwrap(item("Run engine at login", in: delegate.menu))
+        XCTAssertTrue(refreshedLogin.isEnabled)
+        XCTAssertEqual(refreshedLogin.representedObject as? [String], ["service", "uninstall"])
+        delegate.menuDidClose(delegate.menu)
+    }
+
+    func testBusyMenuReopensAfterCommandFailure() async throws {
+        let fixture = try fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let model = AppModel(cli: NagiCLIClient(executable: fixture.script))
+        let delegate = MenuAppDelegate(model: model)
+        await model.refresh()
+        try Data().write(to: fixture.failure)
+        try Data().write(to: fixture.hold)
+        model.perform(["service", "install"])
+        XCTAssertFalse(delegate.menuShouldOpen(delegate.menu))
+        try FileManager.default.removeItem(at: fixture.hold)
+        let completed = await waitUntil { !model.busy }
+        XCTAssertTrue(completed)
+        XCTAssertTrue(delegate.menuShouldOpen(delegate.menu))
+        XCTAssertTrue(model.errorMessage?.contains("Service install failed") == true)
+        delegate.menuWillOpen(delegate.menu)
+        let login = try XCTUnwrap(item("Run engine at login", in: delegate.menu))
+        XCTAssertTrue(login.isEnabled)
+        XCTAssertEqual(login.representedObject as? [String], ["service", "install"])
         delegate.menuDidClose(delegate.menu)
     }
 
@@ -109,7 +133,7 @@ import XCTest
         model.perform(["service", "install"])
         XCTAssertTrue(delegate.menu.items.first === oldStatus)
         XCTAssertFalse(oldLogin.isEnabled)
-        XCTAssertTrue(try XCTUnwrap(item("Connections…", in: delegate.menu)).isEnabled)
+        XCTAssertFalse(delegate.menuShouldOpen(delegate.menu))
         try FileManager.default.removeItem(at: fixture.hold)
         let completed = await waitUntil { !model.busy }
         XCTAssertTrue(completed)
