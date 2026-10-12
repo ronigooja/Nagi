@@ -716,7 +716,12 @@ import AppKit
     }
     @objc private func updateNagi() {
         guard mutationsAllowed else { return }
-        model.updateNagi { NSApp.terminate(nil) }
+        model.updateNagi {
+            // Leave the update task before entering AppKit's termination
+            // handshake; calling terminate inline can block the main actor
+            // while applicationShouldTerminate waits for its async cleanup.
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
     }
     @objc private func willSleep(_ notification: Notification) { model.pauseForSleep() }
     @objc private func didWake(_ notification: Notification) { model.resumeAfterWake() }
