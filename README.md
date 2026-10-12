@@ -15,6 +15,7 @@ Use the macOS menu bar app for daily controls and live traffic rates. Use the CL
 - **Proxy selection:** search nodes, compare latency, save group selections, and add or refresh proxy providers.
 - **Subscription management:** cached updates, previews of node changes, scheduled refresh, and optional age-encrypted feeds.
 - **Configuration profiles:** import, switch, export, back up, restore, and compare profiles; apply local overrides separately from source configuration.
+- **DNS leak prevention:** encrypted DoH, TUN DNS interception, and mihomo resolution of proxied destinations in the default settings; apply those DNS safeguards over a subscription profile while retaining its nodes, groups, and routing rules.
 - **Routing and DNS:** custom rules, imported rule sets, rule/global/direct modes, DNS-over-HTTPS (DoH) policy, and domain-specific DNS exceptions.
 - **Traffic access:** macOS system proxy settings, TUN controls on macOS and Linux, and proxy listener and LAN access settings.
 - **Monitoring and recovery:** connection inspection and closure, live logs, read-only diagnostics, and login startup services.
