@@ -93,12 +93,17 @@ final class SubscriptionWatch: @unchecked Sendable {
     private var announced = false
     private var outputError: Error?
     private let readers = DispatchGroup()
+    private let exited = DispatchGroup()
     init(executable: URL) throws {
         process = Process(); process.executableURL = executable
         process.arguments = ["--json", "subscription", "watch"]
         stdout = Pipe(); stderr = Pipe()
         process.standardOutput = stdout; process.standardError = stderr
-        do { try process.run() } catch { throw CLIError.launch(error.localizedDescription) }
+        // A group retains a fast exit notification and supports repeated waits.
+        exited.enter()
+        process.terminationHandler = { [exited] _ in exited.leave() }
+        do { try process.run() }
+        catch { exited.leave(); throw CLIError.launch(error.localizedDescription) }
         stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
         readers.enter()
         DispatchQueue.global(qos: .utility).async { [self] in
@@ -155,7 +160,7 @@ final class SubscriptionWatch: @unchecked Sendable {
     func wait() async -> WatchExit {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async { [self] in
-                process.waitUntilExit()
+                exited.wait()
                 readers.wait()
                 lock.lock(); let intentional = stopped, started = announced, failure = outputError; lock.unlock()
                 if intentional { continuation.resume(returning: .stopped) }
@@ -294,6 +299,7 @@ final class TrafficStream: @unchecked Sendable {
     private let process = Process()
     private let done = DispatchSemaphore(value: 0)
     private let stderrDone = DispatchSemaphore(value: 0)
+    private let exited = DispatchGroup()
     private let output = BoundedOutput()
     private let lock = NSLock()
     private var stopped = false
@@ -303,7 +309,11 @@ final class TrafficStream: @unchecked Sendable {
         process.arguments = ["--json", "traffic", "watch"]
         let stdout = Pipe(), stderr = Pipe()
         process.standardOutput = stdout; process.standardError = stderr
-        do { try process.run() } catch { throw CLIError.launch(error.localizedDescription) }
+        // A group retains a fast exit notification and supports repeated waits.
+        exited.enter()
+        process.terminationHandler = { [exited] _ in exited.leave() }
+        do { try process.run() }
+        catch { exited.leave(); throw CLIError.launch(error.localizedDescription) }
         stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
         DispatchQueue.global(qos: .utility).async { [self] in
             output.setStderr(Self.readStderr(stderr.fileHandleForReading))
@@ -333,7 +343,7 @@ final class TrafficStream: @unchecked Sendable {
                     stop(); break
                 }
             }
-            process.waitUntilExit()
+            exited.wait()
             stderrDone.wait()
             done.signal()
         }

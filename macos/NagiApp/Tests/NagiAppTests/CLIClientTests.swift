@@ -134,6 +134,53 @@ final class CLIClientTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 2)
     }
 
+    func testSubscriptionWatchRepeatedImmediateExitWaits() async throws {
+        let script = try fixture(#"""
+        printf '{"ok":true,"data":{"scheduler_running":true}}\n'
+        exit 7
+        """#)
+        for _ in 0..<20 {
+            let watch = try SubscriptionWatch(executable: script)
+            // The exit notification must be retained even before wait begins;
+            // subsequent waits must observe the same completed process.
+            for _ in 0..<2 {
+                if case .failed(let error) = await watch.wait() {
+                    XCTAssertTrue(error.localizedDescription.contains("unexpectedly"), "\(error)")
+                } else { XCTFail("Expected unexpected scheduler exit") }
+            }
+        }
+    }
+
+    func testTrafficStreamRepeatedImmediateExitDrainsSample() async throws {
+        let script = try fixture(#"""
+        printf '{"ok":true,"data":{"upload":'; printf '123}}\n'
+        """#)
+        for _ in 0..<20 {
+            let received = expectation(description: "final traffic sample")
+            let stream = try TrafficStream(executable: script) { sample in
+                XCTAssertEqual(sample["upload"]?.int64, 123)
+                received.fulfill()
+            }
+            try await stream.wait()
+            await fulfillment(of: [received], timeout: 2)
+        }
+    }
+
+    func testTrafficStreamImmediateFailureDrainsStderrEnvelope() async throws {
+        let script = try fixture(#"""
+        printf '{"ok":false,"error":{"code":"stream_' >&2
+        printf 'failed","message":"stream stopped"}}' >&2
+        exit 7
+        """#)
+        for _ in 0..<20 {
+            let stream = try TrafficStream(executable: script) { _ in XCTFail("Unexpected sample") }
+            do { try await stream.wait(); XCTFail("Expected traffic error") }
+            catch CLIError.command(let code, let message) {
+                XCTAssertEqual(code, "stream_failed"); XCTAssertEqual(message, "stream stopped")
+            }
+        }
+    }
+
     func testMissingAndUnlaunchableExecutableErrors() async throws {
         let missing = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         do { _ = try await NagiCLIClient(executable: missing).run([]); XCTFail("Expected missing CLI") }
