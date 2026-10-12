@@ -314,4 +314,9 @@ func TestNativeUpdateAuthorizationUsesSystemDialog(t *testing.T) {
 	if strings.Contains(nativeUpdateSudo, "display dialog") || strings.Contains(nativeUpdateSudo, "text returned") {
 		t.Fatal("native authorization adapter must not collect a password")
 	}
+	if !strings.Contains(nativeUpdateSudo, "session_uid=$(/usr/bin/id -u)") ||
+		!strings.Contains(nativeUpdateSudo, "SUDO_UID=$session_uid") ||
+		strings.Contains(nativeUpdateSudo, `"SUDO_UID=$(/usr/bin/id -u)"`) {
+		t.Fatal("native authorization adapter must preserve the pre-authorization session user")
+	}
 }

@@ -17,11 +17,15 @@ if [[ "$#" == 0 || "$1" == -* ]]; then
     echo 'Unsupported update authorization operation' >&2
     exit 2
 fi
-# Preserve the session owner required by privileged-helper install. Do not
-# forward the adapter PATH into the privileged process.
+# Capture the session owner before Authorization Services runs the command as
+# root. Preserve that owner for privileged-helper install. Do not forward the
+# adapter PATH into the privileged process.
+session_uid=$(/usr/bin/id -u)
+session_gid=$(/usr/bin/id -g)
+session_user=$(/usr/bin/id -un)
 printf -v command '%q ' /usr/bin/env \
-    "SUDO_UID=$(/usr/bin/id -u)" "SUDO_GID=$(/usr/bin/id -g)" \
-    "SUDO_USER=$(/usr/bin/id -un)" 'PATH=/usr/bin:/bin:/usr/sbin:/sbin' "$@"
+    "SUDO_UID=$session_uid" "SUDO_GID=$session_gid" \
+    "SUDO_USER=$session_user" 'PATH=/usr/bin:/bin:/usr/sbin:/sbin' "$@"
 exec /usr/bin/osascript -e 'on run argv
     do shell script ("/bin/bash -c " & quoted form of (item 1 of argv)) with administrator privileges with prompt "Nagi needs administrator permission to install the update."
 end run' "$command"
