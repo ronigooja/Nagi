@@ -17,9 +17,10 @@ type menuProfiles struct {
 }
 
 type menuDefaultOverrideStatus struct {
-	Applied        bool     `json:"default_override_applied"`
-	DNSProxyGroup  string   `json:"dns_proxy_group"`
-	DNSProxyGroups []string `json:"dns_proxy_groups"`
+	Applied          bool     `json:"default_override_applied"`
+	DNSProxyGroup    string   `json:"dns_proxy_group"`
+	DNSProxyGroups   []string `json:"dns_proxy_groups"`
+	DNSProxyRequired bool     `json:"dns_proxy_required"`
 }
 
 type menuSubscription struct {
@@ -131,7 +132,7 @@ func toggleDefaultOverride(ctx context.Context, s *Session, name string) error {
 	if status.Applied {
 		result = s.Run(ctx, "profile", "override", "restore-default", name)
 	} else {
-		if status.DNSProxyGroup != "" && menuHasGroup(status.DNSProxyGroups, status.DNSProxyGroup) {
+		if !status.DNSProxyRequired || status.DNSProxyGroup != "" && menuHasGroup(status.DNSProxyGroups, status.DNSProxyGroup) {
 			result = s.Run(ctx, "profile", "override", "apply-default", name)
 		} else {
 			if len(status.DNSProxyGroups) == 0 {

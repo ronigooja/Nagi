@@ -63,7 +63,7 @@ func TestDefaultSettingsMenuSelectsTargetDNSGroupAndReusesBinding(t *testing.T) 
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := &featureRunner{results: map[string]Result{
-				"profile\x00override\x00default-status\x00work": {Data: map[string]any{"default_override_applied": false, "dns_proxy_group": tc.bound, "dns_proxy_groups": []string{"Proxy Group", "Other Group"}}},
+				"profile\x00override\x00default-status\x00work": {Data: map[string]any{"default_override_applied": false, "dns_proxy_required": true, "dns_proxy_group": tc.bound, "dns_proxy_groups": []string{"Proxy Group", "Other Group"}}},
 				strings.Join(tc.want, "\x00"):                   {},
 			}}
 			var out bytes.Buffer
@@ -80,12 +80,26 @@ func TestDefaultSettingsMenuSelectsTargetDNSGroupAndReusesBinding(t *testing.T) 
 
 func TestDefaultSettingsMenuNeedsEligibleDNSGroup(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{
-		"profile\x00override\x00default-status\x00work": {Data: map[string]any{"default_override_applied": false, "dns_proxy_groups": []string{}}},
+		"profile\x00override\x00default-status\x00work": {Data: map[string]any{"default_override_applied": false, "dns_proxy_required": true, "dns_proxy_groups": []string{}}},
 	}}
 	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
 	err := toggleDefaultOverride(context.Background(), s, "work")
 	if err == nil || !strings.Contains(err.Error(), "No eligible proxy group") || len(runner.calls) != 1 {
 		t.Fatalf("result = %v, calls = %#v", err, runner.calls)
+	}
+}
+
+func TestDefaultSettingsMenuNoNodesAppliesWithoutDNSGroup(t *testing.T) {
+	runner := &featureRunner{results: map[string]Result{
+		"profile\x00override\x00default-status\x00default": {Data: map[string]any{"default_override_applied": false, "dns_proxy_required": false, "dns_proxy_groups": []string{}}},
+		"profile\x00override\x00apply-default\x00default":  {},
+	}}
+	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
+	if err := toggleDefaultOverride(context.Background(), s, "default"); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"profile", "override", "apply-default", "default"}; !reflect.DeepEqual(runner.calls[len(runner.calls)-1], want) {
+		t.Fatalf("apply command = %#v", runner.calls)
 	}
 }
 

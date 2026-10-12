@@ -1325,7 +1325,11 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 			if err != nil {
 				return nil, fail("profile_error", err)
 			}
-			return map[string]any{"name": args[3], "default_override_applied": active, "dns_proxy_groups": groups, "dns_proxy_group": group}, nil
+			required, err := store.DefaultDNSProxyRequired(args[3])
+			if err != nil {
+				return nil, fail("profile_error", err)
+			}
+			return map[string]any{"name": args[3], "default_override_applied": active, "dns_proxy_groups": groups, "dns_proxy_group": group, "dns_proxy_required": required}, nil
 		case "restore-default":
 			if len(args) != 4 {
 				return nil, usage("profile override restore-default NAME")
