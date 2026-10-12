@@ -80,7 +80,7 @@ as successfully rolled back merely because it attempted restoration.
 
 ## App update handoff
 
-The App's About Nagi panel shows its bundle version and an Update Nagi button.
+The App's About Nagi panel shows its bundle version and an Update button.
 That button submits `update --terminal` and requests its normal
 quit only after the CLI confirms Terminal launch. The CLI passes a quoted shell
 command as an AppleScript argument to Terminal; neither resource paths nor

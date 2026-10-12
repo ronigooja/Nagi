@@ -551,14 +551,25 @@ import AppKit
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         alert.informativeText = "\(version.map { "Version \($0)" } ?? "Version unavailable")\n\nA menu bar proxy client for macOS."
         alert.addButton(withTitle: "Close")
-        let updateButton = alert.addButton(withTitle: "Update Nagi…")
+        let updateButton = alert.addButton(withTitle: "Update")
         updateButton.isEnabled = !model.busy
         updateButton.toolTip = "Updates Nagi in Terminal, then reopens this app."
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertSecondButtonReturn { updateNagi() }
     }
     @objc private func quit() { NSApp.terminate(nil) }
-    @objc private func updateNagi() { model.updateNagi { NSApp.terminate(nil) } }
+    @objc private func updateNagi() {
+        model.updateNagi {
+            let confirmation = NSAlert()
+            confirmation.alertStyle = .informational
+            confirmation.messageText = "Update started"
+            confirmation.informativeText = "Terminal will download and install the update, then reopen Nagi."
+            confirmation.addButton(withTitle: "OK")
+            NSApp.activate(ignoringOtherApps: true)
+            confirmation.runModal()
+            NSApp.terminate(nil)
+        }
+    }
     @objc private func willSleep(_ notification: Notification) { model.pauseForSleep() }
     @objc private func didWake(_ notification: Notification) { model.resumeAfterWake() }
 }

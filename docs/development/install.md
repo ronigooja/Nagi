@@ -65,7 +65,7 @@ system proxy, and other temporary settings must be enabled again as needed.
 `nagi app update` invokes the same whole-installation update and requires an
 installed App.
 
-Quit the App before a terminal update. Alternatively, choose **About Nagi → Update Nagi…**
+Quit the App before a terminal update. Alternatively, choose **About Nagi → Update**
 in the App: the CLI opens Terminal, the App completes its normal quit cleanup,
 and Terminal runs the update, showing administrator authorization and errors.
 After success, it opens the updated App, whose normal launch starts Nagi. If
