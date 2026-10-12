@@ -75,12 +75,18 @@ final class ConnectionsWindowTests: XCTestCase {
         XCTAssertTrue(details.string.contains("/Applications/Browser.app/Contents/MacOS/Browser"))
     }
 
-    @MainActor private func eventually(_ condition: () async -> Bool) async throws {
+    @MainActor private func eventually(_ stage: String, window: NSWindow, probe: WindowReadProbe,
+        file: StaticString = #filePath, line: UInt = #line, _ condition: () async -> Bool) async throws {
         for _ in 0..<200 {
-            if await condition() { return }
+            if await condition() {
+                print("Connections window \(stage): visible=\(window.isVisible), miniaturized=\(window.isMiniaturized), appHidden=\(NSApp.isHidden), readingPaused=\((window as? ConnectionsWindow)?.readingPaused == true), starts=\(await probe.starts), cancellations=\(await probe.cancellations)")
+                return
+            }
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        XCTFail("Window lifecycle did not update connection reading within four seconds.")
+        let message = "\(stage): visible=\(window.isVisible), miniaturized=\(window.isMiniaturized), appHidden=\(NSApp.isHidden), readingPaused=\((window as? ConnectionsWindow)?.readingPaused == true), starts=\(await probe.starts), cancellations=\(await probe.cancellations)"
+        XCTFail("Window lifecycle did not update reading within four seconds: \(message)", file: file, line: line)
+        throw WindowLifecycleTimeout(stage: stage)
     }
 
     @MainActor func testNativeWindowLifecycleCancelsAndImmediatelyResumesReading() async throws {
@@ -94,33 +100,33 @@ final class ConnectionsWindowTests: XCTestCase {
         let window = try XCTUnwrap(controller.window)
         controller.present()
         defer { window.close() }
-        try await eventually { await probe.starts == 1 }
+        try await eventually("open starts read", window: window, probe: probe) { await probe.starts == 1 }
 
         window.miniaturize(nil)
-        try await eventually { await probe.cancellations == 1 }
+        try await eventually("minimize cancels read", window: window, probe: probe) { await probe.cancellations == 1 }
         try await Task.sleep(nanoseconds: 200_000_000)
         let afterMinimize = await probe.starts
         XCTAssertEqual(afterMinimize, 1)
         window.deminiaturize(nil)
-        try await eventually { await probe.starts == 2 }
+        try await eventually("deminiaturize resumes read", window: window, probe: probe) { await probe.starts == 2 }
 
         window.orderOut(nil)
-        try await eventually { await probe.cancellations == 2 }
+        try await eventually("orderOut cancels read", window: window, probe: probe) { await probe.cancellations == 2 }
         try await Task.sleep(nanoseconds: 200_000_000)
         let afterHide = await probe.starts
         XCTAssertEqual(afterHide, 2)
         controller.present()
-        try await eventually { await probe.starts == 3 }
+        try await eventually("present after orderOut resumes read", window: window, probe: probe) { await probe.starts == 3 }
 
         window.close()
-        try await eventually { await probe.cancellations == 3 }
+        try await eventually("close cancels read", window: window, probe: probe) { await probe.cancellations == 3 }
         try await Task.sleep(nanoseconds: 200_000_000)
         let afterClose = await probe.starts
         XCTAssertEqual(afterClose, 3)
         controller.present()
-        try await eventually { await probe.starts == 4 }
+        try await eventually("present after close resumes read", window: window, probe: probe) { await probe.starts == 4 }
         window.close()
-        try await eventually { await probe.cancellations == 4 }
+        try await eventually("final close cancels read", window: window, probe: probe) { await probe.cancellations == 4 }
     }
 
 }
@@ -140,4 +146,8 @@ private actor WindowReadProbe {
             throw error
         }
     }
+}
+
+private struct WindowLifecycleTimeout: Error {
+    let stage: String
 }

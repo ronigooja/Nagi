@@ -1,5 +1,51 @@
 import AppKit
 
+/// Explicit ordering hooks complement delegate notifications, which AppKit
+/// can defer while minimizing and does not reliably send for orderOut.
+@MainActor final class ConnectionsWindow: NSWindow {
+    var onVisibilityChange: (() -> Void)?
+    private(set) var orderedOut = true
+    private(set) var minimizing = false
+    var readingPaused: Bool { orderedOut || minimizing }
+
+    func beginMiniaturization() {
+        minimizing = true
+        onVisibilityChange?()
+    }
+    func finishDeminiaturization() {
+        minimizing = false
+        onVisibilityChange?()
+    }
+    override func miniaturize(_ sender: Any?) {
+        beginMiniaturization()
+        super.miniaturize(sender)
+    }
+    override func deminiaturize(_ sender: Any?) {
+        super.deminiaturize(sender)
+        finishDeminiaturization()
+    }
+    override func orderOut(_ sender: Any?) {
+        orderedOut = true
+        onVisibilityChange?()
+        super.orderOut(sender)
+    }
+    override func orderFront(_ sender: Any?) {
+        orderedOut = false
+        super.orderFront(sender)
+        onVisibilityChange?()
+    }
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        orderedOut = false
+        super.makeKeyAndOrderFront(sender)
+        onVisibilityChange?()
+    }
+    override func close() {
+        orderedOut = true
+        onVisibilityChange?()
+        super.close()
+    }
+}
+
 /// A session-scoped native view of the connection model's current CLI snapshot.
 @MainActor final class ConnectionsWindowController: NSWindowController, NSWindowDelegate,
     NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
@@ -27,13 +73,14 @@ import AppKit
 
     init(model: ConnectionsModel) {
         self.model = model
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 700),
+        let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 700),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Nagi Connections"
         window.minSize = NSSize(width: 800, height: 550)
         window.isReleasedWhenClosed = false
         window.delegate = self
+        window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
         window.center()
         buildContent()
         model.onChange = { [weak self] in self?.render() }
@@ -49,7 +96,7 @@ import AppKit
 
     func present() {
         guard let window else { return }
-        if window.isMiniaturized { window.deminiaturize(nil) }
+        if window.isMiniaturized || (window as? ConnectionsWindow)?.minimizing == true { window.deminiaturize(nil) }
         showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
@@ -279,10 +326,17 @@ import AppKit
         return alert
     }
     private func updateVisibility() {
-        model.setVisible(window?.isVisible == true && window?.isMiniaturized == false && !NSApp.isHidden)
+        let readingPaused = (window as? ConnectionsWindow)?.readingPaused == true
+        model.setVisible(!readingPaused && window?.isVisible == true && window?.isMiniaturized == false && !NSApp.isHidden)
     }
     func windowWillClose(_ notification: Notification) { model.setVisible(false) }
+    func windowWillMiniaturize(_ notification: Notification) {
+        (window as? ConnectionsWindow)?.beginMiniaturization()
+    }
     func windowDidMiniaturize(_ notification: Notification) { updateVisibility() }
-    func windowDidDeminiaturize(_ notification: Notification) { updateVisibility() }
+    func windowDidDeminiaturize(_ notification: Notification) {
+        (window as? ConnectionsWindow)?.finishDeminiaturization()
+        updateVisibility()
+    }
     func windowDidChangeOcclusionState(_ notification: Notification) { updateVisibility() }
 }
