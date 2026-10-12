@@ -81,20 +81,17 @@ as successfully rolled back merely because it attempted restoration.
 ## App update handoff
 
 The App's About Nagi panel shows its bundle version and an Update button.
-That button submits `update --terminal` and requests its normal
-quit only after the CLI confirms Terminal launch. The CLI passes a quoted shell
-command as an AppleScript argument to Terminal; neither resource paths nor
-downloaded content are interpolated as AppleScript source. Terminal waits up
-to 60 seconds for App exit, runs the installed CLI's whole update, and opens the
-recorded App path only after success. Administrator authorization and update
-failures appear in Terminal. The CLI's launch response describes scheduling,
-not installation completion.
+That button submits `update --app` and requests its normal quit after the CLI
+confirms that a detached updater has started. The updater waits up to 60 seconds
+for App exit, runs the installed CLI's whole update, and opens the recorded App
+path only after success. The CLI's response describes scheduling, not
+installation completion; failures are appended to the per-user update log.
 
-A Terminal launch failure keeps the App open with an actionable error. A quit
+A background-launch failure keeps the App open with an actionable error. A quit
 cleanup failure retains the existing App menu and is displayed there; the
-waiting terminal command eventually cancels. A failed update keeps the App
-closed and leaves the terminal report available for recovery. A successful
-update opens the App through its ordinary launch behavior, which starts Nagi.
+waiting updater eventually cancels. A failed update keeps the App closed and
+leaves its details in the per-user update log for recovery. A successful update
+opens the App through its ordinary launch behavior, which starts Nagi.
 
 ## Verification
 

@@ -71,7 +71,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `service install`, `service uninstall` | Manage a per-user launchd Agent or systemd service. |
 | `privileged-helper status\|install\|uninstall\|enable\|disable` | Inspect or manage the macOS privileged TUN helper and selected engine backend. |
 | `app status\|install [TAG]\|update [TAG]\|uninstall` | Inspect, install, or remove the macOS App; App update updates the whole managed installation. |
-| `update [TAG\|--terminal]` | Update the managed CLI, mihomo, and any installed App; macOS terminal mode waits for the App to quit and reopens it after success. |
+| `update [TAG\|--terminal\|--app]` | Update the managed CLI, mihomo, and any installed App; macOS `--terminal` opens Terminal, while `--app` schedules a detached update for the menu App. |
 | `uninstall` | Stop Nagi and remove its managed executables and services, preserving user data. |
 | `version` | Report Nagi version, mihomo version and pinned commit, OS, and architecture. |
 | `completion bash\|zsh\|fish` | Print a shell completion script without reading runtime configuration. |
@@ -380,6 +380,7 @@ require a valid active profile merely to display help or manage the App.
 | `app uninstall` | macOS only; remove only the recorded App and clear its installer record fields. Keep the managed CLI and mihomo and user data. An absent recorded App is a successful no-op. No download. |
 | `update [TAG]` | Download latest by default, or the specified release. Verify the platform archive checksum and current installation and candidate executables, stop Nagi, temporarily remove its engine login service, and update the CLI, mihomo, and any recorded App. Refresh the built-in default profile. Restore engine login service installation/enabled preferences and restart an engine that was running before preparation. A CLI-only installation remains CLI-only. |
 | `update --terminal` | macOS only; requires a recorded App. Open Terminal and schedule `nagi update` after the App exits; reopen its recorded path after success. Wait at most 60 seconds for App exit. Returns after launching Terminal; the caller must quit the App. No tag argument can accompany this option. |
+| `update --app` | macOS only; requires a recorded App. Schedule `nagi update` in the background after the App exits, then reopen its recorded path after success. Returns before installation completes; the App uses this mode for About → Update. No tag argument can accompany this option. |
 | `uninstall` | Stop Nagi and remove its engine login service, managed CLI, mihomo, App, privileged helper, and installation record. Preserve user profiles, subscriptions, settings, and logs. No download. |
 
 TAG accepts `vX.Y.Z` or `X.Y.Z`, with an optional alphanumeric/dot/hyphen release
@@ -393,10 +394,10 @@ rejected. Compressed and extracted archives are each limited to 512 MiB.
 Quit the App before updating or removing it; disable its App login item before
 removal. Run as the intended user rather than through `sudo`. The installer
 requests administrator authorization when required, so use a terminal when
-credentials must be entered. The App's About Nagi panel offers Update Nagi, which launches terminal
-mode and then uses ordinary quit cleanup. It keeps the App available if launch
-or quit fails. A scheduled result confirms only Terminal launch; later update
-success/failure appears in Terminal.
+credentials must be entered. The App's About Nagi panel offers Update, which schedules background mode and
+then uses ordinary quit cleanup. It keeps the App available if launch or quit
+fails. A scheduled result confirms only updater launch; later update success or
+failure is recorded in the per-user update log.
 
 Success exits `0` and uses the standard JSON envelope. `app status` returns
 `app` (recorded path or empty string), `installed` (directory exists), and
@@ -404,8 +405,8 @@ Success exits `0` and uses the standard JSON envelope. `app status` returns
 `app-uninstall`), `completed: true`, and `app` (destination/removed path or empty
 string for an absent App). Whole updates return `action: "update"`,
 `completed: true`, and `engine_restarted` (boolean). Whole removal returns
-`action: "uninstall"` and `completed: true`. Terminal launch returns
-`action: "update"`, `scheduled: true`, and `terminal: true`.
+`action: "uninstall"` and `completed: true`. Background scheduling returns
+`action: "update"`, `scheduled: true`, and `background: true`.
 
 Operational failures exit `1` with `installation_error`, including unsupported
 platforms, missing installation records, modified managed files, download or

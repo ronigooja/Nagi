@@ -559,16 +559,7 @@ import AppKit
     }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func updateNagi() {
-        model.updateNagi {
-            let confirmation = NSAlert()
-            confirmation.alertStyle = .informational
-            confirmation.messageText = "Update started"
-            confirmation.informativeText = "Terminal will download and install the update, then reopen Nagi."
-            confirmation.addButton(withTitle: "OK")
-            NSApp.activate(ignoringOtherApps: true)
-            confirmation.runModal()
-            NSApp.terminate(nil)
-        }
+        model.updateNagi { NSApp.terminate(nil) }
     }
     @objc private func willSleep(_ notification: Notification) { model.pauseForSleep() }
     @objc private func didWake(_ notification: Notification) { model.resumeAfterWake() }

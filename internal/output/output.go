@@ -282,6 +282,9 @@ func writeProvider(w io.Writer, p proxy.Provider) error {
 func writeHumanMap(w io.Writer, v map[string]any) error {
 	if action, ok := v["action"].(string); ok && (v["completed"] == true || v["scheduled"] == true) {
 		if v["scheduled"] == true {
+			if v["background"] == true {
+				return line(w, "Update scheduled. Nagi will reopen after the background update completes.")
+			}
 			return line(w, "Update opened in Terminal. Quit Nagi.app to continue; it will reopen after a successful update.")
 		}
 		switch action {

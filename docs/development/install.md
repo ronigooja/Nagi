@@ -65,12 +65,12 @@ system proxy, and other temporary settings must be enabled again as needed.
 `nagi app update` invokes the same whole-installation update and requires an
 installed App.
 
-Quit the App before a terminal update. Alternatively, choose **About Nagi → Update**
-in the App: the CLI opens Terminal, the App completes its normal quit cleanup,
-and Terminal runs the update, showing administrator authorization and errors.
-After success, it opens the updated App, whose normal launch starts Nagi. If
-the App fails to quit within 60 seconds, the terminal operation is cancelled.
-If Terminal cannot open, the App remains available and displays the error.
+Quit the App before a shell update. Alternatively, choose **About Nagi → Update**
+in the App: the CLI starts a detached updater, the App completes its normal
+quit cleanup, and the updater runs the installation before reopening Nagi.
+The updater shows a macOS administrator authorization dialog when required. If the App fails
+to quit within 60 seconds, the background operation is cancelled. Launch errors
+leave the App available; later failures are recorded in the per-user update log.
 
 Use `nagi app uninstall` to remove only the App, or `nagi uninstall` to stop Nagi
 and remove its managed CLI, mihomo, App, login service, and privileged helper.

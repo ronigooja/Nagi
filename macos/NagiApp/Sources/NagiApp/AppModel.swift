@@ -378,7 +378,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         busy = true
         Task {
             do {
-                let result = try await cli.run(["update", "--terminal"])
+                let result = try await cli.run(["update", "--app"])
                 guard result["scheduled"]?.bool == true else {
                     throw CLIError.invalidJSON("The CLI did not schedule an update.")
                 }

@@ -92,6 +92,9 @@ func (m *Manager) Manage(ctx context.Context, action, tag string) (map[string]an
 	if action == "terminal-update" {
 		return m.launchTerminal(ctx, r)
 	}
+	if action == "background-update" {
+		return m.launchBackgroundUpdate(r)
+	}
 	if appAction && r.Prefix != "/usr/local" {
 		return nil, fmt.Errorf("Nagi.app requires the CLI at /usr/local/bin/nagi")
 	}
@@ -209,7 +212,7 @@ func (m *Manager) Manage(ctx context.Context, action, tag string) (map[string]an
 	}
 	if m.OS == "darwin" && r.App != "" {
 		if _, err := m.Run(ctx, "pgrep", "-x", "NagiApp"); err == nil {
-			return nil, fmt.Errorf("quit Nagi.app before updating or uninstalling; its Update Nagi option does this automatically")
+			return nil, fmt.Errorf("quit Nagi.app before updating or uninstalling; its Update option does this automatically")
 		}
 	}
 	var serviceState struct{ Installed, Enabled bool }
@@ -294,4 +297,41 @@ func (m *Manager) launchTerminal(ctx context.Context, r record) (map[string]any,
 		return nil, fmt.Errorf("cannot open Terminal for update: %w", err)
 	}
 	return map[string]any{"action": "update", "scheduled": true, "terminal": true}, nil
+}
+
+// launchBackgroundUpdate starts the whole-update transaction after this App
+// exits. It deliberately detaches from the App's CLI process so replacing the
+// installed executable cannot interrupt the transaction.
+func (m *Manager) launchBackgroundUpdate(r record) (map[string]any, error) {
+	if m.OS != "darwin" || r.App == "" {
+		return nil, fmt.Errorf("background update requires an installed macOS App")
+	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return nil, err
+	}
+	logDir := filepath.Join(cache, "Nagi")
+	if err := os.MkdirAll(logDir, 0700); err != nil {
+		return nil, err
+	}
+	logFile, err := os.OpenFile(filepath.Join(logDir, "update.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return nil, err
+	}
+	command := "if [ ! -w /usr/local/bin ] || [ -e /Library/LaunchDaemons/io.nagi.privileged-helper.plist ]; then " +
+		"askpass=$(mktemp -t nagi-askpass) || exit 1; trap 'rm -f \"$askpass\"' EXIT; " +
+		"cat >\"$askpass\" <<'EOF'\n#!/bin/sh\nexec /usr/bin/osascript -e 'display dialog \"Nagi needs administrator authorization to install the update.\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\" cancel button \"Cancel\"' -e 'text returned of result'\nEOF\n" +
+		"chmod 700 \"$askpass\"; SUDO_ASKPASS=\"$askpass\" sudo -A -v || exit 1; fi; " +
+		"i=0; while pgrep -x NagiApp >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 60 ]; then echo 'Update cancelled: Nagi.app did not quit.'; exit 1; fi; sleep 1; done; " +
+		shellQuote(m.Executable) + " update && open " + shellQuote(r.App)
+	cmd := exec.Command("/bin/bash", "-c", command)
+	cmd.Stdin = nil
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	if err := cmd.Start(); err != nil {
+		_ = logFile.Close()
+		return nil, fmt.Errorf("cannot start background update: %w", err)
+	}
+	_ = logFile.Close()
+	return map[string]any{"action": "update", "scheduled": true, "background": true}, nil
 }

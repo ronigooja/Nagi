@@ -242,6 +242,8 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		} else if len(args) == 2 {
 			if args[1] == "--terminal" {
 				action = "terminal-update"
+			} else if args[1] == "--app" {
+				action = "background-update"
 			} else {
 				tag = args[1]
 			}

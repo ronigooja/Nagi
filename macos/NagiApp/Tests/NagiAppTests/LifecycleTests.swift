@@ -140,11 +140,11 @@ extension LifecycleTests {
           printf '{"ok":false,"error":{"code":"subscription_error","message":"fixture stage failed"}}\\n' >&2; exit 1
         fi
         case "$*" in
-          '--json update --terminal')
+          '--json update --app')
             if [ -f '\(directory.appendingPathComponent("updatefail").path)' ]; then
-              printf '{"ok":false,"error":{"code":"installation_error","message":"Terminal unavailable"}}\\n' >&2; exit 1
+              printf '{"ok":false,"error":{"code":"installation_error","message":"Background updater unavailable"}}\\n' >&2; exit 1
             fi
-            printf '{"ok":true,"data":{"scheduled":true,"terminal":true}}\\n' ;;
+            printf '{"ok":true,"data":{"scheduled":true,"background":true}}\\n' ;;
           '--json status') printf '{"ok":true,"data":{"running":false}}\\n' ;;
           '--json profile list') printf '{"ok":true,"data":{"profiles":[]}}\\n' ;;
           '--json subscription list') printf '{"ok":true,"data":{"subscriptions":[],"scheduler_running":false}}\\n' ;;
@@ -169,11 +169,11 @@ extension LifecycleTests {
         model.updateNagi { ready = true }
         await expectUntil { ready }
         XCTAssertFalse(model.busy)
-        XCTAssertEqual(lines(log), ["--json update --terminal"])
+        XCTAssertEqual(lines(log), ["--json update --app"])
         var quit = false
         model.quit { quit = $0 }
         await expectUntil { quit }
-        XCTAssertEqual(lines(log), ["--json update --terminal", "--json quit"])
+        XCTAssertEqual(lines(log), ["--json update --app", "--json quit"])
     }
 
     func testUpdateLauncherFailureKeepsAppAvailable() async throws {
@@ -185,8 +185,8 @@ extension LifecycleTests {
         model.updateNagi { ready = true }
         await expectUntil { model.errorMessage != nil && !model.busy }
         XCTAssertFalse(ready)
-        XCTAssertTrue(model.errorMessage?.contains("Terminal unavailable") == true)
-        XCTAssertEqual(lines(log), ["--json update --terminal"])
+        XCTAssertTrue(model.errorMessage?.contains("Background updater unavailable") == true)
+        XCTAssertEqual(lines(log), ["--json update --app"])
     }
 
     func testHostRetrySleepWakeAndQuitOwnership() async throws {
