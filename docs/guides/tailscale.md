@@ -4,7 +4,7 @@ This guide covers managing top-level Tailscale nodes and connecting ordinary pro
 
 ## Engine compatibility
 
-**Status:** local implementation verified; matching engine publication and lock update pending authorization. Use engine commit `e8555db99bb891112f880c9e06f2c6edc4bd5cc3` for this implementation. The current `engine.lock` still selects the earlier engine, which lacks the new privileged Tailscale policy and lifecycle fixes. The steps below require the matching engine and are not yet a capability of the ordinary locked build.
+**Status:** implemented with the matching engine pinned in `engine.lock`. The engine includes restricted Tailscale state policy and lifecycle fixes. Build or update Nagi together with that engine; an older engine does not provide these guarantees.
 
 ## Prepare a profile and key
 

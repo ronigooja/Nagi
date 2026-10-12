@@ -45,7 +45,7 @@ The tag-triggered [release workflow](../../.github/workflows/release.yml) runs r
 
 `make release` cross compiles Nagi and mihomo into `dist/linux-amd64`, `dist/linux-arm64`, `dist/darwin-amd64`, and `dist/darwin-arm64`, then creates the fixed-name archives and `dist/SHA256SUMS` consumed by the online installer. On macOS it also uses `lipo` to make `dist/darwin-universal`. Set `APPLE_SIGN_IDENTITY` to sign both universal executables only when signing is desired; signing is not required for release packaging. With a configured notarytool keychain profile, set `APPLE_NOTARY_PROFILE` to zip and notarize them only when that distribution path is desired. Run `make build app` before `make release` to include the unsigned App in the archive matching the host architecture. Versioning, tag checks, artifact review, and release notes are defined in [Release process](release.md).
 
-The current lock points at a commit available on the configured fork's `main` branch and includes the `--check-json`, restricted configuration policy, activation ID, age decryption, and `dns.resolve-proxy-destinations` interfaces used by Nagi. Publish engine changes to the declared repository and ref before updating `engine.lock`, then verify the pinned commit is reachable from a fresh fetch of that ref. A successful build with `MIHOMO_DIR` alone does not establish remote availability. A dedicated `nagi/meta` branch and upstream synchronization policy in the original plan have not yet been established in the mihomo repository.
+The current lock points at a commit available on the configured fork's `main` branch and includes the `--check-json`, restricted configuration policy, activation ID, age decryption, `dns.resolve-proxy-destinations`, and restricted Tailscale state/lifecycle interfaces used by Nagi. Publish engine changes to the declared repository and ref before updating `engine.lock`, then verify the pinned commit is reachable from a fresh fetch of that ref. A successful build with `MIHOMO_DIR` alone does not establish remote availability. A dedicated `nagi/meta` branch and upstream synchronization policy in the original plan have not yet been established in the mihomo repository.
 
 ## Tailscale acceptance
 
@@ -59,7 +59,7 @@ Native macOS acceptance must run the helper with its root-private UID state, sta
 
 ### Implementation verification (2026-10-12)
 
-The Tailscale implementation was checked against engine commit `e8555db99bb891112f880c9e06f2c6edc4bd5cc3`. Publishing this engine commit and advancing `engine.lock` remain pending authorization; the existing lock does not include the new restricted Tailscale policy or lifecycle fixes.
+The Tailscale implementation was checked against engine commit `e8555db99bb891112f880c9e06f2c6edc4bd5cc3`. This commit was published to the declared repository's `main` ref and verified from a fresh fetch before advancing `engine.lock`.
 
 | Check | Result |
 | --- | --- |

@@ -201,7 +201,7 @@ The command takes the configuration lock and uses the existing activation transa
 
 ### Tailscale management
 
-These commands manage top-level Tailscale nodes in the selected effective profile. The source implementation requires the [matching engine pending publication](../guides/tailscale.md#engine-compatibility). They do not rename nodes, enable TUN, install the helper, or select a backend. `list`, `show`, and `targets` read local configuration without contacting mihomo.
+These commands manage top-level Tailscale nodes in the selected effective profile. These operations require the [matching pinned engine](../guides/tailscale.md#engine-compatibility). They do not rename nodes, enable TUN, install the helper, or select a backend. `list`, `show`, and `targets` read local configuration without contacting mihomo.
 
 ```text
 proxy tailscale list
