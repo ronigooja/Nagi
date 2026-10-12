@@ -29,12 +29,82 @@ func TestTailscaleHelpAndPreflightWithoutRuntime(t *testing.T) {
 		{"proxy", "tailscale", "edit", "Tail", "--hostname", "one", "--hostname", "two"},
 		{"proxy", "tailscale", "bind", "Tail", "invalid", "Target"},
 		{"proxy", "tailscale", "unbind", "invalid", "Target"},
+		{"proxy", "tailscale", "bind", "Tail", "node", "Target", "Target"},
+		{"proxy", "tailscale", "unbind", "provider", "Feed", "DIRECT"},
 	} {
 		var out, errs bytes.Buffer
 		code := Run(append([]string{"--json"}, args...), &out, &errs, "test", "test")
 		if code != 2 || !strings.Contains(errs.String(), `"code":"usage"`) || strings.Contains(errs.String(), "PRIVATE") {
 			t.Fatalf("preflight=%d %s", code, errs.String())
 		}
+	}
+}
+
+func TestTailscaleBatchCLIContractAndRollback(t *testing.T) {
+	root := t.TempDir()
+	paths := isolatedTestPaths(t, root)
+	if err := os.MkdirAll(filepath.Join(paths.ConfigDir, "profiles"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	source := []byte("proxies: [{name: Tail, type: tailscale, exit-node: exit}, {name: Node A, type: socks5, server: localhost, port: 1080}, {name: Node B, type: socks5, server: localhost, port: 1081}]\nproxy-providers: {Feed A: {type: http}, Feed B: {type: inline, payload: []}}\n")
+	if err := os.WriteFile(filepath.Join(paths.ConfigDir, "profiles", "default.yaml"), source, 0600); err != nil {
+		t.Fatal(err)
+	}
+	binary := writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\nexit 0\n")
+	t.Setenv("NAGI_MIHOMO_BIN", binary)
+	for _, kind := range []string{"node", "provider"} {
+		targets := []string{"Node A", "Node B"}
+		if kind == "provider" {
+			targets = []string{"Feed A", "Feed B"}
+		}
+		for _, action := range []string{"bind", "unbind"} {
+			args := []string{"--json", "proxy", "tailscale", action}
+			if action == "bind" {
+				args = append(args, "Tail")
+			}
+			args = append(args, kind)
+			args = append(args, targets...)
+			var out, errs bytes.Buffer
+			if code := Run(args, &out, &errs, "test", "test"); code != 0 {
+				t.Fatalf("%v: %d %s", args, code, errs.String())
+			}
+			var result struct {
+				OK   bool           `json:"ok"`
+				Data map[string]any `json:"data"`
+			}
+			if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			if !result.OK || result.Data["saved"] != true || result.Data["reloaded"] != false || result.Data["kind"] != kind || result.Data["target"] != nil {
+				t.Fatal(out.String())
+			}
+			got := result.Data["targets"].([]any)
+			if len(got) != 2 || got[0] != targets[0] || got[1] != targets[1] {
+				t.Fatal(got)
+			}
+		}
+	}
+	before, err := os.ReadFile(filepath.Join(paths.ConfigDir, "overrides", "default.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, failure := range []string{"missing", "validation"} {
+		target := "Missing"
+		if failure == "validation" {
+			target = "Node B"
+			t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, root, "reject", "#!/bin/sh\necho PRIVATE-secret >&2\nexit 1\n"))
+		}
+		var out, errs bytes.Buffer
+		if code := Run([]string{"--json", "proxy", "tailscale", "bind", "Tail", "node", "Node A", target}, &out, &errs, "test", "test"); code != 1 || !strings.Contains(errs.String(), `"code":"proxy_tailscale_error"`) || strings.Contains(errs.String(), "PRIVATE") {
+			t.Fatalf("code=%d error=%s", code, errs.String())
+		}
+		after, err := os.ReadFile(filepath.Join(paths.ConfigDir, "overrides", "default.yaml"))
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("rollback failed: %s err=%v", after, err)
+		}
+	}
+	if _, err := os.Stat(paths.PIDPath); !os.IsNotExist(err) {
+		t.Fatal("batch started engine")
 	}
 }
 func TestTailscaleStoppedCLIQueriesAndMutations(t *testing.T) {

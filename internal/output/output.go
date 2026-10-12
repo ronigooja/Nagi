@@ -340,6 +340,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if v["reloaded"] == true {
 			state = "Saved and reloaded mihomo."
 		}
+		if targets, ok := v["targets"].([]string); ok {
+			return line(w, fmt.Sprintf("Tailscale %s: %d %s targets in profile %s. %s", v["action"], len(targets), v["kind"], v["profile"], state))
+		}
 		return line(w, fmt.Sprintf("Tailscale %s in profile %s. %s", v["action"], v["profile"], state))
 	}
 

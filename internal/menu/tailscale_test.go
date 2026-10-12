@@ -66,14 +66,18 @@ func (r *tailscaleRunner) Run(_ context.Context, args []string) Result {
 		return Result{Code: 1, Error: &CLIError{Message: "node missing"}}
 	case "bind":
 		for i := range r.targets {
-			if r.targets[i].Kind == args[4] && r.targets[i].Name == args[5] {
-				r.targets[i].DialerProxy = args[3]
+			for _, name := range args[5:] {
+				if r.targets[i].Kind == args[4] && r.targets[i].Name == name {
+					r.targets[i].DialerProxy = args[3]
+				}
 			}
 		}
 	case "unbind":
 		for i := range r.targets {
-			if r.targets[i].Kind == args[3] && r.targets[i].Name == args[4] {
-				r.targets[i].DialerProxy = ""
+			for _, name := range args[4:] {
+				if r.targets[i].Kind == args[3] && r.targets[i].Name == name {
+					r.targets[i].DialerProxy = ""
+				}
 			}
 		}
 	case "remove":
@@ -330,5 +334,91 @@ func TestTailscaleBindingResourceUnbindsOnceAndReloadsDetail(t *testing.T) {
 	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n1\n0\n0\n"), &out), tailscaleListPage())
 	if countTailscaleCall(r.calls, "proxy", "tailscale", "unbind", "provider", "Daily Provider") != 1 || countTailscaleCall(r.calls, "proxy", "tailscale", "show", "Tail Shared") != 2 {
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
+	}
+}
+
+func TestTailscaleBatchNodeJourneyAndUnbind(t *testing.T) {
+	r := tailscaleFixture()
+	var out bytes.Buffer
+	// Detail -> batch bind -> nodes -> toggle two nodes -> submit -> back.
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n5\n1\n1\n2\n5\n0\n0\n0\n"), &out), tailscaleListPage())
+	if countTailscaleCall(r.calls, "proxy", "tailscale", "bind", "Tail Shared", "node", "SS Node", "VMess Node") != 1 || r.targets[0].DialerProxy != "Tail Shared" || r.targets[1].DialerProxy != "Tail Shared" || r.targets[2].DialerProxy != "" {
+		t.Fatalf("calls=%v output=%s", r.calls, out.String())
+	}
+	if !strings.Contains(out.String(), "selected: 2") || !strings.Contains(out.String(), "Configuration saved.") {
+		t.Fatal(out.String())
+	}
+	r.calls = nil
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n0\n"), &out), tailscaleBatchPage("Tail Shared", "node", true))
+	if countTailscaleCall(r.calls, "proxy", "tailscale", "unbind", "node", "SS Node", "VMess Node") != 1 || r.targets[0].DialerProxy != "" || r.targets[1].DialerProxy != "" {
+		t.Fatalf("calls=%v", r.calls)
+	}
+}
+
+func TestTailscaleBatchProvidersAndRetainedFailure(t *testing.T) {
+	r := tailscaleFixture()
+	r.targets = append(r.targets, menuTailscaleTarget{Kind: "provider", Name: "Other Feed", Type: "inline"})
+	r.fail["proxy tailscale bind Tail Shared provider Daily Provider Other Feed"] = 1
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n3\n0\n"), &out), tailscaleBatchPage("Tail Shared", "provider", false))
+	if countTailscaleCall(r.calls, "proxy", "tailscale", "bind", "Tail Shared", "provider", "Daily Provider", "Other Feed") != 2 || r.targets[4].DialerProxy != "Tail Shared" || r.targets[5].DialerProxy != "Tail Shared" || r.targets[0].DialerProxy != "" {
+		t.Fatalf("calls=%v output=%s", r.calls, out.String())
+	}
+	for _, want := range []string{"all current and future nodes", "Selections are retained", "selected: 2"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatal(out.String())
+		}
+	}
+}
+
+func TestTailscaleBatchPaginationAndCancellation(t *testing.T) {
+	for _, input := range []string{"11\n1\n0\n", "1\n", "11\n0\n"} {
+		r := tailscaleFixture()
+		r.targets = nil
+		for i := 1; i <= 12; i++ {
+			r.targets = append(r.targets, menuTailscaleTarget{Kind: "node", Name: fmt.Sprintf("Node %02d", i)})
+		}
+		var out bytes.Buffer
+		RunPage(context.Background(), NewSession(r, strings.NewReader(input), &out), tailscaleBatchPage("Tail Shared", "node", false))
+		for _, call := range r.calls {
+			if call[2] != "targets" {
+				t.Fatalf("cancel submitted: %v", r.calls)
+			}
+		}
+	}
+	r := tailscaleFixture()
+	r.targets = nil
+	for i := 1; i <= 12; i++ {
+		r.targets = append(r.targets, menuTailscaleTarget{Kind: "node", Name: fmt.Sprintf("Node %02d", i)})
+	}
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n12\n2\n3\n0\n"), &out), tailscaleBatchPage("Tail Shared", "node", false))
+	if countTailscaleCall(r.calls, "proxy", "tailscale", "bind", "Tail Shared", "node", "Node 01", "Node 12") != 1 {
+		t.Fatalf("calls=%v output=%s", r.calls, out.String())
+	}
+}
+
+func TestTailscaleBatchEmptySubmitAndReadFailure(t *testing.T) {
+	r := tailscaleFixture()
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(r, strings.NewReader("5\n0\n"), &out), tailscaleBatchPage("Tail Shared", "node", false))
+	if !strings.Contains(out.String(), "Select at least one target") {
+		t.Fatal(out.String())
+	}
+	page := tailscaleBatchPage("Tail Shared", "node", false)
+	s := NewSession(r, strings.NewReader(""), &out)
+	view, err := page.Load(context.Background(), s)
+	if err != nil || len(view.Items) != 4 {
+		t.Fatalf("view=%v err=%v", view, err)
+	}
+	r.fail["proxy tailscale targets"] = 1
+	view, err = page.Load(context.Background(), s)
+	if err == nil || len(view.Items) != 0 || len(view.Actions) != 0 {
+		t.Fatalf("stale view=%v err=%v", view, err)
+	}
+	r.targets = nil
+	view, err = page.Load(context.Background(), s)
+	if err != nil || len(view.Items) != 0 || len(view.Actions) != 0 {
+		t.Fatalf("empty view=%v err=%v", view, err)
 	}
 }

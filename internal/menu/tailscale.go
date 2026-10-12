@@ -98,6 +98,83 @@ func tailscaleDetailPage(name string) *Page {
 				result := runTailscale(ctx, s, "remove", name)
 				return Navigation{Back: result.Code == 0 && result.Error == nil}, nil
 			}},
+			{Label: "Bind multiple targets", Impact: tailscaleEffects, Next: func() *Page { return tailscaleBatchKindPage(name, false) }},
+			{Label: "Unbind multiple targets", Impact: tailscaleEffects, Next: func() *Page { return tailscaleBatchKindPage(name, true) }},
+		}
+		return view, nil
+	}}
+}
+
+func tailscaleBatchKindPage(name string, unbind bool) *Page {
+	return actionPage("Choose binding scope",
+		Item{Label: "Specified nodes", Next: func() *Page { return tailscaleBatchPage(name, "node", unbind) }},
+		Item{Label: "Entire providers", Impact: "Affects all current and future nodes", Next: func() *Page { return tailscaleBatchPage(name, "provider", unbind) }},
+	)
+}
+
+func tailscaleBatchPage(name, kind string, unbind bool) *Page {
+	action, title := "bind", "Bind multiple targets"
+	if unbind {
+		action, title = "unbind", "Unbind multiple targets"
+	}
+	selected := map[string]bool{}
+	return &Page{Title: title, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Empty: "No eligible targets available."}
+		var data struct {
+			Targets []menuTailscaleTarget `json:"targets"`
+		}
+		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "tailscale", "targets"), &data); err != nil {
+			return view, err
+		}
+		targets := []menuTailscaleTarget{}
+		available := map[string]bool{}
+		for _, target := range data.Targets {
+			target := target
+			if target.Kind != kind || unbind && target.DialerProxy != name {
+				continue
+			}
+			targets = append(targets, target)
+			available[target.Name] = true
+			view.Items = append(view.Items, Item{Name: target.Name, Label: tailscaleTargetLabel(target), Selected: selected[target.Name], Action: func(context.Context, *Session) error {
+				selected[target.Name] = !selected[target.Name]
+				return nil
+			}})
+		}
+		count := 0
+		for target, checked := range selected {
+			if !available[target] {
+				delete(selected, target)
+			} else if checked {
+				count++
+			}
+		}
+		view.Context = fmt.Sprintf("Tailscale: %s; selected: %d\nChoose numbers to toggle targets, then Submit. Existing bindings appear after →.\n%s", name, count, tailscaleEffects)
+		if kind == "provider" {
+			view.Context += "\nProviders: affects all current and future nodes, including refresh additions."
+		}
+		if len(targets) > 0 {
+			view.Actions = []Item{{Label: "Submit selected targets", Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
+				args := []string{action}
+				if !unbind {
+					args = append(args, name)
+				}
+				args = append(args, kind)
+				for _, target := range targets {
+					if selected[target.Name] {
+						args = append(args, target.Name)
+					}
+				}
+				if count == 0 {
+					s.feedback(feedbackWarning, "Select at least one target before submitting.")
+					return Navigation{}, nil
+				}
+				result := runTailscale(ctx, s, args...)
+				if result.Code != 0 || result.Error != nil {
+					s.feedback(feedbackWarning, "Selections are retained. Choose Submit to retry or 0 to cancel.")
+					return Navigation{}, nil
+				}
+				return Navigation{Back: true}, nil
+			}}}
 		}
 		return view, nil
 	}}

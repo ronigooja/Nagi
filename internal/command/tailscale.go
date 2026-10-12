@@ -54,8 +54,15 @@ func tailscaleArguments(args []string) (tailscaleOptions, error) {
 		if len(args) <= index+1 {
 			return o, errors.New("TARGET is required")
 		}
-		if err := profile.ValidateTailscaleName(args[index+1]); err != nil {
-			return o, errors.New("TARGET must contain 1..128 printable bytes and must not be reserved")
+		seen := map[string]bool{}
+		for _, target := range args[index+1:] {
+			if err := profile.ValidateTailscaleName(target); err != nil {
+				return o, errors.New("TARGET must contain 1..128 printable bytes and must not be reserved")
+			}
+			if seen[target] {
+				return o, errors.New("duplicate TARGET; list each target once")
+			}
+			seen[target] = true
 		}
 		return o, nil
 	}
@@ -139,12 +146,15 @@ func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, 
 		o.AuthKey = input.key
 	}
 	node, kind, target := "", "", ""
+	var targets []string
 	if action == "unbind" {
 		kind, target = args[3], args[4]
+		targets = args[4:]
 	} else {
 		node = args[3]
 		if action == "bind" {
 			kind, target = args[4], args[5]
+			targets = args[5:]
 		}
 	}
 	// Native diagnostics may quote arbitrary configuration values. Keep auth keys
@@ -158,7 +168,12 @@ func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, 
 			return nil
 		}
 	}
-	if err := store.MutateTailscale(ctx, name, action, node, kind, target, o.TailscaleOptions); err != nil {
+	if len(targets) > 0 {
+		err = store.MutateTailscaleBindings(ctx, name, action, node, kind, targets)
+	} else {
+		err = store.MutateTailscale(ctx, name, action, node, kind, target, o.TailscaleOptions)
+	}
+	if err != nil {
 		return nil, err
 	}
 	result := map[string]any{"profile": name, "action": action, "saved": true, "reloaded": reloaded}
@@ -167,7 +182,11 @@ func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, 
 	}
 	if kind != "" {
 		result["kind"] = kind
-		result["target"] = target
+		if len(targets) == 1 {
+			result["target"] = target
+		} else {
+			result["targets"] = targets
+		}
 	}
 	return result, nil
 }

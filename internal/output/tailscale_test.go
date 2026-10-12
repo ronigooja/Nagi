@@ -19,6 +19,7 @@ func TestTailscaleHumanResults(t *testing.T) {
 		{map[string]any{"profile": "work", "targets": []profile.TailscaleTarget{{Kind: "node", Name: "Proxy", Type: "socks5"}}}, "dialer proxy none"},
 		{map[string]any{"profile": "work", "action": "add", "name": "Tail", "saved": true, "reloaded": false}, "mihomo is stopped"},
 		{map[string]any{"profile": "work", "action": "bind", "name": "Tail", "kind": "node", "target": "Proxy", "saved": true, "reloaded": true}, "Saved and reloaded"},
+		{map[string]any{"profile": "work", "action": "bind", "name": "Tail", "kind": "provider", "targets": []string{"first", "second"}, "saved": true, "reloaded": false}, "Tailscale bind: 2 provider targets in profile work."},
 	} {
 		var out bytes.Buffer
 		if err := Write(&out, false, test.data); err != nil || !strings.Contains(out.String(), test.want) || strings.Contains(out.String(), `"profile"`) {

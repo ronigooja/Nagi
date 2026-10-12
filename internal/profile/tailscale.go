@@ -227,7 +227,7 @@ func (s *Store) TailscaleShow(profileName, name string) (TailscaleNode, []Tailsc
 	}
 	return tsNode(m), bindings, nil
 }
-func (s *Store) saveTailscale(ctx context.Context, name string, cfg map[string]any, provider string) error {
+func (s *Store) saveTailscale(ctx context.Context, name string, cfg map[string]any, kind string, targets []string) error {
 	overlay := map[string]any{}
 	data, err := s.Override(name)
 	if err == nil {
@@ -237,27 +237,29 @@ func (s *Store) saveTailscale(ctx context.Context, name string, cfg map[string]a
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	if provider == "" {
+	if kind != "provider" {
 		overlay["proxies"] = tsProxies(cfg)
 	} else {
 		locals, _ := overlay["proxy-providers"].(map[string]any)
 		if locals == nil {
 			locals = map[string]any{}
 		}
-		item, _ := locals[provider].(map[string]any)
-		if item == nil {
-			item = map[string]any{}
+		for _, provider := range targets {
+			item, _ := locals[provider].(map[string]any)
+			if item == nil {
+				item = map[string]any{}
+			}
+			o, _ := item["override"].(map[string]any)
+			if o == nil {
+				o = map[string]any{}
+			}
+			providers, _ := cfg["proxy-providers"].(map[string]any)
+			p, _ := providers[provider].(map[string]any)
+			effective, _ := p["override"].(map[string]any)
+			o["dialer-proxy"] = tsString(effective, "dialer-proxy")
+			item["override"] = o
+			locals[provider] = item
 		}
-		o, _ := item["override"].(map[string]any)
-		if o == nil {
-			o = map[string]any{}
-		}
-		providers, _ := cfg["proxy-providers"].(map[string]any)
-		p, _ := providers[provider].(map[string]any)
-		effective, _ := p["override"].(map[string]any)
-		o["dialer-proxy"] = tsString(effective, "dialer-proxy")
-		item["override"] = o
-		locals[provider] = item
 		overlay["proxy-providers"] = locals
 	}
 	updated, err := yaml.Marshal(overlay)
@@ -274,6 +276,9 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 		if err := ValidateTailscaleAuthKey(*o.AuthKey); err != nil {
 			return err
 		}
+	}
+	if action == "bind" || action == "unbind" {
+		return s.MutateTailscaleBindings(ctx, profileName, action, name, kind, []string{target})
 	}
 	cfg, err := s.tailscaleConfig(profileName)
 	if err != nil {
@@ -334,59 +339,6 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 			return err
 		}
 		node["state-dir"] = path
-	case "bind", "unbind":
-		var selected map[string]any
-		provider := ""
-		current := ""
-		for _, t := range tsTargets(cfg) {
-			if t.Kind == kind && t.Name == target {
-				current = t.DialerProxy
-				if kind == "node" {
-					selected = tsFind(cfg, target)
-				} else {
-					provider = target
-					providers, _ := cfg["proxy-providers"].(map[string]any)
-					p, _ := providers[target].(map[string]any)
-					selected, _ = p["override"].(map[string]any)
-					if selected == nil {
-						selected = map[string]any{}
-						p["override"] = selected
-					}
-					if action == "bind" {
-						payload, _ := p["payload"].([]any)
-						for _, v := range payload {
-							m, _ := v.(map[string]any)
-							dialer := tsString(m, "dialer-proxy")
-							if dialer != "" {
-								existing := tsFind(cfg, dialer)
-								if existing == nil || tsString(existing, "type") != "tailscale" {
-									return errors.New("provider contains a node with a non-Tailscale dialer-proxy")
-								}
-							}
-						}
-					}
-				}
-				break
-			}
-		}
-		if selected == nil {
-			return errors.New("target not found or unsupported; run `nagi proxy tailscale targets`")
-		}
-		if current != "" {
-			existing := tsFind(cfg, current)
-			if existing == nil || tsString(existing, "type") != "tailscale" {
-				return errors.New("target has an existing non-Tailscale dialer-proxy; edit its configuration explicitly")
-			}
-		}
-		if action == "bind" {
-			selected["dialer-proxy"] = name
-			if tsCycle(cfg) {
-				return errors.New("binding would create a proxy dependency cycle")
-			}
-		} else {
-			selected["dialer-proxy"] = ""
-		}
-		return s.saveTailscale(ctx, profileName, cfg, provider)
 	case "remove":
 		for _, t := range tsTargets(cfg) {
 			if t.DialerProxy == name {
@@ -431,7 +383,7 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 	default:
 		return errors.New("unsupported Tailscale action")
 	}
-	return s.saveTailscale(ctx, profileName, cfg, "")
+	return s.saveTailscale(ctx, profileName, cfg, "node", nil)
 }
 
 // Dependencies include groups and provider payloads so a group-mediated dialer
@@ -570,4 +522,97 @@ func tsDNSReferences(value any, name string) bool {
 		}
 	}
 	return false
+}
+
+// MutateTailscaleBindings prepares every target before saving one override. The
+// caller holds config.lock and owns runtime recovery through the CLI transaction.
+func (s *Store) MutateTailscaleBindings(ctx context.Context, profileName, action, name, kind string, targets []string) error {
+	if action != "bind" && action != "unbind" {
+		return errors.New("binding action must be bind or unbind")
+	}
+	if kind != "node" && kind != "provider" {
+		return errors.New("KIND must be node or provider")
+	}
+	if len(targets) == 0 {
+		return errors.New("at least one TARGET is required")
+	}
+	seen := map[string]bool{}
+	for _, target := range targets {
+		if err := ValidateTailscaleName(target); err != nil {
+			return err
+		}
+		if seen[target] {
+			return errors.New("duplicate binding target")
+		}
+		seen[target] = true
+	}
+	cfg, err := s.tailscaleConfig(profileName)
+	if err != nil {
+		return err
+	}
+	if action == "bind" {
+		node := tsFind(cfg, name)
+		if node == nil || tsString(node, "type") != "tailscale" {
+			return errors.New("Tailscale node not found; run `nagi proxy tailscale list`")
+		}
+	}
+	for _, target := range targets {
+		if err := tsChangeBinding(cfg, action, name, kind, target); err != nil {
+			return err
+		}
+	}
+	return s.saveTailscale(ctx, profileName, cfg, kind, targets)
+}
+
+func tsChangeBinding(cfg map[string]any, action, name, kind, target string) error {
+	var selected map[string]any
+	current := ""
+	for _, t := range tsTargets(cfg) {
+		if t.Kind == kind && t.Name == target {
+			current = t.DialerProxy
+			if kind == "node" {
+				selected = tsFind(cfg, target)
+			} else {
+				providers, _ := cfg["proxy-providers"].(map[string]any)
+				p, _ := providers[target].(map[string]any)
+				selected, _ = p["override"].(map[string]any)
+				if selected == nil {
+					selected = map[string]any{}
+					p["override"] = selected
+				}
+				if action == "bind" {
+					payload, _ := p["payload"].([]any)
+					for _, v := range payload {
+						m, _ := v.(map[string]any)
+						dialer := tsString(m, "dialer-proxy")
+						if dialer != "" {
+							existing := tsFind(cfg, dialer)
+							if existing == nil || tsString(existing, "type") != "tailscale" {
+								return errors.New("provider contains a node with a non-Tailscale dialer-proxy")
+							}
+						}
+					}
+				}
+			}
+			break
+		}
+	}
+	if selected == nil {
+		return errors.New("target not found or unsupported; run `nagi proxy tailscale targets`")
+	}
+	if current != "" {
+		existing := tsFind(cfg, current)
+		if existing == nil || tsString(existing, "type") != "tailscale" {
+			return errors.New("target has an existing non-Tailscale dialer-proxy; edit its configuration explicitly")
+		}
+	}
+	if action == "bind" {
+		selected["dialer-proxy"] = name
+		if tsCycle(cfg) {
+			return errors.New("binding would create a proxy dependency cycle")
+		}
+	} else {
+		selected["dialer-proxy"] = ""
+	}
+	return nil
 }

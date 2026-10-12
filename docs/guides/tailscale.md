@@ -25,7 +25,9 @@ Replace `EXIT_NODE` with your exit-node IP or name accepted by mihomo. Replace t
 
 ```sh
 nagi proxy tailscale bind 'TS Exit' node 'Node A'
+nagi proxy tailscale bind 'TS Exit' node 'Node A' 'Node B'
 nagi proxy tailscale bind 'TS Exit' provider work-feed
+nagi proxy tailscale bind 'TS Exit' provider work-feed personal-feed
 nagi proxy tailscale show 'TS Exit'
 ```
 
@@ -33,7 +35,9 @@ The path becomes application → Nagi/mihomo → Tailscale exit → selected pro
 
 A provider binding affects **all its nodes**, including nodes added by refresh. It changes `override.dialer-proxy`, retaining the provider's download proxy. A pre-existing non-Tailscale front proxy must be removed deliberately before binding; Nagi allows switching an existing Tailscale binding to another Tailscale exit.
 
-For the terminal menu, open **Select Node → Tailscale**. Paste the Auth Key directly in the add or edit form; input is visible, and an empty edit field preserves the current key. Add a node, open its details, and choose a target from Bind. Provider entries disclose their all-node effect. Forms keep entered values after a failed submission and require an explicit retry.
+For the terminal menu, open **Select Node → Tailscale**. Paste the Auth Key directly in the add or edit form; input is visible, and an empty edit field preserves the current key. Add a node, open its details, and choose a target from Bind. For a batch, choose **Bind multiple targets**, then **Specified nodes** or **Entire providers**. Toggle targets by number, use pagination for longer lists, and choose **Submit selected targets**. Existing bindings appear beside each target; selection markers identify the pending batch. Provider entries disclose their all-node effect. Forms keep entered values after a failed submission; batches keep eligible selections and require an explicit retry. `0` or Ctrl-C returns without submitting; EOF exits.
+
+Multiple targets of the same kind are saved together with one validation and, while running, one candidate reload. A failed target check, validation, or activation restores the entire previous configuration; runtime recovery uncertainty is reported explicitly. Specified nodes must appear as top-level node targets in `nagi proxy tailscale targets`. Nodes inside a provider are covered through the entire-provider option.
 
 ## Activation and persistence
 
@@ -48,10 +52,13 @@ User-mode and privileged-mode identities are stored separately. The helper uses 
 ```sh
 nagi proxy tailscale edit 'TS Exit' --exit-node NEW_EXIT_NODE
 nagi proxy tailscale unbind node 'Node A'
+nagi proxy tailscale unbind node 'Node A' 'Node B'
 nagi proxy tailscale unbind provider work-feed
 nagi proxy tailscale remove 'TS Exit'
 ```
 
 Omitting key options during edit keeps the current key. For scripts, the existing file interface remains available (`add NAME EXIT_NODE KEY_FILE`, `edit NAME --auth-key-file FILE`); `--auth-key-stdin` accepts a key from stdin for pipelines or JSON use. Remove is refused while a node or provider references the Tailscale node; known provider payload and DNS references also block removal, while effective configuration validation protects rule and group references. Unbind writes an explicit empty front proxy so a source binding cannot reappear. Removing configuration leaves identity state available for reuse.
+
+Use **Unbind multiple targets** in the node's menu details to select several existing node or provider bindings. Only bindings to that Tailscale node are listed. Entire-provider unbind also affects all current and future nodes.
 
 If activation fails, inspect `nagi status` and the selected profile override. Nagi restores saved configuration and attempts runtime recovery; a timed-out reload may still apply, so heed any uncertain-recovery error and retry `nagi config reload` after it settles. Login and exit failures during forwarding belong to mihomo: check your service's key, exit approval, and access policy.

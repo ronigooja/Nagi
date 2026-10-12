@@ -266,3 +266,127 @@ func TestTailscaleNameCollisions(t *testing.T) {
 		}
 	}
 }
+
+const tsBatchSource = `proxies:
+  - {name: Tail, type: tailscale, exit-node: exit}
+  - {name: Alpha, type: socks5, server: localhost, port: 1080}
+  - {name: Beta, type: socks5, server: localhost, port: 1081}
+proxy-providers:
+  first: {type: http, url: 'https://example.com/first', proxy: DIRECT, override: {udp: true}}
+  second: {type: inline, payload: [{name: Inner, type: socks5}], override: {tfo: true}}
+`
+
+func TestTailscaleBatchBindingsSaveAndReloadOnce(t *testing.T) {
+	for _, kind := range []string{"node", "provider"} {
+		t.Run(kind, func(t *testing.T) {
+			s := tailscaleFixture(t, tsBatchSource)
+			targets := []string{"Alpha", "Beta"}
+			if kind == "provider" {
+				targets = []string{"first", "second"}
+			}
+			validations, reloads := 0, 0
+			s.Validate = func([]byte) error { validations++; return nil }
+			s.Reload = func(context.Context) error { reloads++; return nil }
+			for _, action := range []string{"bind", "unbind"} {
+				if err := s.MutateTailscaleBindings(context.Background(), "work", action, "Tail", kind, targets); err != nil {
+					t.Fatal(err)
+				}
+				cfg, err := s.tailscaleConfig("work")
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := "Tail"
+				if action == "unbind" {
+					want = ""
+				}
+				found := 0
+				for _, target := range tsTargets(cfg) {
+					if target.Kind == kind {
+						found++
+						if target.DialerProxy != want {
+							t.Fatalf("target=%+v", target)
+						}
+					}
+				}
+				if found != 2 {
+					t.Fatalf("targets=%v", tsTargets(cfg))
+				}
+				if kind == "provider" {
+					providers := cfg["proxy-providers"].(map[string]any)
+					first := providers["first"].(map[string]any)
+					second := providers["second"].(map[string]any)
+					if first["proxy"] != "DIRECT" || first["override"].(map[string]any)["udp"] != true || second["override"].(map[string]any)["tfo"] != true {
+						t.Fatal("provider settings lost", providers)
+					}
+				}
+			}
+			if validations != 2 || reloads != 2 {
+				t.Fatalf("validations=%d reloads=%d", validations, reloads)
+			}
+			source, _ := s.Show("work")
+			if string(source) != tsBatchSource {
+				t.Fatal("source changed")
+			}
+		})
+	}
+}
+
+func TestTailscaleBatchFailuresPreserveWholeOverride(t *testing.T) {
+	for _, kind := range []string{"node", "provider"} {
+		for _, failure := range []string{"missing", "duplicate", "front proxy", "validation", "reload"} {
+			t.Run(kind+"/"+failure, func(t *testing.T) {
+				s := tailscaleFixture(t, tsBatchSource)
+				old := []byte("mixed-port: 7899\n")
+				if err := s.SetOverride(context.Background(), "work", old); err != nil {
+					t.Fatal(err)
+				}
+				targets := []string{"Alpha", "Beta"}
+				if kind == "provider" {
+					targets = []string{"first", "second"}
+				}
+				validations, reloads := 0, 0
+				s.Validate = func([]byte) error {
+					validations++
+					if failure == "validation" {
+						return errors.New("rejected")
+					}
+					return nil
+				}
+				s.Reload = func(context.Context) error {
+					reloads++
+					if failure == "reload" {
+						return errors.New("activation failed")
+					}
+					return nil
+				}
+				switch failure {
+				case "missing":
+					targets[1] = "Missing"
+				case "duplicate":
+					targets[1] = targets[0]
+				case "front proxy":
+					source := strings.Replace(tsBatchSource, "name: Beta, type: socks5", "name: Beta, dialer-proxy: DIRECT, type: socks5", 1)
+					if kind == "provider" {
+						source = strings.Replace(tsBatchSource, "tfo: true", "tfo: true, dialer-proxy: DIRECT", 1)
+					}
+					if err := os.WriteFile(filepath.Join(s.Dir, "profiles", "work.yaml"), []byte(source), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := s.MutateTailscaleBindings(context.Background(), "work", "bind", "Tail", kind, targets); err == nil {
+					t.Fatal("batch failure ignored")
+				}
+				after, _ := s.Override("work")
+				if string(after) != string(old) {
+					t.Fatalf("partial override: %s", after)
+				}
+				if failure != "validation" && failure != "reload" && validations != 0 {
+					t.Fatal("invalid batch reached save")
+				}
+				if failure != "reload" && reloads != 0 {
+					t.Fatal("invalid batch reloaded")
+				}
+			})
+		}
+	}
+}
