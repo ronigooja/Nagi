@@ -94,7 +94,7 @@ func profileDetailPage(name string) *Page {
 			},
 		}
 		if defaultApplied {
-			defaultItem.Label = "Restore previous local settings"
+			defaultItem.Label = "Disable local default settings"
 			defaultItem.Impact = "Restores the local override saved before applying defaults"
 		}
 		view := PageView{Actions: []Item{
