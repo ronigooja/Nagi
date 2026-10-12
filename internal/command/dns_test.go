@@ -49,11 +49,10 @@ func TestNewDefaultProfileDNSAndTUNDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	ali := []string{"https://223.5.5.5/dns-query", "https://223.6.6.6/dns-query"}
-	proxy := []string{"https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"}
 	if !cfg.DNS.Enable || !cfg.DNS.ResolveProxyDestinations || cfg.DNS.EnhancedMode != "fake-ip" || !slices.Equal(cfg.Rules, []string{"MATCH,DIRECT"}) {
 		t.Fatalf("unexpected default DNS or rules: %+v", cfg)
 	}
-	if !slices.Equal(cfg.DNS.DefaultNameserver, ali) || !slices.Equal(cfg.DNS.DirectNameserver, ali) || !slices.Equal(cfg.DNS.ProxyServerNameserver, ali) || !slices.Equal(cfg.DNS.Nameserver, proxy) || len(cfg.DNS.Fallback) != 0 {
+	if !slices.Equal(cfg.DNS.DefaultNameserver, ali) || !slices.Equal(cfg.DNS.DirectNameserver, ali) || !slices.Equal(cfg.DNS.ProxyServerNameserver, ali) || !slices.Equal(cfg.DNS.Nameserver, ali) || len(cfg.DNS.Fallback) != 0 {
 		t.Fatalf("unexpected DoH roles: %+v", cfg.DNS)
 	}
 	if cfg.TUN.Enable || !cfg.TUN.AutoRoute || !cfg.TUN.StrictRoute || !cfg.TUN.AutoDetectInterface || !slices.Equal(cfg.TUN.DNSHijack, []string{"any:53", "tcp://any:53"}) {
@@ -91,6 +90,37 @@ func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 	if _, code := run("dns", "set", "proxy", "NodeA", "https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"); code != 0 {
 		t.Fatal("set failed")
 	}
+	assertDNSRoles := func(wantBootstrap []string, wantPrimary []string) {
+		t.Helper()
+		effective, err := os.ReadFile(filepath.Join(config, "overrides", "default.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var cfg struct {
+			DNS struct {
+				Default  []string `yaml:"default-nameserver"`
+				Direct   []string `yaml:"direct-nameserver"`
+				Proxy    []string `yaml:"proxy-server-nameserver"`
+				Primary  []string `yaml:"nameserver"`
+				Fallback []string `yaml:"fallback"`
+			} `yaml:"dns"`
+		}
+		if err := yaml.Unmarshal(effective, &cfg); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(cfg.DNS.Default, wantBootstrap) || !slices.Equal(cfg.DNS.Direct, wantBootstrap) || !slices.Equal(cfg.DNS.Proxy, wantBootstrap) || !slices.Equal(cfg.DNS.Primary, wantPrimary) || len(cfg.DNS.Fallback) != 0 {
+			t.Fatalf("unexpected managed DNS roles: %+v", cfg.DNS)
+		}
+	}
+	assertDNSRoles([]string{"https://223.5.5.5/dns-query", "https://223.6.6.6/dns-query"}, []string{"https://1.1.1.1/dns-query#NodeA", "https://8.8.8.8/dns-query#NodeA"})
+	if _, code := run("dns", "set", "proxy", "NodeA", "https://1.1.1.1/dns-query", "--bootstrap", "https://9.9.9.9/dns-query"); code != 0 {
+		t.Fatal("custom bootstrap failed")
+	}
+	assertDNSRoles([]string{"https://9.9.9.9/dns-query"}, []string{"https://1.1.1.1/dns-query#NodeA"})
+	if _, code := run("dns", "set", "proxy", "NodeA", "https://1.1.1.1/dns-query", "--bootstrap", "https://dns.example/dns-query"); code != 1 {
+		t.Fatal("hostname bootstrap accepted")
+	}
+	assertDNSRoles([]string{"https://9.9.9.9/dns-query"}, []string{"https://1.1.1.1/dns-query#NodeA"})
 	if _, code := run("dns", "exception", "add", "corp.example", "udp://10.0.0.53:53"); code != 0 {
 		t.Fatal("exception failed")
 	}
@@ -132,6 +162,23 @@ func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 	}
 	if _, code := run("dns", "set", "direct", "https://1.1.1.1/dns-query"); code != 0 {
 		t.Fatal("direct DoH policy failed")
+	}
+	directOverride, err := os.ReadFile(filepath.Join(config, "overrides", "default.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var directDNS struct {
+		DNS struct {
+			Primary []string `yaml:"nameserver"`
+			Direct  []string `yaml:"direct-nameserver"`
+			Proxy   []string `yaml:"proxy-server-nameserver"`
+		} `yaml:"dns"`
+	}
+	if err := yaml.Unmarshal(directOverride, &directDNS); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(directDNS.DNS.Primary, []string{"https://1.1.1.1/dns-query"}) || !slices.Equal(directDNS.DNS.Direct, directDNS.DNS.Primary) || !slices.Equal(directDNS.DNS.Proxy, []string{"https://223.5.5.5/dns-query", "https://223.6.6.6/dns-query"}) {
+		t.Fatalf("unexpected direct DNS roles: %+v", directDNS.DNS)
 	}
 	data, code = run("dns", "status")
 	if code != 0 || data["policy"] != "direct" || data["resolve_proxy_destinations"] != true {

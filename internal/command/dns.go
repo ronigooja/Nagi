@@ -15,7 +15,18 @@ import (
 )
 
 var dnsDomain = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$`)
-var dnsBootstrap = []string{"https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"}
+var dnsBootstrap = []string{"https://223.5.5.5/dns-query", "https://223.6.6.6/dns-query"}
+
+func dnsBootstrapURL(raw string) error {
+	if err := dnsURL(raw, false); err != nil {
+		return err
+	}
+	parsed, _ := url.Parse(raw)
+	if net.ParseIP(parsed.Hostname()) == nil {
+		return errors.New("bootstrap DoH URL must use an IP address to avoid a DNS resolution cycle")
+	}
+	return nil
+}
 
 func dnsURL(raw string, allowPlain bool) error {
 	u, err := url.Parse(raw)
@@ -170,7 +181,25 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 				return nil, fail("dns_error", err)
 			}
 		}
-		servers := append([]string(nil), args[firstURL:]...)
+		serverArgs := args[firstURL:]
+		bootstrap := append([]string(nil), dnsBootstrap...)
+		for i, arg := range serverArgs {
+			if arg != "--bootstrap" {
+				continue
+			}
+			if i == 0 || i == len(serverArgs)-1 {
+				return nil, usage("dns set direct URL [URL...] [--bootstrap IP_DOH_URL ...]|proxy NODE URL [URL...] [--bootstrap IP_DOH_URL ...]")
+			}
+			bootstrap = append([]string(nil), serverArgs[i+1:]...)
+			serverArgs = serverArgs[:i]
+			break
+		}
+		servers := append([]string(nil), serverArgs...)
+		for _, server := range bootstrap {
+			if err := dnsBootstrapURL(server); err != nil {
+				return nil, fail("dns_error", err)
+			}
+		}
 		for i, server := range servers {
 			if err := dnsURL(server, false); err != nil {
 				return nil, fail("dns_error", err)
@@ -192,17 +221,17 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		dns["ipv6"] = true
 		dns["listen"] = "127.0.0.1:1053"
 		dns["enhanced-mode"] = "fake-ip"
-		dns["default-nameserver"] = dnsBootstrap
+		dns["default-nameserver"] = bootstrap
 		dns["nameserver"] = servers
 		dns["fallback"] = []string{}
-		dns["direct-nameserver"] = []string{}
+		if policy == "proxy" {
+			dns["direct-nameserver"] = bootstrap
+		} else {
+			dns["direct-nameserver"] = servers
+		}
 		dns["proxy-server-nameserver-policy"] = map[string]any{}
 		dns["respect-rules"] = false
-		if policy == "proxy" {
-			dns["proxy-server-nameserver"] = dnsBootstrap
-		} else {
-			dns["proxy-server-nameserver"] = []string{}
-		}
+		dns["proxy-server-nameserver"] = bootstrap
 		if _, ok := dns["nameserver-policy"]; !ok {
 			dns["nameserver-policy"] = map[string]any{}
 		}
