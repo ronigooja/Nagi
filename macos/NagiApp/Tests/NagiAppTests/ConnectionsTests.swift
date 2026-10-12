@@ -74,7 +74,7 @@ final class ConnectionsTests: XCTestCase {
         do {
             _ = try await client.run(["status"])
             XCTFail("ordinary command output limit was raised")
-        } catch CLIError.outputTooLarge(let limit) { XCTAssertEqual(limit, 1_048_576) }
+        } catch CLIError.invalidJSON(let message) { XCTAssertEqual(message, "CLI output exceeded 1 MiB.") }
     }
 
     func testConnectionOutputBoundaryAndStderrLimit() async throws {
@@ -113,6 +113,9 @@ final class ConnectionsTests: XCTestCase {
     private var reads: [Int: CheckedContinuation<[Connection], Error>] = [:]
     private var closeContinuation: CheckedContinuation<Void, Error>?
     func read() async throws -> [Connection] {
+        // Match the CLI's pre-launch cancellation check. A cancelled task that
+        // has not started fetching must not create an unresumable fixture read.
+        try Task.checkCancellation()
         readCount += 1
         let id = readCount
         return try await withCheckedThrowingContinuation { reads[id] = $0 }

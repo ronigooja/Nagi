@@ -54,33 +54,34 @@ struct NagiCLIClient {
         process.arguments = ["--json"] + arguments
         let stdout = Pipe(), stderr = Pipe()
         process.standardOutput = stdout; process.standardError = stderr
+        let outReader = try CommandOutputReader(stdout.fileHandleForReading, limit: stdoutLimit)
+        let errReader = try CommandOutputReader(stderr.fileHandleForReading)
+        var writersClosed = false
+        defer {
+            if !writersClosed { stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile() }
+            outReader.finish(); errReader.finish()
+            process.terminationHandler = nil
+        }
+        // Install the notification before launch: a very short command can exit
+        // before run() returns. The semaphore retains that notification.
+        process.terminationHandler = { _ in holder.didExit() }
         try holder.start(process)
         stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
-        let output = BoundedOutput()
-        let readers = DispatchGroup()
-        readers.enter()
-        DispatchQueue.global(qos: .userInitiated).async {
-            output.setStdout(Self.readLimited(stdout.fileHandleForReading, limit: stdoutLimit))
-            readers.leave()
+        writersClosed = true
+        holder.waitForExit(timeout: timeout)
+        // Drain bytes already written before decoding. Do not wait for EOF:
+        // a detached descendant may still hold an inherited pipe writer.
+        outReader.finish(); errReader.finish()
+        if holder.timedOut { throw CLIError.timeout }
+        if holder.cancelled { throw CancellationError() }
+        let (out, outOverflow) = outReader.snapshot()
+        let (err, errOverflow) = errReader.snapshot()
+        if stdoutLimit > 1_048_576 {
+            if outOverflow { throw CLIError.outputTooLarge(stdoutLimit) }
+            if errOverflow { throw CLIError.invalidJSON("CLI stderr exceeded 1 MiB.") }
+        } else if outOverflow || errOverflow {
+            throw CLIError.invalidJSON("CLI output exceeded 1 MiB.")
         }
-        readers.enter()
-        DispatchQueue.global(qos: .userInitiated).async {
-            output.setStderr(Self.readLimited(stderr.fileHandleForReading, limit: 1_048_576))
-            readers.leave()
-        }
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning && Date() < deadline && !holder.cancelled {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        let timedOut = process.isRunning && !holder.cancelled
-        if process.isRunning { holder.stop() }
-        process.waitUntilExit()
-        readers.wait()
-        if holder.cancelled && !timedOut { throw CancellationError() }
-        if timedOut { throw CLIError.timeout }
-        let (out, err, stdoutOverflow, stderrOverflow) = output.channelSnapshot()
-        if stdoutOverflow { throw CLIError.outputTooLarge(stdoutLimit) }
-        if stderrOverflow { throw CLIError.invalidJSON("CLI stderr exceeded 1 MiB.") }
         let responseData = out.isEmpty ? err : out
         guard let response = try? JSONDecoder().decode(CLIEnvelope<Value>.self, from: responseData) else {
             let diagnostic = String(data: err, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -92,15 +93,6 @@ struct NagiCLIClient {
         }
         throw CLIError.command(response.error?.code ?? "command_failed",
                                response.error?.message ?? "The CLI exited with status \(process.terminationStatus).")
-    }
-
-    private static func readLimited(_ handle: FileHandle, limit: Int) -> (Data, Bool) {
-        var bytes = Data(), overflow = false
-        while let chunk = try? handle.read(upToCount: 4096), !chunk.isEmpty {
-            if bytes.count + chunk.count <= limit { bytes.append(chunk) }
-            else { overflow = true }
-        }
-        return (bytes, overflow)
     }
 }
 
@@ -117,12 +109,17 @@ final class SubscriptionWatch: @unchecked Sendable {
     private var announced = false
     private var outputError: Error?
     private let readers = DispatchGroup()
+    private let exited = DispatchGroup()
     init(executable: URL) throws {
         process = Process(); process.executableURL = executable
         process.arguments = ["--json", "subscription", "watch"]
         stdout = Pipe(); stderr = Pipe()
         process.standardOutput = stdout; process.standardError = stderr
-        do { try process.run() } catch { throw CLIError.launch(error.localizedDescription) }
+        // A group retains a fast exit notification and supports repeated waits.
+        exited.enter()
+        process.terminationHandler = { [exited] _ in exited.leave() }
+        do { try process.run() }
+        catch { exited.leave(); throw CLIError.launch(error.localizedDescription) }
         stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
         readers.enter()
         DispatchQueue.global(qos: .utility).async { [self] in
@@ -179,7 +176,7 @@ final class SubscriptionWatch: @unchecked Sendable {
     func wait() async -> WatchExit {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async { [self] in
-                process.waitUntilExit()
+                exited.wait()
                 readers.wait()
                 lock.lock(); let intentional = stopped, started = announced, failure = outputError; lock.unlock()
                 if intentional { continuation.resume(returning: .stopped) }
@@ -195,9 +192,13 @@ final class SubscriptionWatch: @unchecked Sendable {
 
 private final class ProcessHolder: @unchecked Sendable {
     private let lock = NSLock()
+    private let exited = DispatchSemaphore(value: 0)
     private var process: Process?
     private var cancelledFlag = false
+    private var timedOutFlag = false
+    private var exitedFlag = false
     var cancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelledFlag }
+    var timedOut: Bool { lock.lock(); defer { lock.unlock() }; return timedOutFlag }
     func start(_ value: Process) throws {
         lock.lock()
         defer { lock.unlock() }
@@ -205,10 +206,28 @@ private final class ProcessHolder: @unchecked Sendable {
         do { try value.run(); process = value }
         catch { throw CLIError.launch(error.localizedDescription) }
     }
+    func didExit() {
+        lock.lock(); exitedFlag = true; lock.unlock()
+        exited.signal()
+    }
+    func waitForExit(timeout: TimeInterval) {
+        if exited.wait(timeout: .now() + timeout) == .success { return }
+        lock.lock()
+        // Whichever event won the lock determines the error classification.
+        // Cancellation after a timeout must not replace the timeout error.
+        timedOutFlag = !cancelledFlag && !exitedFlag
+        let value = process
+        lock.unlock()
+        Self.terminate(value)
+        exited.wait()
+    }
     func stop() {
         lock.lock(); cancelledFlag = true
         let value = process
         lock.unlock()
+        Self.terminate(value)
+    }
+    private static func terminate(_ value: Process?) {
         guard let value, value.isRunning else { return }
         value.terminate()
         // A child ignoring SIGTERM must not keep the app's task alive indefinitely.
@@ -218,13 +237,78 @@ private final class ProcessHolder: @unchecked Sendable {
     }
 }
 
+/// Each reader owns its descriptor and buffer on a serial queue. Nonblocking
+/// reads permit a final drain after exit even if another process retains stdout.
+private final class CommandOutputReader: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "nagi.cli.output", qos: .userInitiated)
+    private let handle: FileHandle
+    private let source: DispatchSourceRead
+    private let closed = DispatchGroup()
+    private var bytes = Data()
+    private var overflow = false
+    private var finished = false
+    private let limit: Int
+
+    init(_ handle: FileHandle, limit: Int = 1_048_576) throws {
+        self.handle = handle
+        self.limit = limit
+        let descriptor = handle.fileDescriptor
+        let flags = Darwin.fcntl(descriptor, F_GETFL)
+        guard flags >= 0, Darwin.fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) >= 0 else {
+            throw CLIError.launch("Could not prepare CLI output pipes.")
+        }
+        source = DispatchSource.makeReadSource(fileDescriptor: descriptor, queue: queue)
+        closed.enter()
+        source.setEventHandler { [weak self] in self?.drain(maximum: 262_144) }
+        source.setCancelHandler { [handle, closed] in
+            handle.closeFile()
+            closed.leave()
+        }
+        source.resume()
+    }
+
+    deinit { source.cancel() }
+
+    private func drain(maximum: Int) {
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        var readCount = 0
+        while readCount < maximum {
+            let count = Darwin.read(handle.fileDescriptor, &buffer, 4096)
+            if count > 0 {
+                readCount += count
+                if bytes.count + count <= limit { bytes.append(contentsOf: buffer.prefix(count)) }
+                else { overflow = true }
+            } else if count == 0 {
+                source.cancel(); return
+            } else if errno != EINTR {
+                return
+            }
+        }
+    }
+
+    func finish() {
+        queue.sync {
+            guard !finished else { return }
+            finished = true
+            if !source.isCancelled {
+                // More than the output bound cannot form a valid response.
+                // Bound this drain even if a descendant keeps writing forever.
+                drain(maximum: limit + 4096)
+                source.cancel()
+            }
+        }
+        closed.wait()
+    }
+
+    func snapshot() -> (Data, Bool) { queue.sync { (bytes, overflow) } }
+}
+
 private final class BoundedOutput {
     private let lock = NSLock()
-    private var stdout = Data(), stderr = Data(), stdoutOverflow = false, stderrOverflow = false
-    func setStdout(_ value: (Data, Bool)) { lock.lock(); stdout = value.0; stdoutOverflow = value.1; lock.unlock() }
-    func setStderr(_ value: (Data, Bool)) { lock.lock(); stderr = value.0; stderrOverflow = value.1; lock.unlock() }
-    func snapshot() -> (Data, Data, Bool) { lock.lock(); defer { lock.unlock() }; return (stdout, stderr, stdoutOverflow || stderrOverflow) }
-    func channelSnapshot() -> (Data, Data, Bool, Bool) { lock.lock(); defer { lock.unlock() }; return (stdout, stderr, stdoutOverflow, stderrOverflow) }
+    private var stdout = Data(), stderr = Data(), overflow = false
+    func setStdout(_ value: (Data, Bool)) { lock.lock(); stdout = value.0; overflow = overflow || value.1; lock.unlock() }
+    func setStderr(_ value: (Data, Bool)) { lock.lock(); stderr = value.0; overflow = overflow || value.1; lock.unlock() }
+    func snapshot() -> (Data, Data, Bool) { lock.lock(); defer { lock.unlock() }; return (stdout, stderr, overflow) }
 }
 
 // Worker queues share this stream; the lock guards failure/stopped, and semaphores coordinate completion.
@@ -232,6 +316,7 @@ final class TrafficStream: @unchecked Sendable {
     private let process = Process()
     private let done = DispatchSemaphore(value: 0)
     private let stderrDone = DispatchSemaphore(value: 0)
+    private let exited = DispatchGroup()
     private let output = BoundedOutput()
     private let lock = NSLock()
     private var stopped = false
@@ -241,7 +326,11 @@ final class TrafficStream: @unchecked Sendable {
         process.arguments = ["--json", "traffic", "watch"]
         let stdout = Pipe(), stderr = Pipe()
         process.standardOutput = stdout; process.standardError = stderr
-        do { try process.run() } catch { throw CLIError.launch(error.localizedDescription) }
+        // A group retains a fast exit notification and supports repeated waits.
+        exited.enter()
+        process.terminationHandler = { [exited] _ in exited.leave() }
+        do { try process.run() }
+        catch { exited.leave(); throw CLIError.launch(error.localizedDescription) }
         stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
         DispatchQueue.global(qos: .utility).async { [self] in
             output.setStderr(Self.readStderr(stderr.fileHandleForReading))
@@ -271,7 +360,7 @@ final class TrafficStream: @unchecked Sendable {
                     stop(); break
                 }
             }
-            process.waitUntilExit()
+            exited.wait()
             stderrDone.wait()
             done.signal()
         }
