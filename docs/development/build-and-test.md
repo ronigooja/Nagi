@@ -66,7 +66,7 @@ The Tailscale implementation was checked against engine commit `e8555db99bb89111
 | `make test`, including installer integration | Passed |
 | Tailscale profile, CLI, menu, state-path, policy, helper and activation race checks | Passed |
 | Engine policy, provider, configuration, DNS, outbound and executor tests with `with_gvisor`; lifecycle race checks | Passed |
-| Isolated real-engine CLI validation and activation with SS, Hysteria2 and an inline provider | Passed; configuration only, no authenticated transit |
+| Isolated real-engine CLI validation and activation with SS, Hysteria2, inline and HTTP providers | Passed; refreshed HTTP provider nodes inherited the binding and unbind cleared it; no authenticated transit |
 | Linux root helper harness with real restricted engine, reload, restart and state retention | Passed; TUN disabled, no tailnet login |
 | CLI and engine Darwin AMD64/ARM64 builds | Passed |
 | Bash and Bash 3.2 completion execution | Passed |
