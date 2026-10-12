@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -165,5 +166,75 @@ func TestApplyDefaultOverridePreservesEnabledTUN(t *testing.T) {
 	}
 	if !cfg.TUN.Enable || cfg.TUN.Stack != "system" {
 		t.Fatalf("default settings disconnected active TUN: %+v", cfg.TUN)
+	}
+}
+
+func TestDefaultOverrideToggleRestoresPreviousState(t *testing.T) {
+	for _, previous := range []string{"", "mixed-port: 17901\n"} {
+		t.Run(fmt.Sprintf("previous-%t", previous != ""), func(t *testing.T) {
+			s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+			ctx := context.Background()
+			if err := s.Write(ctx, "default", []byte("mixed-port: 17890\n")); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Write(ctx, "work", []byte("mixed-port: 17900\n")); err != nil {
+				t.Fatal(err)
+			}
+			if previous != "" {
+				if err := s.SetOverride(ctx, "work", []byte(previous)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := s.ApplyDefaultOverride(ctx, "work"); err != nil {
+				t.Fatal(err)
+			}
+			if active, err := s.DefaultOverrideStatus("work"); err != nil || !active {
+				t.Fatalf("status = %t, %v", active, err)
+			}
+			if err := s.ApplyDefaultOverride(ctx, "work"); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.RestoreDefaultOverride(ctx, "work"); err != nil {
+				t.Fatal(err)
+			}
+			if active, err := s.DefaultOverrideStatus("work"); err != nil || active {
+				t.Fatalf("restored status = %t, %v", active, err)
+			}
+			got, err := s.Override("work")
+			if previous == "" {
+				if !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("override = %q, %v", got, err)
+				}
+			} else if err != nil || string(got) != previous {
+				t.Fatalf("override = %q, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestDefaultOverrideRestoreRejectsChangedOverride(t *testing.T) {
+	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+	ctx := context.Background()
+	if err := s.Write(ctx, "default", []byte("mixed-port: 17890\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Write(ctx, "work", []byte("mixed-port: 17900\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyDefaultOverride(ctx, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOverride(ctx, "work", []byte("mixed-port: 17902\n")); err != nil {
+		t.Fatal(err)
+	}
+	if active, err := s.DefaultOverrideStatus("work"); err != nil || active {
+		t.Fatalf("status = %t, %v", active, err)
+	}
+	if err := s.RestoreDefaultOverride(ctx, "work"); err == nil {
+		t.Fatal("restored a changed override")
+	}
+	got, err := s.Override("work")
+	if err != nil || string(got) != "mixed-port: 17902\n" {
+		t.Fatalf("override = %q, %v", got, err)
 	}
 }

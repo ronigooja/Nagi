@@ -26,7 +26,7 @@ Requested configuration, overrides, profile comparisons, recent logs, and child 
 
 The home page shows mihomo state and the selected profile. Failed reads show unknown/unavailable state without hiding controls.
 
-The [CLI reference page inventory](../reference/cli.md#terminal-menu) defines the eight home entries and their operation order. Common actions lead each page; deletion is last. Current Configuration, Backup & Restore, Local Overrides, DNS, routing rules, and login startup group their related operations in dedicated pages. Completion and cross-group search are available through ordinary commands only.
+The [CLI reference page inventory](../reference/cli.md#terminal-menu) defines the eight home entries and their operation order. Common actions lead each page; deletion is last. Current Configuration, Backup & Restore, Local Overrides, DNS, routing rules, and login startup group their related operations in dedicated pages. Profile Local Overrides includes a state-aware action that applies safe settings from the default profile and restores the previous override when selected again. Completion and cross-group search are available through ordinary commands only.
 
 The menu does not expose every command argument variant; custom latency URLs and timeouts remain available through ordinary commands. DNS checks inspect configuration and mihomo's API without claiming system-wide DNS leak verification.
 

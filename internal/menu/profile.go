@@ -2,6 +2,7 @@ package menu
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -13,6 +14,10 @@ type menuProfiles struct {
 	Profiles     []string `json:"profiles"`
 	Current      string   `json:"current"`
 	CurrentError string   `json:"current_error"`
+}
+
+type menuDefaultOverrideStatus struct {
+	Applied bool `json:"default_override_applied"`
 }
 
 type menuSubscription struct {
@@ -74,11 +79,29 @@ func profileListPage() *Page {
 
 func profileDetailPage(name string) *Page {
 	return &Page{Title: "Profile: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		defaultApplied := false
+		var status menuDefaultOverrideStatus
+		statusAvailable := decodeMenuResult(s.Fetch(ctx, "profile", "override", "default-status", name), &status) == nil
+		if statusAvailable {
+			defaultApplied = status.Applied
+		}
+		defaultItem := Item{
+			Label:    "Apply local default settings",
+			Selected: statusAvailable && defaultApplied,
+			Impact:   "Copies safe settings from the default profile; keeps nodes, groups, and rules",
+			Action: func(ctx context.Context, s *Session) error {
+				return toggleDefaultOverride(ctx, s, name)
+			},
+		}
+		if defaultApplied {
+			defaultItem.Label = "Disable local default settings"
+			defaultItem.Impact = "Restores the local override saved before applying defaults"
+		}
 		view := PageView{Actions: []Item{
 			{Label: "Use profile", Args: []string{"profile", "use", name}},
 			{Label: "Export source YAML", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "export", name) }},
 			submenu(actionPage("Backup & Restore", Item{Label: "Back up source YAML", Args: []string{"profile", "backup", name}}, Item{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Impact: "Replaces source YAML; reloads when selected and running"}, Item{Label: "Compare with backup or another profile", Action: func(ctx context.Context, s *Session) error { return diffProfile(ctx, s, name) }})),
-			submenu(actionPage("Local Overrides", Item{Label: "Show local override", Args: []string{"profile", "override", "show", name}}, Item{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }}, Item{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Restores source settings; reloads when selected and running"})),
+			submenu(actionPage("Local Overrides", defaultItem, Item{Label: "Show local override", Args: []string{"profile", "override", "show", name}}, Item{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }}, Item{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Restores source settings; reloads when selected and running"})),
 			{Label: "Remove profile", Navigate: removeResource("profile", name), Impact: "Deletes source YAML; backup and override remain"},
 		}}
 		var data menuProfiles
@@ -93,6 +116,26 @@ func profileDetailPage(name string) *Page {
 		}
 		return view, nil
 	}}
+}
+
+func toggleDefaultOverride(ctx context.Context, s *Session, name string) error {
+	var status menuDefaultOverrideStatus
+	if err := decodeMenuResult(s.Fetch(ctx, "profile", "override", "default-status", name), &status); err != nil {
+		return err
+	}
+	var result Result
+	if status.Applied {
+		result = s.Run(ctx, "profile", "override", "restore-default", name)
+	} else {
+		result = s.Run(ctx, "profile", "override", "apply-default", name)
+	}
+	if result.Code != 0 && result.Error != nil {
+		return errors.New(result.Error.Message)
+	}
+	if result.Code != 0 {
+		return fmt.Errorf("command exited with status %d", result.Code)
+	}
+	return nil
 }
 
 func validateMenuName(value string) error {

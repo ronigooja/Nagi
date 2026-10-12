@@ -58,6 +58,9 @@ enum EngineState { case starting, running, stopped, unavailable }
         static func applyDefaultOverride(for profile: String) -> [String] {
             ["profile", "override", "apply-default", profile]
         }
+        static func restoreDefaultOverride(for profile: String) -> [String] {
+            ["profile", "override", "restore-default", profile]
+        }
     }
 
     var onChange: (() -> Void)?
@@ -90,6 +93,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     private(set) var notice: String? { didSet { notify() } }
     private(set) var profile: String?
     private(set) var profiles: [String] = []
+    private(set) var defaultOverrideApplied: Bool?
     private(set) var groups: [ProxyGroup] = []
     private(set) var subscriptions: [Subscription] = []
     private(set) var providers: [ProxyProvider] = []
@@ -209,9 +213,20 @@ enum EngineState { case starting, running, stopped, unavailable }
             guard generation == settingsGeneration else { return }
             profiles = value["profiles"]?.array.compactMap { $0.string ?? $0["name"]?.string } ?? []
             profile = value["current"]?.string
+            if let profile, !profile.isEmpty {
+                do {
+                    let status = try await cli.run(["profile", "override", "default-status", profile])
+                    guard generation == settingsGeneration else { return }
+                    defaultOverrideApplied = status["default_override_applied"]?.bool
+                } catch {
+                    guard generation == settingsGeneration else { return }
+                    defaultOverrideApplied = nil
+                }
+            } else { defaultOverrideApplied = nil }
             if let problem = value["current_error"]?.string { errorMessage = "Profile selection unavailable: \(problem)" }
         } catch {
             guard generation == settingsGeneration else { return }
+            defaultOverrideApplied = nil
             errorMessage = error.localizedDescription
         }
     }
@@ -321,8 +336,10 @@ enum EngineState { case starting, running, stopped, unavailable }
                     case ("service", "uninstall"): serviceInstalled = false
                     case ("profile", "use"):
                         profile = result["current"]?.string
+                        await refreshProfiles()
                         await refreshRuntimeSettings()
                     case ("profile", "override"):
+                        await refreshProfiles()
                         await refreshRuntimeSettings()
                     default: await refreshMenuData()
                     }
@@ -397,7 +414,13 @@ enum EngineState { case starting, running, stopped, unavailable }
             errorMessage = "No current profile is selected."
             return
         }
-        perform(ProfileCommands.applyDefaultOverride(for: profile))
+        guard let defaultOverrideApplied else {
+            errorMessage = "Local default settings status is unavailable. Try again after refreshing."
+            return
+        }
+        perform(defaultOverrideApplied
+            ? ProfileCommands.restoreDefaultOverride(for: profile)
+            : ProfileCommands.applyDefaultOverride(for: profile))
     }
     func updateAndApplySubscription(_ name: String) {
         saveDownloadAndApplySubscription(name, url: nil)

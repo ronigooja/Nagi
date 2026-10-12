@@ -603,6 +603,12 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			return line(w, "Saved local override for profile "+name+".")
 		case v["override_cleared"] == true:
 			return line(w, "Cleared local override for profile "+name+".")
+		case v["default_override_restored"] == true:
+			return line(w, "Restored the previous local override for profile "+name+".")
+		case v["default_override_applied"] == true:
+			return line(w, "Local default settings are applied to profile "+name+".")
+		case v["default_override_applied"] == false:
+			return line(w, "Local default settings are not applied to profile "+name+".")
 		case v["changed"] != nil:
 			if v["changed"] == false {
 				return line(w, "No differences.")
