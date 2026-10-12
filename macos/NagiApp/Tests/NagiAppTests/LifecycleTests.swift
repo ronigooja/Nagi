@@ -147,7 +147,15 @@ extension LifecycleTests {
             printf '{"ok":true,"data":{"scheduled":true,"background":true}}\\n' ;;
           '--json status') printf '{"ok":true,"data":{"running":false}}\\n' ;;
           '--json profile list') printf '{"ok":true,"data":{"profiles":[]}}\\n' ;;
-          '--json subscription list') printf '{"ok":true,"data":{"subscriptions":[],"scheduler_running":false}}\\n' ;;
+          '--json subscription add feed '*)
+            touch '\(directory.appendingPathComponent("subscription-saved").path)'
+            printf '{"ok":true,"data":{}}\\n' ;;
+          '--json subscription list')
+            if [ -f '\(directory.appendingPathComponent("subscription-saved").path)' ]; then
+              printf '{"ok":true,"data":{"subscriptions":[{"name":"feed"}],"scheduler_running":false}}\\n'
+            else
+              printf '{"ok":true,"data":{"subscriptions":[],"scheduler_running":false}}\\n'
+            fi ;;
           '--json service status') printf '{"ok":true,"data":{"installed":false}}\\n' ;;
           *) printf '{"ok":true,"data":{}}\\n' ;;
         esac
@@ -214,8 +222,9 @@ extension LifecycleTests {
         let before = lines(log).filter { $0 == "--json subscription watch" }.count
         try? await Task.sleep(nanoseconds: 150_000_000)
         XCTAssertEqual(lines(log).filter { $0 == "--json subscription watch" }.count, before)
+        let ownedBeforeWake = lines(log).filter { $0 == "watch-owned" }.count
         model.resumeAfterWake()
-        await expectUntil { self.lines(log).filter { $0 == "--json subscription watch" }.count > before }
+        await expectUntil { self.lines(log).filter { $0 == "watch-owned" }.count > ownedBeforeWake }
         let succeeded = await withCheckedContinuation { continuation in model.quit { continuation.resume(returning: $0) } }
         XCTAssertTrue(succeeded)
         await expectUntil { self.lines(log).filter { $0 == "watch-stopped" }.count >= 2 }
@@ -226,7 +235,7 @@ extension LifecycleTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let model = AppModel(cli: NagiCLIClient(executable: cli), watchDelay: { _, _ in 40_000_000 })
         model.launch()
-        await expectUntil { self.lines(log).contains("--json subscription watch") }
+        await expectUntil { self.lines(log).contains("watch-owned") }
         try "fail".write(to: dir.appendingPathComponent("quitfail"), atomically: true, encoding: .utf8)
         let failed = await withCheckedContinuation { continuation in model.quit { continuation.resume(returning: $0) } }
         XCTAssertFalse(failed)
