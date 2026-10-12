@@ -19,6 +19,22 @@ import (
 	"github.com/ronigooja/Nagi/internal/privileged"
 )
 
+// snapshotControl is narrower than the controller authorization allowlist.
+// Measurement GETs can update automatic group selection and DNS queries change
+// resolver state; they retain the mutation lock. New endpoints default to serial.
+func snapshotControl(req privileged.Request) bool {
+	if req.Method != http.MethodGet || validateControl(req) != nil {
+		return false
+	}
+	u, _ := url.ParseRequestURI(req.Path)
+	switch u.Path {
+	case "/version", "/configs", "/proxies", "/providers/proxies", "/connections", "/rules", "/providers/rules", "/traffic":
+		return true
+	}
+	parts := strings.Split(u.Path, "/")
+	return len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" && u.RawQuery == ""
+}
+
 // controlRequest accepts only operations needed by the CLI. The root
 // controller socket is never returned to the client.
 func controlRequest(ctx context.Context, socket string, req privileged.Request) (privileged.Response, error) {

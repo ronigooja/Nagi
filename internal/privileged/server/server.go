@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,10 +30,14 @@ type Server struct {
 	Handler    Handler
 }
 
+const maxHelperConnections = 32
+
 // Serve accepts connections on a pre-created, fixed-session socket. The
 // caller must create this socket inside a root-controlled directory and set
-// its ownership before calling Serve. Requests are serialized so lifecycle
-// operations cannot race each other inside this helper.
+// its ownership before calling Serve. The handler owns operation serialization;
+// at most maxHelperConnections requests are served concurrently. Serve cancels
+// and drains all accepted connections before returning.
+
 func (s Server) Serve(ctx context.Context, listener *net.UnixListener) error {
 	if listener == nil {
 		return errors.New("nil helper listener")
@@ -44,26 +49,37 @@ func (s Server) Serve(ctx context.Context, listener *net.UnixListener) error {
 	if err := VerifySessionSocket(addr.Name, s.SessionUID); err != nil {
 		return err
 	}
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-ctx.Done():
-			listener.Close()
-		case <-done:
-		}
+	ctx, cancel := context.WithCancel(ctx)
+	stopListener := closeOnCancellation(ctx, func() { _ = listener.Close() })
+	var workers sync.WaitGroup
+	defer func() {
+		cancel()
+		_ = listener.Close()
+		stopListener()
+		workers.Wait()
 	}()
+	slots := make(chan struct{}, maxHelperConnections)
 	for {
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
+			return nil
+		}
 		conn, err := listener.AcceptUnix()
 		if err != nil {
+			<-slots
 			if ctx.Err() != nil {
 				return nil
 			}
 			return err
 		}
-		// An invalid request affects only its connection. The next client may
-		// still recover the session without restarting the root service.
-		_ = s.ServeConn(ctx, conn)
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			defer func() { <-slots }()
+			// An invalid request affects only its connection.
+			_ = s.ServeConn(ctx, conn)
+		}()
 	}
 }
 
@@ -71,6 +87,8 @@ func (s Server) Serve(ctx context.Context, listener *net.UnixListener) error {
 // in Policy is ignored: only the kernel-reported peer credential is trusted.
 func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 	defer conn.Close()
+	stop := closeOnCancellation(ctx, func() { _ = conn.Close() })
+	defer stop()
 	if s.SessionUID <= 0 || s.Handler == nil {
 		return errors.New("helper session is not configured")
 	}
@@ -170,4 +188,19 @@ func verifyOwned(path string, uid uint32, kind os.FileMode, perm os.FileMode) er
 		return fmt.Errorf("unsafe socket %s", path)
 	}
 	return nil
+}
+
+// closeOnCancellation unblocks socket reads and writes without requiring a
+// client deadline. The returned function also waits for its watcher to exit.
+func closeOnCancellation(ctx context.Context, closeSocket func()) func() {
+	done, exited := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(exited)
+		select {
+		case <-ctx.Done():
+			closeSocket()
+		case <-done:
+		}
+	}()
+	return func() { close(done); <-exited }
 }

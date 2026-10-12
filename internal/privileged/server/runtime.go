@@ -36,6 +36,7 @@ type RuntimeHandler struct {
 	done       chan error
 	snapshot   string
 	resources  []string
+	generation uint64
 	orphaned   bool
 	dnsError   error
 }
@@ -43,6 +44,22 @@ type RuntimeHandler struct {
 func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Request) (privileged.Response, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return privileged.Response{}, err
+	}
+	if req.Operation == privileged.Control && snapshotControl(req) {
+		if !h.status().Running {
+			return privileged.Response{}, errors.New("privileged mihomo is not running")
+		}
+		child, generation, socket := h.child, h.generation, h.controllerPath()
+		h.mu.Unlock()
+		response, err := controlRequest(ctx, socket, req)
+		h.mu.Lock()
+		if h.child != child || h.generation != generation || !h.status().Running {
+			return privileged.Response{}, errors.New("stale_controller_response: privileged engine changed during request")
+		}
+		return response, err
+	}
 	switch req.Operation {
 	case privileged.TUNDNSSync, privileged.TUNDNSRestore, privileged.TUNDNSStatus:
 		return h.handleDNS(ctx, req.Operation)
@@ -64,6 +81,16 @@ func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Reque
 		// The dedicated DNS status operation reports those failures separately.
 		return h.status(), nil
 	case privileged.Control:
+		if !(req.Method == "PUT" && req.Path == "/configs?force=true") {
+			if err := validateControl(req); err != nil {
+				return privileged.Response{}, err
+			}
+		}
+		// Configuration activation can replace every snapshot field; ordinary
+		// selection, measurement and cache operations retain the same engine.
+		if (req.Method == "PATCH" && req.Path == "/configs") || (req.Method == "PUT" && req.Path == "/configs?force=true") {
+			h.generation++
+		}
 		if h.child == nil {
 			return privileged.Response{}, errors.New("privileged mihomo is not running")
 		}
