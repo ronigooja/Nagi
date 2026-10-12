@@ -62,6 +62,8 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `proxy providers`, `proxy provider show NAME` | List or inspect proxy providers with redacted metadata and node names. |
 | `proxy provider add NAME URL GROUP [SECONDS]` | Save an HTTP provider in the selected profile's local override, attach it to a group, validate, and reload if running. |
 | `proxy provider update NAME`, `proxy provider healthcheck NAME` | Ask mihomo to update a proxy provider or start its native healthcheck. |
+| `proxy tailscale list`, `proxy tailscale show NAME`, `proxy tailscale targets` | Inspect selected-profile Tailscale nodes and binding targets without a running engine. |
+| `proxy tailscale add`, `edit`, `bind`, `unbind`, `remove` | Validate and save Tailscale nodes or front-proxy bindings, reloading only while running. See [Tailscale management](#tailscale-management). |
 | `proxy delay NODE [URL] [TIMEOUT_MS]` | Measure a proxy's HTTP request latency through mihomo. |
 | `proxy delays GROUP [URL] [TIMEOUT_MS]` | Test all nodes in a group and sort successful measurements by latency. |
 | `proxy restore` | Replay saved choices for the selected profile where the group and node still exist; report missing choices. |
@@ -93,7 +95,7 @@ The optional `Subscription-Userinfo` response header supplies `upload`, `downloa
 | Number | Entry | Contents |
 | --- | --- | --- |
 | 1 | Start / Stop | Start, stop, restart, full status, quit Nagi for this login session (stops the login monitor and mihomo). |
-| 2 | Select Node | Proxy groups and current nodes; select a group, then a node. Node/group latency tests, saved-selection restore, and proxy providers follow the relevant lists. |
+| 2 | Select Node | Proxy groups and current nodes; select a group, then a node. Node/group latency tests, saved-selection restore, proxy providers, and offline Tailscale management follow the relevant lists. |
 | 3 | Subscriptions | Subscription list and Add and Apply subscription; details offer Update and Apply, Automatic Updates, Encryption Settings, and removal. |
 | 4 | Profiles | Profile list and Import; details offer Use profile, export, Backup & Restore, Local Overrides (including applying or restoring local default settings), and removal. |
 | 5 | Proxy Mode | For this session or Save for future starts; each offers Rule (routing rules), Global (GLOBAL group), and Direct (without a proxy). |
@@ -197,6 +199,34 @@ Nagi merges the provider into `config/overrides/PROFILE.yaml` and stores the ful
 
 The command takes the configuration lock and uses the existing activation transaction. Mihomo validates the effective configuration before activation. A running engine is reloaded; a stopped engine stays stopped. On validation or reload failure, Nagi restores disk settings and attempts confirmed runtime recovery when the activation changed; uncertain runtime recovery is reported. Operational failures exit `1` with `proxy_provider_error`. Success omits the subscription URL and reports the affected profile and group; `group_created` identifies a new group. See the [provider guide](../guides/proxy-providers.md) for menu and CLI steps.
 
+### Tailscale management
+
+These commands manage top-level Tailscale nodes in the selected effective profile. They do not rename nodes, enable TUN, install the helper, or select a backend. `list`, `show`, and `targets` read local configuration without contacting mihomo.
+
+```text
+proxy tailscale list
+proxy tailscale show NAME
+proxy tailscale targets
+proxy tailscale add NAME EXIT_NODE KEY_FILE [--hostname HOSTNAME] [--control-url URL]
+proxy tailscale edit NAME [--exit-node VALUE] [--hostname HOSTNAME]
+                         [--control-url URL] [--auth-key-file FILE]
+proxy tailscale bind NAME node|provider TARGET
+proxy tailscale unbind node|provider TARGET
+proxy tailscale remove NAME
+```
+
+`NAME` is a printable proxy name of 1 through 128 bytes without surrounding whitespace. Names must not conflict with existing nodes, groups, providers, or reserved mihomo names. Quote names containing spaces. `EXIT_NODE` specifies mihomo's exit-node value; exit and hostname values must be nonempty printable text of at most 253 bytes. `edit` requires at least one option; duplicate or unknown options are rejected. The default control service is `https://controlplane.tailscale.com`; an optional control URL must use HTTPS without user information, query parameters, or a fragment. An empty control URL selects the official service. Auth Keys are read from a nonempty regular file of at most 16,384 bytes containing one printable key (surrounding whitespace is trimmed), required on add; omitting `--auth-key-file` on edit keeps the saved key. Ordinary output never includes the key or input file path. Raw override/configuration output remains sensitive.
+
+Node binding writes `dialer-proxy`. Provider binding writes `override.dialer-proxy` for **all nodes**, including future refreshes, without changing the download proxy. Eligible protocol types are `ss`, `ssr`, `vmess`, `vless`, `trojan`, `http`, `socks5`, `snell`, `hysteria`, `hysteria2`, `tuic`, `wireguard`, `anytls`, `ssh`, `mieru`, `gost-relay`, `sudoku`, `masque`, `trusttunnel`, and `openvpn`. Engine build support and the selected backend's restricted policy still determine which configurations validate. Special outbounds, Tailscale nodes, and groups are excluded as node targets. Self-reference and cycles are refused. An existing non-Tailscale front proxy cannot be replaced by bind; existing Tailscale bindings may be reassigned. Unbind writes an explicit empty value to suppress an inherited source binding.
+
+Remove refuses node/provider references to a Tailscale node and directs users to unbind first. Nagi also refuses known provider payload and DNS references, including `ts://` and `tailscale://` transports and DNS proxy suffixes; mihomo validation protects rules and groups. Node mutations save a full `proxies` snapshot in the existing local override, so later source changes do not replace that list. Explicit `subscription apply` clears the override, including these nodes and bindings. Provider refresh retains the provider override.
+
+Mutations use `config.lock`, effective configuration validation, activation IDs, and the existing rollback transaction. A matching mihomo binary is needed even while stopped. Stopped engines remain stopped; running engines reload. `saved` or `reloaded` records configuration work, not login or path success. Reload may interrupt Tailscale connections. Runtime recovery uncertainty after timeouts is reported explicitly.
+
+JSON success uses the standard envelope. `list` returns `profile` and `nodes`; `show` returns `profile`, `node`, and `bindings`; `targets` returns `profile` and `targets`. A node contains `name`, `exit_node`, `hostname`, `control_url`, and `auth_key_configured`. Bindings contain `kind`, `name`, and `dialer_proxy`; targets additionally contain `type`. Mutations contain `profile`, `action`, `saved`, `reloaded`, and relevant `name`, `kind`, or `target`. Kind is `node` or `provider`. Usage errors exit `2`; operational errors exit `1` with `proxy_tailscale_error`.
+
+See the [Tailscale guide](../guides/tailscale.md) for menu steps and backend identity behavior, and the [runtime design](../design/runtime.md#tailscale-configuration-and-identity) for state ownership.
+
 ### Latency and selections
 
 `proxy delay NODE [URL] [TIMEOUT_MS]` defaults to `https://www.gstatic.com/generate_204` and `5000` milliseconds. Supply a URL before a custom timeout. The URL must be absolute HTTP or HTTPS without user information; the timeout must be an integer from `1` through `30000`. Invalid arguments fail before contacting the engine. The CLI allows up to 31 seconds for the control request, so the maximum measurement timeout is not cut short by the ordinary ten-second API timeout. `NODE` is a mihomo proxy name, including built-ins such as `DIRECT`; names with spaces must be quoted. The pinned mihomo implementation sends an HTTP HEAD request and records the latency in the proxy's delay history. This measures request latency, not bandwidth.
@@ -272,7 +302,7 @@ To inspect mihomo's own diagnostics locally, use `mihomo -t -f FILE -d DIRECTORY
 
 ## JSON and exit codes
 
-JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `scheduler_already_running`, `not_running`, `lifecycle_busy`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `proxy_provider_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `mihomo_api_error`, `response_too_large`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
+JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `scheduler_already_running`, `not_running`, `lifecycle_busy`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `proxy_provider_error`, `proxy_tailscale_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `mihomo_api_error`, `response_too_large`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. URL-shaped text in errors is replaced with `[redacted URL]` before text or JSON output.
 
 Additional success payloads are defined below; all appear in `data`:
 

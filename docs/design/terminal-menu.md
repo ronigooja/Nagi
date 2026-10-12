@@ -58,6 +58,14 @@ The provider list always offers Add provider, including when empty or unreadable
 
 Details, latency tests, restoring saved choices, and returning an automatic group to automatic selection are fixed actions. Ordinary nodes and latency-ranked nodes all switch with the same numeric action. A group page retains its last measurements and ordering across selections and refreshes, pruning records for nodes absent from the refreshed group. Automatic groups show fixed or automatic state. Latency actions disclose possible release of a fixed choice and preserve underlying errors about partial completion or unknown state.
 
+### Tailscale flow
+
+Select Node includes a Tailscale entry whose list and details read selected-profile configuration through `proxy tailscale`, even while the engine is stopped. Details expose exit, hostname, control service, key presence, and node/provider bindings without key material. Add and edit forms submit CLI operations, retain values after failures, and require explicit resubmission. Edit omits an empty key-file prompt to preserve the existing key.
+
+Bind loads eligible local node/provider targets; provider entries disclose that all nodes, including refreshed additions, are affected. Unbind selects an existing binding. Delete dispatches once and returns to the list only after success; CLI validation owns reference protection. Forms and selectors use the ordinary numeric pagination and cancellation rules. Read failures clear stale choices while keeping applicable recovery/add actions accessible.
+
+Pages disclose full node-list override snapshots and explicit subscription apply clearing them. Saved/reloaded feedback does not claim Tailscale login or connectivity. The macOS App menu is unchanged. See the [CLI contract](../reference/cli.md#tailscale-management) and [user guide](../guides/tailscale.md).
+
 ## Subscription and profile flows
 
 Add and Apply subscription saves the record, downloads its cache, and applies it through the existing commands in that order, then opens its detail page. Update and Apply downloads and then applies an existing subscription. A failed download prevents apply; a newly saved record remains available in the detail page. A failed apply keeps the new cache. Creation forms retry only the add stage; later failures never resubmit add. Encrypted feeds can be retried by setting an identity file in Encryption Settings and choosing Update and Apply.

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
@@ -87,6 +88,7 @@ type fileImage struct {
 type runningImage struct {
 	ActivationID string `json:"activation_id"`
 	Effective    []byte `json:"effective"`
+	Profile      string `json:"profile,omitempty"`
 }
 
 func runningImagePath(dir string) string { return filepath.Join(dir, ".running-effective.json") }
@@ -106,7 +108,8 @@ func recordRunningImageBytes(dir string, client *control.Client, data []byte) er
 	if err != nil {
 		return err
 	}
-	encoded, err := json.Marshal(runningImage{ActivationID: id, Effective: data})
+	selected, _ := profile.NewStore(dir, nil, nil).Current()
+	encoded, err := json.Marshal(runningImage{ActivationID: id, Effective: data, Profile: selected})
 	if err != nil {
 		return err
 	}
@@ -217,10 +220,16 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 	beforeID, beforeCfg, activeErr := configID(ctx, client)
 	var oldEffective []byte
 	var oldErr error
+	// Keep the original profile identity across recovery. The helper uses the
+	// normalized basename to allocate persistent Tailscale state.
+	previousProfile, _ := profile.NewStore(paths.ConfigDir, nil, nil).Current()
 	if activeErr == nil {
 		var previous runningImage
 		if saved, e := os.ReadFile(runningImagePath(paths.ConfigDir)); e == nil && json.Unmarshal(saved, &previous) == nil && previous.ActivationID == beforeID && len(previous.Effective) > 0 {
 			oldEffective = previous.Effective
+			if previous.Profile != "" && len(previous.Profile) <= 128 && strings.Trim(previous.Profile, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") == "" {
+				previousProfile = previous.Profile
+			}
 		}
 		store := profile.NewStore(paths.ConfigDir, nil, nil)
 		var name string
@@ -312,8 +321,14 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 	defer os.Remove(file.Name())
 	_, e = file.Write(oldEffective)
 	e = errors.Join(e, file.Close())
+	recoveryPath := file.Name()
+	if e == nil && previousProfile != "" {
+		recoveryPath = filepath.Join(paths.ConfigDir, "profiles", ".restore-"+previousProfile+".yaml")
+		e = os.Rename(file.Name(), recoveryPath)
+		defer os.Remove(recoveryPath)
+	}
 	if e == nil {
-		e = activateConfig(recoveryCtx, client, file.Name())
+		e = activateConfig(recoveryCtx, client, recoveryPath)
 	}
 	if e != nil {
 		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration failed; current state is uncertain: %w", e))

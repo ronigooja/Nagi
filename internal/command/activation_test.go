@@ -538,10 +538,17 @@ func TestSettledApplyFailureConfirmsRuntimeRestoration(t *testing.T) {
 		if r.Method == "PUT" {
 			var request struct {
 				ActivationID string `json:"activation_id"`
+				Path         string `json:"path"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 				t.Errorf("decode PUT: %v", err)
 				return
+			}
+			if filepath.Base(request.Path) != ".restore-default.yaml" {
+				t.Errorf("rollback lost stable profile identity: %s", request.Path)
+			}
+			if content, readErr := os.ReadFile(request.Path); readErr != nil || string(content) != string(old) {
+				t.Errorf("rollback content: %q, %v", content, readErr)
 			}
 			rollbackID = request.ActivationID
 			activeID = rollbackID
