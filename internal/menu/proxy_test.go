@@ -178,7 +178,7 @@ func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
 			if code := RunPage(context.Background(), NewSession(runner, strings.NewReader("0\n"), &out), ProxyPage()); code != 0 {
 				t.Fatalf("exit=%d", code)
 			}
-			for _, want := range []string{tc.state, tc.hint, "Restore saved selections", "Proxy Providers", "3. Start / Stop"} {
+			for _, want := range []string{tc.state, tc.hint, "Restore saved selections", "Proxy Providers", "4. Start / Stop"} {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("missing %q: %s", want, out.String())
 				}
@@ -215,7 +215,7 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 		"proxy select World Select Node A": {{Data: map[string]any{"group": "World Select", "node": "Node A"}}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("3\n1\n0\n1\n1\n0\n0\n"), &out), ProxyPage())
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("4\n1\n0\n1\n1\n0\n0\n"), &out), ProxyPage())
 	for _, want := range [][]string{{"start"}, {"proxy", "select", "World Select", "Node A"}} {
 		count := 0
 		for _, call := range runner.calls {
@@ -235,7 +235,7 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 func TestProxyGroupsSuccessfulReadDoesNotQueryRuntime(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{"proxy\x00groups": {Data: map[string]any{"groups": []any{}}}}}
 	view, err := ProxyPage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
-	if err != nil || len(view.Actions) != 2 || !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}}) {
+	if err != nil || len(view.Actions) != 3 || !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}}) {
 		t.Fatalf("view=%#v err=%v calls=%v", view, err, runner.calls)
 	}
 }

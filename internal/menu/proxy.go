@@ -44,6 +44,7 @@ func proxyGroupsPage() *Page {
 		view := PageView{Context: "Select a group, then a node to switch.", Empty: "No proxy groups. Check the profile in Profiles.", Actions: []Item{
 			{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
 			{Label: "Proxy Providers", Next: func() *Page { return providerListPage() }},
+			{Label: "Tailscale", Next: tailscaleListPage},
 		}}
 		var data struct {
 			Groups []menuProxyGroup `json:"groups"`
