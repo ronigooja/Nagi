@@ -74,9 +74,17 @@ leave the App available; later failures are recorded in the per-user update log.
 
 Use `nagi app uninstall` to remove only the App, or `nagi uninstall` to stop Nagi
 and remove its managed CLI, mihomo, App, login service, and privileged helper.
-Both preserve user profiles, subscriptions, settings, and logs. Before removing
-the App, disable **Open menu bar app at login** and quit it. Removal does not
-download a release.
+Both preserve user profiles, subscriptions, settings, and logs by default. Add
+`--purge-data` to `nagi uninstall` to also remove Nagi's per-user configuration,
+data, state, runtime, and cache directories. On macOS this removes
+`~/Library/Application Support/Nagi` and `~/Library/Caches/Nagi`. On Linux it
+removes the Nagi directories under `XDG_CONFIG_HOME`, `XDG_DATA_HOME`,
+`XDG_STATE_HOME`, `XDG_RUNTIME_DIR` (when set), and `XDG_CACHE_HOME`, using the
+standard home-directory defaults when a variable is unset or is not a safe
+absolute directory.
+Review those directories before purging; removal cannot be undone. Before
+removing the App, disable **Open menu bar app at login** and quit it. Removal
+does not download a release.
 
 Run maintenance as the intended user, not with `sudo`; the installer requests
 administrator authorization for protected files and the macOS helper. Terminal
@@ -105,6 +113,7 @@ make build cli
 ./scripts/installer.sh install
 ./scripts/installer.sh update
 ./scripts/installer.sh uninstall
+./scripts/installer.sh uninstall --purge-data
 ```
 
 The installer uses existing artifacts and never compiles anything. Build the CLI and macOS App explicitly before installing or updating. As a development example, `./scripts/sync_to_mac.sh` copies source files to a configured remote checkout and leaves remote `.git`, `bin/`, `dist/`, and build caches intact. Set the destination in your local shell, or save it in the ignored `.nagi-sync.local` file at the repository root, then run the script:
@@ -122,10 +131,11 @@ It replaces remote source files, including local edits, and removes remote sourc
 | `--artifact-dir DIR` | Directory containing executable `nagi` and `mihomo`, plus optional `Nagi.app`. Defaults to the repository `bin/` directory. |
 | `--prefix DIR` | Directory prefix for installed CLI binaries; defaults to `/usr/local`, giving `/usr/local/bin/nagi` and `/usr/local/bin/mihomo`. Use the same prefix for later updates and removal. |
 | `--app-dest PATH` | Override the macOS App destination (default `/Applications/Nagi.app`). The installer installs an App whenever the artifact directory includes `Nagi.app` and remembers its destination for updates and removal. |
+| `--purge-data` | With `uninstall` only, remove the invoking user's Nagi configuration, data, state, runtime, and cache directories after removing the managed installation. |
 
 The macOS app invokes `/usr/local/bin/nagi` directly. Keep the default prefix when installing the app; an alternate prefix does not change the path compiled into the app. Install the app in Applications before enabling “Open menu bar app at login.” `--app-dest` cannot enable App installation without a `Nagi.app` in the artifact directory. On update, an installation that includes the App requires an updated App in the artifact directory. A CLI-only installation gains the App when the update artifact contains it and the destination is free.
 
-The installer record at `<prefix>/share/nagi/install-state` identifies managed files. New records contain only a version marker and the App path. Existing v3 records are accepted for update or removal; a successful update writes the smaller v4 record. Content changes at recorded paths do not block update, removal, or App-only operations. An absent or invalid installation record and symbolic links at managed paths are refused. The installer stages replacements and attempts to restore the previous files if an operation fails. A failed operation restores the previous default profile; after a successful operation, the temporary rollback copy is deleted. Other user profiles, subscriptions, settings, and logs are preserved. Uninstall preserves the installed default profile along with other user data; it does not remove user login service definitions. Updating and uninstalling require removing any installed login service first. On macOS with `/usr/local`, the installer manages the privileged helper using `sudo`; run it as the intended user, not as root. Stop mihomo before update or uninstall. Uninstall leaves the user backend selected. If the helper was present before an update, its backend selection is restored; if it was absent, the update installs and selects it. TUN itself remains a runtime setting and must be enabled again after mihomo restarts. On macOS, disable the App login item before uninstalling the App. A privileged helper requires a root-owned, non-symlink `/usr/local/bin/nagi` and root-controlled parent directories. The installer does not change parent-directory ownership or permissions; check them before installation, especially on machines where `/usr/local` is user-writable.
+The installer record at `<prefix>/share/nagi/install-state` identifies managed files. New records contain only a version marker and the App path. Existing v3 records are accepted for update or removal; a successful update writes the smaller v4 record. Content changes at recorded paths do not block update, removal, or App-only operations. An absent or invalid installation record and symbolic links at managed paths are refused. The installer stages replacements and attempts to restore the previous files if an operation fails. A failed operation restores the previous default profile; after a successful operation, the temporary rollback copy is deleted. Other user profiles, subscriptions, settings, and logs are preserved unless whole uninstall uses `--purge-data`; this option removes the user's Nagi configuration, data, state, runtime, and cache directories after the managed installation transaction commits. A purge failure is reported as partial completion after the managed installation has been removed; some user data may remain, and the CLI does not attempt to restore the removed login service. Uninstall does not remove user login service definitions. Updating and uninstalling require removing any installed login service first. On macOS with `/usr/local`, the installer manages the privileged helper using `sudo`; run it as the intended user, not as root. Stop mihomo before update or uninstall. Uninstall leaves the user backend selected. If the helper was present before an update, its backend selection is restored; if it was absent, the update installs and selects it. TUN itself remains a runtime setting and must be enabled again after mihomo restarts. On macOS, disable the App login item before uninstalling the App. A privileged helper requires a root-owned, non-symlink `/usr/local/bin/nagi` and root-controlled parent directories. The installer does not change parent-directory ownership or permissions; check them before installation, especially on machines where `/usr/local` is user-writable.
 
 The online wrapper requires Bash, `curl`, `tar`, and `shasum`. It expects each GitHub
 Release to contain `nagi-linux-amd64.tar.gz`, `nagi-linux-arm64.tar.gz`,

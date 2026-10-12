@@ -298,6 +298,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		case "app-uninstall":
 			return line(w, "Removed Nagi.app. The CLI and user data are preserved.")
 		case "uninstall":
+			if v["user_data_removed"] == true {
+				return line(w, "Removed Nagi and its user data.")
+			}
 			return line(w, "Removed Nagi. User profiles, subscriptions, settings, and logs are preserved.")
 		case "update":
 			return line(w, "Updated Nagi CLI, mihomo, and any installed App. The default profile was refreshed.")

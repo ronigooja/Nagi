@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'USAGE'
-Usage: scripts/installer.sh install|update|uninstall|app-install|app-uninstall [--artifact-dir DIR] [--prefix DIR] [--app-dest DIR]
+Usage: scripts/installer.sh install|update|uninstall|app-install|app-uninstall [--artifact-dir DIR] [--prefix DIR] [--app-dest DIR] [--purge-data]
   install/update use bin/ beside this script by default, containing nagi and mihomo;
   on macOS it may also contain Nagi.app. The default prefix is /usr/local.
   App installation requires --prefix /usr/local; its default destination is
@@ -13,9 +13,11 @@ Usage: scripts/installer.sh install|update|uninstall|app-install|app-uninstall [
   update reinstalls it and preserves any existing backend selection. Uninstall
   removes it. No network access is performed.
   app-install/app-uninstall change only the App and its installation record.
+  uninstall preserves user data unless --purge-data is specified.
 USAGE
 }
 fail() { printf 'nagi installer: %s\n' "$*" >&2; exit 1; }
+purge_fail() { printf 'NAGI_PURGE_DATA_INCOMPLETE: %s\n' "$*" >&2; exit 3; }
 [[ $# -gt 0 ]] || { usage >&2; exit 2; }
 action=$1
 shift
@@ -33,6 +35,7 @@ prefix=/usr/local
 app_dest=/Applications/Nagi.app
 app_dest_given=0
 verify_only=0
+purge_data=0
 while (( $# )); do
     case "$1" in
         --artifact-dir|--prefix|--app-dest)
@@ -44,12 +47,24 @@ while (( $# )); do
             esac
             shift 2 ;;
         --verify) verify_only=1; shift ;;
+        --purge-data) purge_data=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) fail "unknown option: $1" ;;
     esac
 done
+if (( purge_data )) && [[ "$action" != uninstall || -n "$app_only" || verify_only -eq 1 ]]; then
+    fail "--purge-data is valid only for a whole uninstall"
+fi
 valid_path() {
     [[ "$1" == /* && "$1" != / && "$1" != */../* && "$1" != */./* && "$1" != */.. && "$1" != */. && "$1" != *$'\n'* && "$1" != *$'\r'* ]]
+}
+xdg_home() {
+    local value=$1 fallback=$2
+    if valid_path "$value" && [[ "$value" != "$HOME" ]]; then
+        printf '%s\n' "$value"
+    else
+        printf '%s\n' "$fallback"
+    fi
 }
 valid_path "$prefix" || fail "--prefix must be an absolute, normalized directory"
 prefix=${prefix%/}
@@ -71,12 +86,22 @@ if [[ -n "$app_only" ]]; then
 fi
 if (( manage_helper && EUID == 0 )); then fail "run as the intended macOS user, not root; the installer uses sudo for the helper"; fi
 if [[ "$platform" == Darwin ]]; then
+    user_data_targets=("$HOME/Library/Application Support/Nagi")
+    user_cache="$HOME/Library/Caches/Nagi"
     profile_dir=$HOME/Library/Application\ Support/Nagi/config/profiles
 else
-    config_home=${XDG_CONFIG_HOME:-$HOME/.config}
-    [[ "$config_home" == /* ]] || config_home=$HOME/.config
+    config_home=$(xdg_home "${XDG_CONFIG_HOME:-}" "$HOME/.config")
+    data_home=$(xdg_home "${XDG_DATA_HOME:-}" "$HOME/.local/share")
+    user_state_home=$(xdg_home "${XDG_STATE_HOME:-}" "$HOME/.local/state")
+    cache_home=$(xdg_home "${XDG_CACHE_HOME:-}" "$HOME/.cache")
+    user_data_targets=("$config_home/nagi" "$data_home/nagi" "$user_state_home/nagi")
+    if valid_path "${XDG_RUNTIME_DIR:-}" && [[ "$XDG_RUNTIME_DIR" != "$HOME" ]]; then
+        user_data_targets+=("$XDG_RUNTIME_DIR/nagi")
+    fi
+    user_cache="$cache_home/Nagi"
     profile_dir=$config_home/nagi/profiles
 fi
+user_data_targets+=("$user_cache")
 default_profile=$profile_dir/default.yaml
 source_app=
 if [[ "$action" != uninstall ]]; then
@@ -420,4 +445,10 @@ if [[ "$action" != uninstall ]]; then
     fi
 fi
 committed=1
+if (( purge_data )); then
+    for data_path in "${user_data_targets[@]}"; do
+        [[ "$data_path" != / && "$data_path" != "$HOME" ]] || purge_fail "refusing unsafe user data path: $data_path"
+        rm -rf -- "$data_path" || purge_fail "could not remove user data at $data_path"
+    done
+fi
 printf 'Nagi %s complete at %s\n' "$action" "$prefix"

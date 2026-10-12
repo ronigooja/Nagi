@@ -233,11 +233,14 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return nil, fail("installation_error", err)
 		}
 		action, tag := command, ""
+		purgeData := false
 		if command == "app" {
 			action = "app-" + args[1]
 			if len(args) == 3 {
 				tag = args[2]
 			}
+		} else if command == "uninstall" && len(args) == 2 {
+			purgeData = true
 		} else if len(args) == 2 {
 			if args[1] == "--terminal" {
 				action = "terminal-update"
@@ -247,7 +250,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				tag = args[1]
 			}
 		}
-		result, err := manager.Manage(ctx, action, tag)
+		result, err := manager.Manage(ctx, action, tag, purgeData)
 		if err != nil {
 			return nil, fail("installation_error", err)
 		}

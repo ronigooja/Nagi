@@ -79,7 +79,7 @@ func AppPage() *Page {
 		Item{Label: "Install menu bar App", Args: []string{"app", "install"}, Impact: "Installs only the App matching this CLI release; may require administrator authorization"},
 		Item{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates CLI, mihomo, and any installed App; quit the App first; refreshes the default profile"},
 		Item{Label: "Uninstall menu bar App", Args: []string{"app", "uninstall"}, Impact: "Removes only the App; quit it and disable its login item first"},
-		Item{Label: "Uninstall Nagi", Args: []string{"uninstall"}, Impact: "Stops Nagi and removes managed executables, App, and services; preserves user data"},
+		Item{Label: "Uninstall Nagi", Args: []string{"uninstall"}, Impact: "Stops Nagi and removes managed executables, App, and services; preserves user data (use the CLI --purge-data option to remove it)"},
 	)
 }
 

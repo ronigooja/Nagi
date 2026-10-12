@@ -387,7 +387,7 @@ require a valid active profile merely to display help or manage the App.
 | `update [TAG]` | Download latest by default, or the specified release. Verify the platform archive checksum, installation record, paths, and candidate executables, stop Nagi, temporarily remove its engine login service, and update the CLI, mihomo, and any recorded App. Modified recorded files are replaced. Refresh the built-in default profile. Restore engine login service installation/enabled preferences and restart an engine that was running before preparation. A CLI-only installation remains CLI-only. |
 | `update --terminal` | macOS only; requires a recorded App. Open Terminal and schedule `nagi update` after the App exits; reopen its recorded path after success. Wait at most 60 seconds for App exit. Returns after launching Terminal; the caller must quit the App. No tag argument can accompany this option. |
 | `update --app` | macOS only; requires a recorded App. Schedule `nagi update` in the background after the App exits, then reopen its recorded path after success. Returns before installation completes; the App uses this mode for About → Update. No tag argument can accompany this option. |
-| `uninstall` | Stop Nagi and remove its engine login service, recorded CLI, mihomo, App, privileged helper, and installation record, even when recorded files have changed. Preserve user profiles, subscriptions, settings, and logs. No download. |
+| `uninstall [--purge-data]` | Stop Nagi and remove its engine login service, recorded CLI, mihomo, App, privileged helper, and installation record, even when recorded files have changed. By default preserve user profiles, subscriptions, settings, and logs. `--purge-data` also removes Nagi's per-user configuration, data, state, runtime, and cache directories. No download. |
 
 TAG accepts `vX.Y.Z` or `X.Y.Z`, with an optional alphanumeric/dot/hyphen release
 suffix introduced by `-` or `+`. Invalid arguments exit `2` with `usage`.
@@ -411,7 +411,8 @@ Success exits `0` and uses the standard JSON envelope. `app status` returns
 `app-uninstall`), `completed: true`, and `app` (destination/removed path or empty
 string for an absent App). Whole updates return `action: "update"`,
 `completed: true`, and `engine_restarted` (boolean). Whole removal returns
-`action: "uninstall"` and `completed: true`. Background scheduling returns
+`action: "uninstall"`, `completed: true`, and `user_data_removed` (boolean).
+Background scheduling returns
 `action: "update"`, `scheduled: true`, and `background: true`.
 
 Operational failures exit `1` with `installation_error`, including unsupported
@@ -422,7 +423,10 @@ before stopping Nagi. After preparation, a failed transaction leaves the engine
 stopped and attempts to restore engine login preferences; errors include the
 installer's rollback details and any restoration failure. A successful file
 update followed by a service/restart failure is reported as partial completion
-with a recovery command. See the [installation workflow](../development/install.md#installed-cli-maintenance)
+with a recovery command. If user data cleanup fails after `uninstall --purge-data`
+has removed the managed installation, the error states that Nagi was removed,
+some user data may remain, and login service restoration was skipped. See the
+[installation workflow](../development/install.md#installed-cli-maintenance)
 and [maintenance design](../design/installation.md) for recovery and runtime
 setting implications.
 

@@ -69,10 +69,15 @@ the existing file/helper transaction.
 
 After a whole update succeeds, the CLI restores login service installed/enabled
 preferences and starts an engine that was running before preparation. A whole
-uninstall succeeds without restoring services. User data is retained; updates
-refresh the default profile as in the artifact workflow. OS proxy/DNS restore
-journals are processed by existing stop behavior. Temporary runtime settings
-are not replayed automatically.
+uninstall succeeds without restoring services. User data is retained by
+default; `uninstall --purge-data` asks the installer to remove the invoking
+user's configuration, data, state, runtime, and cache directories after the
+managed installation transaction commits. A purge failure is reported after
+the installation files have already been removed, with an explicit message that
+some user data may remain; the CLI does not attempt to reinstall the removed
+login service. Updates refresh the default profile as in the artifact
+workflow. OS proxy/DNS restore journals are processed by existing stop
+behavior. Temporary runtime settings are not replayed automatically.
 
 If installation fails after preparation, the installer reports its attempted
 rollback and retains backups when rollback is incomplete. The CLI attempts to

@@ -25,7 +25,7 @@ var commandSpecs = []commandSpec{
 	{"app update", "app update [TAG]", "Update Nagi including the installed App", "Alias of update for an installation that includes the App. Downloads the latest release unless TAG is supplied. Quit the App first.", "nagi app update", "", 0, 1},
 	{"app uninstall", "app uninstall", "Remove only the menu bar App", "Quit the App and disable its login item first. Preserves the CLI, mihomo, profiles, and engine service. Administrator authorization may be required.", "nagi app uninstall", "", 0, 0},
 	{"update", "update [TAG|--terminal|--app]", "Update the installed Nagi release", "Verifies the release before stopping Nagi. Updates CLI, mihomo, and an already installed App, refreshes the default profile, and restores login service preferences. Restarts a previously running engine. TAG defaults to latest. On macOS, --terminal opens Terminal; --app schedules the update in the background for the menu App. Administrator authorization may be required.", "nagi update", "", 0, 1},
-	{"uninstall", "uninstall", "Remove the installed Nagi release", "Stops Nagi, removes its login service and managed CLI, mihomo, privileged helper, and App. Preserves user data. Quit the App and disable its login item first. Administrator authorization may be required.", "nagi uninstall", "", 0, 0},
+	{"uninstall", "uninstall [--purge-data]", "Remove the installed Nagi release", "Stops Nagi and removes its login service and managed CLI, mihomo, privileged helper, and App. User data is preserved unless --purge-data is supplied. Quit the App and disable its login item first. Administrator authorization may be required.", "nagi uninstall", "", 0, 1},
 	{"menu", "menu", "Open the interactive terminal menu", "Browse and run common commands using a line-oriented menu. Requires terminal input and output; use ordinary commands or --json for automation.", "nagi menu", "", 0, 0},
 	{"start", "start", "Start mihomo", "Starts mihomo with the selected profile; creates the default profile if needed.", "nagi start", "", 0, 0},
 	{"stop", "stop", "Stop mihomo", "Records an explicit stop so the login monitor leaves mihomo stopped; restores system proxy settings managed by Nagi.", "nagi stop", "", 0, 0},
@@ -239,6 +239,9 @@ func validateInvocation(args []string) error {
 	}
 	if n > spec.maxArgs {
 		return syntaxError("too many arguments", spec)
+	}
+	if spec.path == "uninstall" && n == 1 && args[consumed] != "--purge-data" {
+		return syntaxError("expected --purge-data", spec)
 	}
 	if spec.path == "profile override apply-default" && n != 1 && (n != 3 || args[consumed+1] != "--dns-proxy" || strings.TrimSpace(args[consumed+2]) == "") {
 		return syntaxError("expected --dns-proxy GROUP", spec)

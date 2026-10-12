@@ -77,7 +77,11 @@ func (m *Manager) record() (record, error) {
 }
 
 // Manage owns maintenance operations; the terminal menu and App only dispatch.
-func (m *Manager) Manage(ctx context.Context, action, tag string) (map[string]any, error) {
+func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOption ...bool) (map[string]any, error) {
+	purgeData := len(purgeDataOption) > 0 && purgeDataOption[0]
+	if purgeData && action != "uninstall" {
+		return nil, fmt.Errorf("--purge-data is only valid with uninstall")
+	}
 	appAction := strings.HasPrefix(action, "app-")
 	if appAction && m.OS != "darwin" {
 		return nil, fmt.Errorf("App management is supported only on macOS")
@@ -194,6 +198,9 @@ func (m *Manager) Manage(ctx context.Context, action, tag string) (map[string]an
 	if artifact != "" {
 		argv = append(argv, "--artifact-dir", artifact)
 	}
+	if purgeData {
+		argv = append(argv, "--purge-data")
+	}
 	// App-only transactions preserve the engine, service, binaries, and profiles.
 	if action == "app-install" || action == "app-uninstall" {
 		if _, err := m.Run(ctx, "bash", argv...); err != nil {
@@ -244,9 +251,12 @@ func (m *Manager) Manage(ctx context.Context, action, tag string) (map[string]an
 			return nil, fmt.Errorf("Nagi is stopped; cannot remove login service: %w", err)
 		}
 	}
-	_, transactionErr := m.Run(ctx, "bash", argv...)
+	transactionOutput, transactionErr := m.Run(ctx, "bash", argv...)
 	if action == "uninstall" && transactionErr == nil {
-		return map[string]any{"action": action, "completed": true}, nil
+		return map[string]any{"action": action, "completed": true, "user_data_removed": purgeData}, nil
+	}
+	if action == "uninstall" && purgeData && bytes.Contains(transactionOutput, []byte("NAGI_PURGE_DATA_INCOMPLETE:")) {
+		return nil, fmt.Errorf("Nagi was removed, but user data cleanup was incomplete; some user data may remain: %w", transactionErr)
 	}
 	// Restore login preferences after success or a rolled-back failure. A failed
 	// transaction leaves mihomo stopped so recovery remains an explicit action.

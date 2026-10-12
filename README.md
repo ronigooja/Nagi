@@ -35,7 +35,7 @@ On macOS, install the optional menu bar app through the CLI:
 nagi app install
 ```
 
-Use `nagi update` to update the CLI, mihomo, and any installed App, `nagi app uninstall` to remove only the App, or `nagi uninstall` to remove Nagi while preserving user data.
+Use `nagi update` to update the CLI, mihomo, and any installed App, `nagi app uninstall` to remove only the App, or `nagi uninstall` to remove Nagi while preserving user data. Add `--purge-data` to `nagi uninstall` to remove that data too.
 
 Release downloads are verified against their archive checksum. The macOS app is unsigned and unnotarized; its first launch may require choosing **Open** from the Finder context menu. See the [installation and update instructions](docs/development/install.md#installed-cli-maintenance) for permissions and update behavior.
 
