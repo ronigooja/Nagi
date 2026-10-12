@@ -418,7 +418,10 @@ enum EngineState { case starting, running, stopped, unavailable }
                     errorMessage = "Proxy providers unavailable: \(error.localizedDescription)"
                 }
             }
-        } else { systemProxy = nil; groups = []; providers = []; providersUnavailable = false; mode = nil; tun = nil; tunAdapter = nil }
+        } else {
+            metadataReadAt.removeValue(forKey: RefreshScope.providers.rawValue)
+            systemProxy = nil; groups = []; providers = []; providersUnavailable = false; mode = nil; tun = nil; tunAdapter = nil
+        }
     }
     func perform(_ arguments: [String]) {
         guard !busy && !quitting else { return }

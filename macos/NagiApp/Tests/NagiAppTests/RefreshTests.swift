@@ -178,6 +178,25 @@ import XCTest
         XCTAssertEqual(model.subscriptions.count, 1)
     }
 
+    func testProvidersRefreshImmediatelyAfterEngineRecovery() async {
+        let commands = Commands(), model: AppModel
+        model = commands.model()
+        commands.running = true
+        await model.refresh()
+        defer { model.pauseForSleep() }
+        XCTAssertEqual(commands.count("proxy providers"), 1)
+        commands.running = false
+        await model.refresh()
+        commands.running = true
+        await model.refresh()
+        XCTAssertEqual(commands.count("proxy providers"), 2)
+        commands.failures = ["status"]
+        await model.refresh()
+        commands.failures = []
+        await model.refresh()
+        XCTAssertEqual(commands.count("proxy providers"), 3)
+    }
+
     func testForcedMetadataFailuresInvalidatePreviouslySuccessfulTTL() async {
         let commands = Commands(), model: AppModel
         model = commands.model()

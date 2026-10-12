@@ -376,12 +376,16 @@ extension LifecycleTests {
         let log = directory.appendingPathComponent("events.jsonl")
         try """
         #!/usr/bin/python3
-        import json, pathlib, sys, time
+        import json, pathlib, signal, sys, time
         root = pathlib.Path(__file__).parent
         args = sys.argv[1:]
         with (root / 'events.jsonl').open('a') as log:
             log.write(json.dumps(args) + '\\n')
         command = args[1:]
+        if command == ['traffic', 'watch']:
+            print(json.dumps({'ok':True,'data':{'upload_bps':0,'download_bps':0}}), flush=True)
+            signal.pause()
+            sys.exit(0)
         if command[:3] == ['proxy', 'provider', 'add']:
             time.sleep(0.1)
             if (root / 'fail').exists():
@@ -437,7 +441,7 @@ extension LifecycleTests {
         let (directory, cli, log) = try providerFixture(running: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let model = AppModel(cli: NagiCLIClient(executable: cli))
-        model.pauseForSleep()
+        defer { model.pauseForSleep() }
         await model.refresh()
         let before = providerCalls(log).count
         let error = await model.addProvider("work", url: "http://example.invalid/feed", group: "Work Group", intervalSeconds: 60)
