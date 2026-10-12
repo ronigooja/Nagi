@@ -15,7 +15,7 @@ func (s *Session) WriteLine(line string)             { fmt.Fprintln(s.out, line)
 func (s *Session) render(page *Page, view PageView, index int, depth int) {
 	fmt.Fprintf(s.out, "\n%s\n", s.styled(styleTitle, output.RedactError(page.Title)))
 	if view.Context != "" {
-		fmt.Fprintln(s.out, s.styled(styleContext, output.RedactError(view.Context)))
+		fmt.Fprintln(s.out, s.styledContext(output.RedactError(view.Context)))
 	}
 	if len(view.Items) == 0 && view.Empty != "" {
 		fmt.Fprintln(s.out, output.RedactError(view.Empty))

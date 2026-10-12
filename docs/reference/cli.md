@@ -110,7 +110,8 @@ Menu styling enables automatically only when output is a terminal, `TERM` is non
 | Choice numbers | Terminal default, without added styling |
 | Menu, resource, action, form, and pagination labels | ANSI bright blue |
 | Selected node or profile label | Green, retaining the `(selected)` text marker |
-| State summary, page context, and page count | Terminal default, without added styling |
+| Recognized state values in summaries and page context (including TUN `yes`/`no`, lifecycle and availability, DNS modes, and service states) | Green for positive, yellow for warning or unknown, red for error, bright blue for neutral mode/state values; surrounding explanation stays terminal default |
+| Page count | Terminal default, without added styling |
 | Successful completion feedback | Green |
 | Warnings, partial completion, and input validation | Yellow |
 | Command and read errors | Red |
