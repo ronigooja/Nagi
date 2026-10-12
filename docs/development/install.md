@@ -51,8 +51,11 @@ On macOS, `nagi app install` downloads the release matching the CLI version and
 installs only the App. It leaves mihomo running and preserves the CLI, engine,
 login service, and profiles. The CLI must be installed at `/usr/local/bin/nagi`,
 the path compiled into the App. Open the installed App from Applications.
-The terminal menu offers these operations under **Settings & Maintenance →
-Nagi App & Updates**.
+The terminal menu offers whole-installation update and removal under
+**Settings & Maintenance → Nagi Maintenance** on macOS and Linux. On macOS,
+App-only installation and removal are also listed there. The menu groups the
+uninstall actions together and offers both data-preserving removal and removal
+with data purge.
 
 `nagi update` downloads the latest matching platform release and verifies its
 checksum, installation record, paths, and candidate executables before stopping
@@ -75,7 +78,8 @@ leave the App available; later failures are recorded in the per-user update log.
 Use `nagi app uninstall` to remove only the App, or `nagi uninstall` to stop Nagi
 and remove its managed CLI, mihomo, App, login service, and privileged helper.
 Both preserve user profiles, subscriptions, settings, and logs by default. Add
-`--purge-data` to `nagi uninstall` to also remove Nagi's per-user configuration,
+Choose **Uninstall Nagi and clear user data** in the terminal menu, or add
+`--purge-data` to `nagi uninstall`, to also remove Nagi's per-user configuration,
 data, state, runtime, and cache directories. On macOS this removes
 `~/Library/Application Support/Nagi` and `~/Library/Caches/Nagi`. On Linux it
 removes the Nagi directories under `XDG_CONFIG_HOME`, `XDG_DATA_HOME`,

@@ -68,11 +68,15 @@ Successful removal returns to the parent list; failure stays in detail. Profile 
 
 ## Failure handling and verification
 
-On macOS, Settings & Maintenance also contains Nagi App & Updates. Its state
-comes from `app status`; actions dispatch `app install`, `update`, `app uninstall`,
-and `uninstall`. Effects disclose administrator authorization, whole-installation
-replacement, and App quit requirements. The menu does not download or install
-files itself; the [maintenance design](installation.md) defines those operations.
+Settings & Maintenance contains Nagi Maintenance on macOS and Linux. Both
+platforms dispatch `update` and `uninstall` from the same page. macOS also shows
+menu bar App install/removal actions and the separate privileged helper page;
+Linux does not show macOS-only operations. On macOS, the App install/removal
+pair appears first; Nagi update and uninstall actions follow as a group. Nagi
+uninstall offers data-preserving removal and `uninstall --purge-data` to remove
+user data; effects disclose what is removed. The menu does not download or
+install files itself; the
+[maintenance design](installation.md) defines those operations.
 
 Failed reads replace old resources, preventing selection of stale targets. Views can retain fixed recovery actions and state unknown/unavailable explicitly. Command failures display existing messages and known resulting state; the menu never infers successful saving, activation, or rollback. URLs in errors, page context, and list labels are redacted. Raw requested configuration and log content retain their ordinary command content.
 

@@ -99,7 +99,7 @@ The optional `Subscription-Userinfo` response header supplies `upload`, `downloa
 | 5 | Proxy Mode | For this session or Save for future starts; each offers Rule (routing rules), Global (GLOBAL group), and Direct (without a proxy). |
 | 6 | System Proxy & TUN (macOS), TUN & LAN (Linux) | Separate system proxy (macOS), TUN, and LAN settings pages, plus listener ports. |
 | 7 | Troubleshooting | Basic checks, detailed diagnostics, export, logs and traffic, startup repair, stale runtime record cleanup, and version. |
-| 8 | Settings & Maintenance | Current Configuration (show, validate, reload), DNS, Routing Rules, Connections, Start at Login, the macOS privileged helper, and Nagi App & Updates on macOS. |
+| 8 | Settings & Maintenance | Current Configuration (show, validate, reload), DNS, Routing Rules, Connections, Start at Login, and Nagi Maintenance on both macOS and Linux. Nagi Maintenance offers `update`, `uninstall` (preserve user data), and `uninstall --purge-data` (remove user data). macOS lists menu bar App install/removal first, followed by Nagi maintenance; its privileged helper is a separate entry. |
 | 0 | Exit menu | Leaves mihomo running. |
 
 Menu styling enables automatically only when output is a terminal, `TERM` is nonempty and is not `dumb`, and `NO_COLOR` is absent or empty. A nonempty `NO_COLOR` disables color and dimming. Otherwise the menu uses plain text with the same labels and numbers; no color option is required. The menu adds no bold styling in either mode. Input and output must still be terminals to open the menu.

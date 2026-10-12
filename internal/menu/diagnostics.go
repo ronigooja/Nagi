@@ -65,22 +65,33 @@ func advancedPageForOS(goos string) *Page {
 			{Label: "Routing Rules", Next: RulesPage},
 			{Label: "Connections", Next: ConnectionsPage},
 			{Label: "Start at Login", Next: ServicePage},
+			{Label: "Nagi Maintenance", Next: MaintenancePage},
 		}
 		if goos == "darwin" {
 			items = append(items, Item{Label: "Privileged helper", Next: func() *Page { return helperPageForOS(goos) }})
-			items = append(items, Item{Label: "Nagi App & Updates", Next: AppPage})
 		}
 		return PageView{Actions: items}, nil
 	}}
 }
 
-func AppPage() *Page {
-	return statePage("Nagi App & Updates", []string{"app", "status"}, []string{"installed", "app"},
-		Item{Label: "Install menu bar App", Args: []string{"app", "install"}, Impact: "Installs only the App matching this CLI release; may require administrator authorization"},
-		Item{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates CLI, mihomo, and any installed App; quit the App first; refreshes the default profile"},
-		Item{Label: "Uninstall menu bar App", Args: []string{"app", "uninstall"}, Impact: "Removes only the App; quit it and disable its login item first"},
-		Item{Label: "Uninstall Nagi", Args: []string{"uninstall"}, Impact: "Stops Nagi and removes managed executables, App, and services; preserves user data (use the CLI --purge-data option to remove it)"},
-	)
+func MaintenancePage() *Page { return maintenancePageForOS(runtime.GOOS) }
+
+func maintenancePageForOS(goos string) *Page {
+	items := []Item{}
+	if goos == "darwin" {
+		items = append(items,
+			Item{Label: "Install menu bar App", Args: []string{"app", "install"}, Impact: "Installs only the App matching this CLI release; may require administrator authorization"},
+			Item{Label: "Uninstall menu bar App", Args: []string{"app", "uninstall"}, Impact: "Removes only the App; quit it and disable its login item first"},
+		)
+	}
+	items = append(items, Item{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates CLI and mihomo; also updates an installed App on macOS; refreshes the default profile; may require administrator authorization"})
+	uninstallImpact := "Stops Nagi and removes managed executables and services; preserves user data (CLI --purge-data removes it); may require administrator authorization"
+	if goos == "darwin" {
+		uninstallImpact = "Stops Nagi and removes managed executables, services, helper, and any installed App; preserves user data; may require administrator authorization"
+	}
+	items = append(items, Item{Label: "Uninstall Nagi", Args: []string{"uninstall"}, Impact: uninstallImpact})
+	items = append(items, Item{Label: "Uninstall Nagi and clear user data", Args: []string{"uninstall", "--purge-data"}, Impact: "Permanently removes Nagi configuration, data, state, runtime, and cache, including profiles and subscriptions; may require administrator authorization"})
+	return actionPage("Nagi Maintenance", items...)
 }
 
 func helperPageForOS(goos string) *Page {

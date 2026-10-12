@@ -46,10 +46,14 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 		{helperPageForOS("darwin"), "Uninstall privileged helper", []string{"privileged-helper", "uninstall"}, true},
 		{helperPageForOS("darwin"), "Select privileged backend", []string{"privileged-helper", "enable"}, true},
 		{helperPageForOS("darwin"), "Select user backend", []string{"privileged-helper", "disable"}, true},
-		{AppPage(), "Install menu bar App", []string{"app", "install"}, true},
-		{AppPage(), "Update Nagi", []string{"update"}, true},
-		{AppPage(), "Uninstall menu bar App", []string{"app", "uninstall"}, true},
-		{AppPage(), "Uninstall Nagi", []string{"uninstall"}, true},
+		{maintenancePageForOS("linux"), "Update Nagi", []string{"update"}, true},
+		{maintenancePageForOS("linux"), "Uninstall Nagi", []string{"uninstall"}, true},
+		{maintenancePageForOS("linux"), "Uninstall Nagi and clear user data", []string{"uninstall", "--purge-data"}, true},
+		{maintenancePageForOS("darwin"), "Install menu bar App", []string{"app", "install"}, true},
+		{maintenancePageForOS("darwin"), "Update Nagi", []string{"update"}, true},
+		{maintenancePageForOS("darwin"), "Uninstall menu bar App", []string{"app", "uninstall"}, true},
+		{maintenancePageForOS("darwin"), "Uninstall Nagi", []string{"uninstall"}, true},
+		{maintenancePageForOS("darwin"), "Uninstall Nagi and clear user data", []string{"uninstall", "--purge-data"}, true},
 	}
 	for _, tt := range tests {
 		item := diagnosticItem(t, tt.page, tt.label)
@@ -115,9 +119,9 @@ func TestAdvancedRetainsAllFeatureEntrypoints(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"Current Configuration", "DNS", "Routing Rules", "Connections", "Start at Login"}
+		want := []string{"Current Configuration", "DNS", "Routing Rules", "Connections", "Start at Login", "Nagi Maintenance"}
 		if goos == "darwin" {
-			want = append(want, "Privileged helper", "Nagi App & Updates")
+			want = append(want, "Privileged helper")
 		}
 		if len(view.Items) != 0 || len(view.Actions) != len(want) {
 			t.Fatalf("%s: %+v", goos, view)
@@ -125,6 +129,30 @@ func TestAdvancedRetainsAllFeatureEntrypoints(t *testing.T) {
 		for i, label := range want {
 			if view.Actions[i].Label != label || view.Actions[i].Next == nil {
 				t.Fatalf("%s: missing %s", goos, label)
+			}
+		}
+	}
+}
+
+func TestMaintenancePlatformActionsAndOrder(t *testing.T) {
+	for _, tt := range []struct {
+		goos string
+		want []string
+	}{
+		{goos: "linux", want: []string{"Update Nagi", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
+		{goos: "darwin", want: []string{"Install menu bar App", "Uninstall menu bar App", "Update Nagi", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
+	} {
+		page := maintenancePageForOS(tt.goos)
+		view, err := page.Load(context.Background(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(view.Actions) != len(tt.want) {
+			t.Fatalf("%s: actions=%v", tt.goos, view.Actions)
+		}
+		for i, label := range tt.want {
+			if view.Actions[i].Label != label {
+				t.Errorf("%s action %d = %q, want %q", tt.goos, i, view.Actions[i].Label, label)
 			}
 		}
 	}
