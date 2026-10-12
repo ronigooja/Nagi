@@ -97,6 +97,18 @@ for App exit, runs the installed CLI's whole update, and opens the recorded App
 path only after success. The CLI's response describes scheduling, not
 installation completion; failures are appended to the per-user update log.
 
+The detached updater creates a private temporary `sudo` adapter and prepends
+its directory to its own `PATH`. The adapter supports the installer's validation
+and command forms and executes privileged operations through AppleScript
+`do shell script ... with administrator privileges`. macOS handles credentials;
+Nagi does not collect passwords. Authorization Services can reuse authorization
+for subsequent operations, but may prompt again when necessary. Downloads,
+verification, lifecycle management, and user configuration remain unprivileged.
+The adapter passes the invoking user's `SUDO_UID`, `SUDO_GID`, and `SUDO_USER`
+to privileged commands so helper installation retains the correct session owner,
+and sets a system-only privileged `PATH`. The updater removes the temporary
+adapter on exit. Shell and AppleScript arguments are quoted separately.
+
 A background-launch failure keeps the App open with an actionable error. A quit
 cleanup failure retains the existing App menu and is displayed there; the
 waiting updater eventually cancels. A failed update keeps the App closed and

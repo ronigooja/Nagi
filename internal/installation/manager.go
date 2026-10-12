@@ -333,18 +333,28 @@ func (m *Manager) launchBackgroundUpdate(r record) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	command := "if [ ! -w /usr/local/bin ] || [ -e /Library/LaunchDaemons/io.nagi.privileged-helper.plist ]; then " +
-		"askpass=$(mktemp -t nagi-askpass) || exit 1; trap 'rm -f \"$askpass\"' EXIT; " +
-		"cat >\"$askpass\" <<'EOF'\n#!/bin/sh\nexec /usr/bin/osascript -e 'display dialog \"Nagi needs administrator authorization to install the update.\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\" cancel button \"Cancel\"' -e 'text returned of result'\nEOF\n" +
-		"chmod 700 \"$askpass\"; SUDO_ASKPASS=\"$askpass\" sudo -A -v || exit 1; fi; " +
+	bridge, err := os.MkdirTemp("", "nagi-update-authorization-")
+	if err != nil {
+		_ = logFile.Close()
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(bridge, "sudo"), []byte(nativeUpdateSudo), 0700); err != nil {
+		_ = logFile.Close()
+		_ = os.RemoveAll(bridge)
+		return nil, err
+	}
+	command := "trap " + shellQuote("/bin/rm -rf -- "+shellQuote(bridge)) + " EXIT; " +
+		"if [ ! -w /usr/local/bin ] || [ -e /Library/LaunchDaemons/io.nagi.privileged-helper.plist ]; then sudo -v || exit 1; fi; " +
 		"i=0; while pgrep -x NagiApp >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 60 ]; then echo 'Update cancelled: Nagi.app did not quit.'; exit 1; fi; sleep 1; done; " +
 		shellQuote(m.Executable) + " update && open " + shellQuote(r.App)
 	cmd := exec.Command("/bin/bash", "-c", command)
+	cmd.Env = append(os.Environ(), "PATH="+bridge+":"+os.Getenv("PATH"))
 	cmd.Stdin = nil
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
+		_ = os.RemoveAll(bridge)
 		return nil, fmt.Errorf("cannot start background update: %w", err)
 	}
 	_ = logFile.Close()

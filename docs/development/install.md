@@ -71,7 +71,10 @@ installed App.
 Quit the App before a shell update. Alternatively, choose **About Nagi → Update**
 in the App: the CLI starts a detached updater, the App completes its normal
 quit cleanup, and the updater runs the installation before reopening Nagi.
-The updater shows a macOS administrator authorization dialog when required. If the App fails
+The updater uses the native macOS administrator authorization dialog when required;
+macOS handles credentials rather than a Nagi password input box. Download and
+verification run as the invoking user; only privileged installer operations
+are elevated. If the App fails
 to quit within 60 seconds, the background operation is cancelled. Launch errors
 leave the App available; later failures are recorded in the per-user update log.
 

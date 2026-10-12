@@ -403,7 +403,9 @@ rejected. Compressed and extracted archives are each limited to 512 MiB.
 Quit the App before updating or removing it; disable its App login item before
 removal. Run as the intended user rather than through `sudo`. The installer
 requests administrator authorization when required, so use a terminal when
-credentials must be entered. The App's About Nagi panel offers Update, which schedules background mode and
+credentials must be entered for ordinary terminal maintenance. Background App
+updates use native macOS administrator authorization for privileged installer
+operations; Nagi does not collect the password. The App's About Nagi panel offers Update, which schedules background mode and
 then uses ordinary quit cleanup. It keeps the App available if launch or quit
 fails. A scheduled result confirms only updater launch; later update success or
 failure is recorded in the per-user update log.

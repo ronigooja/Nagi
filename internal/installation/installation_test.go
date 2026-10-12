@@ -306,3 +306,12 @@ func TestTerminalLauncherQuotesPathsAndOnlySchedules(t *testing.T) {
 		t.Fatal("unsafe shell quoting")
 	}
 }
+
+func TestNativeUpdateAuthorizationUsesSystemDialog(t *testing.T) {
+	if !strings.Contains(nativeUpdateSudo, "with administrator privileges") || !strings.Contains(nativeUpdateSudo, "Authorization") {
+		t.Fatal("native authorization adapter is not using macOS authorization")
+	}
+	if strings.Contains(nativeUpdateSudo, "display dialog") || strings.Contains(nativeUpdateSudo, "text returned") {
+		t.Fatal("native authorization adapter must not collect a password")
+	}
+}
