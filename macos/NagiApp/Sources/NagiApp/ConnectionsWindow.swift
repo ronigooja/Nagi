@@ -6,13 +6,25 @@ import AppKit
     var onVisibilityChange: (() -> Void)?
     private(set) var orderedOut = true
     private(set) var minimizing = false
+    private var miniaturizationFallback: Task<Void, Never>?
     var readingPaused: Bool { orderedOut || minimizing }
 
     func beginMiniaturization() {
+        guard !minimizing else { return }
         minimizing = true
         onVisibilityChange?()
+        // Accessory apps have no Dock tile. AppKit can decline to miniaturize
+        // their windows; hide after a short grace period instead of leaving
+        // a visible window with its connection reading suspended.
+        miniaturizationFallback = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: 500_000_000) } catch { return }
+            guard let self, self.minimizing else { return }
+            self.miniaturizationFallback = nil
+            if !self.isMiniaturized && self.isVisible { self.orderOut(nil) }
+        }
     }
     func finishDeminiaturization() {
+        miniaturizationFallback?.cancel(); miniaturizationFallback = nil
         minimizing = false
         onVisibilityChange?()
     }
@@ -25,6 +37,7 @@ import AppKit
         finishDeminiaturization()
     }
     override func orderOut(_ sender: Any?) {
+        miniaturizationFallback?.cancel(); miniaturizationFallback = nil
         orderedOut = true
         onVisibilityChange?()
         super.orderOut(sender)
@@ -40,6 +53,7 @@ import AppKit
         onVisibilityChange?()
     }
     override func close() {
+        miniaturizationFallback?.cancel(); miniaturizationFallback = nil
         orderedOut = true
         onVisibilityChange?()
         super.close()

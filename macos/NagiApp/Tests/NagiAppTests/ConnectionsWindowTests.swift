@@ -75,6 +75,21 @@ final class ConnectionsWindowTests: XCTestCase {
         XCTAssertTrue(details.string.contains("/Applications/Browser.app/Contents/MacOS/Browser"))
     }
 
+    @MainActor func testRestoringDuringMinimizeGracePeriodDoesNotHideRestoredWindow() async throws {
+        _ = NSApplication.shared
+        let model = ConnectionsModel(fetch: { [] }, execute: { _ in })
+        model.setEngineState(.stopped)
+        let controller = ConnectionsWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        controller.present()
+        defer { window.close() }
+        window.miniaturize(nil)
+        controller.present()
+        try await Task.sleep(nanoseconds: 700_000_000)
+        XCTAssertTrue(window.isVisible)
+        XCTAssertFalse((window as? ConnectionsWindow)?.readingPaused == true)
+    }
+
     @MainActor private func eventually(_ stage: String, window: NSWindow, probe: WindowReadProbe,
         file: StaticString = #filePath, line: UInt = #line, _ condition: () async -> Bool) async throws {
         for _ in 0..<200 {
@@ -104,11 +119,16 @@ final class ConnectionsWindowTests: XCTestCase {
 
         window.miniaturize(nil)
         try await eventually("minimize cancels read", window: window, probe: probe) { await probe.cancellations == 1 }
-        try await Task.sleep(nanoseconds: 200_000_000)
+        try await eventually("minimize succeeds or hides instead of freezing a visible window", window: window, probe: probe) {
+            window.isMiniaturized || !window.isVisible
+        }
         let afterMinimize = await probe.starts
         XCTAssertEqual(afterMinimize, 1)
-        window.deminiaturize(nil)
-        try await eventually("deminiaturize resumes read", window: window, probe: probe) { await probe.starts == 2 }
+        if !window.isMiniaturized {
+            XCTAssertFalse(window.isVisible, "A declined native minimization must hide the paused window.")
+        }
+        controller.present()
+        try await eventually("present after minimize resumes read", window: window, probe: probe) { await probe.starts == 2 }
 
         window.orderOut(nil)
         try await eventually("orderOut cancels read", window: window, probe: probe) { await probe.cancellations == 2 }
