@@ -50,11 +50,11 @@ var commandSpecs = []commandSpec{
 	{"profile backup", "profile backup NAME", "Back up a profile", "Copies the source YAML to profiles/NAME.yaml.bak.", "nagi profile backup work", "", 1, 1},
 	{"profile restore", "profile restore NAME", "Restore a profile backup", "Validates and writes profiles/NAME.yaml.bak; reloads if selected and running.", "nagi profile restore work", "", 1, 1},
 	{"profile diff", "profile diff NAME [OTHER|backup]", "Compare profile versions", "Shows changed lines against another profile or the latest backup (default).", "nagi profile diff work backup", "", 1, 2},
-	{"profile override", "profile override <set NAME FILE|show NAME|clear NAME|apply-default NAME|default-status NAME|restore-default NAME>", "Manage local overrides", "Stores a YAML mapping separately and applies its keys over the source profile.", "nagi profile override set work ./local.yaml", "", 0, -1},
+	{"profile override", "profile override <set NAME FILE|show NAME|clear NAME|apply-default NAME [--dns-proxy GROUP]|default-status NAME|restore-default NAME>", "Manage local overrides", "Stores a YAML mapping separately and applies its keys over the source profile.", "nagi profile override set work ./local.yaml", "", 0, -1},
 	{"profile override set", "profile override set NAME FILE", "Save local override", "Validates and saves a YAML mapping, up to 8 MiB; reloads the selected running profile.", "nagi profile override set work ./local.yaml", "", 2, 2},
 	{"profile override show", "profile override show NAME", "Show local override", "Prints user-owned override YAML.", "nagi profile override show work", "", 1, 1},
 	{"profile override clear", "profile override clear NAME", "Clear local override", "Removes the user-owned override and reloads the selected running profile.", "nagi profile override clear work", "", 1, 1},
-	{"profile override apply-default", "profile override apply-default NAME", "Apply local default settings", "Copies safe local runtime settings from profiles/default.yaml onto NAME; subscription nodes, groups, rules, and Nagi-managed fields remain unchanged; an enabled TUN stays enabled.", "nagi profile override apply-default work", "The default profile must exist.", 1, 1},
+	{"profile override apply-default", "profile override apply-default NAME [--dns-proxy GROUP]", "Apply local default settings", "Copies safe local runtime settings from profiles/default.yaml onto NAME; subscription nodes, groups, rules, and Nagi-managed fields remain unchanged; an enabled TUN stays enabled. On first use, select a target profile proxy group for default DNS; later uses reuse the saved group unless changed explicitly.", "nagi profile override apply-default work --dns-proxy Proxy", "The default profile and named target group must exist.", 1, 3},
 	{"profile override default-status", "profile override default-status NAME", "Show local default settings state", "Reports whether the saved default overlay still matches the profile override.", "nagi profile override default-status work", "", 1, 1},
 	{"profile override restore-default", "profile override restore-default NAME", "Restore previous local override", "Restores the local override saved by apply-default; refuses if the override changed since applying.", "nagi profile override restore-default work", "", 1, 1},
 	{"profile remove", "profile remove NAME", "Remove a profile", "Removes an unselected local profile and keeps its backup file.", "nagi profile remove old", "Run `nagi profile list` to see profile names.", 1, 1},
@@ -148,7 +148,7 @@ var commandSpecs = []commandSpec{
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
-	{"completion candidates", "completion candidates profile|subscription|groups|nodes [GROUP]|providers", "List completion candidates", "Lists local names or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile", "", 1, 2},
+	{"completion candidates", "completion candidates profile|subscription|profile-groups NAME|groups|nodes [GROUP]|providers", "List completion candidates", "Lists local names, eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
 }
 
 func findSpec(path string) *commandSpec {
@@ -240,6 +240,9 @@ func validateInvocation(args []string) error {
 	if n > spec.maxArgs {
 		return syntaxError("too many arguments", spec)
 	}
+	if spec.path == "profile override apply-default" && n != 1 && (n != 3 || args[consumed+1] != "--dns-proxy" || strings.TrimSpace(args[consumed+2]) == "") {
+		return syntaxError("expected --dns-proxy GROUP", spec)
+	}
 	if n == 1 && (spec.path == "update" || spec.path == "app install" || spec.path == "app update") {
 		value := args[consumed]
 		if !(spec.path == "update" && (value == "--terminal" || value == "--app")) && !installation.ValidTag(value) {
@@ -268,11 +271,14 @@ func validateInvocation(args []string) error {
 		}
 	}
 	if spec.path == "completion candidates" {
-		if args[2] != "profile" && args[2] != "subscription" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" {
-			return syntaxError("RESOURCE must be profile, subscription, groups, nodes, or providers", spec)
+		if args[2] != "profile" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" {
+			return syntaxError("RESOURCE must be profile, subscription, profile-groups, groups, nodes, or providers", spec)
 		}
-		if n == 2 && args[2] != "nodes" {
-			return syntaxError("GROUP is only valid for nodes", spec)
+		if n == 2 && args[2] != "nodes" && args[2] != "profile-groups" {
+			return syntaxError("second argument is only valid for nodes or profile-groups", spec)
+		}
+		if n == 1 && args[2] == "profile-groups" {
+			return syntaxError("profile-groups requires NAME", spec)
 		}
 	}
 	if spec.path == "logs" && n == 1 {

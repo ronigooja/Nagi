@@ -255,6 +255,14 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	}
 	if command == "completion" {
 		if len(args) >= 2 && args[1] == "candidates" {
+			if len(args) == 4 && args[2] == "profile-groups" {
+				paths, e := nagiruntime.Resolve()
+				if e != nil {
+					return nil, e
+				}
+				groups, e := profile.NewStore(paths.ConfigDir, nil, nil).DNSProxyGroups(args[3])
+				return output.Candidates(groups), e
+			}
 			if len(args) == 3 && (args[2] == "profile" || args[2] == "subscription") {
 				paths, e := nagiruntime.Resolve()
 				if e != nil {
@@ -783,6 +791,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err != nil {
 			return nil, err
 		}
+		if len(args) >= 4 && args[1] == "override" && args[2] == "apply-default" {
+			if err := validateDefaultDNSLiveTarget(ctx, args, store, profileName, client); err != nil {
+				return nil, fail("profile_error", err)
+			}
+		}
 		return profileCommand(ctx, args, store, subs)
 	case "subscription":
 		if len(args) > 1 && (args[1] == "apply" || args[1] == "preview") {
@@ -1284,11 +1297,15 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 		}
 		switch args[2] {
 		case "apply-default":
-			if len(args) != 4 {
-				return nil, usage("profile override apply-default NAME")
+			if len(args) != 4 && (len(args) != 6 || args[4] != "--dns-proxy" || strings.TrimSpace(args[5]) == "") {
+				return nil, usage("profile override apply-default NAME [--dns-proxy GROUP]")
 			}
 			name := args[3]
-			if err := store.ApplyDefaultOverride(ctx, name); err != nil {
+			var dnsProxy []string
+			if len(args) == 6 {
+				dnsProxy = []string{args[5]}
+			}
+			if err := store.ApplyDefaultOverride(ctx, name, dnsProxy...); err != nil {
 				return nil, fail("profile_error", err)
 			}
 			return map[string]any{"name": name, "default_override_applied": true}, nil
@@ -1300,7 +1317,15 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 			if err != nil {
 				return nil, fail("profile_error", err)
 			}
-			return map[string]any{"name": args[3], "default_override_applied": active}, nil
+			groups, err := store.DNSProxyGroups(args[3])
+			if err != nil {
+				return nil, fail("profile_error", err)
+			}
+			group, err := store.DefaultDNSProxyGroup(args[3])
+			if err != nil {
+				return nil, fail("profile_error", err)
+			}
+			return map[string]any{"name": args[3], "default_override_applied": active, "dns_proxy_groups": groups, "dns_proxy_group": group}, nil
 		case "restore-default":
 			if len(args) != 4 {
 				return nil, usage("profile override restore-default NAME")

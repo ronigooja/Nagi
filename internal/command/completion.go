@@ -59,6 +59,15 @@ func bashCompletion(roots []string, children map[string][]string) string {
     [[ "$w" == "--json" || "$w" == "--help" || "$w" == "-h" ]] && continue
     semantic+=("$w")
   done
+  if [[ ${semantic[0]} == profile && ${semantic[1]} == override && ${semantic[2]} == apply-default ]]; then
+    if [[ ${#semantic[@]} -eq 3 ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates profile 2>/dev/null); return 0
+    fi
+    if [[ ${#semantic[@]} -eq 4 ]]; then COMPREPLY=( $(compgen -W '--dns-proxy' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 5 && ${semantic[4]} == --dns-proxy ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates profile-groups "${semantic[3]}" 2>/dev/null); return 0
+    fi
+  fi
   if [[ "$cur" == --* || "$cur" == -* ]]; then
     COMPREPLY=( $(compgen -W '--json --help -h' -- "$cur") ); return 0
   fi
@@ -69,7 +78,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
   fi
   root="${semantic[0]}"
   if [[ ${#semantic[@]} -eq 2 && "$root" == completion && "${semantic[1]}" == candidates ]]; then
-    COMPREPLY=( $(compgen -W 'profile subscription groups nodes providers' -- "$cur") ); return 0
+    COMPREPLY=( $(compgen -W 'profile subscription profile-groups groups nodes providers' -- "$cur") ); return 0
   fi
   if [[ ${#semantic[@]} -eq 2 ]]; then
     if [[ "$root" == profile && ( "${semantic[1]}" == use || "${semantic[1]}" == remove ) ]]; then
@@ -145,9 +154,14 @@ _nagi() {
     [[ $word == --json || $word == --help || $word == -h ]] && continue
     semantic+=("$word")
   done
+  if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${semantic[3]} == apply-default ]]; then
+    if (( ${#semantic} == 3 )); then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
+    if (( ${#semantic} == 4 )); then compadd -- --dns-proxy; return; fi
+    if (( ${#semantic} == 5 )) && [[ ${semantic[5]} == --dns-proxy ]]; then compadd -- ${(f)"$(nagi completion candidates profile-groups "${semantic[4]}" 2>/dev/null)"}; return; fi
+  fi
   if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi
   if (( ${#semantic} == 0 )); then compadd -- %s; return; fi
-  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription groups nodes providers; return; fi
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription profile-groups groups nodes providers; return; fi
   if (( ${#semantic} == 2 )); then
     if [[ ${semantic[1]} == profile && ( ${semantic[2]} == use || ${semantic[2]} == remove ) ]]; then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
     if [[ ${semantic[1]} == subscription && ( ${semantic[2]} == update || ${semantic[2]} == apply || ${semantic[2]} == remove || ${semantic[2]} == key || ${semantic[2]} == schedule ) ]]; then compadd -- ${(f)"$(nagi completion candidates subscription 2>/dev/null)"}; return; fi
@@ -211,7 +225,7 @@ end
 		fmt.Fprintf(&b, "complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = %s' -a '%s'\n", root, shellWords(values))
 	}
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = mode' -a 'rule global direct'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription groups nodes providers'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription profile-groups groups nodes providers'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and contains -- $s[2] use remove' -a '(nagi completion candidates profile 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = subscription; and contains -- $s[2] update apply remove key schedule' -a '(nagi completion candidates subscription 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = subscription; and test \"$s[2]\" = key' -F -a clear\n")
@@ -219,6 +233,9 @@ end
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = export' -F\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test \"$s[1]\" = profile; and test \"$s[2]\" = override; and test \"$s[3]\" = set' -F\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and test \"$s[2]\" = override' -a 'set show clear apply-default default-status restore-default'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = profile; and test \"$s[2]\" = override; and test \"$s[3]\" = apply-default' -a '(nagi completion candidates profile 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test \"$s[1]\" = profile; and test \"$s[2]\" = override; and test \"$s[3]\" = apply-default' -a '--dns-proxy'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and test \"$s[1]\" = profile; and test \"$s[2]\" = override; and test \"$s[3]\" = apply-default; and test \"$s[5]\" = --dns-proxy' -a '(set -l s (__nagi_semantic); nagi completion candidates profile-groups \"$s[4]\" 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = exception' -a 'add remove'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = tun' -a 'on off'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = dns; and test \"$s[2]\" = set' -a 'direct proxy'\n")

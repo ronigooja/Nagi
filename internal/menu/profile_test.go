@@ -51,6 +51,44 @@ func TestProfileListAndFileAction(t *testing.T) {
 	}
 }
 
+func TestDefaultSettingsMenuSelectsTargetDNSGroupAndReusesBinding(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, input, bound string
+		want               []string
+	}{
+		{name: "first apply", input: "2\n", want: []string{"profile", "override", "apply-default", "work", "--dns-proxy", "Other Group"}},
+		{name: "saved binding", bound: "Other Group", want: []string{"profile", "override", "apply-default", "work"}},
+		{name: "stale binding", input: "1\n", bound: "Removed Group", want: []string{"profile", "override", "apply-default", "work", "--dns-proxy", "Proxy Group"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runner := &featureRunner{results: map[string]Result{
+				"profile\x00override\x00default-status\x00work": {Data: map[string]any{"default_override_applied": false, "dns_proxy_group": tc.bound, "dns_proxy_groups": []string{"Proxy Group", "Other Group"}}},
+				strings.Join(tc.want, "\x00"):                   {},
+			}}
+			var out bytes.Buffer
+			s := NewSession(runner, strings.NewReader(tc.input), &out)
+			if err := toggleDefaultOverride(ctx, s, "work"); err != nil {
+				t.Fatal(err)
+			}
+			if got := runner.calls[len(runner.calls)-1]; !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("apply command = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDefaultSettingsMenuNeedsEligibleDNSGroup(t *testing.T) {
+	runner := &featureRunner{results: map[string]Result{
+		"profile\x00override\x00default-status\x00work": {Data: map[string]any{"default_override_applied": false, "dns_proxy_groups": []string{}}},
+	}}
+	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
+	err := toggleDefaultOverride(context.Background(), s, "work")
+	if err == nil || !strings.Contains(err.Error(), "No eligible proxy group") || len(runner.calls) != 1 {
+		t.Fatalf("result = %v, calls = %#v", err, runner.calls)
+	}
+}
+
 func TestSubscriptionMetadataWithoutPreview(t *testing.T) {
 	local := time.Local
 	time.Local = time.FixedZone("menu test", -7*60*60)

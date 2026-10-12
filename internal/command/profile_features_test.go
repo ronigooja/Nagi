@@ -90,7 +90,7 @@ func TestApplyDefaultOverrideCLI(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(config, "profiles", "default.yaml"), []byte(defaultSource), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(config, "profiles", "work.yaml"), []byte("mixed-port: 18000\nproxies:\n  - name: Subscription Node\n    type: direct\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(config, "profiles", "work.yaml"), []byte("mixed-port: 18000\nproxies:\n  - name: Subscription Node\n    type: socks5\n    server: 127.0.0.1\n    port: 1080\nproxy-groups:\n  - name: Work Group\n    type: select\n    proxies: [Subscription Node, DIRECT]\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	bin := writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\nexit 0\n")
@@ -109,10 +109,10 @@ func TestApplyDefaultOverrideCLI(t *testing.T) {
 		}
 		return payload.Data
 	}
-	if got := run("profile", "override", "apply-default", "work"); got["default_override_applied"] != true || got["name"] != "work" {
+	if got := run("profile", "override", "apply-default", "work", "--dns-proxy", "Work Group"); got["default_override_applied"] != true || got["name"] != "work" {
 		t.Fatal(got)
 	}
-	if got := run("profile", "override", "default-status", "work"); got["default_override_applied"] != true {
+	if got := run("profile", "override", "default-status", "work"); got["default_override_applied"] != true || got["dns_proxy_group"] != "Work Group" {
 		t.Fatal(got)
 	}
 	override, err := os.ReadFile(filepath.Join(config, "overrides", "work.yaml"))
@@ -134,5 +134,29 @@ func TestApplyDefaultOverrideCLI(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(config, "overrides", "work.yaml")); !os.IsNotExist(err) {
 		t.Fatalf("override after restore: %v", err)
+	}
+}
+
+func TestApplyDefaultDNSProxySyntaxBeforeRuntime(t *testing.T) {
+	invalidTestConfigDir(t, t.TempDir())
+	for _, args := range [][]string{
+		{"profile", "override", "apply-default", "work", "--dns-proxy"},
+		{"profile", "override", "apply-default", "work", "--other", "Proxy"},
+		{"profile", "override", "apply-default", "work", "--dns-proxy", ""},
+	} {
+		var out, errout bytes.Buffer
+		if code := Run(append([]string{"--json"}, args...), &out, &errout, "test", "commit"); code != 2 || !strings.Contains(errout.String(), `"code":"usage"`) || !strings.Contains(errout.String(), "--dns-proxy GROUP") {
+			t.Fatalf("args=%q exit=%d stderr=%s", args, code, errout.String())
+		}
+	}
+	if err := validateInvocation([]string{"profile", "override", "apply-default", "work", "--dns-proxy", "Proxy Group"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateInvocation([]string{"completion", "candidates", "profile-groups", "work"}); err != nil {
+		t.Fatal(err)
+	}
+	var out, errout bytes.Buffer
+	if code := Run([]string{"profile", "override", "apply-default", "--help"}, &out, &errout, "test", "commit"); code != 0 || !strings.Contains(out.String(), "--dns-proxy GROUP") {
+		t.Fatalf("help exit=%d stdout=%s stderr=%s", code, out.String(), errout.String())
 	}
 }

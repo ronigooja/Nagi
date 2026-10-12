@@ -17,7 +17,9 @@ type menuProfiles struct {
 }
 
 type menuDefaultOverrideStatus struct {
-	Applied bool `json:"default_override_applied"`
+	Applied        bool     `json:"default_override_applied"`
+	DNSProxyGroup  string   `json:"dns_proxy_group"`
+	DNSProxyGroups []string `json:"dns_proxy_groups"`
 }
 
 type menuSubscription struct {
@@ -96,6 +98,8 @@ func profileDetailPage(name string) *Page {
 		if defaultApplied {
 			defaultItem.Label = "Disable local default settings"
 			defaultItem.Impact = "Restores the local override saved before applying defaults"
+		} else if status.DNSProxyGroup != "" {
+			defaultItem.Impact += "; DNS via " + status.DNSProxyGroup
 		}
 		view := PageView{Actions: []Item{
 			{Label: "Use profile", Args: []string{"profile", "use", name}},
@@ -127,7 +131,18 @@ func toggleDefaultOverride(ctx context.Context, s *Session, name string) error {
 	if status.Applied {
 		result = s.Run(ctx, "profile", "override", "restore-default", name)
 	} else {
-		result = s.Run(ctx, "profile", "override", "apply-default", name)
+		if status.DNSProxyGroup != "" && menuHasGroup(status.DNSProxyGroups, status.DNSProxyGroup) {
+			result = s.Run(ctx, "profile", "override", "apply-default", name)
+		} else {
+			if len(status.DNSProxyGroups) == 0 {
+				return errors.New("No eligible proxy group in this profile. Add a proxy group before applying local default settings.")
+			}
+			group, err := s.Select("DNS proxy group for "+name, status.DNSProxyGroups)
+			if err != nil {
+				return err
+			}
+			result = s.Run(ctx, "profile", "override", "apply-default", name, "--dns-proxy", group)
+		}
 	}
 	if result.Code != 0 && result.Error != nil {
 		return errors.New(result.Error.Message)
@@ -136,6 +151,15 @@ func toggleDefaultOverride(ctx context.Context, s *Session, name string) error {
 		return fmt.Errorf("command exited with status %d", result.Code)
 	}
 	return nil
+}
+
+func menuHasGroup(groups []string, name string) bool {
+	for _, group := range groups {
+		if group == name {
+			return true
+		}
+	}
+	return false
 }
 
 func validateMenuName(value string) error {
