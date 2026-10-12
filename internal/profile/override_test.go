@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestOverrideStaysSeparateAndSurvivesProfileReplacement(t *testing.T) {
@@ -129,5 +131,39 @@ func TestApplyDefaultOverrideCopiesOnlyDefaultLocalOverride(t *testing.T) {
 	}
 	if !strings.Contains(string(effective), "subscription-node") || strings.Contains(string(effective), "default-node") {
 		t.Fatalf("effective profile copied source nodes: %s", effective)
+	}
+}
+
+func TestApplyDefaultOverridePreservesEnabledTUN(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func([]byte) error { return nil }, nil)
+	ctx := context.Background()
+	if err := s.Write(ctx, "default", []byte("tun:\n  enable: false\n  stack: system\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Write(ctx, "work", []byte("tun:\n  enable: false\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOverride(ctx, "work", []byte("tun:\n  enable: true\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyDefaultOverride(ctx, "work"); err != nil {
+		t.Fatal(err)
+	}
+	effective, err := s.Effective("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		TUN struct {
+			Enable bool   `yaml:"enable"`
+			Stack  string `yaml:"stack"`
+		} `yaml:"tun"`
+	}
+	if err := yaml.Unmarshal(effective, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TUN.Enable || cfg.TUN.Stack != "system" {
+		t.Fatalf("default settings disconnected active TUN: %+v", cfg.TUN)
 	}
 }

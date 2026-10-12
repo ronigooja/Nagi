@@ -33,7 +33,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `profile override set NAME FILE` | Save a separate local YAML mapping (maximum 8 MiB) and apply it to this profile. |
 | `profile override show NAME` | Print the local override YAML. |
 | `profile override clear NAME` | Remove the local override and reload if selected and running. |
-| `profile override apply-default NAME` | Copy safe local runtime settings from `profiles/default.yaml` onto NAME; nodes, groups, rules, and Nagi-managed fields are excluded. |
+| `profile override apply-default NAME` | Copy safe local runtime settings from `profiles/default.yaml` onto NAME; nodes, groups, rules, and Nagi-managed fields are excluded, and an enabled TUN stays enabled. |
 | `profile remove NAME` | Delete an unselected regular profile file, retaining any existing `.bak` file. |
 | `dns status` | Show selected profile DNS policy, upstream hosts, IPv6, TUN configuration, and warnings. |
 | `dns set direct URL [URL...] [--bootstrap IP_DOH_URL ...]` | Save one or more HTTPS DoH upstreams for direct connection, optionally selecting direct bootstrap resolvers. |
@@ -157,7 +157,7 @@ A completed diagnostic report exits with status `0`, even when `healthy` is fals
 
 Overrides live in `config/overrides/NAME.yaml`, separate from `config/profiles/NAME.yaml` and subscription cache. The override must be a YAML mapping; its keys replace corresponding source keys, and nested mappings merge recursively except DNS `nameserver-policy` and `proxy-server-nameserver-policy`, which replace their source maps. Lists, including `rules` and DNS server lists, are replaced as a whole. `profile override set` validates the merged configuration with mihomo and reloads it when selected and running. The merged file is generated as `config/profiles/.effective-NAME.yaml` for mihomo, keeping relative file paths anchored in the profiles directory; `profile export`, `config show`, and backups continue to use the source YAML. `profile override clear` restores the source configuration. Removing a profile retains its override file, so clear it explicitly before reusing the name if needed. Overrides can contain credentials and are stored with private permissions.
 
-`profile override apply-default NAME` extracts safe local runtime settings from `config/profiles/default.yaml` and replaces `NAME`'s local override with them. It excludes proxies, proxy providers, proxy groups, rules, rule providers, controller settings, and credentials. The default profile itself is unchanged, and subscription nodes remain in the target source. It validates the resulting effective configuration, reloads when `NAME` is selected and mihomo is running, and restores the previous target override if validation or reload fails.
+`profile override apply-default NAME` extracts safe local runtime settings from `config/profiles/default.yaml` and replaces `NAME`'s local override with them. It excludes proxies, proxy providers, proxy groups, rules, rule providers, controller settings, and credentials. If TUN is enabled in the target's effective configuration, it stays enabled after applying defaults; other TUN settings come from the default profile. The default profile itself is unchanged, and subscription nodes remain in the target source. It validates the resulting effective configuration, reloads when `NAME` is selected and mihomo is running, and restores the previous target override if validation or reload fails.
 
 ## DNS policy and checks
 

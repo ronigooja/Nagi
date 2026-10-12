@@ -100,6 +100,25 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string) error {
 	for key := range defaultOverrideExcludedKeys {
 		delete(source, key)
 	}
+	// Applying defaults to an existing profile must not disconnect applications
+	// that currently reach mihomo through its TUN adapter.
+	current, err := s.Effective(name)
+	if err != nil {
+		return err
+	}
+	var target map[string]any
+	if err := yaml.Unmarshal(current, &target); err != nil || target == nil {
+		return errors.New("target profile must be a YAML mapping")
+	}
+	currentTUN, _ := target["tun"].(map[string]any)
+	if currentTUN["enable"] == true {
+		defaultTUN, _ := source["tun"].(map[string]any)
+		if defaultTUN == nil {
+			defaultTUN = map[string]any{}
+			source["tun"] = defaultTUN
+		}
+		defaultTUN["enable"] = true
+	}
 	filtered, err := yaml.Marshal(source)
 	if err != nil {
 		return fmt.Errorf("default profile settings could not be prepared: %w", err)
