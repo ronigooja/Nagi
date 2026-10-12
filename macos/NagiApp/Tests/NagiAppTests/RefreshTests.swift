@@ -28,7 +28,7 @@ import XCTest
             case "subscription list": json = "{\"subscriptions\":[{\"name\":\"feed\",\"schedule_seconds\":\(capturedSchedule)}]}"
             case "subscription schedule feed off": schedule = 0; json = "{}"
             case "profile use two": profile = "two"; json = "{\"current\":\"two\"}"
-            default: json = "{\"default_override_applied\":false,\"installed\":false}"
+            default: json = "{\"default_override_applied\":false,\"dns_proxy_group\":\"\(profile)\",\"installed\":false}"
             }
             return try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))
         }
@@ -176,6 +176,39 @@ import XCTest
         await model.refresh()
         XCTAssertEqual(commands.count("subscription list"), 2)
         XCTAssertEqual(model.subscriptions.count, 1)
+    }
+
+    func testForcedMetadataFailuresInvalidatePreviouslySuccessfulTTL() async {
+        let commands = Commands(), model: AppModel
+        model = commands.model()
+        commands.running = true
+        await model.refresh()
+        defer { model.pauseForSleep() }
+        let reads = ["profile list", "subscription list", "service status", "proxy providers"]
+        commands.failures = Set(reads)
+        _ = await model.refreshMenuData()
+        commands.failures = []
+        await model.refresh()
+        for command in reads { XCTAssertEqual(commands.count(command), 3, command) }
+    }
+
+    func testWakeRefreshesBindingsWhenProfileMutationFinishesDuringSleep() async {
+        let commands = Commands(), model: AppModel
+        model = commands.model()
+        await model.refresh()
+        XCTAssertEqual(model.dnsProxyGroup, "one")
+        commands.blocked = "profile use two"
+        model.perform(["profile", "use", "two"])
+        await waitUntil { commands.continuation != nil }
+        model.pauseForSleep()
+        commands.release()
+        await waitUntil { !model.busy }
+        XCTAssertEqual(model.profile, "two")
+        XCTAssertEqual(model.dnsProxyGroup, "one")
+        model.resumeAfterWake()
+        await waitUntil { model.dnsProxyGroup == "two" }
+        XCTAssertEqual(commands.count("profile override default-status two"), 1)
+        model.pauseForSleep()
     }
 
     func testSleepRejectsLateReadAndSubsequentRefreshRecovers() async {

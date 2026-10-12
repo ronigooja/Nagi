@@ -266,15 +266,18 @@ enum EngineState { case starting, running, stopped, unavailable }
             }
         }
         if scope.contains(.profiles) {
+            metadataReadAt.removeValue(forKey: RefreshScope.profiles.rawValue)
             if await refreshProfiles() { metadataReadAt[RefreshScope.profiles.rawValue] = now() }
         }
         guard valid() else { return false }
         if scope.contains(.subscriptions) {
+            metadataReadAt.removeValue(forKey: RefreshScope.subscriptions.rawValue)
             subscriptionsRefreshed = await refreshSubscriptions()
             if subscriptionsRefreshed { metadataReadAt[RefreshScope.subscriptions.rawValue] = now() }
         }
         guard valid() else { return false }
         if scope.contains(.service) {
+            metadataReadAt.removeValue(forKey: RefreshScope.service.rawValue)
             do {
                 let value = try await runCommand(["service", "status"])
                 guard valid() else { return false }
@@ -398,6 +401,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                 }
             }
             if scope.contains(.providers) {
+                metadataReadAt.removeValue(forKey: RefreshScope.providers.rawValue)
                 do {
                     let value = try await runCommand(["proxy", "providers"])
                     guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
@@ -662,7 +666,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     func resumeAfterWake() {
         sleeping = false
         startSubscriptionWatch()
-        Task { await refresh() }
+        Task { await refreshMenuData() }
     }
     func ensureFreshTraffic() {
         guard state == .running, !sleeping, trafficTask != nil else { return }
