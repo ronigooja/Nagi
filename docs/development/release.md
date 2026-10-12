@@ -76,8 +76,8 @@ completed manually.
    Run the version check above for targets that can execute on the release host;
    for other targets, verify the embedded version from the build output or with
    a binary inspection tool.
-6. Push the tag. The [`publish release`](../../.github/workflows/release.yml)
-   workflow builds the archives, verifies `SHA256SUMS`, generates release
+6. The pushed tag triggers the [`publish release`](../../.github/workflows/release.yml)
+   workflow. It builds the archives, verifies `SHA256SUMS`, generates release
    notes, and creates the GitHub Release with the tagged artifacts. Review the
    created release before announcing it.
 
