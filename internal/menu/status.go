@@ -91,7 +91,10 @@ func modePage(persistent bool) *Page {
 
 // pageStatus shows only the fields needed for a page summary, never raw JSON.
 func pageStatus(ctx context.Context, s *Session, label string, args []string, fields ...string) string {
-	result := s.Fetch(ctx, args...)
+	return pageStatusResult(s.Fetch(ctx, args...), label, fields...)
+}
+
+func pageStatusResult(result Result, label string, fields ...string) string {
 	if result.Error != nil {
 		return label + ": unknown — " + result.Error.Message
 	}

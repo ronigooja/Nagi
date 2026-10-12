@@ -36,6 +36,18 @@ func (s *Session) Fetch(ctx context.Context, args ...string) Result {
 	return s.runner.Run(ctx, args)
 }
 
+// fetchReads preserves serial behavior for runners without batch support.
+func (s *Session) fetchReads(ctx context.Context, commands [][]string) []Result {
+	if runner, ok := s.runner.(ReadRunner); ok {
+		return runner.Read(ctx, commands)
+	}
+	results := make([]Result, len(commands))
+	for i, args := range commands {
+		results[i] = s.Fetch(ctx, args...)
+	}
+	return results
+}
+
 func (s *Session) Run(ctx context.Context, args ...string) Result {
 	result := s.Fetch(ctx, args...)
 	s.ShowResult(args, result)

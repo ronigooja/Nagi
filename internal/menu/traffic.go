@@ -44,13 +44,18 @@ func TrafficPage() *Page {
 			items = append([]Item{{Label: "System Proxy", Next: func() *Page { return system }}}, items...)
 
 		}
+		commands := [][]string{{"tun", "status"}, {"ports", "status"}, {"lan", "status"}}
+		if runtime.GOOS == "darwin" {
+			commands = append(commands, []string{"system-proxy", "status"})
+		}
+		results := s.fetchReads(ctx, commands)
 		summary := []string{
-			pageStatus(ctx, s, "TUN", []string{"tun", "status"}, "enabled"),
-			pageStatus(ctx, s, "Listener ports", []string{"ports", "status"}, "http", "socks", "mixed"),
-			pageStatus(ctx, s, "LAN", []string{"lan", "status"}, "enabled", "bind_address"),
+			pageStatusResult(results[0], "TUN", "enabled"),
+			pageStatusResult(results[1], "Listener ports", "http", "socks", "mixed"),
+			pageStatusResult(results[2], "LAN", "enabled", "bind_address"),
 		}
 		if runtime.GOOS == "darwin" {
-			summary = append(summary, pageStatus(ctx, s, "System proxy", []string{"system-proxy", "status"}, "enabled"))
+			summary = append(summary, pageStatusResult(results[3], "System proxy", "enabled"))
 		}
 		return PageView{Context: strings.Join(summary, "\n"), Actions: items}, nil
 	}}

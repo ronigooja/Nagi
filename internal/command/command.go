@@ -662,13 +662,6 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 		}
 		data := map[string]any{"running": status.Running, "socket_path": status.SocketPath, "log_path": status.LogPath}
-		if tunDNSOS == "darwin" {
-			state, dnsErr := statusTUNDNS(ctx, paths)
-			data["system_dns"] = state
-			if dnsErr != nil {
-				data["system_dns_error"] = output.RedactError(dnsErr.Error())
-			}
-		}
 		if recoveryError, e := os.ReadFile(dnsRecoveryErrorPath(paths)); e == nil {
 			data["system_dns_recovery_error"] = output.RedactError(string(recoveryError))
 		}
@@ -685,18 +678,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if profileErr != nil {
 			data["profile_error"] = profileErr.Error()
 		}
-		if status.Running {
-			var v struct {
-				Version string `json:"version"`
-			}
-			if client.Get(ctx, "/version", &v) == nil {
-				data["version"] = v.Version
-			}
-			var cfg map[string]any
-			if client.Get(ctx, "/configs", &cfg) == nil {
-				data["mixed_port"] = cfg["mixed-port"]
-			}
+		var dnsStatus func(context.Context) (traffic.DNSState, error)
+		if tunDNSOS == "darwin" {
+			dnsStatus = func(ctx context.Context) (traffic.DNSState, error) { return statusTUNDNS(ctx, paths) }
 		}
+		appendStatusReads(ctx, data, status.Running, client, dnsStatus)
 		return data, nil
 	case "logs":
 		if backendMode == privilegedBackend {

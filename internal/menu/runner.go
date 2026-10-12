@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 type CLIError struct {
@@ -26,12 +27,21 @@ type Runner interface {
 	Run(context.Context, []string) Result
 }
 
+// ReadRunner is optional. It runs independent read-only commands and returns
+// results in argument order. Run itself need not support concurrent calls.
+// Session rendering, feedback, and input must remain outside the batch.
+type ReadRunner interface {
+	Read(context.Context, [][]string) []Result
+}
+
 // StreamRunner is optional. Streaming commands use a child process so that
 // interrupting the stream does not interrupt the menu itself.
 type StreamRunner interface {
 	Stream(context.Context, []string, io.Writer) Result
 }
 
+// CommandFunc must support concurrent independent reads. Each invocation receives
+// private stdout/stderr buffers; business operations are dispatched sequentially.
 type CommandFunc func([]string, io.Writer, io.Writer) int
 
 type commandRunner struct{ run CommandFunc }
@@ -64,6 +74,23 @@ func (r *commandRunner) Run(ctx context.Context, args []string) Result {
 		return Result{Code: maxCode(code), Error: envelope.Error}
 	}
 	return Result{Data: envelope.Data}
+}
+
+// Read is used only for independent page status reads. Mutations continue to
+// use Run sequentially, including multi-command operations.
+func (r *commandRunner) Read(ctx context.Context, commands [][]string) []Result {
+	results := make([]Result, len(commands))
+	var wg sync.WaitGroup
+	for i, args := range commands {
+		i, args := i, args
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i] = r.Run(ctx, args)
+		}()
+	}
+	wg.Wait()
+	return results
 }
 
 func maxCode(code int) int {
