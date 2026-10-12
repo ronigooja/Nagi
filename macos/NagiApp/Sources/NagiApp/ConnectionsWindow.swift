@@ -100,6 +100,7 @@ import AppKit
         scroll.borderType = .bezelBorder
         scroll.setContentHuggingPriority(.defaultLow, for: .vertical)
 
+        detail.identifier = NSUserInterfaceItemIdentifier("connection-details")
         detail.frame = NSRect(x: 0, y: 0, width: 900, height: 170)
         detail.minSize = .zero
         detail.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)

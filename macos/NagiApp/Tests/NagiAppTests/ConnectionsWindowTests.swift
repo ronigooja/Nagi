@@ -28,7 +28,7 @@ final class ConnectionsWindowTests: XCTestCase {
         XCTAssertTrue(table.tableColumns[4].title.contains("cumulative"))
         XCTAssertTrue(table.tableColumns[5].title.contains("cumulative"))
         XCTAssertEqual(descendants(content, of: NSSearchField.self).count, 1)
-        let details = try XCTUnwrap(descendants(content, of: NSTextView.self).first)
+        let details = try XCTUnwrap(descendants(content, of: NSTextView.self).first { $0.identifier?.rawValue == "connection-details" })
         XCTAssertFalse(details.isEditable)
         XCTAssertTrue(details.isSelectable)
         window.close()
@@ -70,8 +70,74 @@ final class ConnectionsWindowTests: XCTestCase {
         XCTAssertEqual(model.rows.first?.id, "b")
         XCTAssertEqual(table.selectedRow, 0)
         XCTAssertEqual(model.selectedID, "b")
-        let details = try XCTUnwrap(descendants(content, of: NSTextView.self).first)
+        let details = try XCTUnwrap(descendants(content, of: NSTextView.self).first { $0.identifier?.rawValue == "connection-details" })
         XCTAssertTrue(details.string.contains("ID: b"))
         XCTAssertTrue(details.string.contains("/Applications/Browser.app/Contents/MacOS/Browser"))
+    }
+
+    @MainActor private func eventually(_ condition: () async -> Bool) async throws {
+        for _ in 0..<200 {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Window lifecycle did not update connection reading within four seconds.")
+    }
+
+    @MainActor func testNativeWindowLifecycleCancelsAndImmediatelyResumesReading() async throws {
+        _ = NSApplication.shared
+        let probe = WindowReadProbe()
+        // A long cadence means each restored read must be immediate, rather
+        // than a timer tick. The slow read also exposes actual cancellation.
+        let model = ConnectionsModel(fetch: { try await probe.read() }, execute: { _ in }, interval: 60_000_000_000)
+        model.setEngineState(.running)
+        let controller = ConnectionsWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        controller.present()
+        defer { window.close() }
+        try await eventually { await probe.starts == 1 }
+
+        window.miniaturize(nil)
+        try await eventually { await probe.cancellations == 1 }
+        try await Task.sleep(nanoseconds: 200_000_000)
+        let afterMinimize = await probe.starts
+        XCTAssertEqual(afterMinimize, 1)
+        window.deminiaturize(nil)
+        try await eventually { await probe.starts == 2 }
+
+        window.orderOut(nil)
+        try await eventually { await probe.cancellations == 2 }
+        try await Task.sleep(nanoseconds: 200_000_000)
+        let afterHide = await probe.starts
+        XCTAssertEqual(afterHide, 2)
+        controller.present()
+        try await eventually { await probe.starts == 3 }
+
+        window.close()
+        try await eventually { await probe.cancellations == 3 }
+        try await Task.sleep(nanoseconds: 200_000_000)
+        let afterClose = await probe.starts
+        XCTAssertEqual(afterClose, 3)
+        controller.present()
+        try await eventually { await probe.starts == 4 }
+        window.close()
+        try await eventually { await probe.cancellations == 4 }
+    }
+
+}
+
+
+private actor WindowReadProbe {
+    private(set) var starts = 0
+    private(set) var cancellations = 0
+
+    func read() async throws -> [Connection] {
+        starts += 1
+        do {
+            try await Task.sleep(nanoseconds: 60_000_000_000)
+            return []
+        } catch {
+            cancellations += 1
+            throw error
+        }
     }
 }
