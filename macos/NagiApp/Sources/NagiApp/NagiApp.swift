@@ -26,7 +26,14 @@ import AppKit
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.menu = menu
         menu.delegate = self
-        model.onChange = { [weak self] in self?.renderStatus() }
+        model.onChange = { [weak self] in
+            guard let self else { return }
+            self.renderStatus()
+            // Model refreshes can complete while the menu is detached during
+            // an operation. Rebuild the tree before it is opened again so
+            // profile override checkmarks reflect the completed CLI action.
+            if !self.menuTracking && !self.model.busy { self.rebuildMenu() }
+        }
         renderStatus()
         pulse = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.model.ensureFreshTraffic(); self?.renderStatus() }
