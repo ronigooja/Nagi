@@ -68,9 +68,9 @@ Mutation actions disclose that ordinary node/provider changes are cleared by exp
 
 ## Rule import and management flow
 
-Routing Rules offers one Import rule file action. A numeric selector shows Full rules (targets in file), Classical rule set, Domain rule set, and IP-CIDR rule set, mapping to CLI formats `rules`, `classical`, `domain`, and `ipcidr`. The retained form collects a name and local path or HTTP(S) URL. Only provider-set formats collect a common target; full rules retain their individual targets and order. Submission dispatches `rules import NAME FORMAT SOURCE [TARGET]` once. Failed submissions keep the chosen format and form values for explicit editing or retry; selector cancellation, form interruption, or EOF before submission performs no mutation. The CLI owns reading/downloading, validation, snapshot persistence, and activation.
+Routing Rules offers one Import rules action. The retained form collects only a name and local path or HTTP(S) URL. Native rules retain their individual targets and order; there is no format selector or common-target prompt. Submission dispatches `rules import NAME SOURCE` once. Failed submissions keep form values for explicit editing or retry; form cancellation, interruption, or EOF before submission performs no mutation. The CLI owns reading/downloading, validation, snapshot persistence, and activation.
 
-View Rules includes custom rules and sets. Manage Rules and Sets lists all named single rules, full-rule imports, and provider sets for enable, disable, and removal. Removal discloses that the entire named object is deleted; no individual imported-rule editing flow is provided. The [rule import reference](../reference/cli.md#rule-file-imports) defines input formats and dependencies.
+View Rules includes custom rules and sets. Manage Rules and Sets lists all named single rules, full-rule imports, and previously imported provider sets for enable, disable, and removal. Removal discloses that the entire named object is deleted; no individual imported-rule editing flow is provided. The [rule import reference](../reference/cli.md#rule-file-imports) defines input formats and dependencies.
 
 ## Rule test flow
 

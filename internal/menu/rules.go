@@ -35,7 +35,7 @@ func RulesPage() *Page {
 				Item{Label: "Enable custom rule or set", Action: ruleChange("enable")},
 				Item{Label: "Disable custom rule or set", Action: ruleChange("disable")},
 				Item{Label: "Remove custom rule or set", Impact: "Removes the whole named object and activates the change", Action: ruleChange("remove")})),
-			{Label: "Import rule file", Impact: "Reads a file or downloads a snapshot, saves and activates", Action: ruleImport},
+			{Label: "Import rules", Impact: "Reads a file or downloads a snapshot, saves and activates", Action: ruleImport},
 		}}
 		return view, nil
 	}}
@@ -152,27 +152,11 @@ func ruleChange(verb string) func(context.Context, *Session) error {
 }
 
 func ruleImport(ctx context.Context, s *Session) error {
-	choice, err := s.Select("Rule file format", []string{"Full rules (targets in file)", "Classical rule set", "Domain rule set", "IP-CIDR rule set"})
-	if err != nil {
-		return err
-	}
-	format := map[string]string{
-		"Full rules (targets in file)": "rules", "Classical rule set": "classical",
-		"Domain rule set": "domain", "IP-CIDR rule set": "ipcidr",
-	}[choice]
-	fields := []Field{
+	_, err := s.Form(ctx, []Field{
 		{Key: "name", Label: "Import name", Required: true, Validate: validateMenuRuleName},
 		{Key: "source", Label: "Local file path or HTTP(S) URL", Required: true},
-	}
-	if format != "rules" {
-		fields = append(fields, Field{Key: "target", Label: "Target (DIRECT, REJECT, or proxy group)", Required: true})
-	}
-	_, err = s.Form(ctx, fields, nil, func(v map[string]string) Result {
-		args := []string{"rules", "import", v["name"], format, v["source"]}
-		if format != "rules" {
-			args = append(args, v["target"])
-		}
-		return s.Run(ctx, args...)
+	}, nil, func(v map[string]string) Result {
+		return s.Run(ctx, "rules", "import", v["name"], v["source"])
 	})
 	return err
 }

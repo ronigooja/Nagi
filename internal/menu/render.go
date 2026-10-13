@@ -309,7 +309,7 @@ func mutationFeedback(args []string) string {
 		return map[string]string{
 			"add": "Rule saved.", "remove": "Rule or set removed.",
 			"enable": "Rule or set enabled.", "disable": "Rule or set disabled.",
-			"import": "Rule file imported.",
+			"import": "Rules imported.",
 		}[args[1]]
 	}
 	return ""

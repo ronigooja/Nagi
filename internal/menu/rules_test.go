@@ -3,6 +3,7 @@ package menu
 import (
 	"bytes"
 	"context"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -54,20 +55,12 @@ func TestRuleTestMenuRetainsInputAfterFailure(t *testing.T) {
 }
 
 func TestRuleImportMenuJourneys(t *testing.T) {
-	for _, tc := range []struct {
-		name, input string
-		want        []string
-		withTarget  bool
-	}{
-		{"rules", "4\n1\npersonal\n./personal rules.yaml\n0\n", []string{"rules", "import", "personal", "rules", "./personal rules.yaml"}, false},
-		{"classical", "4\n2\nset\nhttps://example.com/rules.yaml\nProxy Group\n0\n", []string{"rules", "import", "set", "classical", "https://example.com/rules.yaml", "Proxy Group"}, true},
-		{"domain", "4\n3\nset\n./domains.txt\nREJECT\n0\n", []string{"rules", "import", "set", "domain", "./domains.txt", "REJECT"}, true},
-		{"ipcidr", "4\n4\nset\n./networks.txt\nDIRECT\n0\n", []string{"rules", "import", "set", "ipcidr", "./networks.txt", "DIRECT"}, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, source := range []string{"./personal rules.yaml", "https://example.com/rules.yaml"} {
+		t.Run(source, func(t *testing.T) {
 			runner := &fakeRunner{}
 			var out bytes.Buffer
-			if code := RunPage(context.Background(), NewSession(runner, strings.NewReader(tc.input), &out), RulesPage()); code != 0 {
+			input := "4\npersonal\n" + source + "\n0\n"
+			if code := RunPage(context.Background(), NewSession(runner, strings.NewReader(input), &out), RulesPage()); code != 0 {
 				t.Fatalf("exit=%d out=%s", code, out.String())
 			}
 			var imports [][]string
@@ -76,13 +69,15 @@ func TestRuleImportMenuJourneys(t *testing.T) {
 					imports = append(imports, args)
 				}
 			}
-			if !reflect.DeepEqual(imports, [][]string{tc.want}) {
+			if !reflect.DeepEqual(imports, [][]string{{"rules", "import", "personal", source}}) {
 				t.Fatalf("calls=%v out=%s", runner.calls, out.String())
 			}
-			if strings.Contains(out.String(), "Target (DIRECT") != tc.withTarget {
-				t.Fatalf("target prompt for %s: %s", tc.name, out.String())
+			for _, unwanted := range []string{"Rule file format", "Classical rule set", "Target (DIRECT"} {
+				if strings.Contains(out.String(), unwanted) {
+					t.Fatalf("unexpected prompt %q: %s", unwanted, out.String())
+				}
 			}
-			for _, want := range []string{"4. Import rule file", "Rule file format", "Rule file imported."} {
+			for _, want := range []string{"4. Import rules", "Rules imported."} {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("missing %q: %s", want, out.String())
 				}
@@ -91,37 +86,41 @@ func TestRuleImportMenuJourneys(t *testing.T) {
 	}
 }
 
-func TestRuleImportRetainsNameSourceAndTargetAfterFailure(t *testing.T) {
-	for _, tc := range []struct{ input, command string }{
-		{"1\nbundle\n./rules.yaml\n1\n\n2\n\n3\n", "rules import bundle rules ./rules.yaml"},
-		{"3\nset\n./domains.txt\nREJECT\n1\n\n2\n\n3\n\n4\n", "rules import set domain ./domains.txt REJECT"},
-	} {
-		runner := &sequenceRunner{results: map[string][]Result{tc.command: {
-			{Code: 1, Error: &CLIError{Message: "validation failed"}}, {},
-		}}}
-		var out bytes.Buffer
-		if err := ruleImport(context.Background(), NewSession(runner, strings.NewReader(tc.input), &out)); err != nil {
-			t.Fatal(err)
-		}
-		if len(runner.calls) != 2 || !reflect.DeepEqual(runner.calls[0], runner.calls[1]) || !strings.Contains(out.String(), "Values are retained") || !strings.Contains(out.String(), "blank keeps current value") {
-			t.Fatalf("calls=%v out=%s", runner.calls, out.String())
-		}
+func TestRuleImportRetainsNameAndSourceAfterFailure(t *testing.T) {
+	runner := &sequenceRunner{results: map[string][]Result{"rules import personal ./rules.yaml": {
+		{Code: 1, Error: &CLIError{Message: "validation failed"}}, {},
+	}}}
+	var out bytes.Buffer
+	if err := ruleImport(context.Background(), NewSession(runner, strings.NewReader("personal\n./rules.yaml\n1\n\n2\n\n3\n"), &out)); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 2 || !reflect.DeepEqual(runner.calls[0], runner.calls[1]) || !strings.Contains(out.String(), "Values are retained") || !strings.Contains(out.String(), "blank keeps current value") {
+		t.Fatalf("calls=%v out=%s", runner.calls, out.String())
 	}
 }
 
 func TestRuleImportCancellationAndEOFDoNotSubmit(t *testing.T) {
-	for _, input := range []string{"0\n", "", "1\n", "1\nbundle\n", "3\nset\n./domains.txt\n"} {
+	for _, input := range []string{"", "personal\n"} {
 		runner := &fakeRunner{}
-		var out bytes.Buffer
-		err := ruleImport(context.Background(), NewSession(runner, strings.NewReader(input), &out))
-		if (err != ErrBack && err != ErrQuit) || len(runner.calls) != 0 {
+		err := ruleImport(context.Background(), NewSession(runner, strings.NewReader(input), &bytes.Buffer{}))
+		if err != ErrQuit || len(runner.calls) != 0 {
 			t.Fatalf("input=%q err=%v calls=%v", input, err, runner.calls)
 		}
 	}
-	// Cancel after failure never retries the already submitted mutation.
-	runner := &fakeRunner{results: map[string]Result{"rules import bundle rules ./rules.yaml": {Code: 1}}}
-	if err := ruleImport(context.Background(), NewSession(runner, strings.NewReader("1\nbundle\n./rules.yaml\n0\n"), &bytes.Buffer{})); err != ErrBack || len(runner.calls) != 1 {
-		t.Fatalf("err=%v calls=%v", err, runner.calls)
+	canceled := &fakeRunner{}
+	s := NewSession(canceled, strings.NewReader("personal\n./rules.yaml\n"), &bytes.Buffer{})
+	s.interrupts = make(chan os.Signal, 1)
+	s.interrupts <- os.Interrupt
+	if err := ruleImport(context.Background(), s); err != ErrBack || len(canceled.calls) != 0 {
+		t.Fatalf("interrupt: err=%v calls=%v", err, canceled.calls)
+	}
+	// Cancel or EOF after failure never retries the already submitted mutation.
+	for _, ending := range []string{"0\n", ""} {
+		runner := &fakeRunner{results: map[string]Result{"rules import personal ./rules.yaml": {Code: 1}}}
+		err := ruleImport(context.Background(), NewSession(runner, strings.NewReader("personal\n./rules.yaml\n"+ending), &bytes.Buffer{}))
+		if (err != ErrBack && err != ErrQuit) || len(runner.calls) != 1 {
+			t.Fatalf("err=%v calls=%v", err, runner.calls)
+		}
 	}
 }
 
