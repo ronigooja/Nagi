@@ -73,6 +73,18 @@ func TestProfileValidatorUsesRedactedFieldPath(t *testing.T) {
 	}
 }
 
+func TestProfileValidatorExplainsRuleTargetFailure(t *testing.T) {
+	binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[0]\",\"code\":\"invalid_config\",\"message\":\"configuration validation failed\"}]}'\nexit 1\n")
+	store, _ := validationStore(t, binary)
+	err := store.Write(context.Background(), "work", []byte("rules:\n  - DOMAIN-SUFFIX,example.com,missing-target\n"))
+	if err == nil || !strings.Contains(err.Error(), `profile "default" validation failed at rules[0]`) || !strings.Contains(err.Error(), "check that its target exists in the selected profile") {
+		t.Fatalf("rule target guidance: %v", err)
+	}
+	if strings.Contains(err.Error(), "configuration validation failed") {
+		t.Fatalf("generic mihomo message was not replaced: %v", err)
+	}
+}
+
 func TestProfileValidatorResolvesBinaryOnPATH(t *testing.T) {
 	binDir := t.TempDir()
 	writeFakeMihomo(t, binDir, "mihomo", "#!/bin/sh\nexit 0\n")

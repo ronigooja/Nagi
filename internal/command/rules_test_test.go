@@ -84,7 +84,11 @@ func TestRuleTestCLIContract(t *testing.T) {
 		mu.Unlock()
 		w.WriteHeader(code)
 		if code != http.StatusOK {
-			_, _ = w.Write([]byte(`{"message":"unsupported"}`))
+			message := "unsupported"
+			if code == http.StatusUnprocessableEntity {
+				message = "DNS resolution required by a rule failed; supply a destination IP to test without DNS"
+			}
+			_ = json.NewEncoder(w).Encode(map[string]string{"message": message})
 			return
 		}
 		_ = json.NewEncoder(w).Encode(rules.TestResult{Target: req.Target, Port: req.Port, Network: req.Network, Mode: "rule", Matched: true, Rule: "RuleSet", RulePayload: "nagi-personal", Providers: []string{"nagi-personal"}, Outbound: "DIRECT", Warnings: []string{"Synthetic destination test"}})
@@ -124,6 +128,9 @@ func TestRuleTestCLIContract(t *testing.T) {
 		var out, errs bytes.Buffer
 		if exit := Run([]string{"--json", "rules", "test", "192.0.2.1"}, &out, &errs, "test", "test"); exit != 1 || out.Len() != 0 || !strings.Contains(errs.String(), `"code":"rule_error"`) {
 			t.Fatalf("status=%d out=%s err=%s", code, out.String(), errs.String())
+		}
+		if code == 422 && !strings.Contains(errs.String(), "DNS resolution required by a rule failed; supply a destination IP to test without DNS") {
+			t.Fatalf("status=%d did not preserve mihomo error: %s", code, errs.String())
 		}
 		if code != 422 && !strings.Contains(errs.String(), "does not support rule testing") {
 			t.Fatal(errs.String())

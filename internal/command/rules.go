@@ -26,8 +26,15 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		var result rules.TestResult
 		if err := client.Post(ctx, "/rules/test", req, &result); err != nil {
 			var apiErr *control.APIError
-			if errors.As(err, &apiErr) && (apiErr.Status == 404 || apiErr.Status == 405) {
-				return nil, fail("rule_error", errors.New("running mihomo does not support rule testing; install the matching engine and restart Nagi"))
+			if errors.As(err, &apiErr) {
+				switch apiErr.Status {
+				case 404, 405:
+					return nil, fail("rule_error", errors.New("running mihomo does not support rule testing; install the matching engine and restart Nagi"))
+				case 422:
+					// Preserve mihomo's actionable destination-test failure
+					// instead of relabeling it as engine unavailability.
+					return nil, fail("rule_error", errors.New(apiErr.Message))
+				}
 			}
 			return nil, fail("rule_error", fmt.Errorf("rule test failed; ensure mihomo is running with the matching engine: %w", err))
 		}
