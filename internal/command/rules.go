@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -151,10 +152,12 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		err = store.SetEnabled(ctx, args[2], true)
 	case "disable":
 		err = store.SetEnabled(ctx, args[2], false)
-	case "import-local":
-		err = store.ImportLocal(ctx, args[2], args[3], args[4], args[5])
-	case "import-remote":
-		err = store.ImportRemote(ctx, args[2], args[3], args[4], args[5])
+	case "import":
+		target := ""
+		if len(args) == 6 {
+			target = args[5]
+		}
+		err = store.Import(ctx, args[2], args[3], args[4], target)
 	default:
 		return nil, errors.New("unsupported rules command")
 	}
@@ -162,4 +165,39 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		return nil, fail("rule_error", err)
 	}
 	return map[string]any{"name": args[2], "action": args[1], "saved": true}, nil
+}
+
+// validateRuleImportArguments checks syntax before resolving runtime paths.
+func validateRuleImportArguments(args []string) error {
+	name, format, source := args[2], args[3], args[4]
+	if len(name) < 1 || len(name) > 128 || strings.Trim(name, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-") != "" {
+		return errors.New("NAME must use 1..128 ASCII letters, digits, _ or -")
+	}
+	switch format {
+	case "rules":
+		if len(args) != 5 {
+			return errors.New("FORMAT rules contains its own targets and does not accept TARGET")
+		}
+	case "classical", "domain", "ipcidr":
+		if len(args) != 6 || strings.TrimSpace(args[5]) == "" {
+			return errors.New("FORMAT classical, domain, and ipcidr require TARGET")
+		}
+		if strings.ContainsAny(args[5], ",\n\r") {
+			return errors.New("TARGET must be DIRECT, REJECT, or a proxy group name without commas or newlines")
+		}
+	default:
+		return errors.New("FORMAT must be rules, classical, domain, or ipcidr")
+	}
+	if strings.TrimSpace(source) == "" {
+		return errors.New("SOURCE is required")
+	}
+	// Relative and absolute filesystem paths can contain characters url.Parse
+	// rejects. Treat explicit URL schemes and authority-only URLs as URLs.
+	u, err := url.Parse(source)
+	if strings.Contains(source, "://") || strings.HasPrefix(source, "//") || (err == nil && u.Scheme != "") {
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Opaque != "" {
+			return errors.New("SOURCE URL must be absolute HTTP(S) without userinfo")
+		}
+	}
+	return nil
 }

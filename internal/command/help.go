@@ -104,19 +104,18 @@ var commandSpecs = []commandSpec{
 	{"proxy provider update", "proxy provider update NAME", "Update a proxy provider", "Asks mihomo to download the provider again.", "nagi proxy provider update work", "", 1, 1},
 	{"proxy provider healthcheck", "proxy provider healthcheck NAME", "Check provider nodes", "Asks mihomo to start its provider healthcheck.", "nagi proxy provider healthcheck work", "", 1, 1},
 	{"proxy delay", "proxy delay NODE [URL] [TIMEOUT_MS]", "Measure proxy delay", "Measures an HTTP(S) URL through a proxy node. URL defaults to https://www.gstatic.com/generate_204 and timeout to 5000 ms.", "nagi proxy delay NodeA", "Run `nagi proxy groups` to find a node name.", 1, 3},
-	{"rules", "rules <test TARGET [options]|list|providers|custom|conflicts|connection ID|add NAME TYPE PAYLOAD TARGET|remove NAME|enable NAME|disable NAME|import-local NAME BEHAVIOR FILE TARGET|import-remote NAME BEHAVIOR URL TARGET>", "Manage routing rules", "Custom rules are stored outside profiles and apply before profile rules.", "nagi rules list", "", 0, -1},
+	{"rules", "rules <test TARGET [options]|list|providers|custom|conflicts|connection ID|add NAME TYPE PAYLOAD TARGET|remove NAME|enable NAME|disable NAME|import NAME FORMAT SOURCE [TARGET]>", "Manage routing rules", "Custom rules are stored outside profiles and apply before profile rules.", "nagi rules list", "", 0, -1},
 	{"rules test", "rules test TARGET [--ip IP] [--port PORT] [--network tcp|udp] [--process NAME]", "Test a domain or IP against active rules", "Requires a running matching mihomo engine. Tests its active rules and rule providers without connecting to the destination; synthetic matching does not update rule counters. Defaults to TCP port 443. TARGET is an ASCII domain or bare IP; --ip supplies a domain's destination address. Mihomo resolves DNS when a rule requires it. Always tests rules even in global/direct mode. Source, inbound, UID, process path and sniffing are unavailable; use rules connection for actual traffic.", "nagi rules test 154.19.187.117", "Start the matching mihomo engine before testing.", 1, -2},
 	{"rules list", "rules list", "List active rules", "Shows mihomo's ordered active rules, including disabled state and hit counts.", "nagi rules list", "", 0, 0},
 	{"rules providers", "rules providers", "List active rule providers", "Shows mihomo rule providers from the running engine.", "nagi rules providers", "", 0, 0},
-	{"rules custom", "rules custom", "List custom rules", "Shows persistent user-owned rules and imported sets.", "nagi rules custom", "", 0, 0},
+	{"rules custom", "rules custom", "List custom rules", "Shows persistent user-owned rules, imported per-rule lists, and rule sets.", "nagi rules custom", "", 0, 0},
 	{"rules conflicts", "rules conflicts", "Report rule order and conflicts", "Shows effective rule order, duplicate matchers, and rules shadowed by MATCH.", "nagi rules conflicts", "", 0, 0},
 	{"rules connection", "rules connection ID", "Show a connection's matched rule", "Reads the rule and payload recorded by mihomo for an active connection.", "nagi rules connection CONNECTION_ID", "Run `nagi connections list` to find an ID.", 1, 1},
 	{"rules add", "rules add NAME TYPE PAYLOAD TARGET", "Add a custom rule", "Supports DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, DOMAIN-REGEX, IP-CIDR, IP-CIDR6, GEOIP, GEOSITE, PROCESS-NAME, and MATCH (use - for its payload). TARGET is DIRECT, REJECT, or a group name.", "nagi rules add work DOMAIN-SUFFIX example.com DIRECT", "", 4, 4},
-	{"rules remove", "rules remove NAME", "Remove a custom rule", "Removes a named custom rule or imported set.", "nagi rules remove work", "Run `nagi rules custom` to find names.", 1, 1},
-	{"rules enable", "rules enable NAME", "Enable a custom rule", "Enables a named custom rule or imported set.", "nagi rules enable work", "Run `nagi rules custom` to find names.", 1, 1},
-	{"rules disable", "rules disable NAME", "Disable a custom rule", "Disables a named custom rule or imported set.", "nagi rules disable work", "Run `nagi rules custom` to find names.", 1, 1},
-	{"rules import-local", "rules import-local NAME BEHAVIOR FILE TARGET", "Import a local rule set", "Imports YAML payload/list (or domain/ipcidr text) as a persistent inline provider. BEHAVIOR is classical, domain, or ipcidr.", "nagi rules import-local ads domain ./ads.yaml REJECT", "", 4, 4},
-	{"rules import-remote", "rules import-remote NAME BEHAVIOR URL TARGET", "Import a remote rule set", "Downloads up to 8 MiB over HTTP(S), stores a snapshot as a persistent inline provider, and applies it before profile rules.", "nagi rules import-remote ads domain https://example.com/ads.yaml REJECT", "", 4, 4},
+	{"rules remove", "rules remove NAME", "Remove a custom rule", "Removes a named custom rule, imported per-rule list, or rule set.", "nagi rules remove work", "Run `nagi rules custom` to find names.", 1, 1},
+	{"rules enable", "rules enable NAME", "Enable a custom rule", "Enables a named custom rule, imported per-rule list, or rule set.", "nagi rules enable work", "Run `nagi rules custom` to find names.", 1, 1},
+	{"rules disable", "rules disable NAME", "Disable a custom rule", "Disables a named custom rule, imported per-rule list, or rule set.", "nagi rules disable work", "Run `nagi rules custom` to find names.", 1, 1},
+	{"rules import", "rules import NAME FORMAT SOURCE [TARGET]", "Import routing rules or a rule set", "FORMAT is rules, classical, domain, or ipcidr. SOURCE is a local file or an absolute HTTP(S) URL without userinfo (maximum 8 MiB). rules imports native YAML rules with their own targets and forbids TARGET; classical, domain, and ipcidr import a persistent inline provider and require TARGET. NAME uses 1..128 ASCII letters, digits, _ or -. Imports apply before profile rules; validation or reload failure restores saved rules.", "nagi rules import work rules ./rules.yaml", "For a domain set: nagi rules import ads domain ./ads.yaml REJECT", 3, 4},
 	{"proxy delays", "proxy delays GROUP [URL] [TIMEOUT_MS]", "Measure group node delays", "Measures all nodes in a group and sorts successful results by ascending latency. Uses the same URL and timeout defaults as proxy delay.", "nagi proxy delays 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 3},
 	{"proxy restore", "proxy restore", "Restore saved proxy choices", "Restores available saved choices for the selected profile and reports missing groups or nodes.", "nagi proxy restore", "Run `nagi proxy groups` to see live selections.", 0, 0},
 	{"connections", "connections <list|show ID|close ID|close-all>", "Inspect connections", "Reads or closes active connections from a running engine.", "nagi connections list", "", 0, -1},
@@ -349,15 +348,9 @@ func validateInvocation(args []string) error {
 			return syntaxError(err.Error(), spec)
 		}
 	}
-	if spec.path == "rules import-remote" {
-		u, e := url.Parse(args[4])
-		if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
-			return syntaxError("URL must be absolute HTTP(S) without userinfo", spec)
-		}
-	}
-	if spec.path == "rules import-local" || spec.path == "rules import-remote" {
-		if args[3] != "classical" && args[3] != "domain" && args[3] != "ipcidr" {
-			return syntaxError("BEHAVIOR must be classical, domain, or ipcidr", spec)
+	if spec.path == "rules import" {
+		if err := validateRuleImportArguments(args); err != nil {
+			return syntaxError(err.Error(), spec)
 		}
 	}
 	if spec.path == "lan enable" && n == 1 && net.ParseIP(args[2]) == nil {
