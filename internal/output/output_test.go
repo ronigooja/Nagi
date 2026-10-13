@@ -51,6 +51,8 @@ func TestHumanSuccessShapes(t *testing.T) {
 		{"rules import", map[string]any{"name": "personal", "action": "import", "saved": true}, []string{"Rule personal: import.", "Effective configuration was validated"}, []string{"Tailscale", "DNS policy"}},
 		{"service", service.Result{Manager: "systemd", Path: "/tmp/nagi.service"}, []string{"Service manager: systemd", "Service file: /tmp/nagi.service"}, nil},
 		{"version", map[string]any{"nagi": "1.0", "mihomo": "2.0", "mihomo_commit": "abc", "os": "linux", "arch": "arm64"}, []string{"Nagi: 1.0", "Mihomo: 2.0", "Mihomo commit: abc", "OS: linux", "Architecture: arm64"}, nil},
+		{"update failure", map[string]any{"error": "download failed: https://user:secret@example.com/private"}, []string{"Last background update error: download failed: [redacted URL]"}, []string{"secret", "example.com"}},
+		{"no update failure", map[string]any{"error": ""}, []string{"No background update failure is pending."}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -531,6 +531,8 @@ Success exits `0` and uses the standard JSON envelope. `app status` returns
 `app` (recorded path or empty string), `installed` (directory exists), and
 `managed: true`. `app update-error` returns `error` (a sanitized string, empty
 when no failure is pending) and removes the pending failure after reading it.
+Human output labels a pending message as `Last background update error:` or
+reports `No background update failure is pending.` when empty.
 App install/uninstall return `action` (`app-install` or
 `app-uninstall`), `completed: true`, and `app` (destination/removed path or empty
 string for an absent App). Whole updates return `action: "update"`,

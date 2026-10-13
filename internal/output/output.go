@@ -301,6 +301,12 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		}
 		return nil
 	}
+	if message, ok := v["error"].(string); ok && len(v) == 1 {
+		if message == "" {
+			return line(w, "No background update failure is pending.")
+		}
+		return line(w, "Last background update error: "+RedactError(message))
+	}
 	if action, ok := v["action"].(string); ok && (v["completed"] == true || v["scheduled"] == true) {
 		if v["scheduled"] == true {
 			if v["background"] == true {
