@@ -519,6 +519,14 @@ the persisted error through `app update-error` and retains it across routine
 refreshes until another explicit Update attempt. Details, including a failed
 reopen attempt, remain in `~/Library/Caches/Nagi/update.log`.
 
+`update --app` preparation has a 14-minute overall deadline and responds to
+interrupt (`SIGINT`) and termination (`SIGTERM`) signals before handoff. A timeout
+or interruption cancels preparation, releases its maintenance resources, and
+returns an `installation_error` without stopping the engine or requesting App
+quit. The App allows 15 minutes for this CLI call. Once a scheduled result is
+returned, the detached updater owns the installation; the preparation deadline
+no longer applies.
+
 Success exits `0` and uses the standard JSON envelope. `app status` returns
 `app` (recorded path or empty string), `installed` (directory exists), and
 `managed: true`. `app update-error` returns `error` (a sanitized string, empty

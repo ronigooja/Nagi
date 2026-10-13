@@ -108,9 +108,19 @@ running. Release downloads use the current mihomo mixed or HTTP listener
 reported by `ports status` when available; otherwise they use the ordinary HTTP
 environment or TUN route. An authenticated listener that refuses the local
 request causes preparation to fail before quit. It launches the detached updater
-and waits for any required native administrator authorization before reporting a scheduled result. That result
-confirms preparation and handoff, not installation completion. Only then does
-the App request its normal quit cleanup.
+and waits for any required native administrator authorization before reporting
+a scheduled result. That result confirms preparation and handoff, not installation
+completion. Only then does the App request its normal quit cleanup.
+
+The CLI bounds the entire preparation request to 14 minutes and handles `SIGINT`
+and `SIGTERM` as cancellation before handoff. The App allows 15 minutes for the
+CLI call. Cancellation stops the pending updater process group, cleans up the
+private preparation artifacts and authorization adapter, and releases the
+maintenance lock while keeping the App open and preserving engine and service
+state. Authorization child
+processes do not retain the maintenance-lock descriptor. After successful
+handoff, the detached updater owns the operation independently of the
+preparation context.
 
 The handoff transfers the private prepared artifacts and maintenance-lock file
 descriptor to the detached updater. It waits up to 60 seconds for App exit,
