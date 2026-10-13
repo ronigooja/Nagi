@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -359,7 +360,7 @@ func TestRemoveRefusesActiveInvalidSelectionAndNonregularTargets(t *testing.T) {
 }
 
 func TestRemoveRefusesNonregularCleanupTargetBeforeDeleting(t *testing.T) {
-	for _, suffix := range []string{".bak", "override", "state"} {
+	for _, suffix := range []string{".bak", "override", "state", "rules"} {
 		t.Run(suffix, func(t *testing.T) {
 			s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
 			if err := s.Write(context.Background(), "other", []byte("config")); err != nil {
@@ -373,6 +374,9 @@ func TestRemoveRefusesNonregularCleanupTargetBeforeDeleting(t *testing.T) {
 					target, _ = s.defaultOverrideStatePath("other")
 				}
 			}
+			if suffix == "rules" {
+				target = filepath.Join(s.Dir, "rules", "other.yaml")
+			}
 			if err := os.MkdirAll(target, 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -383,5 +387,70 @@ func TestRemoveRefusesNonregularCleanupTargetBeforeDeleting(t *testing.T) {
 				t.Fatalf("profile changed: %q, %v", got, err)
 			}
 		})
+	}
+}
+
+func TestRemoveCleansOnlyNamedProfileRules(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func([]byte) error { return nil }, nil)
+	ctx := context.Background()
+	for _, name := range []string{"default", "other"} {
+		if err := s.Write(ctx, name, []byte("rules: ['MATCH,DIRECT']")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ruleDir := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(ruleDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"default", "other"} {
+		if err := os.WriteFile(filepath.Join(ruleDir, name+".yaml"), []byte("entries: []"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.Remove("other"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(filepath.Join(ruleDir, "other.yaml")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("removed rules remain: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(ruleDir, "default.yaml")); err != nil {
+		t.Fatalf("other rules removed: %v", err)
+	}
+	if err := s.Write(ctx, "other", []byte("rules: ['MATCH,DIRECT']")); err != nil {
+		t.Fatal(err)
+	}
+	effective, err := s.Effective("other")
+	if err != nil || string(effective) != "rules: ['MATCH,DIRECT']" {
+		t.Fatalf("recreated profile: %q %v", effective, err)
+	}
+}
+
+func TestEffectiveUsesOnlyNamedProfileRules(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, func([]byte) error { return nil }, nil)
+	ctx := context.Background()
+	for _, name := range []string{"default", "work", "home"} {
+		if err := s.Write(ctx, name, []byte("rules: ['MATCH,DIRECT']")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "rules.yaml"), []byte("[invalid global YAML"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "rules"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "rules", "work.yaml"), []byte("entries:\n  - name: work\n    enabled: true\n    kind: rule\n    type: DOMAIN\n    payload: work.example\n    target: DIRECT\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"default", "work", "home"} {
+		data, err := s.Effective(name)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if strings.Contains(string(data), "work.example") != (name == "work") {
+			t.Fatalf("%s rules: %s", name, data)
+		}
 	}
 }

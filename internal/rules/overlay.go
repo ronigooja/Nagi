@@ -27,8 +27,8 @@ func Line(e Entry) string {
 	}
 	return e.Type + "," + e.Payload + "," + e.Target
 }
-func Apply(base []byte, dir string) ([]byte, error) {
-	doc, err := New(dir, nil).List()
+func Apply(base []byte, dir, profile string) ([]byte, error) {
+	doc, err := New(dir, profile, nil).List()
 	if err != nil {
 		return nil, err
 	}
@@ -78,9 +78,9 @@ func Apply(base []byte, dir string) ([]byte, error) {
 	cfg["rule-providers"] = providers
 	return yaml.Marshal(cfg)
 }
-func Analyze(base []byte, dir string) (Report, error) {
+func Analyze(base []byte, dir, profile string) (Report, error) {
 	var r Report
-	data, err := Apply(base, dir)
+	data, err := Apply(base, dir, profile)
 	if err != nil {
 		return r, err
 	}

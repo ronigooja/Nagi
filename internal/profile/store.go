@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/ronigooja/Nagi/internal/rules"
 )
 
 // Store manages profile files and the selected profile under a configuration directory.
@@ -139,7 +141,7 @@ func (s *Store) RestoreBackup(ctx context.Context, name string) error {
 	return nil
 }
 
-// Remove deletes an unselected profile and its backup and local override state.
+// Remove deletes an unselected profile and its backup, local override state, and custom rules.
 // Callers use a configuration transaction to recover from cleanup failures.
 func (s *Store) Remove(name string) error {
 	path, err := s.path(name)
@@ -163,7 +165,7 @@ func (s *Store) Remove(name string) error {
 	override, _ := s.overridePath(name)
 	state, _ := s.defaultOverrideStatePath(name)
 	policy, _ := s.subscriptionTailscalePath(name)
-	paths := []string{policy, path + ".bak", override, override + ".bak", state, filepath.Join(s.Dir, "profiles", ".effective-"+name+".yaml"), path}
+	paths := []string{rules.Path(s.Dir, name), policy, path + ".bak", override, override + ".bak", state, filepath.Join(s.Dir, "profiles", ".effective-"+name+".yaml"), path}
 	// Check all targets before deleting anything; never remove directories or links.
 	for _, target := range paths {
 		info, err := os.Lstat(target)

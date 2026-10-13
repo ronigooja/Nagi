@@ -76,7 +76,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		if err != nil {
 			return nil, err
 		}
-		applied, err := rules.Apply(managed, s.Dir)
+		applied, err := rules.Apply(managed, s.Dir, name)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +150,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 	if err != nil {
 		return nil, err
 	}
-	applied, err := rules.Apply(managed, s.Dir)
+	applied, err := rules.Apply(managed, s.Dir, name)
 	if err != nil {
 		return nil, err
 	}

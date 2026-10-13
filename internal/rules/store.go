@@ -33,23 +33,35 @@ type Document struct {
 	Entries []Entry `yaml:"entries" json:"entries"`
 }
 type Store struct {
-	Dir   string
-	Check func(context.Context) error
-	HTTP  *http.Client
+	Dir     string
+	Profile string
+	Check   func(context.Context) error
+	HTTP    *http.Client
 }
 
-func New(dir string, check func(context.Context) error) *Store {
-	return &Store{Dir: dir, Check: check, HTTP: &http.Client{Timeout: 20 * time.Second}}
+func New(dir, profile string, check func(context.Context) error) *Store {
+	return &Store{Dir: dir, Profile: profile, Check: check, HTTP: &http.Client{Timeout: 20 * time.Second}}
 }
-func Path(dir string) string { return filepath.Join(dir, "rules.yaml") }
-func Exists(dir string) bool { _, err := os.Stat(Path(dir)); return err == nil }
+
+// Path returns the per-profile rules document; global rules.yaml is ignored.
+func Path(dir, profile string) string { return filepath.Join(dir, "rules", profile+".yaml") }
+func Exists(dir, profile string) bool {
+	if !validName(profile) {
+		return false
+	}
+	_, err := os.Lstat(Path(dir, profile))
+	return err == nil
+}
 
 var namePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 func validName(name string) bool { return namePattern.MatchString(name) }
 func (s *Store) List() (Document, error) {
 	var doc Document
-	info, err := os.Lstat(Path(s.Dir))
+	if !validName(s.Profile) {
+		return doc, errors.New("invalid profile name")
+	}
+	info, err := os.Lstat(Path(s.Dir, s.Profile))
 	if errors.Is(err, os.ErrNotExist) {
 		return Document{Entries: []Entry{}}, nil
 	}
@@ -59,7 +71,7 @@ func (s *Store) List() (Document, error) {
 	if !info.Mode().IsRegular() {
 		return doc, errors.New("rules file is not regular")
 	}
-	data, err := os.ReadFile(Path(s.Dir))
+	data, err := os.ReadFile(Path(s.Dir, s.Profile))
 	if err != nil {
 		return doc, err
 	}
@@ -72,7 +84,17 @@ func (s *Store) List() (Document, error) {
 	return doc, nil
 }
 func (s *Store) Save(ctx context.Context, doc Document) error {
-	old, oldErr := os.ReadFile(Path(s.Dir))
+	if !validName(s.Profile) {
+		return errors.New("invalid profile name")
+	}
+	if info, err := os.Lstat(Path(s.Dir, s.Profile)); err == nil {
+		if !info.Mode().IsRegular() {
+			return errors.New("rules file is not regular")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	old, oldErr := os.ReadFile(Path(s.Dir, s.Profile))
 	if oldErr != nil && !errors.Is(oldErr, os.ErrNotExist) {
 		return oldErr
 	}
@@ -80,18 +102,18 @@ func (s *Store) Save(ctx context.Context, doc Document) error {
 	if err != nil {
 		return err
 	}
-	if err = os.MkdirAll(s.Dir, 0700); err != nil {
+	if err = os.MkdirAll(filepath.Dir(Path(s.Dir, s.Profile)), 0700); err != nil {
 		return err
 	}
-	if err = write(Path(s.Dir), data); err != nil {
+	if err = write(Path(s.Dir, s.Profile), data); err != nil {
 		return err
 	}
 	if s.Check != nil {
 		if err = s.Check(ctx); err != nil {
 			if errors.Is(oldErr, os.ErrNotExist) {
-				return errors.Join(err, os.Remove(Path(s.Dir)))
+				return errors.Join(err, os.Remove(Path(s.Dir, s.Profile)))
 			}
-			return errors.Join(err, write(Path(s.Dir), old))
+			return errors.Join(err, write(Path(s.Dir, s.Profile), old))
 		}
 	}
 	return nil
