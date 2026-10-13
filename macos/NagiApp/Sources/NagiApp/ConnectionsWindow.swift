@@ -76,6 +76,7 @@ import AppKit
     private let closeAllButton = NSButton(title: "Close All Connections…", target: nil, action: nil)
     private var rows: [Connection] = []
     private var renderedRowsRevision: UInt64?
+    private var topPinnedDuringRefresh = false
     private var updatingTable = false
     private var observers: [NSObjectProtocol] = []
     private static let timeFormatter: DateFormatter = {
@@ -204,26 +205,56 @@ import AppKit
 
     private func render() {
         updatingTable = true
+        let firstRowTop = rows.isEmpty ? table.bounds.minY : table.rect(ofRow: 0).minY
+        let currentlyAtTop = table.visibleRect.minY <= firstRowTop + 0.5
+        if model.isRefreshing && currentlyAtTop { topPinnedDuringRefresh = true }
+        var wasAtTop = false
         if renderedRowsRevision != model.rowsRevision {
             // Anchor scrolling to an ID so inserted and reordered rows do not move the user's view.
             let origin = scroll.contentView.bounds.origin
+            // Scroller values can be stale while AppKit lays out a reloaded
+            // table. The table's visible rect is in document coordinates and
+            // gives the actual top boundary.
+            wasAtTop = topPinnedDuringRefresh || currentlyAtTop
             let topRow = table.row(at: origin)
             let anchorID = rows.indices.contains(topRow) ? rows[topRow].id : nil
             let offset = topRow >= 0 ? origin.y - table.rect(ofRow: topRow).minY : 0
             rows = model.rows
             renderedRowsRevision = model.rowsRevision
+            topPinnedDuringRefresh = false
             table.reloadData()
+            // A refresh can change which row is first. When the user was at
+            // the top, keep that boundary instead of anchoring the previous
+            // first row after it has moved or disappeared.
+            table.layoutSubtreeIfNeeded()
             let maximum = max(0, table.bounds.height - scroll.contentView.bounds.height)
+            let minimum = topClipOriginY()
             let y: CGFloat
-            if let anchorID, let index = rows.firstIndex(where: { $0.id == anchorID }) {
+            if wasAtTop {
+                y = topClipOriginY()
+            } else if let anchorID, let index = rows.firstIndex(where: { $0.id == anchorID }) {
                 y = table.rect(ofRow: index).minY + offset
             } else { y = origin.y }
-            scroll.contentView.scroll(to: NSPoint(x: origin.x, y: min(maximum, max(0, y))))
+            scroll.contentView.scroll(to: NSPoint(x: origin.x, y: min(maximum, max(minimum, y))))
             scroll.reflectScrolledClipView(scroll.contentView)
         }
         if let selectedID = model.selectedID, let index = rows.firstIndex(where: { $0.id == selectedID }) {
             if table.selectedRow != index { table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false) }
         } else if table.selectedRow != -1 { table.deselectAll(nil) }
+        if wasAtTop {
+            let revision = renderedRowsRevision
+            let originX = scroll.contentView.bounds.origin.x
+            // Selecting a row can make AppKit scroll that row into view. Do
+            // this after selection synchronization so a top-pinned list
+            // cannot be pulled down and hide its first row.
+            scroll.contentView.scroll(to: NSPoint(x: originX, y: topClipOriginY()))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.renderedRowsRevision == revision else { return }
+                self.scroll.contentView.scroll(to: NSPoint(x: originX, y: self.topClipOriginY()))
+                self.scroll.reflectScrolledClipView(self.scroll.contentView)
+            }
+        }
         updatingTable = false
         countLabel.stringValue = "\(rows.count) / \(model.connections.count) connections"
         updatedLabel.stringValue = model.lastUpdated.map { "Updated \(Self.timeFormatter.string(from: $0))" } ?? "Not updated yet"
@@ -245,6 +276,10 @@ import AppKit
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
         statusLabel.textColor = (model.state == .stale || model.state == .tooLarge || model.errorMessage != nil)
             ? .systemRed : .secondaryLabelColor
+    }
+
+    private func topClipOriginY() -> CGFloat {
+        table.bounds.minY - (table.headerView?.frame.height ?? 0)
     }
 
     private func renderDetails() {

@@ -75,6 +75,47 @@ final class ConnectionsWindowTests: XCTestCase {
         XCTAssertTrue(details.string.contains("/Applications/Browser.app/Contents/MacOS/Browser"))
     }
 
+    @MainActor func testRefreshAtTopKeepsTableAtTopWhenFirstRowChanges() async throws {
+        _ = NSApplication.shared
+        let initialRows = (0..<80).map { index in
+            let id = index == 0 ? "a" : index == 1 ? "b" : "initial-(index)"
+            let host = index == 0 ? "alpha.example" : index == 1 ? "beta.example" : "initial-(index).example"
+            return "{\"id\":\"\(id)\",\"metadata\":{\"host\":\"\(host)\",\"destinationPort\":\"443\"}}"
+        }.joined(separator: ",")
+        var snapshot = try JSONDecoder().decode(ConnectionList.self, from: Data("{\"connections\":[\(initialRows)]}".utf8)).connections
+        let model = ConnectionsModel(fetch: { snapshot }, execute: { _ in }, interval: 60_000_000_000)
+        model.setEngineState(.running)
+        let controller = ConnectionsWindowController(model: model)
+        controller.present()
+        defer { controller.window?.close() }
+        for _ in 0..<100 {
+            if model.rows.count == 2 { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let scroll = try XCTUnwrap(descendants(controller.window!.contentView!, of: NSScrollView.self).first)
+        let table = try XCTUnwrap(descendants(controller.window!.contentView!, of: NSTableView.self).first)
+        table.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: 0))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        let refreshedRows = (0..<80).map { index in
+            let id = index == 0 ? "c" : index == 1 ? "b" : "refreshed-(index)"
+            let host = index == 0 ? "aardvark.example" : index == 1 ? "beta.example" : "refreshed-(index).example"
+            return "{\"id\":\"\(id)\",\"metadata\":{\"host\":\"\(host)\",\"destinationPort\":\"443\"}}"
+        }.joined(separator: ",")
+        snapshot = try JSONDecoder().decode(ConnectionList.self, from: Data("{\"connections\":[\(refreshedRows)]}".utf8)).connections
+        for _ in 0..<100 where model.isRefreshing {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        model.refresh()
+        for _ in 0..<100 {
+            if model.rows.first?.id == "c" { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let expectedTop = -(table.headerView?.frame.height ?? 0)
+        XCTAssertEqual(scroll.contentView.bounds.origin.y, expectedTop, accuracy: 0.5)
+    }
+
     @MainActor func testRestoringDuringMinimizeGracePeriodDoesNotHideRestoredWindow() async throws {
         _ = NSApplication.shared
         let model = ConnectionsModel(fetch: { [] }, execute: { _ in })
