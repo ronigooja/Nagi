@@ -83,6 +83,9 @@ func TestTUNPreferenceMaterialization(t *testing.T) {
 }
 
 func TestTUNPreferenceSurvivesActivation(t *testing.T) {
+	oldOS := tunDNSOS
+	tunDNSOS = "linux"
+	defer func() { tunDNSOS = oldOS }()
 	for _, operation := range []string{"reload", "explicit-subscription", "scheduled-subscription", "failed-adapter"} {
 		t.Run(operation, func(t *testing.T) {
 			ctx := context.Background()
