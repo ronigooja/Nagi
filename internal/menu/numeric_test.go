@@ -41,7 +41,7 @@ func TestAllPagesUseNumericChoices(t *testing.T) {
 			}
 		}
 	}
-	for _, title := range []string{"Current Configuration", "Backup & Restore", "Local Overrides", "Servers", "Domain Exceptions", "TUN DNS Interception", "Checks & Queries", "View Rules", "Manage Custom Rules", "Import Rule Sets", "Start at Login", "Automatic Updates", "Encryption Settings", "For this session", "Save for future starts"} {
+	for _, title := range []string{"Current Configuration", "Backup & Restore", "Local Overrides", "Servers", "Domain Exceptions", "TUN DNS Interception", "Checks & Queries", "View Rules", "Manage Rules and Sets", "Start at Login", "Automatic Updates", "Encryption Settings", "For this session", "Save for future starts"} {
 		if !seen[title] {
 			t.Errorf("unreachable page: %s", title)
 		}

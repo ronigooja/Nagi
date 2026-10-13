@@ -126,7 +126,7 @@ Terminal styling for human-readable CLI output and the menu enables automaticall
 
 Selected styling reflects the actual current node or profile; color is never the only indication of selection or failure. Styles reset immediately after each styled span, so plain prompts, typed input, and later output do not inherit them. Menu labels, context, effects, and errors are redacted before styling. Requested configuration, overrides, profile comparisons, recent logs, and live log or traffic streams receive no added styles. State coloring does not change ordinary CLI wording or JSON.
 
-DNS groups operations under Servers, Domain Exceptions, TUN DNS Interception, and Checks & Queries. Routing Rules groups viewing, custom-rule management, and rule-set imports. Start at Login contains service installation, enable/disable, details, and uninstallation; recovery operations are in Troubleshooting. Shell completion and cross-group node search remain available through ordinary CLI commands only.
+DNS groups operations under Servers, Domain Exceptions, TUN DNS Interception, and Checks & Queries. Routing Rules offers Test Rule, View Rules, Manage Rules and Sets, and one Import rule file action. Import first selects Full rules (targets in file), Classical rule set, Domain rule set, or IP-CIDR rule set numerically, then collects a name and local file path or HTTP(S) URL. Full rules preserve their own targets and do not ask for a common target; the other formats require one target. Failed imports retain the name, source, and target for explicit editing or retry. Manage Rules and Sets enables, disables, or removes an entire named rule or imported object. Start at Login contains service installation, enable/disable, details, and uninstallation; recovery operations are in Troubleshooting. Shell completion and cross-group node search remain available through ordinary CLI commands only.
 
 All selectable entries use numbers. Resources show at most ten per page, followed by actions and numeric Next page/Previous page entries, with consecutive numbering across the page. Read the displayed numbers on each page: action and pagination numbers depend on the number of visible resources. `0` returns from a subpage, cancels a resource selector or failed form, and exits at home. Entering `q` at any numeric choice exits the menu with status `0`; no hint is displayed. There are no other letter shortcuts, manual refresh, filtering, menu search, or page-help entries.
 
@@ -387,20 +387,41 @@ Additional success payloads are defined below; all appear in `data`:
 | `rules list` | Read mihomo's active ordered rules, including index, type, payload, target, and wrapper statistics when provided. |
 | `rules test TARGET [--ip IP] [--port PORT] [--network tcp\|udp] [--process NAME]` | Test synthetic destination metadata against the running engine's ordered rules and rule providers. |
 | `rules providers` | Read active mihomo rule providers. |
-| `rules custom` | List Nagi-owned persistent rules and imported sets. |
+| `rules custom` | List Nagi-owned persistent rules, imported rule bundles, and imported sets. |
 | `rules conflicts` | Show effective rule order and duplicate or shadowed matchers. |
 | `rules connection ID` | Show the rule and payload mihomo recorded for an active connection. |
 | `rules add NAME TYPE PAYLOAD TARGET` | Add a validated custom rule. Supported types include `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `DOMAIN-REGEX`, `IP-CIDR`, `IP-CIDR6`, `GEOIP`, `GEOSITE`, `PROCESS-NAME`, and `MATCH`; use `-` as MATCH payload. |
-| `rules remove NAME` | Remove a custom rule or imported set. |
-| `rules enable NAME`, `rules disable NAME` | Enable or disable a custom rule or set while preserving its order. |
-| `rules import-local NAME BEHAVIOR FILE TARGET` | Import a local YAML payload/list, or text domain/IP-CIDR set, as an inline provider. |
-| `rules import-remote NAME BEHAVIOR URL TARGET` | Download an HTTP(S) rule set (maximum 8 MiB) and store a snapshot as an inline provider. |
+| `rules remove NAME` | Remove an entire named custom rule, imported rule bundle, or imported set. |
+| `rules enable NAME`, `rules disable NAME` | Enable or disable an entire named rule, bundle, or set while preserving its order. |
+| `rules import NAME FORMAT SOURCE [TARGET]` | Read a local file or download an HTTP(S) snapshot; import native full rules or a single-target inline rule-provider set. |
 
-Targets are `DIRECT`, `REJECT`, or a mihomo proxy group name. Custom rules are stored in `rules.yaml` under Nagi's config directory and are prepended to profile rules. Imported sets use `nagi-NAME` inline providers and a generated `RULE-SET` rule. They remain separate from profile and subscription files, so applying or refreshing a subscription preserves them. Every mutation validates the effective YAML; when mihomo is running it reloads the effective profile, and failed validation or reload restores the previous rules file.
+Names use 1–128 ASCII letters, digits, `_`, or `-` and must be unique across custom rules, rule bundles, and sets. Custom rules are stored in `rules.yaml` under Nagi's config directory and enabled entries are prepended to profile rules in saved entry order. Imported objects remain separate from profile and subscription files, so applying or refreshing a subscription preserves them. Every mutation validates the effective YAML with mihomo; when running, the engine reloads the effective profile. Failed validation or reload restores the previous rules file. Mutations do not start the engine.
+
+### Rule file imports
+
+`FORMAT` is exactly `rules`, `classical`, `domain`, or `ipcidr`. `SOURCE` is a local file path or an absolute HTTP(S) URL without userinfo. HTTP downloads require status 200. Files and downloaded responses must contain 1 byte to 8 MiB. Imports save the content as a snapshot; they do not establish a periodically refreshed remote provider.
+
+| Format | Input | Target and generated configuration |
+| --- | --- | --- |
+| `rules` | A YAML mapping containing a nonempty `rules:` string list, or a YAML string list. | Omit `TARGET`; each complete mihomo rule keeps its own target, options, and relative order. The strings are prepended as one named bundle. |
+| `classical` | A YAML `payload:` string list or YAML string list of classical matchers. | Require one `TARGET`; generate an inline `nagi-NAME` provider and `RULE-SET,nagi-NAME,TARGET`. |
+| `domain` | A YAML `payload:` string list, YAML string list, or text domain entries (blank lines and `#` comment lines are ignored). | Require one `TARGET`; generate an inline `nagi-NAME` domain provider and one `RULE-SET` rule. |
+| `ipcidr` | A YAML `payload:` string list, YAML string list, or text IP-CIDR entries (blank lines and `#` comment lines are ignored). | Require one `TARGET`; generate an inline `nagi-NAME` IP-CIDR provider and one `RULE-SET` rule. |
+
+Imports contain at most 100,000 entries. For the `rules` format, YAML input must contain a single document and entries must be nonempty strings without embedded newlines. Empty imports are rejected. Set targets and `rules add` targets are `DIRECT`, `REJECT`, or a mihomo proxy group name without commas or newlines. Full-rule strings use mihomo's native syntax and targets, including logical rules and options such as `no-resolve`. Importing a mapping extracts only its `rules:` list; proxy groups, rule providers, sub-rules, DNS, and other profile fields are not imported. Any `RULE-SET` provider or `SUB-RULE` definition referenced by the rules must already exist in the effective profile. Missing references or invalid native syntax fail mihomo validation before the import is committed.
+
+Use `rules disable NAME` or `rules enable NAME` for the whole imported object. `rules remove NAME` deletes that whole named object, including all rules in a bundle; it does not select or edit an individual string. `rules import-local` and `rules import-remote` are removed; use the unified `rules import` command.
+
+```sh
+nagi rules import personal rules ./personal-rules.yaml
+nagi rules import ads domain ./ads.yaml REJECT
+nagi rules import local-net ipcidr https://example.com/networks.txt DIRECT
+nagi rules remove personal
+```
 
 `rules conflicts` reports duplicate matchers and rules appearing after an earlier `MATCH`, which cannot be reached. This is a static report and does not prove semantic overlap between arbitrary regular expressions, geolocation databases, or provider contents. `rules connection ID` only works while the connection remains active; mihomo supplies the recorded `rule` and `rulePayload` fields.
 
-JSON payloads contain `rules`, `providers`, `entries`, `order`/`conflicts`, or `id`/`rule`/`rule_payload` as appropriate. Errors use `rule_error` for validation, persistence, download, and reload failures, with the standard envelope and exit codes.
+JSON payloads contain `rules`, `providers`, `entries`, `order`/`conflicts`, or `id`/`rule`/`rule_payload` as appropriate. Errors use `rule_error` for validation, persistence, download, and reload failures, with the standard envelope. Import argument errors (invalid name or source, unsupported format, missing set target, or an extra full-rule target) exit `2`; import validation, file/download, persistence, and activation failures exit `1` with `rule_error`; success exits `0`.
 
 ### Destination rule tests
 
