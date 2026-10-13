@@ -18,25 +18,25 @@ func TestRuleImportPreflight(t *testing.T) {
 	invalidTestConfigDir(t, t.TempDir())
 	for _, args := range [][]string{
 		{"rules", "import"},
-		{"rules", "import", "work", "rules"},
-		{"rules", "import", "", "rules", "./rules.yaml"},
-		{"rules", "import", "bad/name", "rules", "./rules.yaml"},
-		{"rules", "import", strings.Repeat("a", 129), "rules", "./rules.yaml"},
-		{"rules", "import", "work", "bad", "./rules.yaml"},
-		{"rules", "import", "work", "rules", ""},
-		{"rules", "import", "work", "rules", "./rules.yaml", "DIRECT"},
-		{"rules", "import", "work", "domain", "./rules.yaml"},
-		{"rules", "import", "work", "classical", "./rules.yaml", " "},
-		{"rules", "import", "work", "ipcidr", "./rules.yaml", "bad\nname"},
-		{"rules", "import", "work", "rules", "./rules.yaml", "DIRECT", "extra"},
-		{"rules", "import", "work", "rules", "file:///PRIVATE"},
-		{"rules", "import", "work", "rules", "ftp://example.com/PRIVATE"},
-		{"rules", "import", "work", "rules", "https://user:PRIVATE@example.com/feed"},
-		{"rules", "import", "work", "rules", "https:///PRIVATE"},
-		{"rules", "import", "work", "rules", "http:PRIVATE"},
-		{"rules", "import", "work", "rules", "mailto:PRIVATE@example.com"},
-		{"rules", "import", "work", "rules", "//example.com/PRIVATE"},
-		{"rules", "import", "work", "rules", "https://%PRIVATE"},
+		{"rules", "import", "work"},
+		{"rules", "import", "", "./rules.yaml"},
+		{"rules", "import", "bad/name", "./rules.yaml"},
+		{"rules", "import", strings.Repeat("a", 129), "./rules.yaml"},
+		{"rules", "import", "work", ""},
+		{"rules", "import", "work", " "},
+		{"rules", "import", "work", "rules", "./rules.yaml"},
+		{"rules", "import", "work", "domain", "./rules.yaml", "DIRECT"},
+		{"rules", "import", "work", "classical", "./rules.yaml", "DIRECT"},
+		{"rules", "import", "work", "ipcidr", "./rules.yaml", "DIRECT"},
+		{"rules", "import", "work", "./rules.yaml", "DIRECT"},
+		{"rules", "import", "work", "file:///PRIVATE"},
+		{"rules", "import", "work", "ftp://example.com/PRIVATE"},
+		{"rules", "import", "work", "https://user:PRIVATE@example.com/feed"},
+		{"rules", "import", "work", "https:///PRIVATE"},
+		{"rules", "import", "work", "http:PRIVATE"},
+		{"rules", "import", "work", "mailto:PRIVATE@example.com"},
+		{"rules", "import", "work", "//example.com/PRIVATE"},
+		{"rules", "import", "work", "https://%PRIVATE"},
 	} {
 		for _, jsonMode := range []bool{false, true} {
 			invocation := append([]string(nil), args...)
@@ -44,7 +44,7 @@ func TestRuleImportPreflight(t *testing.T) {
 				invocation = append([]string{"--json"}, invocation...)
 			}
 			var out, errs bytes.Buffer
-			if code := Run(invocation, &out, &errs, "test", "commit"); code != 2 || out.Len() != 0 || !strings.Contains(errs.String(), "Usage: nagi rules import NAME FORMAT SOURCE [TARGET]") || strings.Contains(errs.String(), "PRIVATE") {
+			if code := Run(invocation, &out, &errs, "test", "commit"); code != 2 || out.Len() != 0 || !strings.Contains(errs.String(), "Usage: nagi rules import NAME SOURCE") || strings.Contains(errs.String(), "PRIVATE") {
 				t.Fatalf("args=%q json=%v exit=%d out=%s err=%s", args, jsonMode, code, out.String(), errs.String())
 			}
 			if jsonMode {
@@ -61,14 +61,12 @@ func TestRuleImportPreflight(t *testing.T) {
 		}
 	}
 	for _, args := range [][]string{
-		{"rules", "import", "work", "rules", "./file with space.yaml"},
-		{"rules", "import", "work", "rules", "/tmp/rules.yaml"},
-		{"rules", "import", "work", "rules", "./a:b.yaml"},
-		{"rules", "import", "work", "rules", "/tmp/a:b.yaml"},
-		{"rules", "import", "work", "rules", "https://example.com/feed?token=PRIVATE"},
-		{"rules", "import", "work", "classical", "./set.yaml", "My Proxy"},
-		{"rules", "import", "work", "domain", "http://example.com/feed", "REJECT"},
-		{"rules", "import", "work", "ipcidr", "./set.yaml", "DIRECT"},
+		{"rules", "import", "work", "./file with space.yaml"},
+		{"rules", "import", "work", "/tmp/rules.yaml"},
+		{"rules", "import", "work", "./a:b.yaml"},
+		{"rules", "import", "work", "/tmp/a:b.yaml"},
+		{"rules", "import", "work", "https://example.com/feed?token=PRIVATE"},
+		{"rules", "import", "work", "http://example.com/feed"},
 	} {
 		if err := validateInvocation(args); err != nil {
 			t.Fatalf("valid args=%q: %v", args, err)
@@ -80,7 +78,7 @@ func TestRuleImportHelpAndRemovedCommands(t *testing.T) {
 	invalidTestConfigDir(t, t.TempDir())
 	for _, args := range [][]string{{"rules", "import", "--help"}, {"help", "rules", "import"}, {"--json", "rules", "import", "--help"}} {
 		var out, errs bytes.Buffer
-		if code := Run(args, &out, &errs, "test", "commit"); code != 0 || errs.Len() != 0 || !strings.Contains(out.String(), "rules import NAME FORMAT SOURCE [TARGET]") || !strings.Contains(out.String(), "classical, domain, or ipcidr") {
+		if code := Run(args, &out, &errs, "test", "commit"); code != 0 || errs.Len() != 0 || !strings.Contains(out.String(), "rules import NAME SOURCE") || !strings.Contains(out.String(), "own targets") || strings.Contains(out.String(), "FORMAT") {
 			t.Fatalf("help %q code=%d out=%s err=%s", args, code, out.String(), errs.String())
 		}
 	}
@@ -105,10 +103,10 @@ func TestRuleImportStoppedCLI(t *testing.T) {
 				t.Fatal(err)
 			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte("payload:\n  - ads.example.com\n"))
+				_, _ = w.Write([]byte("rules:\n  - DOMAIN-SUFFIX,ads.example.com,REJECT\n"))
 			}))
 			defer server.Close()
-			for _, args := range [][]string{{"rules", "import", "native", "rules", file}, {"rules", "import", "ads", "domain", server.URL + "/set?token=PRIVATE", "REJECT"}} {
+			for _, args := range [][]string{{"rules", "import", "native", file}, {"rules", "import", "ads", server.URL + "/set?token=PRIVATE"}} {
 				if jsonMode {
 					args = append([]string{"--json"}, args...)
 				}
@@ -140,7 +138,7 @@ func TestRuleImportStoppedCLI(t *testing.T) {
 				t.Fatalf("persisted entries=%+v err=%v", doc.Entries, err)
 			}
 			var out, errs bytes.Buffer
-			if code := Run([]string{"--json", "rules", "import", "missing", "rules", filepath.Join(root, "absent.yaml")}, &out, &errs, "test", "commit"); code != 1 || out.Len() != 0 || !strings.Contains(errs.String(), `"code":"rule_error"`) {
+			if code := Run([]string{"--json", "rules", "import", "missing", filepath.Join(root, "absent.yaml")}, &out, &errs, "test", "commit"); code != 1 || out.Len() != 0 || !strings.Contains(errs.String(), `"code":"rule_error"`) {
 				t.Fatalf("failure exit=%d out=%s err=%s", code, out.String(), errs.String())
 			}
 		})
@@ -154,8 +152,8 @@ func TestRuleImportCompletion(t *testing.T) {
 	}
 	for _, shell := range []string{"bash", "zsh", "fish"} {
 		script, _ := completion(shell)
-		if strings.Contains(script, "import-local") || strings.Contains(script, "import-remote") || !strings.Contains(script, "rules classical domain ipcidr") {
-			t.Fatalf("%s completion lacks new formats or retains old commands", shell)
+		if strings.Contains(script, "import-local") || strings.Contains(script, "import-remote") || strings.Contains(script, "rules classical domain ipcidr") {
+			t.Fatalf("%s completion retains removed formats or commands", shell)
 		}
 	}
 	root := t.TempDir()
@@ -164,11 +162,12 @@ func TestRuleImportCompletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	script, _ := completion("bash")
-	probe := script + "\n" + `COMP_WORDS=(nagi --json rules import work ''); COMP_CWORD=5; _nagi_complete; printf 'FORMAT:%s\n' "${COMPREPLY[*]}"
-COMP_WORDS=(nagi rules import work rules '` + filepath.Join(root, "rules") + `'); COMP_CWORD=5; _nagi_complete; printf 'FILE:%s\n' "${COMPREPLY[*]}"
+	probe := script + "\n" + `COMP_WORDS=(nagi --json rules import work '` + filepath.Join(root, "rules") + `'); COMP_CWORD=5; _nagi_complete; printf 'FILE:%s\n' "${COMPREPLY[*]}"
+COMP_WORDS=(nagi rules import work '` + filepath.Join(root, "rules") + `'); COMP_CWORD=4; _nagi_complete; printf 'PLAIN:%s\n' "${COMPREPLY[*]}"
+COMP_WORDS=(nagi rules import '` + filepath.Join(root, "rules") + `'); COMP_CWORD=3; _nagi_complete; printf 'NAME:%s\n' "${COMPREPLY[*]}"
 `
 	out, err := exec.Command("bash", "-c", probe).CombinedOutput()
-	if err != nil || !strings.Contains(string(out), "FORMAT:rules classical domain ipcidr") || !strings.Contains(string(out), "FILE:"+file) {
+	if err != nil || !strings.Contains(string(out), "PLAIN:"+file) || strings.Contains(string(out), "NAME:"+file) || !strings.Contains(string(out), "FILE:"+file) {
 		t.Fatalf("bash completion: %s (%v)", out, err)
 	}
 }

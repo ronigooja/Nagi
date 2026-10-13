@@ -69,8 +69,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
     fi
   fi
   if [[ ${semantic[0]} == rules && ${semantic[1]} == import ]]; then
-    if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'rules classical domain ipcidr' -- "$cur") ); return 0; fi
-    if [[ ${#semantic[@]} -eq 4 ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
+    if [[ ${#semantic[@]} -eq 3 ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
   fi
   if [[ ${semantic[0]} == proxy && ${semantic[1]} == tailscale ]]; then
     if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'list show targets add edit bind unbind remove' -- "$cur") ); return 0; fi
@@ -179,8 +178,7 @@ _nagi() {
     if (( ${#semantic} == 5 )) && [[ ${semantic[5]} == --dns-proxy ]]; then compadd -- ${(f)"$(nagi completion candidates profile-groups "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
   if [[ ${semantic[1]} == rules && ${semantic[2]} == import ]]; then
-    if (( ${#semantic} == 3 )); then compadd -- rules classical domain ipcidr; return; fi
-    if (( ${#semantic} == 4 )); then _files; return; fi
+    if (( ${#semantic} == 3 )); then _files; return; fi
   fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == tailscale ]]; then
     if (( ${#semantic} == 2 )); then compadd -- list show targets add edit bind unbind remove; return; fi
@@ -248,8 +246,7 @@ function __nagi_semantic
   end
 end
 `)
-	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = rules; and test "$s[2]" = import' -a 'rules classical domain ipcidr'
-complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = rules; and test "$s[2]" = import' -F
+	b.WriteString(`complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = rules; and test "$s[2]" = import' -F
 `)
 	for _, root := range roots {
 		fmt.Fprintf(&b, "complete -c nagi -f -n 'test (count (__nagi_semantic)) -eq 0' -a '%s'\n", root)

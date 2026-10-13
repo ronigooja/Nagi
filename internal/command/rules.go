@@ -153,11 +153,7 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 	case "disable":
 		err = store.SetEnabled(ctx, args[2], false)
 	case "import":
-		target := ""
-		if len(args) == 6 {
-			target = args[5]
-		}
-		err = store.Import(ctx, args[2], args[3], args[4], target)
+		err = store.Import(ctx, args[2], args[3])
 	default:
 		return nil, errors.New("unsupported rules command")
 	}
@@ -169,24 +165,9 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 
 // validateRuleImportArguments checks syntax before resolving runtime paths.
 func validateRuleImportArguments(args []string) error {
-	name, format, source := args[2], args[3], args[4]
+	name, source := args[2], args[3]
 	if len(name) < 1 || len(name) > 128 || strings.Trim(name, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-") != "" {
 		return errors.New("NAME must use 1..128 ASCII letters, digits, _ or -")
-	}
-	switch format {
-	case "rules":
-		if len(args) != 5 {
-			return errors.New("FORMAT rules contains its own targets and does not accept TARGET")
-		}
-	case "classical", "domain", "ipcidr":
-		if len(args) != 6 || strings.TrimSpace(args[5]) == "" {
-			return errors.New("FORMAT classical, domain, and ipcidr require TARGET")
-		}
-		if strings.ContainsAny(args[5], ",\n\r") {
-			return errors.New("TARGET must be DIRECT, REJECT, or a proxy group name without commas or newlines")
-		}
-	default:
-		return errors.New("FORMAT must be rules, classical, domain, or ipcidr")
 	}
 	if strings.TrimSpace(source) == "" {
 		return errors.New("SOURCE is required")
