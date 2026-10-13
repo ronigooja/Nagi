@@ -63,6 +63,12 @@ The unified [rule import command](../reference/cli.md#rule-file-imports) is cove
 
 The October 2026 Linux check passed `go test ./...` and a CLI build with the simplified `rules import NAME SOURCE` interface. An isolated run against the exact engine commit in `engine.lock` passed full-rule import while stopped, different rule targets and preserved order, invalid-target rollback while stopped and running, runtime reload, disable/enable/remove, HTTP snapshot import, management of an existing provider set, and rejection of removed commands and format arguments. A real PTY menu run entered the name and source directly after Import rules, imported the rules, and removed the whole named import through Manage Rules and Sets; exiting the menu left mihomo running. The checks used private XDG directories with TUN, DNS, and proxy listeners disabled. Changed documentation links and command examples were reviewed. Native macOS interactive acceptance was not run on the Linux host.
 
+## Per-profile rule verification (2026-10-13)
+
+`go test ./...` passed after custom-rule storage changed to `config/rules/PROFILE.yaml`. Regression tests cover independent same-name rules, profile switching, target-profile subscription checks across explicit and scheduled application, failed rule changes, profile removal and recreation, and ignoring the former global file without migration.
+
+An isolated Linux CLI run against the commit in `engine.lock` passed running-engine switches between a subscription profile and a node-less `default`, independent rule activation, invalid-target rollback, subscription application retaining a rule's manual-node target, and deletion of only the removed profile's rules. The fixture disabled TUN, DNS, and proxy listeners and used a local HTTP subscription server. Changed documentation links, command help, and examples were reviewed. Native macOS interactive acceptance was not run on the Linux host.
+
 ## Tailscale acceptance
 
 Use private configuration, state, and runtime directories for Tailscale checks. Unit fixtures use placeholder keys and must not authenticate to a real tailnet. Run the relevant profile, command, menu, helper policy, helper runtime, and runtime path tests; run race checks for configuration activation and engine Tailscale Start/Close. Engine tests require `-tags with_gvisor` to exercise the real adapter.
