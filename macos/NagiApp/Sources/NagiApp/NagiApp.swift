@@ -316,8 +316,8 @@ import AppKit
             updateAndApply.representedObject = subscription.name
             updateAndApply.toolTip = "Replaces configuration and clears local overrides and saved selections; does not start mihomo or enable traffic access."
             actions.addItem(.separator())
-            let interval = subscription.scheduleSeconds > 0 ? "Schedule: every \(subscription.scheduleSeconds)s" : "Schedule: off"
-            add(interval, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
+            let autoUpdate = subscription.scheduleSeconds > 0 ? "Auto Update: On" : "Auto Update: Off"
+            add(autoUpdate, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
             add("Schedule: every hour", action: #selector(scheduleHour(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
             add(subscription.keyConfigured ? "Clear Encryption Key" : "Set Encryption Key…", action: #selector(subscriptionKey(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
             if let pause = subscription.pauseReason { disabled("Auto-apply paused: \(pause)", to: actions) }
