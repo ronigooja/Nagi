@@ -43,7 +43,15 @@ import AppKit
 }
 
 @MainActor final class MenuAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let model = AppModel()
+    private let model: AppModel
+    var confirmProfileDeletion: (NSAlert) -> NSApplication.ModalResponse = { $0.runModal() }
+
+    override convenience init() { self.init(model: AppModel()) }
+
+    init(model: AppModel) {
+        self.model = model
+        super.init()
+    }
     private let groupIcons = GroupIconLoader()
     private lazy var connectionsWindow = ConnectionsWindowController(model: model.connections)
     private var statusItem: NSStatusItem!
@@ -279,27 +287,7 @@ import AppKit
         addSubmenu("Proxy Providers", providersMenu, enabled: !model.busy)
         menu.addItem(.separator())
 
-        let profileMenu = NSMenu()
-        if model.profiles.isEmpty { disabled("No profiles", to: profileMenu) }
-        for name in model.profiles {
-            if name == "default" {
-                let actions = NSMenu()
-                add("Use Default Profile", action: #selector(switchToDefaultProfile),
-                    checked: model.profile == name, enabled: !model.busy, to: actions)
-                add("Apply Local Default Settings to Current Profile", action: #selector(applyDefaultOverride),
-                    checked: model.defaultOverrideApplied == true,
-                    enabled: !model.busy && model.defaultOverrideApplied != nil, to: actions)
-                addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
-            } else {
-                add(name, command: ["profile", "use", name], checked: model.profile == name,
-                    enabled: !model.busy, to: profileMenu)
-            }
-        }
-        profileMenu.addItem(.separator())
-        let deleteProfileItem = add("Delete Profile…", action: #selector(deleteProfile),
-                                    enabled: !model.busy && !model.deletableProfiles.isEmpty, to: profileMenu)
-        deleteProfileItem.toolTip = "Switch to another profile before deleting the current one. The default template is kept."
-        addSubmenu("Profiles", profileMenu, enabled: !model.profiles.isEmpty)
+        addSubmenu("Profiles", makeProfilesMenu(), enabled: !model.profiles.isEmpty)
 
         let subscriptionMenu = NSMenu()
         add("Add and Apply Subscription…", action: #selector(addAndApplySubscription), enabled: !model.busy, to: subscriptionMenu)
@@ -349,6 +337,34 @@ import AppKit
         add("Help", action: #selector(openHelp))
         add("About Nagi", action: #selector(showAbout))
         add("Quit Nagi", action: #selector(quit), enabled: !model.busy)
+    }
+
+    func makeProfilesMenu() -> NSMenu {
+        let profileMenu = NSMenu()
+        if model.profiles.isEmpty { disabled("No profiles", to: profileMenu) }
+        for name in model.profiles {
+            if name == "default" {
+                let actions = NSMenu()
+                add("Use Default Profile", action: #selector(switchToDefaultProfile),
+                    checked: model.profile == name, enabled: !model.busy, to: actions)
+                add("Apply Local Default Settings to Current Profile", action: #selector(applyDefaultOverride),
+                    checked: model.defaultOverrideApplied == true,
+                    enabled: !model.busy && model.defaultOverrideApplied != nil, to: actions)
+                addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
+            } else {
+                let actions = NSMenu()
+                add("Use", command: ["profile", "use", name], checked: model.profile == name,
+                    enabled: !model.busy, to: actions)
+                let deleteTitle = model.profile == name
+                    ? "Delete… (Switch profiles first)" : "Delete…"
+                add(deleteTitle, action: #selector(deleteProfile(_:)),
+                    enabled: !model.busy && model.deletableProfiles.contains(name),
+                    to: actions).representedObject = name
+                let item = addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
+                item.state = model.profile == name ? .on : .off
+            }
+        }
+        return profileMenu
     }
 
     @discardableResult private func add(_ title: String, action: Selector, checked: Bool = false,
@@ -606,27 +622,30 @@ import AppKit
             return
         }
     }
-    @objc private func deleteProfile() {
-        let names = model.deletableProfiles
-        guard !model.busy, !names.isEmpty else { return }
-        let picker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 280, height: 26), pullsDown: false)
-        picker.addItems(withTitles: names)
-        let selection = NSAlert()
-        selection.messageText = "Choose a profile to delete"
-        selection.informativeText = "The current profile and default template are excluded."
-        selection.accessoryView = picker
-        selection.addButton(withTitle: "Continue")
-        selection.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        guard selection.runModal() == .alertFirstButtonReturn,
-              let name = picker.titleOfSelectedItem else { return }
+    static func profileDeletionConfirmation(_ name: String) -> NSAlert {
         let alert = NSAlert()
         alert.messageText = "Delete profile “\(name)”?"
-        alert.informativeText = "This permanently deletes its configuration, backup, local overrides, and saved proxy choices, and disconnects its subscription association. Subscription records and cached downloads are kept."
+        alert.informativeText = "This permanently deletes its configuration, backups, local overrides and settings, and saved proxy choices, and disconnects its subscription associations. Subscription records and cached downloads are kept."
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Delete Profile")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn { model.removeProfile(name) }
+        let delete = alert.addButton(withTitle: "Delete Profile")
+        let cancel = alert.addButton(withTitle: "Cancel")
+        let window = alert.window
+        // NSAlert normally assigns Return to its first button. Keep deletion explicit.
+        delete.keyEquivalent = ""
+        cancel.keyEquivalent = "\r"
+        window.defaultButtonCell = cancel.cell as? NSButtonCell
+        window.initialFirstResponder = cancel
+        return alert
+    }
+
+    @objc func deleteProfile(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String,
+              !model.busy, model.deletableProfiles.contains(name) else { return }
+        let alert = Self.profileDeletionConfirmation(name)
+        NSApp.activate(ignoringOtherApps: true)
+        guard confirmProfileDeletion(alert) == .alertFirstButtonReturn else { return }
+        // Recheck current state in AppModel after the modal confirmation closes.
+        model.removeProfile(name)
     }
     @objc private func deleteSubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
