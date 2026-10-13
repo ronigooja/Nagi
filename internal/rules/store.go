@@ -125,7 +125,7 @@ func Validate(e Entry) error {
 	}
 	if e.Kind == "rules" {
 		if e.Target != "" {
-			return errors.New("rules format preserves each rule target and does not accept TARGET")
+			return errors.New("imported rules preserve each rule target and cannot have a shared target")
 		}
 		return validateItems(e.Items, "rule list")
 	}
@@ -195,64 +195,22 @@ func (s *Store) SetEnabled(ctx context.Context, name string, enabled bool) error
 	}
 	return fmt.Errorf("rule %s not found; run `nagi rules custom`", name)
 }
-func ParseSet(data []byte, behavior string) ([]string, error) {
-	if len(data) == 0 || len(data) > 8<<20 {
-		return nil, errors.New("rule set must contain 1 byte to 8 MiB")
-	}
-	var obj struct {
-		Payload []string `yaml:"payload"`
-	}
-	if err := yaml.Unmarshal(data, &obj); err == nil && len(obj.Payload) > 0 {
-		return obj.Payload, nil
-	}
-	var items []string
-	if err := yaml.Unmarshal(data, &items); err == nil && len(items) > 0 {
-		return items, nil
-	}
-	if behavior != "classical" {
-		for _, line := range strings.Split(string(data), "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" && !strings.HasPrefix(line, "#") {
-				items = append(items, line)
-			}
-		}
-		if len(items) > 0 {
-			return items, nil
-		}
-	}
-	return nil, errors.New("rule set must be YAML payload/list (domain and ipcidr also accept text lines)")
-}
 
-// Import stores a bounded local or HTTP(S) snapshot. Full rules retain their
-// native mihomo targets; provider formats require a shared target.
-func (s *Store) Import(ctx context.Context, name, format, source, target string) error {
+// Import stores a bounded local or HTTP(S) snapshot of full native rules.
+// Each rule retains its own mihomo target and options.
+func (s *Store) Import(ctx context.Context, name, source string) error {
 	if !validName(name) {
 		return errors.New("rule name must use 1-128 ASCII letters, digits, _ or -")
-	}
-	if format != "rules" && format != "classical" && format != "domain" && format != "ipcidr" {
-		return errors.New("rule import format must be rules, classical, domain, or ipcidr")
-	}
-	if format == "rules" && target != "" {
-		return errors.New("rules format preserves each rule target and does not accept TARGET")
-	}
-	if format != "rules" && (target == "" || strings.ContainsAny(target, ",\n\r")) {
-		return errors.New("rule set format requires a target without commas or newlines")
 	}
 	data, origin, err := s.readSource(ctx, source)
 	if err != nil {
 		return err
 	}
-	e := Entry{Name: name, Enabled: true, Kind: "set", Behavior: format, Source: origin, Target: target}
-	if format == "rules" {
-		e.Kind, e.Behavior = "rules", ""
-		e.Items, err = ParseRules(data)
-	} else {
-		e.Items, err = ParseSet(data, format)
-	}
+	items, err := ParseRules(data)
 	if err != nil {
 		return fmt.Errorf("parse rule import: %w", err)
 	}
-	return s.Add(ctx, e)
+	return s.Add(ctx, Entry{Name: name, Enabled: true, Kind: "rules", Source: origin, Items: items})
 }
 
 const maxImportBytes = 8 << 20

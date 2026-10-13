@@ -62,16 +62,13 @@ func TestRollbackOnValidationFailure(t *testing.T) {
 		t.Fatalf("journal persisted: %v", err)
 	}
 }
-func TestSetImportAndConflicts(t *testing.T) {
+func TestPersistedSetAndConflicts(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "set.yaml")
-	if err := os.WriteFile(file, []byte("payload:\n  - example.com\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	s := New(dir, nil)
-	if err := s.Import(context.Background(), "domains", "domain", file, "DIRECT"); err != nil {
+	if err := s.Add(context.Background(), Entry{Name: "domains", Kind: "set", Enabled: true, Behavior: "domain", Items: []string{"example.com"}, Target: "DIRECT", Source: "local:set.yaml"}); err != nil {
 		t.Fatal(err)
 	}
+
 	result, err := Apply([]byte("rules:\n  - RULE-SET,nagi-domains,REJECT\n  - MATCH,DIRECT\n  - DOMAIN,late.example,REJECT\n"), dir)
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +98,7 @@ func TestRulesBundlePersistenceAndLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := New(dir, nil)
-	if err := store.Import(ctx, "bundle", "rules", file, ""); err != nil {
+	if err := store.Import(ctx, "bundle", file); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := New(dir, nil).List()
@@ -158,7 +155,7 @@ func TestRulesImportRollback(t *testing.T) {
 	}
 	calls := 0
 	store.Check = func(context.Context) error { calls++; return errors.New("mihomo rejected unknown rule") }
-	if err := store.Import(ctx, "bad", "rules", file, ""); err == nil {
+	if err := store.Import(ctx, "bad", file); err == nil {
 		t.Fatal("expected engine validation error")
 	}
 	after, _ := os.ReadFile(Path(dir))
@@ -174,7 +171,7 @@ func TestRulesImportRemoteSnapshotAndBound(t *testing.T) {
 	defer server.Close()
 	dir := t.TempDir()
 	store := New(dir, nil)
-	if err := store.Import(ctx, "remote", "rules", server.URL, ""); err != nil {
+	if err := store.Import(ctx, "remote", server.URL); err != nil {
 		t.Fatal(err)
 	}
 	body = "rules: ['MATCH,REJECT']"
@@ -187,7 +184,7 @@ func TestRulesImportRemoteSnapshotAndBound(t *testing.T) {
 	}
 	before, _ := os.ReadFile(Path(dir))
 	body = strings.Repeat("x", maxImportBytes+1)
-	if err := store.Import(ctx, "large", "rules", server.URL, ""); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+	if err := store.Import(ctx, "large", server.URL); err == nil || !strings.Contains(err.Error(), "8 MiB") {
 		t.Fatalf("size error: %v", err)
 	}
 	after, _ := os.ReadFile(Path(dir))
@@ -205,7 +202,7 @@ func TestRulesImportInvalidSourcesAndData(t *testing.T) {
 		})
 	}
 	for _, source := range []string{"", "http:/broken", "ftp://example.invalid/rules", "https://user:secret@example.invalid/rules", filepath.Join(t.TempDir(), "missing")} {
-		if err := New(t.TempDir(), nil).Import(context.Background(), "bad", "rules", source, ""); err == nil {
+		if err := New(t.TempDir(), nil).Import(context.Background(), "bad", source); err == nil {
 			t.Fatalf("accepted source %q", source)
 		}
 	}
@@ -214,14 +211,10 @@ func TestRulesImportInvalidSourcesAndData(t *testing.T) {
 	if err := os.WriteFile(file, []byte(strings.Repeat("x", maxImportBytes+1)), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := New(dir, nil).Import(context.Background(), "large", "rules", file, ""); err == nil {
+	if err := New(dir, nil).Import(context.Background(), "large", file); err == nil {
 		t.Fatal("accepted oversized file")
 	}
-	for _, args := range [][2]string{{"rules", "DIRECT"}, {"domain", ""}, {"unknown", "DIRECT"}} {
-		if err := New(dir, nil).Import(context.Background(), "bad", args[0], file, args[1]); err == nil {
-			t.Fatalf("accepted args %v", args)
-		}
-	}
+
 	items, err := ParseRules([]byte("['MATCH,DIRECT']"))
 	if err != nil || !reflect.DeepEqual(items, []string{"MATCH,DIRECT"}) {
 		t.Fatalf("list: %v %v", items, err)
@@ -233,5 +226,54 @@ func TestBundleTargetsFollowMihomoFields(t *testing.T) {
 	want := []string{"Proxy", "Other", "Regex", "REJECT", "Port"}
 	if got := Targets(entry); !reflect.DeepEqual(got, want) {
 		t.Fatalf("targets %v", got)
+	}
+}
+
+func TestLegacySetsRemainManageable(t *testing.T) {
+	ctx := context.Background()
+	for _, behavior := range []string{"classical", "domain", "ipcidr"} {
+		t.Run(behavior, func(t *testing.T) {
+			dir := t.TempDir()
+			store := New(dir, nil)
+			item := map[string]string{"classical": "DOMAIN,example.com", "domain": "+.example.com", "ipcidr": "192.0.2.0/24"}[behavior]
+			original := Entry{Name: "legacy", Kind: "set", Enabled: true, Behavior: behavior, Items: []string{item}, Target: "DIRECT", Source: "remote:example.invalid"}
+			if err := store.Save(ctx, Document{Entries: []Entry{original}}); err != nil {
+				t.Fatal(err)
+			}
+			doc, err := New(dir, nil).List()
+			if err != nil || !reflect.DeepEqual(doc.Entries, []Entry{original}) {
+				t.Fatalf("legacy read: %+v %v", doc, err)
+			}
+			check := func(enabled bool) {
+				t.Helper()
+				data, err := Apply([]byte("rules: ['MATCH,DIRECT']"), dir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(string(data), "RULE-SET,nagi-legacy,DIRECT") != enabled {
+					t.Fatalf("legacy activation=%v: %s", enabled, data)
+				}
+				if enabled && (!strings.Contains(string(data), "behavior: "+behavior) || !strings.Contains(string(data), item)) {
+					t.Fatalf("legacy provider changed: %s", data)
+				}
+			}
+			check(true)
+			if err := store.SetEnabled(ctx, "legacy", false); err != nil {
+				t.Fatal(err)
+			}
+			check(false)
+			if err := store.SetEnabled(ctx, "legacy", true); err != nil {
+				t.Fatal(err)
+			}
+			check(true)
+			if err := store.Remove(ctx, "legacy"); err != nil {
+				t.Fatal(err)
+			}
+			check(false)
+			doc, err = store.List()
+			if err != nil || len(doc.Entries) != 0 {
+				t.Fatalf("legacy removal: %+v %v", doc, err)
+			}
+		})
 	}
 }
