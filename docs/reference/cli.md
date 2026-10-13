@@ -33,7 +33,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 | `profile override set NAME FILE` | Save a separate local YAML mapping (maximum 8 MiB) and apply it to this profile. |
 | `profile override show NAME` | Print the local override YAML. |
 | `profile override clear NAME` | Remove ordinary local overrides and additions, retaining any persistent Tailscale subscription policy; reload if selected and running. |
-| `profile override apply-default NAME [--dns-proxy GROUP]` | Apply local defaults while retaining the target's proxy and routing resources and TUN enable flag. A profile with proxies needs a DNS proxy group on first apply; later applies reuse the saved group. |
+| `profile override apply-default NAME [--dns-proxy GROUP]` | Apply default runtime settings while retaining the target's proxy and routing resources and TUN enable flag. A profile with proxies needs a DNS proxy group on first apply; later applies reuse the saved group. |
 | `profile override default-status NAME` | Report whether the applied local default override is still active and the recorded DNS proxy group, if any. |
 | `profile override restore-default NAME` | Restore the override that existed before `apply-default`, or remove it if none existed. |
 | `profile remove NAME` | Delete an unselected regular profile file, its backup, local overrides, and saved proxy choices. |
@@ -98,7 +98,7 @@ The optional `Subscription-Userinfo` response header supplies `upload`, `downloa
 | 1 | Start / Stop | Start, stop, restart, full status, quit Nagi for this login session (stops the login monitor and mihomo). |
 | 2 | Select Node | Proxy groups and current nodes; select a group, then a node. Node/group latency tests, saved-selection restore, proxy providers, and offline Tailscale management follow the relevant lists. |
 | 3 | Subscriptions | Subscription list and Add and Apply subscription; details offer Update and Apply, Automatic Updates, Encryption Settings, and removal. |
-| 4 | Profiles | Profile list and Import; details offer Use profile, export, Backup & Restore, Local Overrides (including applying or restoring local default settings), and removal. |
+| 4 | Profiles | Profile list and Import; details offer Use profile, export, Backup & Restore, Local Overrides (including applying or restoring default runtime settings), and removal. |
 | 5 | Proxy Mode | For this session or Save for future starts; each offers Rule (routing rules), Global (GLOBAL group), and Direct (without a proxy). |
 | 6 | System Proxy & TUN (macOS), TUN & LAN (Linux) | Separate system proxy (macOS), TUN, and LAN settings pages, plus listener ports. |
 | 7 | Troubleshooting | Basic checks, detailed diagnostics, export, logs and traffic, startup repair, stale runtime record cleanup, and version. |

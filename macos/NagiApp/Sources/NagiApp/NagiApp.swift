@@ -347,7 +347,7 @@ import AppKit
                 let actions = NSMenu()
                 add("Use Default Profile", action: #selector(switchToDefaultProfile),
                     checked: model.profile == name, enabled: !model.busy, to: actions)
-                add("Apply Local Default Settings to Current Profile", action: #selector(applyDefaultOverride),
+                add("Apply Default Runtime Settings to Current Profile", action: #selector(applyDefaultOverride),
                     checked: model.defaultOverrideApplied == true,
                     enabled: !model.busy && model.defaultOverrideApplied != nil, to: actions)
                 addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)

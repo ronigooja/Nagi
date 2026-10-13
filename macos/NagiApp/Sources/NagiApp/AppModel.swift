@@ -583,7 +583,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             return
         }
         guard let defaultOverrideApplied else {
-            errorMessage = "Local default settings status is unavailable. Try again after refreshing."
+            errorMessage = "Default runtime settings status is unavailable. Try again after refreshing."
             return
         }
         if defaultOverrideApplied {

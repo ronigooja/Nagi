@@ -89,7 +89,7 @@ func profileDetailPage(name string) *Page {
 			defaultApplied = status.Applied
 		}
 		defaultItem := Item{
-			Label:    "Apply local default settings",
+			Label:    "Apply default runtime settings",
 			Selected: statusAvailable && defaultApplied,
 			Impact:   "Copies safe settings from the default profile; keeps nodes, groups, and rules",
 			Action: func(ctx context.Context, s *Session) error {
@@ -97,7 +97,7 @@ func profileDetailPage(name string) *Page {
 			},
 		}
 		if defaultApplied {
-			defaultItem.Label = "Disable local default settings"
+			defaultItem.Label = "Disable default runtime settings"
 			defaultItem.Impact = "Restores the local override saved before applying defaults"
 		} else if status.DNSProxyGroup != "" {
 			defaultItem.Impact += "; DNS via " + status.DNSProxyGroup
@@ -136,7 +136,7 @@ func toggleDefaultOverride(ctx context.Context, s *Session, name string) error {
 			result = s.Run(ctx, "profile", "override", "apply-default", name)
 		} else {
 			if len(status.DNSProxyGroups) == 0 {
-				return errors.New("No eligible proxy group in this profile. Add a proxy group before applying local default settings.")
+				return errors.New("No eligible proxy group in this profile. Add a proxy group before applying default runtime settings.")
 			}
 			group, err := s.Select("DNS proxy group for "+name, status.DNSProxyGroups)
 			if err != nil {

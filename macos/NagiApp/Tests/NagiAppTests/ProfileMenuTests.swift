@@ -54,7 +54,7 @@ import AppKit
         XCTAssertEqual(current.items.map(\.title), ["Use", "Delete… (Switch profiles first)"])
         XCTAssertFalse(current.items[1].isEnabled)
         let defaults = try XCTUnwrap(menu.item(withTitle: "default")?.submenu)
-        XCTAssertEqual(defaults.items.map(\.title), ["Use Default Profile", "Apply Local Default Settings to Current Profile"])
+        XCTAssertEqual(defaults.items.map(\.title), ["Use Default Profile", "Apply Default Runtime Settings to Current Profile"])
         for name in ["two", "three"] {
             let actions = try XCTUnwrap(menu.item(withTitle: name)?.submenu)
             XCTAssertEqual(actions.items.map(\.title), ["Use", "Delete…"])

@@ -284,7 +284,7 @@ func mutationFeedback(args []string) string {
 		if args[1] == "override" && len(args) > 2 {
 			return map[string]string{
 				"set": "Local override saved.", "clear": "Local override cleared.",
-				"apply-default": "Default settings applied.", "restore-default": "Previous local settings restored.",
+				"apply-default": "Default runtime settings applied.", "restore-default": "Previous local settings restored.",
 			}[args[2]]
 		}
 		return map[string]string{
