@@ -10,6 +10,7 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/proxy"
+	"github.com/ronigooja/Nagi/internal/rules"
 	"github.com/ronigooja/Nagi/internal/service"
 	"github.com/ronigooja/Nagi/internal/subscription"
 	"github.com/ronigooja/Nagi/internal/traffic"
@@ -46,6 +47,8 @@ func TestHumanSuccessShapes(t *testing.T) {
 		{"proxy select", map[string]any{"group": "Main", "node": "A"}, []string{"Selected A in proxy group Main"}, nil},
 		{"connections", map[string]any{"connections": []proxy.Connection{{ID: "1", Metadata: map[string]any{"host": "example.org", "destinationPort": "443"}, Upload: 12, Download: 34}, {ID: "2", Metadata: map[string]any{"destinationIP": "203.0.113.1", "destinationPort": 80}}}}, []string{"example.org:443", "ID: 1", "Upload: 12 B", "Download: 34 B", "ID: 2", "203.0.113.1:80"}, nil},
 		{"connections empty", map[string]any{"connections": []proxy.Connection{}}, []string{"No active connections"}, nil},
+		{"imported rules", map[string]any{"entries": []rules.Entry{{Name: "personal", Enabled: true, Kind: "rules", Items: []string{"DOMAIN,local.example,DIRECT", "DOMAIN,ads.example,REJECT"}}}}, []string{"personal (enabled): 2 imported rules", "1. DOMAIN,local.example,DIRECT", "2. DOMAIN,ads.example,REJECT"}, nil},
+		{"rules import", map[string]any{"name": "personal", "action": "import", "saved": true}, []string{"Rule personal: import.", "Effective configuration was validated"}, []string{"Tailscale", "DNS policy"}},
 		{"service", service.Result{Manager: "systemd", Path: "/tmp/nagi.service"}, []string{"Service manager: systemd", "Service file: /tmp/nagi.service"}, nil},
 		{"version", map[string]any{"nagi": "1.0", "mihomo": "2.0", "mihomo_commit": "abc", "os": "linux", "arch": "arm64"}, []string{"Nagi: 1.0", "Mihomo: 2.0", "Mihomo commit: abc", "OS: linux", "Architecture: arm64"}, nil},
 	}

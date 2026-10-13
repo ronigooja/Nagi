@@ -55,6 +55,12 @@ For runtime checks, build the matching pair and use private home, configuration,
 
 The October 2026 Linux check passed remote snapshot import of the two Personal IP rules, domain and supplied-IP matches, unchanged rule counters, global-mode warnings, disable/enable activation, and the real PTY menu flow. Native macOS interactive acceptance requires a macOS host; cross-compilation verifies compilation only.
 
+## Rule file import acceptance
+
+The unified [rule import command](../reference/cli.md#rule-file-imports) is covered by storage, command, menu, and output tests. They check per-rule targets and order, persistence and whole-object management, bounded local/HTTP snapshots, validation rollback, subscription target checks, help and argument errors, text/JSON output, removal of the old commands, shell completion, and retained menu forms with explicit retry.
+
+The October 2026 Linux check passed `go test ./...` and a CLI build. An isolated run against the exact engine commit in `engine.lock` passed full-rule import while stopped, different rule targets and preserved order, invalid-target rollback while stopped and running, runtime reload, disable/enable/remove, HTTP snapshot import, and classical-set import. A real PTY menu run imported a full-rule file without a common-target prompt and removed the whole named import through Manage Rules and Sets; exiting the menu left mihomo running. The checks used private XDG directories with TUN, DNS, and proxy listeners disabled. Changed documentation links and command examples were reviewed. Native macOS interactive acceptance was not run on the Linux host.
+
 ## Tailscale acceptance
 
 Use private configuration, state, and runtime directories for Tailscale checks. Unit fixtures use placeholder keys and must not authenticate to a real tailnet. Run the relevant profile, command, menu, helper policy, helper runtime, and runtime path tests; run race checks for configuration activation and engine Tailscale Start/Close. Engine tests require `-tags with_gvisor` to exercise the real adapter.

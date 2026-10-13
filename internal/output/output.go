@@ -337,7 +337,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	if v["exception_changed"] == true {
 		return line(w, fmt.Sprintf("Updated DNS exception for %v.", v["domain"]))
 	}
-	if v["saved"] == true && v["action"] != nil {
+	if v["saved"] == true && v["action"] != nil && v["profile"] != nil {
 		state := "Saved; mihomo is stopped. Run `nagi start` to activate."
 		if v["reloaded"] == true {
 			state = "Saved and reloaded mihomo."
@@ -355,7 +355,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		return line(w, fmt.Sprintf("Tailscale %s in profile %s. %s", v["action"], v["profile"], state))
 	}
 
-	if v["saved"] == true {
+	if v["saved"] == true && v["profile"] != nil {
 		if enabled, ok := v["tun_enabled"].(bool); ok {
 			return line(w, "Saved TUN DNS interception setting: "+stateValue(w, yesNo(enabled))+".")
 		}
@@ -527,6 +527,17 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			state := "disabled"
 			if entry.Enabled {
 				state = "enabled"
+			}
+			if entry.Kind == "rules" {
+				if err := line(w, fmt.Sprintf("%s (%s): %d imported rules", entry.Name, stateValue(w, state), len(entry.Items))); err != nil {
+					return err
+				}
+				for i, rule := range entry.Items {
+					if err := line(w, fmt.Sprintf("  %d. %s", i+1, rule)); err != nil {
+						return err
+					}
+				}
+				continue
 			}
 			if err := line(w, entry.Name+" ("+stateValue(w, state)+"): "+rules.Line(entry)); err != nil {
 				return err
