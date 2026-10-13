@@ -189,7 +189,11 @@ func (s *Store) normalizeSubscriptionOverride(name string, overlay map[string]an
 				}
 			}
 		}
-		if !reflect.DeepEqual(copyNode, original) {
+		same := reflect.DeepEqual(copyNode, original)
+		if tsString(original, "type") == "tailscale" {
+			same = sameTailscaleDefinition(copyNode, original)
+		}
+		if !same {
 			return errors.New("local proxy snapshot changes subscription nodes; clear or revise it before binding a subscription")
 		}
 		seen[n] = true

@@ -228,3 +228,23 @@ func TestSubscriptionTailscaleSwitchAndCycle(t *testing.T) {
 		t.Fatal("cyclic policy persisted")
 	}
 }
+
+func TestSubscriptionTailscaleSnapshotWithSourceTailscaleNodes(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+	source := []byte("proxies: [{name: Source TS 1,type: tailscale,auth-key: source-key-1,exit-node: '100.64.0.1'}, {name: Source TS 2,type: tailscale,auth-key: source-key-2,exit-node: '100.64.0.2'}, {name: A,type: socks5}]\n")
+	if err := s.Write(ctx, "work", source); err != nil {
+		t.Fatal(err)
+	}
+	key, exit := "local-key", "100.64.0.3"
+	if err := s.MutateTailscale(ctx, "work", "add", "Local TS", "", "", TailscaleOptions{AuthKey: &key, ExitNode: &exit}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "Local TS"); err != nil {
+		t.Fatal(err)
+	}
+	cfg := effectiveDoc(t, s)
+	if tsString(tsFind(cfg, "A"), "dialer-proxy") != "Local TS" || tsFind(cfg, "Source TS 1") == nil || tsFind(cfg, "Source TS 2") == nil {
+		t.Fatalf("source nodes changed: %#v", cfg)
+	}
+}
