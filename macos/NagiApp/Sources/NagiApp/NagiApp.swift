@@ -658,13 +658,21 @@ import AppKit
         alert.addButton(withTitle: "Close")
         let updateButton = alert.addButton(withTitle: "Update")
         updateButton.isEnabled = !model.busy
-        updateButton.toolTip = "Updates Nagi in Terminal, then reopens this app."
+        updateButton.toolTip = "Updates Nagi and reopens this app."
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertSecondButtonReturn { updateNagi() }
     }
     @objc private func showConnections() { connectionsWindow.present() }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func updateNagi() {
+        guard !model.busy else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Update Nagi"
+        alert.informativeText = "After authorization, Nagi will close automatically, finish updating in the background, and reopen."
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
         model.updateNagi {
             // Finish CLI cleanup before entering AppKit's termination
             // handshake. AppKit waits for applicationShouldTerminate while

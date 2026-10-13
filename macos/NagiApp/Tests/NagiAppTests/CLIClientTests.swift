@@ -72,6 +72,23 @@ final class CLIClientTests: XCTestCase {
         }
     }
 
+    func testOnlyAppUpdateUsesLongerPreparationTimeout() async throws {
+        let script = try fixture(#"""
+        exec /usr/bin/python3 -c 'import json,time; time.sleep(0.3); print(json.dumps({"ok":True,"data":{"scheduled":True}}))'
+        """#)
+        let client = NagiCLIClient(executable: script, timeout: 0.05, appUpdateTimeout: 2)
+        let result = try await client.run(["update", "--app"])
+        XCTAssertEqual(result["scheduled"]?.bool, true)
+        for arguments in [["status"], ["update"], ["app", "update-error"]] {
+            do { _ = try await client.run(arguments); XCTFail("Expected ordinary command timeout") }
+            catch CLIError.timeout { }
+        }
+        do {
+            _ = try await NagiCLIClient(executable: script, appUpdateTimeout: 0.05).run(["update", "--app"])
+            XCTFail("Expected update preparation timeout")
+        } catch CLIError.timeout { }
+    }
+
     func testAlreadyCancelledTaskDoesNotLaunchCLI() async throws {
         let script = try fixture("printf 'started' > \"$0.started\"; printf '{\"ok\":true,\"data\":{}}'")
         let marker = URL(fileURLWithPath: script.path + ".started")

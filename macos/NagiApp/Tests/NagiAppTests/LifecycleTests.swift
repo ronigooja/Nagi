@@ -140,6 +140,13 @@ extension LifecycleTests {
           printf '{"ok":false,"error":{"code":"subscription_error","message":"fixture stage failed"}}\\n' >&2; exit 1
         fi
         case "$*" in
+          '--json app update-error')
+            if [ -f '\(directory.appendingPathComponent("update-error").path)' ]; then
+              rm '\(directory.appendingPathComponent("update-error").path)'
+              printf '{"ok":true,"data":{"error":"Update failed: installation could not finish. Retry Update."}}\\n'
+            else
+              printf '{"ok":true,"data":{"error":""}}\\n'
+            fi ;;
           '--json update --app')
             if [ -f '\(directory.appendingPathComponent("updatefail").path)' ]; then
               printf '{"ok":false,"error":{"code":"installation_error","message":"Background updater unavailable"}}\\n' >&2; exit 1
@@ -187,6 +194,45 @@ extension LifecycleTests {
         model.quit { quit = $0 }
         await expectUntil { quit }
         XCTAssertEqual(lines(log), ["--json update --app", "--json quit"])
+    }
+
+    func testUpdateWaitsForPreparedHandoffAndRejectsUnscheduledResult() async throws {
+        var completion: CheckedContinuation<JSONValue, Error>?
+        let model = AppModel(runCommand: { arguments in
+            XCTAssertEqual(arguments, ["update", "--app"])
+            return try await withCheckedThrowingContinuation { completion = $0 }
+        })
+        var ready = false
+        model.updateNagi { ready = true }
+        await expectUntil { completion != nil }
+        XCTAssertTrue(model.busy)
+        XCTAssertFalse(model.applyingSetting)
+        XCTAssertFalse(ready)
+        completion?.resume(returning: .objectValue(["scheduled": .boolValue(false)]))
+        await expectUntil { !model.busy }
+        XCTAssertFalse(ready)
+        XCTAssertTrue(model.errorMessage?.contains("did not schedule") == true)
+    }
+
+    func testBackgroundUpdateFailureSurvivesStartupAndRefreshUntilRetry() async throws {
+        let (dir, cli, log) = try modelFixture()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try "failed".write(to: dir.appendingPathComponent("update-error"), atomically: true, encoding: .utf8)
+        let model = AppModel(cli: NagiCLIClient(executable: cli))
+        model.launch()
+        defer { model.pauseForSleep() }
+        let failure = "Update failed: installation could not finish. Retry Update."
+        await expectUntil { !model.busy && model.errorMessage == failure }
+        XCTAssertEqual(Array(lines(log).prefix(2)), ["--json app update-error", "--json start"])
+        await model.refresh()
+        await model.refreshMenuData()
+        XCTAssertEqual(model.errorMessage, failure)
+        XCTAssertEqual(lines(log).filter { $0 == "--json app update-error" }.count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("update-error").path))
+        var ready = false
+        model.updateNagi { ready = true }
+        await expectUntil { ready }
+        XCTAssertNil(model.errorMessage)
     }
 
     func testUpdateLauncherFailureKeepsAppAvailable() async throws {

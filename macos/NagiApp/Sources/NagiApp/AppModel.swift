@@ -125,7 +125,13 @@ enum EngineState { case starting, running, stopped, unavailable }
     } }
     private(set) var applyingSetting = false { didSet { notify() } }
     private(set) var state: EngineState = .starting { didSet { connections.setEngineState(state); notify() } }
-    private(set) var errorMessage: String? { didSet { notify() } }
+    // A detached update failure survives ordinary launch and polling results.
+    private var updateErrorMessage: String?
+    private var operationErrorMessage: String?
+    private(set) var errorMessage: String? {
+        get { updateErrorMessage ?? operationErrorMessage }
+        set { operationErrorMessage = newValue; notify() }
+    }
     private(set) var quitErrorMessage: String? { didSet { notify() } }
     private(set) var notice: String? { didSet { notify() } }
     private(set) var profile: String?
@@ -180,6 +186,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         guard refreshTask == nil else { return }
         busy = true
         refreshTask = Task {
+            await loadUpdateError()
             await startEngine()
             startSubscriptionWatch()
             busy = false
@@ -188,6 +195,14 @@ enum EngineState { case starting, running, stopped, unavailable }
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
             }
         }
+    }
+    private func loadUpdateError() async {
+        // The CLI owns persistence and consumes the failure once for this launch.
+        // An older CLI may not support this read; it must not prevent startup.
+        guard let result = try? await runCommand(["app", "update-error"]),
+              let message = result["error"]?.string, !message.isEmpty else { return }
+        updateErrorMessage = message
+        notify()
     }
     func retryStart() {
         guard !busy && !quitting else { return }
@@ -539,6 +554,7 @@ enum EngineState { case starting, running, stopped, unavailable }
 
     func updateNagi(_ readyToQuit: @escaping () -> Void) {
         guard !busy && !quitting else { return }
+        updateErrorMessage = nil
         busy = true
         Task {
             await waitForConnectionsOperation()

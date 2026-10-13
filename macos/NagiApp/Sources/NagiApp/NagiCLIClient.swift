@@ -6,8 +6,11 @@ struct NagiCLIClient {
     static let installedExecutable = URL(fileURLWithPath: "/usr/local/bin/nagi")
     let executable: URL
     private let timeout: TimeInterval
-    init(executable: URL = installedExecutable, timeout: TimeInterval = 45) {
+    private let appUpdateTimeout: TimeInterval
+    init(executable: URL = installedExecutable, timeout: TimeInterval = 45,
+         appUpdateTimeout: TimeInterval = 900) {
         self.executable = executable; self.timeout = timeout
+        self.appUpdateTimeout = appUpdateTimeout
     }
 
     func run(_ arguments: [String]) async throws -> JSONValue {
@@ -68,7 +71,9 @@ struct NagiCLIClient {
         try holder.start(process)
         stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
         writersClosed = true
-        holder.waitForExit(timeout: timeout)
+        // Only App updates wait for release downloads and native authorization.
+        let commandTimeout = arguments == ["update", "--app"] ? appUpdateTimeout : timeout
+        holder.waitForExit(timeout: commandTimeout)
         // Drain bytes already written before decoding. Do not wait for EOF:
         // a detached descendant may still hold an inherited pipe writer.
         outReader.finish(); errReader.finish()
@@ -410,7 +415,7 @@ enum CLIError: LocalizedError {
         switch self {
         case .missingCLI(let path): return "Nagi CLI is missing at \(path). Install the CLI there."
         case .launch(let reason): return "Could not start Nagi CLI: \(reason)"
-        case .timeout: return "Nagi CLI did not respond within 45 seconds."
+        case .timeout: return "Nagi CLI did not respond before the command timed out."
         case .invalidJSON(let reason): return "Nagi CLI response error: \(reason)"
         case .command(let code, let message): return "\(message) (\(code))"
         case .outputTooLarge(let limit): return "Nagi CLI output exceeded \(limit / 1_048_576) MiB."
