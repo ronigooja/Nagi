@@ -3,8 +3,11 @@ package rules
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -66,7 +69,7 @@ func TestSetImportAndConflicts(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := New(dir, nil)
-	if err := s.ImportLocal(context.Background(), "domains", "domain", file, "DIRECT"); err != nil {
+	if err := s.Import(context.Background(), "domains", "domain", file, "DIRECT"); err != nil {
 		t.Fatal(err)
 	}
 	result, err := Apply([]byte("rules:\n  - RULE-SET,nagi-domains,REJECT\n  - MATCH,DIRECT\n  - DOMAIN,late.example,REJECT\n"), dir)
@@ -82,5 +85,153 @@ func TestSetImportAndConflicts(t *testing.T) {
 	}
 	if !strings.Contains(string(result), "rule-providers:") {
 		t.Fatal(string(result))
+	}
+}
+
+func TestRulesBundlePersistenceAndLifecycle(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	file := filepath.Join(dir, "bundle.yaml")
+	lines := []string{"DOMAIN,work.example,Work", "AND,((DOMAIN,a.example),(DST-PORT,443)),DIRECT", "DOMAIN-REGEX,^a,b$,REJECT", "IP-CIDR,192.0.2.0/24,DIRECT,no-resolve", "MATCH,REJECT"}
+	data := "proxies:\n  - name: ignored\n    type: direct\nrule-providers:\n  ignored:\n    type: inline\n    behavior: domain\n    payload: [ignored.example]\nrules:\n"
+	for _, line := range lines {
+		data += "  - '" + line + "'\n"
+	}
+	if err := os.WriteFile(file, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store := New(dir, nil)
+	if err := store.Import(ctx, "bundle", "rules", file, ""); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := New(dir, nil).List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Entries) != 1 || saved.Entries[0].Kind != "rules" || saved.Entries[0].Target != "" || !reflect.DeepEqual(saved.Entries[0].Items, lines) {
+		t.Fatalf("saved: %+v", saved)
+	}
+	base := []byte("rules: ['MATCH,DIRECT']\n")
+	checkOrder := func(want []string) {
+		t.Helper()
+		effective, err := Apply(base, dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(effective), "ignored") {
+			t.Fatal("imported non-rules source fields")
+		}
+		report, err := AnalyzeEffective(effective)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(report.Order, want) {
+			t.Fatalf("order: %#v, want %#v", report.Order, want)
+		}
+	}
+	checkOrder(append(append([]string{}, lines...), "MATCH,DIRECT"))
+	if err := store.SetEnabled(ctx, "bundle", false); err != nil {
+		t.Fatal(err)
+	}
+	checkOrder([]string{"MATCH,DIRECT"})
+	if err := store.SetEnabled(ctx, "bundle", true); err != nil {
+		t.Fatal(err)
+	}
+	checkOrder(append(append([]string{}, lines...), "MATCH,DIRECT"))
+	if err := store.Remove(ctx, "bundle"); err != nil {
+		t.Fatal(err)
+	}
+	checkOrder([]string{"MATCH,DIRECT"})
+}
+
+func TestRulesImportRollback(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	store := New(dir, nil)
+	if err := store.Add(ctx, Entry{Name: "old", Kind: "rule", Type: "MATCH", Target: "DIRECT", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(Path(dir))
+	file := filepath.Join(dir, "bad.yaml")
+	if err := os.WriteFile(file, []byte("rules: ['UNKNOWN,native,target']"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	store.Check = func(context.Context) error { calls++; return errors.New("mihomo rejected unknown rule") }
+	if err := store.Import(ctx, "bad", "rules", file, ""); err == nil {
+		t.Fatal("expected engine validation error")
+	}
+	after, _ := os.ReadFile(Path(dir))
+	if calls != 1 || string(before) != string(after) {
+		t.Fatalf("rollback failed, checks=%d", calls)
+	}
+}
+
+func TestRulesImportRemoteSnapshotAndBound(t *testing.T) {
+	ctx := context.Background()
+	body := "rules: ['DOMAIN,a.example,DIRECT']"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) }))
+	defer server.Close()
+	dir := t.TempDir()
+	store := New(dir, nil)
+	if err := store.Import(ctx, "remote", "rules", server.URL, ""); err != nil {
+		t.Fatal(err)
+	}
+	body = "rules: ['MATCH,REJECT']"
+	effective, err := Apply([]byte("rules: []"), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(effective), "DOMAIN,a.example,DIRECT") || strings.Contains(string(effective), "MATCH,REJECT") {
+		t.Fatal(string(effective))
+	}
+	before, _ := os.ReadFile(Path(dir))
+	body = strings.Repeat("x", maxImportBytes+1)
+	if err := store.Import(ctx, "large", "rules", server.URL, ""); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("size error: %v", err)
+	}
+	after, _ := os.ReadFile(Path(dir))
+	if string(before) != string(after) {
+		t.Fatal("failed download changed persisted rules")
+	}
+}
+
+func TestRulesImportInvalidSourcesAndData(t *testing.T) {
+	for _, data := range []string{"", "rules: []", "payload: ['MATCH,DIRECT']", "rules: ['MATCH,DIRECT']\n---\nrules: ['MATCH,REJECT']", "rules: [true]", "rules: [123]", "rules: ['']", "rules: [\"a\\nb\"]", "rules: ['MATCH,DIRECT']\nrules: ['MATCH,REJECT']", "["} {
+		t.Run(data, func(t *testing.T) {
+			if _, err := ParseRules([]byte(data)); err == nil {
+				t.Fatalf("accepted %q", data)
+			}
+		})
+	}
+	for _, source := range []string{"", "http:/broken", "ftp://example.invalid/rules", "https://user:secret@example.invalid/rules", filepath.Join(t.TempDir(), "missing")} {
+		if err := New(t.TempDir(), nil).Import(context.Background(), "bad", "rules", source, ""); err == nil {
+			t.Fatalf("accepted source %q", source)
+		}
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "large")
+	if err := os.WriteFile(file, []byte(strings.Repeat("x", maxImportBytes+1)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := New(dir, nil).Import(context.Background(), "large", "rules", file, ""); err == nil {
+		t.Fatal("accepted oversized file")
+	}
+	for _, args := range [][2]string{{"rules", "DIRECT"}, {"domain", ""}, {"unknown", "DIRECT"}} {
+		if err := New(dir, nil).Import(context.Background(), "bad", args[0], file, args[1]); err == nil {
+			t.Fatalf("accepted args %v", args)
+		}
+	}
+	items, err := ParseRules([]byte("['MATCH,DIRECT']"))
+	if err != nil || !reflect.DeepEqual(items, []string{"MATCH,DIRECT"}) {
+		t.Fatalf("list: %v %v", items, err)
+	}
+}
+
+func TestBundleTargetsFollowMihomoFields(t *testing.T) {
+	entry := Entry{Kind: "rules", Items: []string{"IP-CIDR,192.0.2.0/24,Proxy,no-resolve", "OR,((DOMAIN,a.example),(DOMAIN,b.example)),Other", "DOMAIN-REGEX,^a,b$,Regex", "MATCH,REJECT", "SUB-RULE,(NETWORK,TCP),sub", "DST-PORT,80,Port"}}
+	want := []string{"Proxy", "Other", "Regex", "REJECT", "Port"}
+	if got := Targets(entry); !reflect.DeepEqual(got, want) {
+		t.Fatalf("targets %v", got)
 	}
 }

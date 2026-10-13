@@ -173,8 +173,13 @@ func validateRuleTargets(dir, profileName string, candidate []byte) error {
 		}
 	}
 	for _, rule := range saved.Entries {
-		if rule.Enabled && !valid[rule.Target] && !remoteProvider {
-			return fmt.Errorf("%w: rule %s targets a missing choice", errRuleConflict, rule.Name)
+		if !rule.Enabled {
+			continue
+		}
+		for _, target := range rules.Targets(rule) {
+			if !valid[target] && !remoteProvider {
+				return fmt.Errorf("%w: rule %s targets a missing choice", errRuleConflict, rule.Name)
+			}
 		}
 	}
 	return nil

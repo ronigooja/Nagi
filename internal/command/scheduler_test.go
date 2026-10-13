@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/profile"
+	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/subscription"
 )
@@ -698,5 +699,27 @@ func TestEffectiveGroupsUseKnownInlineNodesAndPreserveUnknownRemoteChoices(t *te
 	}
 	if !groups["local-group"]["inline-node"] || groups["local-group"]["*"] || !groups["remote-group"]["*"] {
 		t.Fatalf("provider option knowledge: %+v", groups)
+	}
+}
+
+func TestRuleBundleTargetPreflight(t *testing.T) {
+	dir := t.TempDir()
+	store := rules.New(dir, nil)
+	bundle := rules.Entry{Name: "bundle", Enabled: true, Kind: "rules", Items: []string{"DOMAIN,a.example,Work", "IP-CIDR,192.0.2.0/24,DIRECT,no-resolve", "AND,((DOMAIN,a.example),(DST-PORT,443)),Work", "DOMAIN-REGEX,^a,b$,Work", "SUB-RULE,(NETWORK,TCP),sub"}}
+	if err := store.Add(context.Background(), bundle); err != nil {
+		t.Fatal(err)
+	}
+	candidate := []byte("proxy-groups:\n  - name: Work\n    type: select\n    proxies: [DIRECT]\n")
+	if err := validateRuleTargets(dir, "work", candidate); err != nil {
+		t.Fatalf("valid bundle rejected: %v", err)
+	}
+	if err := validateRuleTargets(dir, "work", []byte("rules: []")); !errors.Is(err, errRuleConflict) {
+		t.Fatalf("missing bundle target not rejected: %v", err)
+	}
+	if err := store.SetEnabled(context.Background(), "bundle", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateRuleTargets(dir, "work", []byte("rules: []")); err != nil {
+		t.Fatalf("disabled bundle rejected: %v", err)
 	}
 }

@@ -65,7 +65,13 @@ func Apply(base []byte, dir string) ([]byte, error) {
 			}
 			providers[name] = map[string]any{"type": "inline", "behavior": e.Behavior, "payload": e.Items}
 		}
-		ordered = append(ordered, Line(e))
+		if e.Kind == "rules" {
+			for _, line := range e.Items {
+				ordered = append(ordered, line)
+			}
+		} else {
+			ordered = append(ordered, Line(e))
+		}
 	}
 	ordered = append(ordered, existing...)
 	cfg["rules"] = ordered
@@ -111,4 +117,41 @@ func AnalyzeEffective(data []byte) (Report, error) {
 		}
 	}
 	return r, nil
+}
+
+// Targets returns proxy references for subscription preflight. Field positions
+// follow the pinned mihomo ParseRulePayload grammar; actual validation remains
+// mihomo's responsibility. SUB-RULE references are in a separate namespace.
+func Targets(e Entry) []string {
+	if e.Kind != "rules" {
+		return []string{e.Target}
+	}
+	var targets []string
+	for _, line := range e.Items {
+		parts := strings.Split(line, ",")
+		for i := range parts {
+			parts[i] = strings.Trim(parts[i], " ")
+		}
+		var target string
+		switch strings.ToUpper(parts[0]) {
+		case "SUB-RULE":
+			continue
+		case "MATCH":
+			if len(parts) > 1 {
+				target = parts[1]
+			}
+		case "NOT", "OR", "AND", "DOMAIN-REGEX", "PROCESS-NAME-REGEX", "PROCESS-PATH-REGEX":
+			if len(parts) > 1 {
+				target = parts[len(parts)-1]
+			}
+		default:
+			if len(parts) > 2 {
+				target = parts[2]
+			}
+		}
+		if target != "" {
+			targets = append(targets, target)
+		}
+	}
+	return targets
 }

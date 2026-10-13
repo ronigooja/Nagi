@@ -2,6 +2,7 @@
 package rules
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -122,6 +123,12 @@ func Validate(e Entry) error {
 	if !validName(e.Name) {
 		return errors.New("rule name must use 1-128 ASCII letters, digits, _ or -")
 	}
+	if e.Kind == "rules" {
+		if e.Target != "" {
+			return errors.New("rules format preserves each rule target and does not accept TARGET")
+		}
+		return validateItems(e.Items, "rule list")
+	}
 	if e.Target == "" || strings.ContainsAny(e.Target, ",\n\r") {
 		return errors.New("target must be DIRECT, REJECT, or a proxy group name without commas")
 	}
@@ -142,18 +149,7 @@ func Validate(e Entry) error {
 		if e.Behavior != "classical" && e.Behavior != "domain" && e.Behavior != "ipcidr" {
 			return errors.New("rule set behavior must be classical, domain, or ipcidr")
 		}
-		if len(e.Items) == 0 {
-			return errors.New("rule set is empty")
-		}
-		if len(e.Items) > 100000 {
-			return errors.New("rule set exceeds 100000 entries")
-		}
-		for _, item := range e.Items {
-			if item == "" || strings.ContainsAny(item, "\n\r") {
-				return errors.New("rule set contains an invalid item")
-			}
-		}
-		return nil
+		return validateItems(e.Items, "rule set")
 	}
 	return errors.New("unknown rule kind")
 }
@@ -226,25 +222,146 @@ func ParseSet(data []byte, behavior string) ([]string, error) {
 	}
 	return nil, errors.New("rule set must be YAML payload/list (domain and ipcidr also accept text lines)")
 }
-func (s *Store) ImportLocal(ctx context.Context, name, behavior, path, target string) error {
-	data, err := os.ReadFile(path)
+
+// Import stores a bounded local or HTTP(S) snapshot. Full rules retain their
+// native mihomo targets; provider formats require a shared target.
+func (s *Store) Import(ctx context.Context, name, format, source, target string) error {
+	if !validName(name) {
+		return errors.New("rule name must use 1-128 ASCII letters, digits, _ or -")
+	}
+	if format != "rules" && format != "classical" && format != "domain" && format != "ipcidr" {
+		return errors.New("rule import format must be rules, classical, domain, or ipcidr")
+	}
+	if format == "rules" && target != "" {
+		return errors.New("rules format preserves each rule target and does not accept TARGET")
+	}
+	if format != "rules" && (target == "" || strings.ContainsAny(target, ",\n\r")) {
+		return errors.New("rule set format requires a target without commas or newlines")
+	}
+	data, origin, err := s.readSource(ctx, source)
 	if err != nil {
 		return err
 	}
-	items, err := ParseSet(data, behavior)
-	if err != nil {
-		return err
+	e := Entry{Name: name, Enabled: true, Kind: "set", Behavior: format, Source: origin, Target: target}
+	if format == "rules" {
+		e.Kind, e.Behavior = "rules", ""
+		e.Items, err = ParseRules(data)
+	} else {
+		e.Items, err = ParseSet(data, format)
 	}
-	return s.Add(ctx, Entry{Name: name, Enabled: true, Kind: "set", Behavior: behavior, Items: items, Source: "local:" + filepath.Base(path), Target: target})
+	if err != nil {
+		return fmt.Errorf("parse rule import: %w", err)
+	}
+	return s.Add(ctx, e)
 }
-func (s *Store) ImportRemote(ctx context.Context, name, behavior, rawURL, target string) error {
-	u, err := url.Parse(rawURL)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
-		return errors.New("remote rule set URL must be absolute HTTP(S) without userinfo")
+
+const maxImportBytes = 8 << 20
+
+func validateItems(items []string, label string) error {
+	if len(items) == 0 {
+		return fmt.Errorf("%s is empty", label)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if len(items) > 100000 {
+		return fmt.Errorf("%s exceeds 100000 entries", label)
+	}
+	for _, item := range items {
+		if strings.TrimSpace(item) == "" || strings.ContainsAny(item, "\n\r") {
+			return fmt.Errorf("%s contains an invalid item", label)
+		}
+	}
+	return nil
+}
+
+// ParseRules accepts only a YAML mapping's rules list or a YAML string list.
+// Mihomo validates rule syntax and semantics when the snapshot is activated.
+func ParseRules(data []byte) ([]string, error) {
+	if len(data) == 0 || len(data) > maxImportBytes {
+		return nil, errors.New("rule import must contain 1 byte to 8 MiB")
+	}
+	var doc yaml.Node
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	if err := decoder.Decode(&doc); err != nil {
+		return nil, fmt.Errorf("invalid YAML: %w", err)
+	}
+	var extra yaml.Node
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return nil, errors.New("rule import must contain exactly one YAML document")
+	}
+	if len(doc.Content) != 1 {
+		return nil, errors.New("rules must be a YAML rules mapping or string list")
+	}
+	node := doc.Content[0]
+	if node.Kind == yaml.MappingNode {
+		var rules *yaml.Node
+		for i := 0; i < len(node.Content); i += 2 {
+			if node.Content[i].Value == "rules" {
+				if rules != nil {
+					return nil, errors.New("duplicate rules field")
+				}
+				rules = node.Content[i+1]
+			}
+		}
+		node = rules
+	}
+	if node == nil || node.Kind != yaml.SequenceNode {
+		return nil, errors.New("rules must be a YAML rules mapping or string list")
+	}
+	items := make([]string, 0, len(node.Content))
+	for _, item := range node.Content {
+		if item.Kind != yaml.ScalarNode || item.Tag != "!!str" {
+			return nil, errors.New("rules must contain only strings")
+		}
+		items = append(items, item.Value)
+	}
+	if err := validateItems(items, "rule list"); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func readSnapshot(r io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, maxImportBytes+1))
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if len(data) == 0 || len(data) > maxImportBytes {
+		return nil, errors.New("rule import must contain 1 byte to 8 MiB")
+	}
+	return data, nil
+}
+
+func (s *Store) readSource(ctx context.Context, source string) ([]byte, string, error) {
+	if source == "" {
+		return nil, "", errors.New("rule import source must be a file path or HTTP(S) URL")
+	}
+	u, err := url.Parse(source)
+	// Paths (including paths containing colons) remain local unless URL syntax is used.
+	remote := strings.Contains(source, "://") || strings.HasPrefix(strings.ToLower(source), "http:") || strings.HasPrefix(strings.ToLower(source), "https:")
+	if !remote {
+		f, err := os.Open(source)
+		if err != nil {
+			return nil, "", fmt.Errorf("read rule import file: %w", err)
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			return nil, "", fmt.Errorf("read rule import file: %w", err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, "", errors.New("rule import source must be a regular file")
+		}
+		data, err := readSnapshot(f)
+		if err != nil {
+			return nil, "", fmt.Errorf("read rule import file: %w", err)
+		}
+		return data, "local:" + filepath.Base(source), nil
+	}
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return nil, "", errors.New("rule import URL must be absolute HTTP(S) without userinfo")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("download rule import: %w", err)
 	}
 	client := s.HTTP
 	if client == nil {
@@ -252,19 +369,15 @@ func (s *Store) ImportRemote(ctx context.Context, name, behavior, rawURL, target
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("download rule set: %w", err)
+		return nil, "", fmt.Errorf("download rule import: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download rule set: HTTP %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("download rule import: HTTP %d", resp.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20+1))
+	data, err := readSnapshot(resp.Body)
 	if err != nil {
-		return err
+		return nil, "", fmt.Errorf("download rule import: %w", err)
 	}
-	items, err := ParseSet(data, behavior)
-	if err != nil {
-		return err
-	}
-	return s.Add(ctx, Entry{Name: name, Enabled: true, Kind: "set", Behavior: behavior, Items: items, Source: "remote:" + u.Host, Target: target})
+	return data, "remote:" + u.Host, nil
 }
