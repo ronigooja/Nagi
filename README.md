@@ -12,7 +12,7 @@ Use the macOS menu bar app for daily controls, live traffic rates, and active co
 
 - **macOS menu bar app:** engine status, proxy selection, system proxy and TUN controls, profiles, subscriptions, live upload/download rates, and a native Connections window.
 - **Terminal menu and CLI:** step-by-step operations, JSON output for scripts and applications, and Bash, Zsh, and Fish completion.
-- **Tailscale exits:** manage top-level Tailscale nodes and bind ordinary proxy nodes or entire providers through an exit node, with optional HTTPS Headscale control. Use the [matching pinned engine](docs/guides/tailscale.md#engine-compatibility). See the [Tailscale guide](docs/guides/tailscale.md).
+- **Tailscale exits:** manage top-level Tailscale nodes and bind ordinary proxy nodes, entire providers, or a subscription persistently through an exit node, with optional HTTPS Headscale control. Use the [matching pinned engine](docs/guides/tailscale.md#engine-compatibility). See the [Tailscale guide](docs/guides/tailscale.md).
 - **Proxy selection:** search nodes, compare latency, save group selections, and add or refresh proxy providers.
 - **Subscription management:** cached updates, previews of node changes, scheduled refresh, and optional age-encrypted feeds.
 - **Configuration profiles:** import, switch, export, back up, restore, and compare profiles; apply local overrides separately from source configuration.
@@ -78,7 +78,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [Getting started](docs/guides/getting-started.md): initial configuration and operation.
 - [macOS menu bar app](macos/NagiApp/README.md): menu controls, traffic display, installation, and packaging.
 - [Traffic access](docs/guides/traffic-access.md): system proxy, TUN, listener ports, and LAN access.
-- [Tailscale exits](docs/guides/tailscale.md): keys, node and provider bindings, activation, and identity persistence.
+- [Tailscale exits](docs/guides/tailscale.md): keys, node/provider bindings, persistent subscription bindings, activation, and identity persistence.
 - [Proxy providers](docs/guides/proxy-providers.md): add a node source, attach it to a group, and refresh its nodes.
 - [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
 - [Startup and recovery](docs/guides/startup.md): login service, stale state, and rechecks.
@@ -95,6 +95,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
 - [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
+- [Persistent subscription Tailscale decision](docs/decisions/0007-persistent-subscription-tailscale.md): feed updates, durable binding intent, and native engine composition.
 - [Privileged Tailscale state decision](docs/decisions/0006-privileged-tailscale-state.md): persistent identity isolation and adapter handoff.
 - [macOS TUN DNS decision](docs/decisions/0004-macos-tun-dns.md): system DNS ownership, restoration, and proxy destination resolution.
 
