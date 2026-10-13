@@ -275,7 +275,18 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				tag = args[1]
 			}
 		}
+		if action == "background-update" {
+			var cancel context.CancelFunc
+			ctx, cancel = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+			var timeoutCancel context.CancelFunc
+			ctx, timeoutCancel = context.WithTimeout(ctx, 14*time.Minute)
+			defer timeoutCancel()
+		}
 		result, err := manager.Manage(ctx, action, tag, purgeData)
+		if manager.PreparedArtifact != "" && err != nil {
+			_ = installation.SaveUpdateError(err)
+		}
 		if err != nil {
 			return nil, fail("installation_error", err)
 		}

@@ -6,12 +6,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/ronigooja/Nagi/scripts"
 )
@@ -21,6 +26,10 @@ type Runner func(context.Context, string, ...string) ([]byte, error)
 type Manager struct {
 	OS, Arch, Executable, Version, ReleaseBase string
 	Run                                        Runner
+	PreparedArtifact                           string
+	EngineWasRunning                           bool
+	StartBackground                            func(*exec.Cmd) error
+	LockFD                                     int
 }
 
 func New(version string) (*Manager, error) {
@@ -28,8 +37,14 @@ func New(version string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Manager{OS: runtime.GOOS, Arch: runtime.GOARCH, Executable: executable,
-		Version: version, ReleaseBase: "https://github.com/ronigooja/Nagi/releases", Run: runProcess}, nil
+	m := &Manager{OS: runtime.GOOS, Arch: runtime.GOARCH, Executable: executable,
+		Version: version, ReleaseBase: "https://github.com/ronigooja/Nagi/releases", Run: runProcess}
+	if os.Getenv("NAGI_UPDATE_LOCK_FD") == "3" {
+		m.LockFD = 3
+		m.PreparedArtifact = os.Getenv("NAGI_UPDATE_ARTIFACT")
+		m.EngineWasRunning = os.Getenv("NAGI_UPDATE_ENGINE_RUNNING") == "true"
+	}
+	return m, nil
 }
 
 func runProcess(ctx context.Context, executable string, args ...string) ([]byte, error) {
@@ -78,6 +93,12 @@ func (m *Manager) record() (record, error) {
 
 // Manage owns maintenance operations; the terminal menu and App only dispatch.
 func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOption ...bool) (map[string]any, error) {
+	if m.LockFD == 3 && m.PreparedArtifact == "" {
+		return nil, fmt.Errorf("missing prepared update artifact")
+	}
+	if m.PreparedArtifact != "" && (action != "update" || !validPreparedArtifact(m.PreparedArtifact)) {
+		return nil, fmt.Errorf("invalid prepared update handoff")
+	}
 	purgeData := len(purgeDataOption) > 0 && purgeDataOption[0]
 	if purgeData && action != "uninstall" {
 		return nil, fmt.Errorf("--purge-data is only valid with uninstall")
@@ -85,6 +106,13 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	appAction := strings.HasPrefix(action, "app-")
 	if appAction && m.OS != "darwin" {
 		return nil, fmt.Errorf("App management is supported only on macOS")
+	}
+	if action == "app-update-error" {
+		return consumeUpdateError()
+	}
+	background := action == "background-update"
+	if background && m.OS != "darwin" {
+		return nil, fmt.Errorf("background update requires an installed macOS App")
 	}
 	r, err := m.record()
 	if err != nil {
@@ -101,8 +129,8 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	if action == "terminal-update" {
 		return m.launchTerminal(ctx, r)
 	}
-	if action == "background-update" {
-		return m.launchBackgroundUpdate(r)
+	if background && r.App == "" {
+		return nil, fmt.Errorf("background update requires an installed macOS App")
 	}
 	if appAction && r.Prefix != "/usr/local" {
 		return nil, fmt.Errorf("Nagi.app requires the CLI at /usr/local/bin/nagi")
@@ -133,7 +161,12 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	if err := os.MkdirAll(filepath.Join(cache, "Nagi"), 0700); err != nil {
 		return nil, err
 	}
-	lock, err := os.OpenFile(filepath.Join(cache, "Nagi", "maintenance.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	var lock *os.File
+	if m.LockFD == 3 {
+		lock = os.NewFile(3, "maintenance.lock")
+	} else {
+		lock, err = os.OpenFile(filepath.Join(cache, "Nagi", "maintenance.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +174,12 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		return nil, fmt.Errorf("another Nagi maintenance operation is running")
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		}
+	}()
 	// Reread after acquiring the lock; another operation may have finished.
 	r, err = m.record()
 	if err != nil {
@@ -153,18 +191,56 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	if action == "app-update" && r.App == "" {
 		return nil, fmt.Errorf("App is not installed; use nagi app install")
 	}
-	artifact := ""
-	if action != "uninstall" && action != "app-uninstall" {
+	artifact := m.PreparedArtifact
+	var earlyEngine struct{ Running bool }
+	var client *http.Client
+	if background {
+		if err := m.query(ctx, []string{"status"}, &earlyEngine); err != nil {
+			return nil, err
+		}
+		if earlyEngine.Running {
+			var ports struct {
+				Mixed, HTTP int
+				BindAddress string `json:"bind_address"`
+			}
+			if err := m.query(ctx, []string{"ports", "status"}, &ports); err != nil {
+				return nil, fmt.Errorf("cannot inspect running proxy for update: %w", err)
+			}
+			port := ports.Mixed
+			if port == 0 {
+				port = ports.HTTP
+			}
+			if port > 0 {
+				host := ports.BindAddress
+				if host == "" || host == "*" || host == "0.0.0.0" || host == "::" {
+					host = "127.0.0.1"
+				}
+				proxyURL, err := url.Parse("http://" + net.JoinHostPort(host, strconv.Itoa(port)))
+				if err != nil {
+					return nil, err
+				}
+				transport := http.DefaultTransport.(*http.Transport).Clone()
+				transport.Proxy = http.ProxyURL(proxyURL)
+				client = &http.Client{Transport: transport, Timeout: 5 * time.Minute}
+				defer transport.CloseIdleConnections()
+			}
+		}
+	}
+	if artifact == "" && action != "uninstall" && action != "app-uninstall" {
 		targetOS := m.OS
 		if targetOS == "darwin" {
 			targetOS = "macos"
 		}
 		var cleanup func()
-		artifact, cleanup, err = Fetch(ctx, m.ReleaseBase, targetOS+"-"+m.Arch, tag)
+		artifact, cleanup, err = fetchWithClient(ctx, m.ReleaseBase, targetOS+"-"+m.Arch, tag, client)
 		if err != nil {
 			return nil, err
 		}
-		defer cleanup()
+		defer func() {
+			if !handedOff {
+				cleanup()
+			}
+		}()
 		if action == "app-install" || r.App != "" {
 			if info, err := os.Stat(filepath.Join(artifact, "Nagi.app")); err != nil || !info.IsDir() {
 				return nil, fmt.Errorf("selected release does not contain Nagi.app")
@@ -222,6 +298,16 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	if _, err := m.Run(ctx, "bash", verify...); err != nil {
 		return nil, err
 	}
+	if background {
+		// Refresh restoration intent after the download, immediately before App quit.
+		// A user may have stopped the engine while preparation was in progress.
+		if err := m.query(ctx, []string{"status"}, &earlyEngine); err != nil {
+			return nil, err
+		}
+		result, err := m.launchBackgroundUpdate(ctx, r, artifact, earlyEngine.Running, lock)
+		handedOff = err == nil
+		return result, err
+	}
 	if m.OS == "darwin" && r.App != "" {
 		if _, err := m.Run(ctx, "pgrep", "-x", "NagiApp"); err == nil {
 			return nil, fmt.Errorf("quit Nagi.app before updating or uninstalling; its Update option does this automatically")
@@ -234,6 +320,9 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	var engineState struct{ Running bool }
 	if err := m.query(ctx, []string{"status"}, &engineState); err != nil {
 		return nil, err
+	}
+	if m.PreparedArtifact != "" {
+		engineState.Running = m.EngineWasRunning
 	}
 	if _, err := m.Run(ctx, m.Executable, "--json", "quit"); err != nil {
 		return nil, fmt.Errorf("cannot stop Nagi before maintenance: %w", err)
@@ -312,56 +401,4 @@ func (m *Manager) launchTerminal(ctx context.Context, r record) (map[string]any,
 		return nil, fmt.Errorf("cannot open Terminal for update: %w", err)
 	}
 	return map[string]any{"action": "update", "scheduled": true, "terminal": true}, nil
-}
-
-// launchBackgroundUpdate starts the whole-update transaction after this App
-// exits. It deliberately detaches from the App's CLI process so replacing the
-// installed executable cannot interrupt the transaction.
-func (m *Manager) launchBackgroundUpdate(r record) (map[string]any, error) {
-	if m.OS != "darwin" || r.App == "" {
-		return nil, fmt.Errorf("background update requires an installed macOS App")
-	}
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return nil, err
-	}
-	logDir := filepath.Join(cache, "Nagi")
-	if err := os.MkdirAll(logDir, 0700); err != nil {
-		return nil, err
-	}
-	logFile, err := os.OpenFile(filepath.Join(logDir, "update.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-	if err != nil {
-		return nil, err
-	}
-	bridge, err := os.MkdirTemp("", "nagi-update-authorization-")
-	if err != nil {
-		_ = logFile.Close()
-		return nil, err
-	}
-	if err := os.WriteFile(filepath.Join(bridge, "sudo"), []byte(nativeUpdateSudo), 0700); err != nil {
-		_ = logFile.Close()
-		_ = os.RemoveAll(bridge)
-		return nil, err
-	}
-	if err := os.WriteFile(filepath.Join(bridge, "worker"), []byte(nativeUpdateWorker), 0700); err != nil {
-		_ = logFile.Close()
-		_ = os.RemoveAll(bridge)
-		return nil, err
-	}
-	command := "export NAGI_UPDATE_OWNER_PID=$$; trap " + shellQuote("/bin/rm -f -- "+shellQuote(filepath.Join(bridge, "alive"))+"; /bin/rm -rf -- "+shellQuote(bridge)) + " EXIT; " +
-		"if [ ! -w /usr/local/bin ] || [ -e /Library/LaunchDaemons/io.nagi.privileged-helper.plist ]; then sudo -v || exit 1; fi; " +
-		"i=0; while pgrep -x NagiApp >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 60 ]; then echo 'Update cancelled: Nagi.app did not quit.'; exit 1; fi; sleep 1; done; " +
-		shellQuote(m.Executable) + " update && open " + shellQuote(r.App)
-	cmd := exec.Command("/bin/bash", "-c", command)
-	cmd.Env = append(os.Environ(), "PATH="+bridge+":"+os.Getenv("PATH"))
-	cmd.Stdin = nil
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
-	if err := cmd.Start(); err != nil {
-		_ = logFile.Close()
-		_ = os.RemoveAll(bridge)
-		return nil, fmt.Errorf("cannot start background update: %w", err)
-	}
-	_ = logFile.Close()
-	return map[string]any{"action": "update", "scheduled": true, "background": true}, nil
 }

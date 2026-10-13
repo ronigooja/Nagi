@@ -4,6 +4,7 @@ package installation
 // worker. Only the worker launch uses Authorization Services.
 const nativeUpdateSudo = `#!/bin/bash
 set -euo pipefail
+exec 3>&-
 bridge=$(cd "$(dirname "$0")" && pwd)
 if [[ "$#" == 2 && "$1" == -n && "$2" == true ]]; then
     [[ -s "$bridge/ready" && ! -e "$bridge/ended" ]]
@@ -37,11 +38,14 @@ if [[ ! -s "$bridge/ready" ]]; then
     (
         set +e
         /usr/bin/osascript -e 'on run argv
-            do shell script ("/bin/bash -c " & quoted form of (item 1 of argv)) with administrator privileges with prompt "Nagi needs administrator permission to install the update."
+            do shell script ("/bin/bash -c " & quoted form of (item 1 of argv)) with administrator privileges with prompt "Nagi needs permission to update."
         end run' "$command"
-        touch "$bridge/ended"
-    ) &
+        [[ ! -d "$bridge" ]] || touch "$bridge/ended"
+    ) 3>&- &
+    deadline=$((SECONDS + 600))
     while [[ ! -s "$bridge/ready" ]]; do
+        (( SECONDS < deadline )) || exit 1
+        if [[ -n "${NAGI_UPDATE_REQUEST_PID:-}" ]]; then kill -0 "$NAGI_UPDATE_REQUEST_PID" 2>/dev/null || exit 1; fi
         [[ ! -e "$bridge/ended" ]] || exit 1
         sleep 0.1
     done

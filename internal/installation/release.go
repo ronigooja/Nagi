@@ -24,6 +24,10 @@ const archiveLimit = 512 << 20
 
 // Fetch verifies the release checksum before extracting anything executable.
 func Fetch(ctx context.Context, base, target, tag string) (string, func(), error) {
+	return fetchWithClient(ctx, base, target, tag, nil)
+}
+
+func fetchWithClient(ctx context.Context, base, target, tag string, client *http.Client) (string, func(), error) {
 	if tag != "" && !ValidTag(tag) {
 		return "", nil, fmt.Errorf("invalid release tag; use vX.Y.Z")
 	}
@@ -43,7 +47,9 @@ func Fetch(ctx context.Context, base, target, tag string) (string, func(), error
 			cleanup()
 		}
 	}()
-	client := &http.Client{Timeout: 5 * time.Minute}
+	if client == nil {
+		client = &http.Client{Timeout: 5 * time.Minute}
+	}
 	asset := "nagi-" + target + ".tar.gz"
 	sums, err := get(ctx, client, base+"/SHA256SUMS", 1<<20)
 	if err != nil {
