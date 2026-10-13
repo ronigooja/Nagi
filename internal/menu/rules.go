@@ -22,6 +22,10 @@ func RulesPage() *Page {
 			var entries []json.RawMessage
 			if json.Unmarshal(object["entries"], &entries) == nil {
 				summary = fmt.Sprintf("Custom rules and sets: %d", len(entries))
+				var profile string
+				if json.Unmarshal(object["profile"], &profile) == nil && profile != "" {
+					summary = "Selected profile: " + profile + "\n" + summary
+				}
 			}
 		}
 		view := PageView{Context: summary, Actions: []Item{
@@ -31,11 +35,11 @@ func RulesPage() *Page {
 				Item{Label: "List custom rules and sets", Args: []string{"rules", "custom"}},
 				Item{Label: "Show rule order and conflicts", Args: []string{"rules", "conflicts"}},
 				Item{Label: "Show rule matched by a connection", Action: ruleConnection})),
-			submenu(actionPage("Manage Rules and Sets", Item{Label: "Add custom rule", Impact: "Saves and activates the rule", Action: ruleAdd},
+			submenu(actionPage("Manage Rules and Sets", Item{Label: "Add custom rule", Impact: "Saves to the selected profile; reloads if running", Action: ruleAdd},
 				Item{Label: "Enable custom rule or set", Action: ruleChange("enable")},
 				Item{Label: "Disable custom rule or set", Action: ruleChange("disable")},
-				Item{Label: "Remove custom rule or set", Impact: "Removes the whole named object and activates the change", Action: ruleChange("remove")})),
-			{Label: "Import rules", Impact: "Reads a file or downloads a snapshot, saves and activates", Action: ruleImport},
+				Item{Label: "Remove custom rule or set", Impact: "Removes the whole named object from the selected profile; reloads if running", Action: ruleChange("remove")})),
+			{Label: "Import rules", Impact: "Reads a file or downloads a snapshot into the selected profile; reloads if running", Action: ruleImport},
 		}}
 		return view, nil
 	}}

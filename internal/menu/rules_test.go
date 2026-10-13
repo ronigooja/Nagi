@@ -140,3 +140,14 @@ func TestRuleManagementOffersWholeNamedObjects(t *testing.T) {
 		t.Fatalf("calls=%v out=%s", runner.calls, out.String())
 	}
 }
+
+func TestRulesPageShowsProfileOwnership(t *testing.T) {
+	runner := &fakeRunner{results: map[string]Result{"rules custom": {Data: map[string]any{"profile": "work", "entries": []rules.Entry{}}}}}
+	var out bytes.Buffer
+	if code := RunPage(context.Background(), NewSession(runner, strings.NewReader("0\n"), &out), RulesPage()); code != 0 {
+		t.Fatal(code)
+	}
+	if !strings.Contains(out.String(), "Selected profile: work") || !strings.Contains(out.String(), "Custom rules and sets: 0") {
+		t.Fatalf("ownership missing: %s", out.String())
+	}
+}

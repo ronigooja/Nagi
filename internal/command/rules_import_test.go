@@ -133,7 +133,7 @@ func TestRuleImportStoppedCLI(t *testing.T) {
 					t.Fatalf("text response: %s", out.String())
 				}
 			}
-			doc, err := rules.New(paths.ConfigDir, nil).List()
+			doc, err := rules.New(paths.ConfigDir, "default", nil).List()
 			if err != nil || len(doc.Entries) != 2 || doc.Entries[0].Name != "native" || doc.Entries[1].Name != "ads" {
 				t.Fatalf("persisted entries=%+v err=%v", doc.Entries, err)
 			}

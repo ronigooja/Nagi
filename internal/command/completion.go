@@ -68,6 +68,9 @@ func bashCompletion(roots []string, children map[string][]string) string {
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates profile-groups "${semantic[3]}" 2>/dev/null); return 0
     fi
   fi
+  if [[ ${#semantic[@]} -eq 2 && ${semantic[0]} == rules && ( ${semantic[1]} == remove || ${semantic[1]} == enable || ${semantic[1]} == disable ) ]]; then
+    while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates rules 2>/dev/null); return 0
+  fi
   if [[ ${semantic[0]} == rules && ${semantic[1]} == import ]]; then
     if [[ ${#semantic[@]} -eq 3 ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
   fi
@@ -177,6 +180,9 @@ _nagi() {
     if (( ${#semantic} == 4 )); then compadd -- --dns-proxy; return; fi
     if (( ${#semantic} == 5 )) && [[ ${semantic[5]} == --dns-proxy ]]; then compadd -- ${(f)"$(nagi completion candidates profile-groups "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == rules && ( ${semantic[2]} == remove || ${semantic[2]} == enable || ${semantic[2]} == disable ) ]]; then
+    compadd -- ${(f)"$(nagi completion candidates rules 2>/dev/null)"}; return
+  fi
   if [[ ${semantic[1]} == rules && ${semantic[2]} == import ]]; then
     if (( ${#semantic} == 3 )); then _files; return; fi
   fi
@@ -245,6 +251,8 @@ function __nagi_semantic
     printf '%s\n' $out
   end
 end
+`)
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = rules; and contains -- "$s[2]" remove enable disable' -a '(nagi completion candidates rules 2>/dev/null)'
 `)
 	b.WriteString(`complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = rules; and test "$s[2]" = import' -F
 `)

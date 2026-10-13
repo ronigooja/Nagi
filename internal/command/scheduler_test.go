@@ -278,7 +278,10 @@ func TestScheduledConflictPreservesSourceAndCache(t *testing.T) {
 	}
 	e, _ = s.Find("work")
 	rule := []byte("entries:\n  - name: bad\n    enabled: true\n    kind: rule\n    type: DOMAIN\n    payload: example.com\n    target: removed-group\n")
-	if err := os.WriteFile(filepath.Join(p.ConfigDir, "rules.yaml"), rule, 0600); err != nil {
+	if err := os.MkdirAll(filepath.Join(p.ConfigDir, "rules"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rules.Path(p.ConfigDir, "work"), rule, 0600); err != nil {
 		t.Fatal(err)
 	}
 	profiles := profile.NewStore(p.ConfigDir, func([]byte) error { return nil }, nil)
@@ -471,7 +474,10 @@ func TestScheduledApplyUsesEffectiveOverrideForRulesAndSelections(t *testing.T) 
 		t.Fatal(err)
 	}
 	rule := []byte("entries:\n  - name: local-rule\n    enabled: true\n    kind: rule\n    type: DOMAIN\n    payload: example.com\n    target: LocalGroup\n")
-	if err := os.WriteFile(filepath.Join(p.ConfigDir, "rules.yaml"), rule, 0600); err != nil {
+	if err := os.MkdirAll(filepath.Join(p.ConfigDir, "rules"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rules.Path(p.ConfigDir, "work"), rule, 0600); err != nil {
 		t.Fatal(err)
 	}
 	selections := filepath.Join(p.ConfigDir, "proxy-selections.json")
@@ -515,7 +521,10 @@ func TestScheduledApplyUnknownRuleTargetPreservesOldConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	rule := []byte("entries:\n  - name: bad\n    enabled: true\n    kind: rule\n    type: DOMAIN\n    payload: example.com\n    target: removed\n")
-	if err := os.WriteFile(filepath.Join(p.ConfigDir, "rules.yaml"), rule, 0600); err != nil {
+	if err := os.MkdirAll(filepath.Join(p.ConfigDir, "rules"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rules.Path(p.ConfigDir, "work"), rule, 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.RecordApplySuccess("work", "work", "prior-cache", old); err != nil {
@@ -632,7 +641,10 @@ func TestSchedulerMetadataCASRejectsSameIntervalRescheduleAndReplacement(t *test
 func TestRuleTargetKnownInlineProviderAndUnknownRemoteProvider(t *testing.T) {
 	dir := t.TempDir()
 	rule := []byte("entries:\n  - name: provider-node-rule\n    enabled: true\n    kind: rule\n    type: DOMAIN\n    payload: example.com\n    target: provider-node\n")
-	if err := os.WriteFile(filepath.Join(dir, "rules.yaml"), rule, 0600); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "rules"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rules.Path(dir, "work"), rule, 0600); err != nil {
 		t.Fatal(err)
 	}
 	inline := []byte("proxy-providers:\n  local:\n    type: inline\n    payload:\n      - name: provider-node\n        type: direct\n")
@@ -704,7 +716,7 @@ func TestEffectiveGroupsUseKnownInlineNodesAndPreserveUnknownRemoteChoices(t *te
 
 func TestRuleBundleTargetPreflight(t *testing.T) {
 	dir := t.TempDir()
-	store := rules.New(dir, nil)
+	store := rules.New(dir, "work", nil)
 	bundle := rules.Entry{Name: "bundle", Enabled: true, Kind: "rules", Items: []string{"DOMAIN,a.example,Work", "IP-CIDR,192.0.2.0/24,DIRECT,no-resolve", "AND,((DOMAIN,a.example),(DST-PORT,443)),Work", "DOMAIN-REGEX,^a,b$,Work", "SUB-RULE,(NETWORK,TCP),sub"}}
 	if err := store.Add(context.Background(), bundle); err != nil {
 		t.Fatal(err)

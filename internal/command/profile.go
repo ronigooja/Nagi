@@ -213,7 +213,7 @@ func materializeProfileWithSelections(store *profile.Store, configDir, name stri
 	if err != nil {
 		return "", err
 	}
-	needsOverlay := hasTailscale || overrideErr == nil || rules.Exists(configDir)
+	needsOverlay := hasTailscale || overrideErr == nil || rules.Exists(configDir, name)
 	if !needsOverlay && !includeSelections && store.EffectiveOverlay == nil {
 		return path, nil
 	}

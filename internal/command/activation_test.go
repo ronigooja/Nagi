@@ -269,7 +269,7 @@ func TestMaterializeRulesWithoutOverride(t *testing.T) {
 	if err := profile.NewStore(dir, func([]byte) error { return nil }, nil).Apply(context.Background(), "work", source); err != nil {
 		t.Fatal(err)
 	}
-	if err := rules.New(dir, nil).Add(context.Background(), rules.Entry{Name: "local", Enabled: true, Kind: "rule", Type: "DOMAIN", Payload: "example.com", Target: "DIRECT"}); err != nil {
+	if err := rules.New(dir, "work", nil).Add(context.Background(), rules.Entry{Name: "local", Enabled: true, Kind: "rule", Type: "DOMAIN", Payload: "example.com", Target: "DIRECT"}); err != nil {
 		t.Fatal(err)
 	}
 	path, err := materializeProfile(store, dir, "work")
@@ -660,7 +660,7 @@ func TestPreservingSubscriptionApplyKeepsOverrideSelectionsAndRules(t *testing.T
 	if err := profiles.SetOverride(ctx, "work", []byte("mode: direct\n")); err != nil {
 		t.Fatal(err)
 	}
-	if err := rules.New(config, nil).Add(ctx, rules.Entry{Name: "local", Enabled: true, Kind: "rule", Type: "DOMAIN", Payload: "example.com", Target: "DIRECT"}); err != nil {
+	if err := rules.New(config, "work", nil).Add(ctx, rules.Entry{Name: "local", Enabled: true, Kind: "rule", Type: "DOMAIN", Payload: "example.com", Target: "DIRECT"}); err != nil {
 		t.Fatal(err)
 	}
 	choices := proxy.SelectionStore{Path: filepath.Join(config, "proxy-selections.json")}
@@ -695,7 +695,7 @@ func TestPreservingSubscriptionApplyKeepsOverrideSelectionsAndRules(t *testing.T
 	if data, e := os.ReadFile(choices.Path); e != nil || !strings.Contains(string(data), "Manual") {
 		t.Fatalf("choices: %q %v", data, e)
 	}
-	if doc, e := rules.New(config, nil).List(); e != nil || len(doc.Entries) != 1 {
+	if doc, e := rules.New(config, "work", nil).List(); e != nil || len(doc.Entries) != 1 {
 		t.Fatalf("rules: %+v %v", doc, e)
 	}
 }

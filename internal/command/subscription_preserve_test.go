@@ -51,7 +51,7 @@ func TestSubscriptionApplyRetainsRuleTargetAcrossEntryPoints(t *testing.T) {
 			if err := profiles.SetOverride(ctx, "work", []byte("mode: global\nproxies: [{name: Old, type: direct}, {name: Manual, type: direct}]\n")); err != nil {
 				t.Fatal(err)
 			}
-			if err := rules.New(p.ConfigDir, nil).Save(ctx, rules.Document{Entries: []rules.Entry{{Name: "Personal", Enabled: true, Kind: "rule", Type: "DOMAIN", Payload: "example.test", Target: "Manual"}}}); err != nil {
+			if err := rules.New(p.ConfigDir, "work", nil).Save(ctx, rules.Document{Entries: []rules.Entry{{Name: "Personal", Enabled: true, Kind: "rule", Type: "DOMAIN", Payload: "example.test", Target: "Manual"}}}); err != nil {
 				t.Fatal(err)
 			}
 			if err := cache.RecordApplySuccess("work", "work", "old-cache", old); err != nil {

@@ -66,11 +66,15 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		}
 		return nil, fail("not_found", fmt.Errorf("connection %s is no longer active; run `nagi connections list`", args[2]))
 	case "custom":
-		doc, err := rules.New(configDir, nil).List()
+		name, err := profile.NewStore(configDir, nil, nil).Current()
+		if err != nil {
+			return nil, fail("rule_error", fmt.Errorf("select a valid profile first: %w", err))
+		}
+		doc, err := rules.New(configDir, name, nil).List()
 		if err != nil {
 			return nil, fail("rule_error", err)
 		}
-		return map[string]any{"entries": doc.Entries}, nil
+		return map[string]any{"profile": name, "entries": doc.Entries}, nil
 	case "conflicts":
 		name, err := profile.NewStore(configDir, nil, nil).Current()
 		if err != nil {
@@ -137,7 +141,7 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		}
 		return nil
 	}
-	store := rules.New(configDir, check)
+	store := rules.New(configDir, name, check)
 	switch args[1] {
 	case "add":
 		typ := strings.ToUpper(args[3])
@@ -160,7 +164,7 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 	if err != nil {
 		return nil, fail("rule_error", err)
 	}
-	return map[string]any{"name": args[2], "action": args[1], "saved": true}, nil
+	return map[string]any{"profile": name, "name": args[2], "action": args[1], "saved": true}, nil
 }
 
 // validateRuleImportArguments checks syntax before resolving runtime paths.

@@ -143,7 +143,7 @@ func validateRuleTargets(dir, profileName string, candidate []byte) error {
 	if err := yaml.Unmarshal(effective, &doc); err != nil || doc == nil {
 		return fmt.Errorf("%w: effective profile is invalid", errRuleConflict)
 	}
-	saved, err := rules.New(dir, nil).List()
+	saved, err := rules.New(dir, profileName, nil).List()
 	if err != nil {
 		return fmt.Errorf("%w: rules file unreadable", errRuleConflict)
 	}

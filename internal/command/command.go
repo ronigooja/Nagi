@@ -29,6 +29,7 @@ import (
 	privilegedservice "github.com/ronigooja/Nagi/internal/privileged/service"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
+	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/runtimecontrol"
 	"github.com/ronigooja/Nagi/internal/service"
@@ -294,6 +295,25 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	}
 	if command == "completion" {
 		if len(args) >= 2 && args[1] == "candidates" {
+			if len(args) == 3 && args[2] == "rules" {
+				paths, err := nagiruntime.Resolve()
+				if err != nil {
+					return nil, err
+				}
+				name, err := profile.NewStore(paths.ConfigDir, nil, nil).Current()
+				if err != nil {
+					return nil, fail("rule_error", err)
+				}
+				doc, err := rules.New(paths.ConfigDir, name, nil).List()
+				if err != nil {
+					return nil, fail("rule_error", err)
+				}
+				names := make(output.Candidates, 0, len(doc.Entries))
+				for _, entry := range doc.Entries {
+					names = append(names, entry.Name)
+				}
+				return names, nil
+			}
 			if args[2] == "tailscale-nodes" || args[2] == "tailscale-targets" {
 				paths, e := nagiruntime.Resolve()
 				if e != nil {

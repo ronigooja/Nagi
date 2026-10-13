@@ -343,7 +343,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	if v["exception_changed"] == true {
 		return line(w, fmt.Sprintf("Updated DNS exception for %v.", v["domain"]))
 	}
-	if v["saved"] == true && v["action"] != nil && v["profile"] != nil {
+	if v["saved"] == true && v["action"] != nil && v["profile"] != nil && v["reloaded"] != nil {
 		state := "Saved; mihomo is stopped. Run `nagi start` to activate."
 		if v["reloaded"] == true {
 			state = "Saved and reloaded mihomo."
@@ -361,7 +361,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		return line(w, fmt.Sprintf("Tailscale %s in profile %s. %s", v["action"], v["profile"], state))
 	}
 
-	if v["saved"] == true && v["profile"] != nil {
+	if v["saved"] == true && v["profile"] != nil && v["action"] == nil {
 		if enabled, ok := v["tun_enabled"].(bool); ok {
 			return line(w, "Saved TUN DNS interception setting: "+stateValue(w, yesNo(enabled))+".")
 		}
@@ -526,6 +526,11 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		return nil
 	}
 	if entries, ok := v["entries"].([]rules.Entry); ok {
+		if name, ok := v["profile"].(string); ok {
+			if err := line(w, "Profile: "+name); err != nil {
+				return err
+			}
+		}
 		if len(entries) == 0 {
 			return line(w, "No custom rules. Add one with `nagi rules add NAME TYPE PAYLOAD TARGET`.")
 		}
@@ -579,6 +584,11 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		}
 	}
 	if name, ok := v["name"].(string); ok && v["saved"] == true {
+		if profile, ok := v["profile"].(string); ok {
+			if err := line(w, "Profile: "+profile); err != nil {
+				return err
+			}
+		}
 		return line(w, fmt.Sprintf("Rule %s: %v. Effective configuration was validated; running mihomo was reloaded if active.", name, v["action"]))
 	}
 	if running, ok := v["running"].(bool); ok {
