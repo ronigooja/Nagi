@@ -7,19 +7,31 @@ script includes it in the archive matching the macOS host architecture.
 
 ## Version numbers
 
-Published Nagi releases use [Semantic Versioning](https://semver.org/) with a
-leading `v` in the Git tag:
+Published Nagi releases use a project-specific versioning convention with a
+leading `v` in the Git tag. This convention does not strictly follow Semantic
+Versioning: a minor release may include a localized incompatible CLI change.
 
 ```text
 vMAJOR.MINOR.PATCH
 ```
 
-- Increment **MAJOR** for an incompatible CLI, JSON interface, configuration,
-  or supported-platform change.
-- Increment **MINOR** for backwards-compatible functionality or a new command,
-  option, or supported integration.
+- Increment **MAJOR** for major architecture or configuration-storage changes,
+  or broad interface or supported-platform incompatibilities that require an
+  overall migration.
+- Increment **MINOR** for new functionality, commands, options, integrations,
+  or localized CLI adjustments. A localized incompatible CLI change requires
+  explicit compatibility and migration notes, but does not by itself require
+  a major release.
 - Increment **PATCH** for backwards-compatible fixes, documentation corrections,
   and dependency or build updates that do not change the public interface.
+
+Classify changes by their scope and migration impact. For example, simplifying
+`nagi rules import NAME FORMAT SOURCE [TARGET]` to `nagi rules import NAME SOURCE`
+is a minor-release change when existing saved imports remain usable. Its release
+notes must explain the removed arguments, the supported native-rule input, and
+how to update existing commands and input files. A minor version does not promise
+compatibility for every CLI invocation; users maintaining scripts should review
+the release notes before upgrading.
 
 Pre-releases use a hyphenated identifier, for example `v1.4.0-rc.1` or
 `v1.4.0-beta.2`. They are ordered before the corresponding final release and
@@ -127,6 +139,10 @@ Remove empty sections, but keep the comparison range and include all
 user-visible changes. Mention breaking changes and required migration steps in
 **Compatibility and upgrade notes**. If there were no entries in a category,
 omit that category rather than implying that it was reviewed incompletely.
+For localized incompatible CLI changes in a minor release, identify the affected
+commands and removed arguments or input formats, show the replacement usage,
+and explain any changes required to scripts or input files and the treatment of
+existing saved data.
 
 ## Final checklist
 
