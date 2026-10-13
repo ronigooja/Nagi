@@ -233,7 +233,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 		if err := yaml.Unmarshal(old, &previous); err != nil || previous == nil {
 			return errors.New("existing override must be a YAML mapping")
 		}
-		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers"} {
+		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", proxyAdditionsKey} {
 			if value, ok := previous[key]; ok {
 				source[key] = value
 			}
@@ -355,7 +355,7 @@ func (s *Store) RestoreDefaultOverride(ctx context.Context, name string) error {
 }
 
 var defaultOverrideExcludedKeys = map[string]struct{}{
-	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {},
+	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {}, proxyAdditionsKey: {},
 	"external-controller": {}, "external-controller-unix": {}, "external-controller-tls": {},
 	"external-controller-pipe": {}, "external-controller-cors": {}, "external-controller-routing-mark": {},
 	"external-ui": {}, "external-ui-url": {}, "secret": {}, "authentication": {},

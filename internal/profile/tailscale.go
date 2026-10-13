@@ -245,6 +245,7 @@ func (s *Store) saveTailscale(ctx context.Context, name string, cfg map[string]a
 		return err
 	}
 	if kind != "provider" {
+		delete(overlay, proxyAdditionsKey)
 		overlay["proxies"] = tsProxies(cfg)
 	} else {
 		locals, _ := overlay["proxy-providers"].(map[string]any)

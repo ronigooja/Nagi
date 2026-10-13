@@ -271,17 +271,7 @@ func (s *Store) MutateSubscriptionTailscale(ctx context.Context, profileName, su
 		// A previous managed exit remains available as a local addition after switching.
 		if old != nil && tsString(old.Node, "name") != nodeName {
 			list, _ := overlay[proxyAdditionsKey].([]any)
-			source, err := s.Show(profileName)
-			if err != nil {
-				return err
-			}
-			var sourceCfg map[string]any
-			if yaml.Unmarshal(source, &sourceCfg) != nil {
-				return errors.New("subscription source is invalid")
-			}
-			if tsFind(sourceCfg, tsString(old.Node, "name")) == nil {
-				overlay[proxyAdditionsKey] = append(list, old.Node)
-			}
+			overlay[proxyAdditionsKey] = append(list, old.Node)
 		}
 	} else {
 		if old == nil || old.Subscription != subscriptionName {

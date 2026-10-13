@@ -129,3 +129,102 @@ func TestSubscriptionTailscaleRejectsArbitrarySnapshot(t *testing.T) {
 		t.Fatal("must not discard arbitrary local node edits")
 	}
 }
+
+func TestSubscriptionTailscaleRebindAndPostUnbindEdit(t *testing.T) {
+	ctx := context.Background()
+	s := durableStore(t)
+	for _, action := range []string{"bind", "unbind", "bind"} {
+		if err := s.MutateSubscriptionTailscale(ctx, "work", "work", action, "TS"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	key := "rebound-key"
+	if err := s.MutateTailscale(ctx, "work", "edit", "TS", "", "", TailscaleOptions{AuthKey: &key}); err != nil {
+		t.Fatal(err)
+	}
+	source, _ := s.Show("work")
+	if err := s.ApplySubscription(ctx, "work", source); err != nil {
+		t.Fatal(err)
+	}
+	if tsString(tsFind(effectiveDoc(t, s), "TS"), "auth-key") != key {
+		t.Fatal("rebound key lost")
+	}
+	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "unbind", ""); err != nil {
+		t.Fatal(err)
+	}
+	key = "unbound-key"
+	if err := s.MutateTailscale(ctx, "work", "edit", "TS", "", "", TailscaleOptions{AuthKey: &key}); err != nil {
+		t.Fatal(err)
+	}
+	if tsString(tsFind(effectiveDoc(t, s), "TS"), "auth-key") != key {
+		t.Fatal("additive retained node hid ordinary edit")
+	}
+}
+func TestSubscriptionTailscaleSourceNodeEditAndDetach(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+	original := []byte("proxies: [{name: TS, type: tailscale, exit-node: '100.64.0.1', auth-key: original-key}, {name: A, type: socks5}]\n")
+	if err := s.Write(ctx, "work", original); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err != nil {
+		t.Fatal(err)
+	}
+	key := "edited-key"
+	if err := s.MutateTailscale(ctx, "work", "edit", "TS", "", "", TailscaleOptions{AuthKey: &key}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplySubscription(ctx, "work", original); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "unbind", ""); err != nil {
+		t.Fatal(err)
+	}
+	if tsString(tsFind(effectiveDoc(t, s), "TS"), "auth-key") != key {
+		t.Fatal("source-defined exit edited key lost")
+	}
+}
+func TestSubscriptionTailscaleApplyRejectsConflictWithoutReload(t *testing.T) {
+	ctx := context.Background()
+	s := durableStore(t)
+	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := s.Show("work")
+	if err := s.ApplySubscription(ctx, "work", []byte("proxies: [{name: A,type: socks5,dialer-proxy: OTHER}]")); err == nil {
+		t.Fatal("conflicting apply succeeded without reload callback")
+	}
+	after, _ := s.Show("work")
+	if string(before) != string(after) {
+		t.Fatal("conflicting source persisted")
+	}
+}
+
+func TestSubscriptionTailscaleSwitchAndCycle(t *testing.T) {
+	ctx := context.Background()
+	s := durableStore(t)
+	key, exit := "second-key", "100.64.0.2"
+	if err := s.MutateTailscale(ctx, "work", "add", "TS2", "", "", TailscaleOptions{AuthKey: &key, ExitNode: &exit}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"TS", "TS2", "TS"} {
+		if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", name); err != nil {
+			t.Fatal(err)
+		}
+		cfg := effectiveDoc(t, s)
+		if tsFind(cfg, "TS") == nil || tsFind(cfg, "TS2") == nil || tsString(tsFind(cfg, "A"), "dialer-proxy") != name {
+			t.Fatalf("switch lost definitions: %#v", cfg)
+		}
+	}
+	cycle := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+	if err := cycle.Write(ctx, "work", []byte("proxies: [{name: A,type: socks5}, {name: TS,type: tailscale,dialer-proxy: A,auth-key: test-key,exit-node: '100.64.0.1'}]")); err != nil {
+		t.Fatal(err)
+	}
+	if err := cycle.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err == nil {
+		t.Fatal("proxy dependency cycle accepted")
+	}
+	policy, _ := cycle.SubscriptionTailscale("work")
+	if policy != nil {
+		t.Fatal("cyclic policy persisted")
+	}
+}
