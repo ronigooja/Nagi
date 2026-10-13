@@ -95,6 +95,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
 - [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
+- [Per-profile rules decision](docs/decisions/0008-per-profile-rules.md): isolated rule ownership and subscription validation.
 - [Persistent subscription Tailscale decision](docs/decisions/0007-persistent-subscription-tailscale.md): feed updates, durable binding intent, and native engine composition.
 - [Privileged Tailscale state decision](docs/decisions/0006-privileged-tailscale-state.md): persistent identity isolation and adapter handoff.
 - [macOS TUN DNS decision](docs/decisions/0004-macos-tun-dns.md): system DNS ownership, restoration, and proxy destination resolution.

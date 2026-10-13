@@ -36,7 +36,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/profile` | Source profiles, local overrides, current selection, secure replacement, and rollback. |
 | `internal/subscription` | Subscription records, fetching, and cache. |
 | `internal/proxy` | Group, node, connection, and matched-rule operations through `control`. |
-| `internal/rules` | Persistent custom rules, imported rule sets, effective overlays, conflict reports, and rule-test API data contracts. |
+| `internal/rules` | Profile-scoped persistent custom rules, imported rule sets, effective overlays, conflict reports, and rule-test API data contracts. |
 | `internal/diagnostic` | Read-only health, connectivity, permission, exposure, and redacted export checks. |
 | `internal/service` | Per-user launchd and systemd service installation and status. |
 | `internal/traffic` | OS proxy and macOS TUN DNS settings, restore journals, and engine exit recovery. |
@@ -52,6 +52,8 @@ Tailscale state is persistent and separate from configuration snapshots. User-mo
 DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception and optional local resolution of proxy destinations are mihomo capabilities. On macOS, Nagi also points network-service DNS settings at the running TUN's DNS endpoints and restores their prior settings when TUN or the engine stops. The privileged backend keeps this restore journal and performs network-service changes inside the authenticated helper. `dns check` inspects the selected configuration and queries mihomo through its private control API. It does not verify operating-system routes, resolver capture, or external DNS leaks. See the [DNS reference](docs/reference/cli.md#dns-policy-and-checks) and the [system DNS decision](docs/decisions/0004-macos-tun-dns.md).
 
 ## Interfaces and data
+
+Persistent custom rules and imported rule bundles belong to one profile and are combined only with that profile's effective configuration. Profile selection changes the applicable rules; subscription replacement retains the target profile's rules. The storage and failure contract is in the [runtime design](docs/design/runtime.md#rules-and-subscription-persistence), and the isolation rationale is in [decision 0008](docs/decisions/0008-per-profile-rules.md).
 
 Destination rule tests delegate matching to the running mihomo engine, including its active rule providers. Nagi validates input and presents the result through the CLI and terminal menu; it contains no parallel routing matcher. See the [rule test contract](docs/reference/cli.md#destination-rule-tests).
 

@@ -12,7 +12,7 @@ nagi rules test 154.19.187.117
 nagi rules connection CONNECTION_ID
 ```
 
-Custom rules are evaluated before profile and subscription rules. Disable a named rule or import temporarily with `nagi rules disable NAME`; re-enable it with `nagi rules enable NAME`. Remove the entire named rule, full-rule import, or set with `nagi rules remove NAME`.
+Stored rules belong to the selected profile. Select the intended profile with `nagi profile use NAME` before adding, importing, listing with `rules custom`, or managing them. Custom rules are evaluated before that profile's source and subscription rules. Switching profiles activates the new profile's own rules; an imported rule targeting a subscription group does not affect `default`. Disable a named rule or import temporarily with `nagi rules disable NAME`; re-enable it with `nagi rules enable NAME`. Remove the entire named rule, full-rule import, or set with `nagi rules remove NAME`.
 
 To import full mihomo rules with different targets, save a file such as `personal-rules.yaml`:
 
@@ -31,7 +31,7 @@ In `nagi menu`, choose **Settings & Maintenance → Routing Rules → Import rul
 
 Use `nagi rules conflicts` to find duplicate matchers and rules placed after `MATCH`. The report cannot infer every semantic conflict in regular expressions or provider data. A connection's matched rule is available only while that connection is active.
 
-Rules are preserved when subscriptions are refreshed or applied. If validation or a running-engine reload fails, Nagi keeps the previous rules file and reports the failure.
+A profile's rules are preserved when its subscription is refreshed or applied. Removing a profile also removes its stored rules. The former global `config/rules.yaml` is not loaded or migrated; select each desired profile and import its rules explicitly. If validation or a running-engine reload fails, Nagi keeps the previous rules file and reports the failure.
 
 To test a domain or IP interactively, open `nagi menu` and choose **Settings & Maintenance → Routing Rules → Test Rule**. Start the matching mihomo engine first. Enter a bare domain or IP address; the menu tests TCP port 443 against the engine's active rules, including imported sets, and shows the rule and outbound target.
 
