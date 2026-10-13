@@ -18,7 +18,7 @@ Use the macOS menu bar app for daily controls, live traffic rates, and active co
 - **Configuration profiles:** import, switch, export, back up, restore, and compare profiles; apply local overrides separately from source configuration.
 - **DNS leak prevention:** encrypted DoH, TUN DNS interception, and mihomo resolution of proxied destinations in the default settings; apply those DNS safeguards over a subscription profile while retaining its nodes, groups, and routing rules.
 - **Low-latency proxying:** in a macOS-to-Linux LAN VLESS TCP+TLS benchmark, Nagi measured 5.42 ms median for new connections and 0.32 ms for reused requests with the server's default TCP ACK settings. A reference Shadowrocket run measured 53.36 ms and 0.55 ms; the runs took place on different dates and network conditions, so these figures are indicative only. See the [benchmark notes](docs/development/benchmarks.md).
-- **Routing and DNS:** custom rules, imported rule sets, rule/global/direct modes, DNS-over-HTTPS (DoH) policy, and domain-specific DNS exceptions.
+- **Routing and DNS:** custom rules, imported rule sets, domain/IP rule tests, rule/global/direct modes, DNS-over-HTTPS (DoH) policy, and domain-specific DNS exceptions.
 - **Traffic access:** macOS system proxy settings, TUN controls on macOS and Linux, and proxy listener and LAN access settings.
 - **Monitoring and recovery:** connection inspection and closure, live logs, read-only diagnostics, and login startup services.
 

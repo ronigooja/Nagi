@@ -385,6 +385,7 @@ Additional success payloads are defined below; all appear in `data`:
 | Command | Result or effect |
 | --- | --- |
 | `rules list` | Read mihomo's active ordered rules, including index, type, payload, target, and wrapper statistics when provided. |
+| `rules test TARGET [--ip IP] [--port PORT] [--network tcp\|udp] [--process NAME]` | Test synthetic destination metadata against the running engine's ordered rules and rule providers. |
 | `rules providers` | Read active mihomo rule providers. |
 | `rules custom` | List Nagi-owned persistent rules and imported sets. |
 | `rules conflicts` | Show effective rule order and duplicate or shadowed matchers. |
@@ -400,6 +401,26 @@ Targets are `DIRECT`, `REJECT`, or a mihomo proxy group name. Custom rules are s
 `rules conflicts` reports duplicate matchers and rules appearing after an earlier `MATCH`, which cannot be reached. This is a static report and does not prove semantic overlap between arbitrary regular expressions, geolocation databases, or provider contents. `rules connection ID` only works while the connection remains active; mihomo supplies the recorded `rule` and `rulePayload` fields.
 
 JSON payloads contain `rules`, `providers`, `entries`, `order`/`conflicts`, or `id`/`rule`/`rule_payload` as appropriate. Errors use `rule_error` for validation, persistence, download, and reload failures, with the standard envelope and exit codes.
+
+### Destination rule tests
+
+`rules test` requires a running engine built from the commit in `engine.lock`. It sends `POST /rules/test` through Nagi's private control API, including the privileged helper when selected. It tests active rules, which may differ from stored configuration that has not been activated. Older engines return `rule_error` with guidance to install the matching engine and restart.
+
+`TARGET` is a bare IPv4/IPv6 address or ASCII domain (use punycode for internationalized names), without a URL, port, brackets, wildcard, zone, or whitespace. Domains are lowercased and a final dot is removed; IPv4-mapped IPv6 addresses are normalized to IPv4. Defaults are TCP and destination port 443. `--port` accepts 1..65535; `--network` accepts `tcp` or `udp`. Each option may occur once. `--ip` supplies an IPv4/IPv6 destination address for a domain and avoids resolving that destination. It cannot accompany an IP target. `--process` supplies a process name, at most 256 bytes, without path separators, control characters, or surrounding whitespace. Other connection metadata is unavailable.
+
+Mihomo uses its native ordered matcher, including disabled rules, logical rules, rule providers, pass behavior, and UDP support. Hosts mappings and DNS resolution follow the engine's normal routing semantics; a domain is resolved only when a rule requests it, and `no-resolve` remains effective. A failed required DNS lookup returns an error rather than a successful fallback result. The synthetic match does not increment rule hit/miss statistics, save configuration, reload, or connect to the destination. DNS lookups can generate real resolver traffic and affect DNS caches. Rematch adapters are not evaluated and return an error before dialing.
+
+Tests evaluate rules even when the running mode is `global` or `direct`, reporting that mode and a warning that ordinary traffic bypasses the rules. They do not simulate source addresses/ports, inbound identity, UID, process paths, sniffing, or the eventual proxy connection. These limitations appear in the result. Use `rules connection ID` to inspect actual traffic.
+
+Success JSON contains `target`, `destination_ip` (empty if unavailable), `port`, `network`, `process`, `mode`, `matched`, `rule`, `rule_payload`, `providers`, `outbound`, and `warnings`. `rule` uses mihomo's native type spelling, such as `RuleSet` or `IPCIDR`. A matched rule set reports its provider name as `rule_payload`; it does not identify a particular entry within the provider. With no matched rule, `matched` is false, rule fields are empty, and `outbound` is the engine's `DIRECT` fallback. `outbound` is the matched adapter or group name, not proof of a working connection or a selected leaf node. Usage errors exit `2`; engine/API/test failures exit `1` with `rule_error`; successful tests exit `0`, including fallback results.
+
+The terminal menu exposes **Settings & Maintenance → Routing Rules → Test Rule**, prompting for a domain/IP and using TCP port 443. It displays the matched rule, provider, outbound target, and limitations. Failed submissions retain the input for explicit editing or retry; the CLI provides the additional metadata options.
+
+```sh
+nagi rules test 154.19.187.117
+nagi rules test service.example --ip 192.0.2.1 --port 80
+nagi --json rules test service.example --network udp --process Browser
+```
 
 ## Traffic access
 

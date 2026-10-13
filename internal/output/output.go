@@ -101,6 +101,8 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			}
 		}
 		return nil
+	case rules.TestResult:
+		return writeRuleTest(w, v)
 	case proxy.Group:
 		return writeGroup(w, v)
 	case proxy.Provider:

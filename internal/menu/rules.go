@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+
+	"github.com/ronigooja/Nagi/internal/rules"
 )
 
 func init() { RegisterPage("rules", RulesPage) }
@@ -23,6 +25,7 @@ func RulesPage() *Page {
 			}
 		}
 		view := PageView{Context: summary, Actions: []Item{
+			{Label: "Test Rule", Action: ruleTest},
 			submenu(actionPage("View Rules", Item{Label: "List active rules", Args: []string{"rules", "list"}},
 				Item{Label: "List active rule providers", Args: []string{"rules", "providers"}},
 				Item{Label: "List custom rules and sets", Args: []string{"rules", "custom"}},
@@ -37,6 +40,18 @@ func RulesPage() *Page {
 		}}
 		return view, nil
 	}}
+}
+
+func ruleTest(ctx context.Context, s *Session) error {
+	_, err := s.Form(ctx, []Field{
+		{Key: "target", Label: "Domain or IP address (TCP port 443)", Required: true, Validate: func(v string) error {
+			req := rules.TestRequest{Target: v}
+			return req.Validate()
+		}},
+	}, nil, func(v map[string]string) Result {
+		return s.Run(ctx, "rules", "test", v["target"])
+	})
+	return err
 }
 
 // menuObject decodes CLI JSON data, including typed Go values supplied by fake runners.

@@ -36,7 +36,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/profile` | Source profiles, local overrides, current selection, secure replacement, and rollback. |
 | `internal/subscription` | Subscription records, fetching, and cache. |
 | `internal/proxy` | Group, node, connection, and matched-rule operations through `control`. |
-| `internal/rules` | Persistent custom rules, imported rule sets, effective overlays, and conflict reports. |
+| `internal/rules` | Persistent custom rules, imported rule sets, effective overlays, conflict reports, and rule-test API data contracts. |
 | `internal/diagnostic` | Read-only health, connectivity, permission, exposure, and redacted export checks. |
 | `internal/service` | Per-user launchd and systemd service installation and status. |
 | `internal/traffic` | OS proxy and macOS TUN DNS settings, restore journals, and engine exit recovery. |
@@ -52,6 +52,8 @@ Tailscale state is persistent and separate from configuration snapshots. User-mo
 DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception and optional local resolution of proxy destinations are mihomo capabilities. On macOS, Nagi also points network-service DNS settings at the running TUN's DNS endpoints and restores their prior settings when TUN or the engine stops. The privileged backend keeps this restore journal and performs network-service changes inside the authenticated helper. `dns check` inspects the selected configuration and queries mihomo through its private control API. It does not verify operating-system routes, resolver capture, or external DNS leaks. See the [DNS reference](docs/reference/cli.md#dns-policy-and-checks) and the [system DNS decision](docs/decisions/0004-macos-tun-dns.md).
 
 ## Interfaces and data
+
+Destination rule tests delegate matching to the running mihomo engine, including its active rule providers. Nagi validates input and presents the result through the CLI and terminal menu; it contains no parallel routing matcher. See the [rule test contract](docs/reference/cli.md#destination-rule-tests).
 
 Ordinary commands accept `--json`; JSON envelopes and error codes form the app integration interface. The terminal-only `nagi menu` uses those commands internally and rejects `--json`. The precise commands and output rules are in the [CLI reference](docs/reference/cli.md). The CLI also provides read-only diagnostics, generated shell completion, proxy search and latency tests, saved proxy selections, connection inspection and closure, temporary and persistent runtime mode changes, log following, and validated configuration reloads. The app polls status using short-lived commands and reads traffic from the CLI's one-second NDJSON traffic stream. Its native Connections window uses an independent model to read connection snapshots and request closure through the CLI; see the [connections window design](docs/design/connections-window.md).
 

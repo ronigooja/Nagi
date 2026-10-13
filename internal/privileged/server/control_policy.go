@@ -17,6 +17,7 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/privileged"
+	"github.com/ronigooja/Nagi/internal/rules"
 )
 
 // snapshotControl is narrower than the controller authorization allowlist.
@@ -160,6 +161,12 @@ func validateControl(req privileged.Request) error {
 			}
 		}
 	case http.MethodPost:
+		if u.Path == "/rules/test" && u.RawQuery == "" && len(req.Body) <= 4096 {
+			var body rules.TestRequest
+			if strictJSON(req.Body, &body) == nil && body.Validate() == nil {
+				return nil
+			}
+		}
 		if u.Path == "/cache/dns/flush" && u.RawQuery == "" && len(req.Body) == 0 {
 			return nil
 		}

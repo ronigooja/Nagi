@@ -37,7 +37,7 @@ func configMutation(args []string) bool {
 	case "subscription":
 		return len(args) > 1 && args[1] != "list" && args[1] != "preview" && args[1] != "update"
 	case "rules":
-		return len(args) > 1 && args[1] != "list" && args[1] != "providers" && args[1] != "custom" && args[1] != "conflicts" && args[1] != "connection"
+		return len(args) > 1 && args[1] != "test" && args[1] != "list" && args[1] != "providers" && args[1] != "custom" && args[1] != "conflicts" && args[1] != "connection"
 	case "dns":
 		return len(args) > 1 && (args[1] == "set" || args[1] == "exception" || args[1] == "tun")
 	case "proxy":
@@ -73,7 +73,7 @@ func transactionalMutation(args []string) bool {
 	case "subscription":
 		return args[1] == "apply"
 	case "rules":
-		return args[1] != "list" && args[1] != "providers" && args[1] != "custom" && args[1] != "conflicts" && args[1] != "connection"
+		return args[1] != "test" && args[1] != "list" && args[1] != "providers" && args[1] != "custom" && args[1] != "conflicts" && args[1] != "connection"
 	case "dns":
 		return args[1] == "set" || args[1] == "exception" || args[1] == "tun"
 	case "config":

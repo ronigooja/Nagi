@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ronigooja/Nagi/internal/output"
+	"github.com/ronigooja/Nagi/internal/rules"
 )
 
 func (s *Session) Printf(format string, args ...any) { fmt.Fprintf(s.out, format, args...) }
@@ -130,6 +131,16 @@ func (s *Session) presentResult(args []string, result Result) {
 		return
 	}
 	data := menuObject(result.Data)
+	if len(args) >= 2 && args[0] == "rules" && args[1] == "test" {
+		encoded, _ := json.Marshal(result.Data)
+		var test rules.TestResult
+		if json.Unmarshal(encoded, &test) == nil {
+			var text strings.Builder
+			_ = output.Write(&text, false, test)
+			s.WriteLine(output.RedactError(strings.TrimSpace(text.String())))
+			return
+		}
+	}
 	if (len(args) >= 2 && args[0] == "config" && args[1] == "show") || (len(args) >= 3 && args[0] == "profile" && args[1] == "override" && args[2] == "show") {
 		for _, key := range []string{"content", "config", "yaml"} {
 			var text string

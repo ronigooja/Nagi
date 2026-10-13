@@ -17,6 +17,20 @@ import (
 
 func rulesCommand(ctx context.Context, args []string, configDir, binary string, client *control.Client, proxies *proxy.Service) (any, error) {
 	switch args[1] {
+	case "test":
+		req, err := ruleTestArguments(args)
+		if err != nil {
+			return nil, usage(err.Error())
+		}
+		var result rules.TestResult
+		if err := client.Post(ctx, "/rules/test", req, &result); err != nil {
+			var apiErr *control.APIError
+			if errors.As(err, &apiErr) && (apiErr.Status == 404 || apiErr.Status == 405) {
+				return nil, fail("rule_error", errors.New("running mihomo does not support rule testing; install the matching engine and restart Nagi"))
+			}
+			return nil, fail("rule_error", fmt.Errorf("rule test failed; ensure mihomo is running with the matching engine: %w", err))
+		}
+		return result, nil
 	case "list":
 		var result struct {
 			Rules []map[string]any `json:"rules"`
