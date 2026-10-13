@@ -475,7 +475,8 @@ On macOS, JSON payloads for `system-proxy status|enable|disable` include `enable
 ## Installation maintenance
 
 These commands require an installation record created by the release/local
-artifact installer. They find the prefix from the running `PREFIX/bin/nagi`;
+artifact installer, except `app update-error`. They find the prefix from the
+running `PREFIX/bin/nagi`;
 they do not use `NAGI_MIHOMO_BIN` to select files for replacement. They do not
 require a valid active profile merely to display help or manage the App.
 
@@ -486,12 +487,13 @@ installed mihomo; exit and reopen it to use the new CLI version. See the
 | Command | Release selection and effect |
 | --- | --- |
 | `app status` | macOS only. Read the managed App path and report whether that directory exists; no download. |
+| `app update-error` | macOS only. Read and clear the last persisted, sanitized background-update failure. No installation record or running engine is required; no download. |
 | `app install [TAG]` | macOS only; requires `/usr/local/bin/nagi` and no recorded App. Without TAG, download the release matching this CLI's version. Install only `/Applications/Nagi.app` and update its installer record. CLI, mihomo, profiles, engine state, and engine login service are preserved. A development CLI without a release version requires an explicit TAG. |
 | `app update [TAG]` | macOS only; requires a recorded App. Run the same whole-installation operation as `update`. |
 | `app uninstall` | macOS only; remove only the recorded App and clear its installer record fields. Keep the managed CLI and mihomo and user data. An absent recorded App is a successful no-op. No download. |
 | `update [TAG]` | Download latest by default, or the specified release. Verify the platform archive checksum, installation record, paths, and candidate executables, stop Nagi, temporarily remove its engine login service, and update the CLI, mihomo, and any recorded App. Modified recorded files are replaced. Refresh the built-in default profile. Restore engine login service installation/enabled preferences and restart an engine that was running before preparation. A CLI-only installation remains CLI-only. |
 | `update --terminal` | macOS only; requires a recorded App. Open Terminal and schedule `nagi update` after the App exits; reopen its recorded path after success. Wait at most 60 seconds for App exit. Returns after launching Terminal; the caller must quit the App. No tag argument can accompany this option. |
-| `update --app` | macOS only; requires a recorded App. Schedule `nagi update` in the background after the App exits, then reopen its recorded path after success. Returns before installation completes; the App uses this mode for About → Update. No tag argument can accompany this option. |
+| `update --app` | macOS only; requires a recorded App. Download the latest release, verify it, and obtain any required native administrator authorization before returning. Hand the prepared package to a detached updater that waits at most 60 seconds for App exit, installs it, and reopens the recorded App. After failure, persist a sanitized error and attempt to reopen the App. Returns before installation completes; the App uses this mode for About → Update. No tag argument can accompany this option. |
 | `uninstall [--purge-data]` | Stop Nagi and remove its engine login service, recorded CLI, mihomo, App, privileged helper, and installation record, even when recorded files have changed. By default preserve user profiles, subscriptions, settings, and logs. `--purge-data` also removes Nagi's per-user configuration, data, state, runtime, and cache directories. No download. |
 
 TAG accepts `vX.Y.Z` or `X.Y.Z`, with an optional alphanumeric/dot/hyphen release
@@ -506,21 +508,30 @@ Quit the App before updating or removing it; disable its App login item before
 removal. Run as the intended user rather than through `sudo`. The installer
 requests administrator authorization when required, so use a terminal when
 credentials must be entered for ordinary terminal maintenance. Background App
-updates use native macOS administrator authorization for privileged installer
-operations; Nagi does not collect the password. The App's About Nagi panel offers Update, which schedules background mode and
-then uses ordinary quit cleanup. It keeps the App available if launch or quit
-fails. A scheduled result confirms only updater launch; later update success or
-failure is recorded in the per-user update log.
+updates use native macOS administrator authorization before the App quits;
+Nagi does not collect the password. The App's About Nagi panel offers Update,
+shows a short informational prompt, and uses ordinary quit cleanup only after
+the CLI has prepared the release and launched the authorized updater. It keeps
+the App available with a menu-top error if preparation, authorization, launch,
+or quit fails. No download or installation progress is shown. After an
+installation failure, the updater attempts to reopen the App; the App consumes
+the persisted error through `app update-error` and retains it across routine
+refreshes until another explicit Update attempt. Details, including a failed
+reopen attempt, remain in `~/Library/Caches/Nagi/update.log`.
 
 Success exits `0` and uses the standard JSON envelope. `app status` returns
 `app` (recorded path or empty string), `installed` (directory exists), and
-`managed: true`. App install/uninstall return `action` (`app-install` or
+`managed: true`. `app update-error` returns `error` (a sanitized string, empty
+when no failure is pending) and removes the pending failure after reading it.
+App install/uninstall return `action` (`app-install` or
 `app-uninstall`), `completed: true`, and `app` (destination/removed path or empty
 string for an absent App). Whole updates return `action: "update"`,
 `completed: true`, and `engine_restarted` (boolean). Whole removal returns
 `action: "uninstall"`, `completed: true`, and `user_data_removed` (boolean).
 Background scheduling returns
-`action: "update"`, `scheduled: true`, and `background: true`.
+`action: "update"`, `scheduled: true`, and `background: true`. This confirms
+that download, verification, required authorization, and updater handoff
+succeeded; it does not confirm installation completion.
 
 Operational failures exit `1` with `installation_error`, including unsupported
 platforms, missing or invalid installation records, unsafe managed paths, download or

@@ -100,29 +100,55 @@ as successfully rolled back merely because it attempted restoration.
 ## App update handoff
 
 The App's About Nagi panel shows its bundle version and an Update button.
-That button submits `update --app` and requests its normal quit after the CLI
-confirms that a detached updater has started. The updater waits up to 60 seconds
-for App exit, runs the installed CLI's whole update, and opens the recorded App
-path only after success. The CLI's response describes scheduling, not
-installation completion; failures are appended to the per-user update log.
+The button shows a short informational prompt, then submits `update --app`.
+There is no download or installation progress display. The CLI acquires the
+per-user maintenance lock, snapshots engine running state, downloads and verifies
+the release, and performs read-only installer preflight while the App is still
+running. Release downloads use the current mihomo mixed or HTTP listener
+reported by `ports status` when available; otherwise they use the ordinary HTTP
+environment or TUN route. An authenticated listener that refuses the local
+request causes preparation to fail before quit. It launches the detached updater
+and waits for any required native administrator authorization before reporting a scheduled result. That result
+confirms preparation and handoff, not installation completion. Only then does
+the App request its normal quit cleanup.
+
+The handoff transfers the private prepared artifacts and maintenance-lock file
+descriptor to the detached updater. It waits up to 60 seconds for App exit,
+then invokes the installed CLI's whole-update operation using the prepared
+package rather than downloading again. The saved engine running state allows
+ordinary successful-update restoration after App quit has stopped the engine.
+The updater retains the lock throughout the wait and transaction and cleans
+up its temporary artifacts and authorization adapter on exit.
 
 The detached updater creates a private temporary `sudo` adapter and prepends
-its directory to its own `PATH`. The first privileged operation starts one
+its directory to its own `PATH`. Before handoff completes, it starts one
 update-scoped worker through AppleScript `do shell script ... with administrator
-privileges`; subsequent installer operations are forwarded to that worker, so
-the update normally needs one administrator authorization. macOS handles
-credentials; Nagi does not collect passwords. Downloads,
-verification, lifecycle management, and user configuration remain unprivileged.
-The adapter passes the invoking user's `SUDO_UID`, `SUDO_GID`, and `SUDO_USER`
-to privileged commands so helper installation retains the correct session owner,
-and sets a system-only privileged `PATH`. The updater removes the temporary
-adapter on exit. Shell and AppleScript arguments are quoted separately.
+privileges` when protected installation paths or the privileged helper require
+authorization. Installer operations are forwarded to that worker, so the update
+normally needs one administrator authorization. macOS handles credentials;
+Nagi does not collect passwords. Downloads, verification, lifecycle management,
+and user configuration remain unprivileged. The adapter passes the invoking
+user's `SUDO_UID`, `SUDO_GID`, and `SUDO_USER` to privileged commands so helper
+installation retains the correct session owner, and sets a system-only
+privileged `PATH`. Shell and AppleScript arguments are quoted separately.
 
-A background-launch failure keeps the App open with an actionable error. A quit
-cleanup failure retains the existing App menu and is displayed there; the
-waiting updater eventually cancels. A failed update keeps the App closed and
-leaves its details in the per-user update log for recovery. A successful update
-opens the App through its ordinary launch behavior, which starts Nagi.
+Download, preflight, authorization, and background-launch failures keep the App
+open with an error at the top of its menu. A quit cleanup failure also retains
+the App and its error; the waiting updater eventually cancels. After installation
+succeeds, the updater opens the recorded App through its ordinary launch
+behavior, which starts Nagi. After installation fails, the CLI persists a
+sanitized error and the updater attempts to reopen the recorded App for
+recovery, including the restored bundle when rollback succeeds. If reopening
+fails, the per-user update log remains available for manual recovery.
+
+The CLI owns the pending failure at `~/Library/Caches/Nagi/update-error` and
+returns and clears it through `app update-error`, without requiring an
+installation record or running engine. Its JSON result contains `error`, an
+empty string when no failure is pending. The App reads this once on startup and
+retains the message across normal startup and refresh results; the next explicit
+Update attempt clears its displayed update error. The App does not read the
+pending file or update log directly. The detached updater appends operation and
+reopen output to `~/Library/Caches/Nagi/update.log`.
 
 ## Verification
 
@@ -130,8 +156,9 @@ Isolated Go integration tests exercise verified whole updates, preflight and
 checksum failures before runtime changes, stopped intent, service preference
 restoration, removal without downloading, archive validation, and App-only
 rollback. Command/menu tests check help, argument validation, JSON errors,
-completion discovery, and dispatch. Swift tests cover CLI scheduling before
-quit and launcher failure without quitting. Platform simulation in installer
-tests verifies file transactions; administrator authorization, launchd helper
+completion discovery, and dispatch. Swift tests cover CLI preparation before
+quit, preparation failure without quitting, and persisted failure retention
+across startup refreshes. Platform simulation in installer tests verifies file
+transactions; administrator authorization, launchd helper
 replacement, Terminal automation permission, and visible menu interaction
 still require native interactive macOS acceptance.

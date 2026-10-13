@@ -79,14 +79,25 @@ replacement and rollback behavior.
 installed App.
 
 Quit the App before a shell update. Alternatively, choose **About Nagi → Update**
-in the App: the CLI starts a detached updater, the App completes its normal
-quit cleanup, and the updater runs the installation before reopening Nagi.
-The updater uses the native macOS administrator authorization dialog when required;
-macOS handles credentials rather than a Nagi password input box. Download and
-verification run as the invoking user; only privileged installer operations
-are elevated. If the App fails
-to quit within 60 seconds, the background operation is cancelled. Launch errors
-leave the App available; later failures are recorded in the per-user update log.
+in the App and acknowledge the short informational prompt. The CLI downloads the release,
+verifies its checksum and installation preflight, and obtains native macOS
+administrator authorization when needed while the App remains open. Only after
+preparation succeeds does the App complete its normal quit cleanup. A detached
+updater installs the prepared package and reopens Nagi. The App does not show
+download or installation progress. macOS handles credentials; Nagi does not
+collect passwords. Downloads use the running engine's mixed or HTTP listener
+when available, so proxy nodes remain usable during preparation. If that listener
+requires authentication and rejects the download, the App stays open with an
+error; correct listener access and retry.
+
+A download, verification, authorization, or updater-launch failure keeps the App
+open and displays the error at the top of its menu. A quit cleanup failure also
+keeps the App available; the updater cancels if it has not quit within 60 seconds.
+If installation fails after exit, the updater records a sanitized error through
+the CLI and attempts to reopen the recorded App. The reopened App displays the
+error at the top of its menu. If the App cannot be reopened, use the per-user
+update log for recovery. See the [App update design](../design/installation.md#app-update-handoff)
+for the handoff and failure handling.
 
 Use `nagi app uninstall` to remove only the App, or `nagi uninstall` to stop Nagi
 and remove its managed CLI, mihomo, App, login service, and privileged helper.
