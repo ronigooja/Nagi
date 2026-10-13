@@ -225,6 +225,13 @@ func (s *Store) TailscaleShow(profileName, name string) (TailscaleNode, []Tailsc
 			bindings = append(bindings, TailscaleBinding{t.Kind, t.Name, name})
 		}
 	}
+	policy, err := s.SubscriptionTailscale(profileName)
+	if err != nil {
+		return TailscaleNode{}, nil, err
+	}
+	if policy != nil && tsString(policy.Node, "name") == name {
+		bindings = append(bindings, TailscaleBinding{"subscription", policy.Subscription, name})
+	}
 	return tsNode(m), bindings, nil
 }
 func (s *Store) saveTailscale(ctx context.Context, name string, cfg map[string]any, kind string, targets []string) error {
@@ -279,6 +286,13 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 	}
 	if action == "bind" || action == "unbind" {
 		return s.MutateTailscaleBindings(ctx, profileName, action, name, kind, []string{target})
+	}
+	policy, err := s.SubscriptionTailscale(profileName)
+	if err != nil {
+		return err
+	}
+	if policy != nil && (action != "edit" || tsString(policy.Node, "name") != name) {
+		return errors.New("subscription Tailscale policy is active; unbind the subscription before adding or removing nodes")
 	}
 	cfg, err := s.tailscaleConfig(profileName)
 	if err != nil {
@@ -382,6 +396,25 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 		cfg["proxies"] = list
 	default:
 		return errors.New("unsupported Tailscale action")
+	}
+	if policy != nil {
+		oldNode := policy.Node
+		policy.Node = node
+		if err := s.writeSubscriptionTailscale(profileName, policy); err != nil {
+			return err
+		}
+		patch, err := s.Override(profileName)
+		if errors.Is(err, fs.ErrNotExist) {
+			patch, err = []byte("{}\n"), nil
+		}
+		if err == nil {
+			err = s.SetOverride(ctx, profileName, patch)
+		}
+		if err != nil {
+			policy.Node = oldNode
+			return errors.Join(err, s.writeSubscriptionTailscale(profileName, policy))
+		}
+		return nil
 	}
 	return s.saveTailscale(ctx, profileName, cfg, "node", nil)
 }
@@ -529,6 +562,13 @@ func tsDNSReferences(value any, name string) bool {
 func (s *Store) MutateTailscaleBindings(ctx context.Context, profileName, action, name, kind string, targets []string) error {
 	if action != "bind" && action != "unbind" {
 		return errors.New("binding action must be bind or unbind")
+	}
+	policy, err := s.SubscriptionTailscale(profileName)
+	if err != nil {
+		return err
+	}
+	if policy != nil {
+		return errors.New("subscription Tailscale policy is active; unbind the subscription before changing individual bindings")
 	}
 	if kind != "node" && kind != "provider" {
 		return errors.New("KIND must be node or provider")

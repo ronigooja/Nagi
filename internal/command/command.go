@@ -1328,6 +1328,9 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 		if len(data) > 8<<20 {
 			return nil, fail("profile_error", errors.New("profile exceeds 8 MiB"))
 		}
+		if err := store.ClearSubscriptionTailscale(args[2]); err != nil {
+			return nil, fail("profile_error", err)
+		}
 		if err := store.Write(ctx, args[2], data); err != nil {
 			return nil, fail("profile_error", err)
 		}
@@ -1589,6 +1592,19 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 	case "remove":
 		if err := arity(args, 3); err != nil {
 			return nil, err
+		}
+		entry, err := store.Find(args[2])
+		if err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		if entry.Profile != "" {
+			policy, err := profile.NewStore(store.ConfigDir, nil, nil).SubscriptionTailscale(entry.Profile)
+			if err != nil {
+				return nil, fail("subscription_error", err)
+			}
+			if policy != nil && policy.Subscription == entry.Name {
+				return nil, fail("subscription_error", errors.New("subscription has a persistent Tailscale binding; unbind the subscription before removing it"))
+			}
 		}
 		if err := store.Remove(args[2]); err != nil {
 			return nil, fail("subscription_error", err)

@@ -60,7 +60,11 @@ func mergeMap(base, patch map[string]any) {
 func (s *Store) EffectiveSource(name string, source []byte) ([]byte, error) {
 	patch, err := s.Override(name)
 	if errors.Is(err, fs.ErrNotExist) {
-		applied, err := rules.Apply(source, s.Dir)
+		managed, err := s.applySubscriptionTailscale(name, source)
+		if err != nil {
+			return nil, err
+		}
+		applied, err := rules.Apply(managed, s.Dir)
 		if err != nil {
 			return nil, err
 		}
@@ -88,12 +92,53 @@ func (s *Store) EffectiveSource(name string, source []byte) ([]byte, error) {
 	}
 	delete(overlay, DNSReplaceKey)
 	delete(overlay, DNSProxyGroupKey)
+	additions, _ := overlay[proxyAdditionsKey].([]any)
+	if raw, exists := overlay[proxyAdditionsKey]; exists {
+		if _, ok := raw.([]any); !ok {
+			return nil, errors.New("local proxy additions must be a list")
+		}
+	}
+	delete(overlay, proxyAdditionsKey)
 	mergeMap(base, overlay)
+	for _, value := range additions {
+		node, _ := value.(map[string]any)
+		if node == nil || tsString(node, "type") != "tailscale" || ValidateTailscaleName(tsString(node, "name")) != nil {
+			return nil, errors.New("local proxy additions must contain named Tailscale nodes")
+		}
+		providers, _ := base["proxy-providers"].(map[string]any)
+		if _, exists := providers[tsString(node, "name")]; exists {
+			return nil, errors.New("local proxy addition conflicts with a source provider")
+		}
+		groups, _ := base["proxy-groups"].([]any)
+		for _, v := range groups {
+			m, _ := v.(map[string]any)
+			if tsString(m, "name") == tsString(node, "name") {
+				return nil, errors.New("local proxy addition conflicts with a source group")
+			}
+		}
+		if existing := tsFind(base, tsString(node, "name")); existing != nil {
+			if tsString(existing, "type") != "tailscale" {
+				return nil, errors.New("local proxy addition conflicts with a source node")
+			}
+			for i, v := range tsProxies(base) {
+				m, _ := v.(map[string]any)
+				if tsString(m, "name") == tsString(node, "name") {
+					tsProxies(base)[i] = node
+				}
+			}
+		} else {
+			base["proxies"] = append(tsProxies(base), node)
+		}
+	}
 	merged, err := yaml.Marshal(base)
 	if err != nil {
 		return nil, err
 	}
-	applied, err := rules.Apply(merged, s.Dir)
+	managed, err := s.applySubscriptionTailscale(name, merged)
+	if err != nil {
+		return nil, err
+	}
+	applied, err := rules.Apply(managed, s.Dir)
 	if err != nil {
 		return nil, err
 	}
@@ -331,6 +376,15 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 	var patch map[string]any
 	if err := yaml.Unmarshal(data, &patch); err != nil || patch == nil {
 		return errors.New("override must be a YAML mapping")
+	}
+	policy, err := s.SubscriptionTailscale(name)
+	if err != nil {
+		return err
+	}
+	if policy != nil {
+		if _, exists := patch["proxies"]; exists {
+			return errors.New("subscription Tailscale policy requires source nodes; unbind the subscription before setting a full proxy override")
+		}
 	}
 	old, oldErr := s.Override(name)
 	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {

@@ -160,7 +160,8 @@ func (s *Store) Remove(name string) error {
 	}
 	override, _ := s.overridePath(name)
 	state, _ := s.defaultOverrideStatePath(name)
-	paths := []string{path + ".bak", override, override + ".bak", state, filepath.Join(s.Dir, "profiles", ".effective-"+name+".yaml"), path}
+	policy, _ := s.subscriptionTailscalePath(name)
+	paths := []string{policy, path + ".bak", override, override + ".bak", state, filepath.Join(s.Dir, "profiles", ".effective-"+name+".yaml"), path}
 	// Check all targets before deleting anything; never remove directories or links.
 	for _, target := range paths {
 		info, err := os.Lstat(target)
@@ -254,6 +255,20 @@ func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
 	if err := s.validate(data); err != nil {
 		return err
 	}
+	policy, err := s.SubscriptionTailscale(name)
+	if err != nil {
+		return err
+	}
+	if policy != nil {
+		effective, err := s.EffectiveSource(name, data)
+		if err != nil {
+			return err
+		}
+		if err = s.validate(effective); err != nil {
+			return err
+		}
+	}
+
 	settings := filepath.Join(s.Dir, "settings.yaml")
 	oldSettings, settingsErr := os.ReadFile(settings)
 	if settingsErr != nil && !errors.Is(settingsErr, fs.ErrNotExist) {
