@@ -9,7 +9,7 @@ import (
 
 func TestTailscaleBashCompletionLocalNamesKindsAndFlags(t *testing.T) {
 	script, _ := completion("bash")
-	probe := `nagi() { case "$3" in tailscale-nodes) printf '%s\n' 'My Tail' Other ;; tailscale-targets) if [[ "$4" == node ]]; then printf '%s\n' 'Node One'; else printf '%s\n' 'Provider One'; fi ;; esac; }
+	probe := `nagi() { case "$3" in tailscale-nodes) printf '%s\n' 'My Tail' Other ;; tailscale-targets) if [[ "$4" == node ]]; then printf '%s\n' 'Node One'; elif [[ "$4" == provider ]]; then printf '%s\n' 'Provider One'; else printf '%s\n' 'work-sub'; fi ;; esac; }
 ` + script + `
 COMP_WORDS=(nagi proxy tailscale ''); COMP_CWORD=3; _nagi_complete; printf 'ACTIONS:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi --json proxy tailscale show My); COMP_CWORD=5; _nagi_complete; printf 'SHOW:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
@@ -18,6 +18,7 @@ COMP_WORDS=(nagi proxy tailscale bind 'My Tail' node Node); COMP_CWORD=6; _nagi_
 COMP_WORDS=(nagi proxy tailscale unbind provider Provider); COMP_CWORD=5; _nagi_complete; printf 'PROVIDER:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
 COMP_WORDS=(nagi proxy tailscale bind 'My Tail' node 'First Node' Node); COMP_CWORD=7; _nagi_complete; printf 'BATCH_NODE:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
 COMP_WORDS=(nagi proxy tailscale unbind provider 'First Feed' Provider); COMP_CWORD=6; _nagi_complete; printf 'BATCH_PROVIDER:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
+COMP_WORDS=(nagi proxy tailscale bind 'My Tail' subscription work); COMP_CWORD=6; _nagi_complete; printf 'SUBSCRIPTION:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
 COMP_WORDS=(nagi proxy tailscale edit 'My Tail' --a); COMP_CWORD=5; _nagi_complete; printf 'EDIT:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi proxy tailscale add Tail exit --c); COMP_CWORD=6; _nagi_complete; printf 'PASTE:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi proxy tailscale add Tail exit key --c); COMP_CWORD=7; _nagi_complete; printf 'ADD:%s\n' "${COMPREPLY[*]}"
@@ -32,7 +33,7 @@ COMP_WORDS=(nagi proxy tailscale add Tail exit key --c); COMP_CWORD=7; _nagi_com
 			if err != nil {
 				t.Fatalf("%v %s", err, out)
 			}
-			for _, want := range []string{"ACTIONS:list show targets add edit bind unbind remove", "SHOW:1:My Tail", "KIND:node provider", "NODE:1:Node One", "PROVIDER:1:Provider One", "BATCH_NODE:1:Node One", "BATCH_PROVIDER:1:Provider One", "EDIT:--auth-key --auth-key-stdin --auth-key-file", "ADD:--control-url", "PASTE:--control-url"} {
+			for _, want := range []string{"ACTIONS:list show targets add edit bind unbind remove", "SHOW:1:My Tail", "KIND:node provider subscription", "SUBSCRIPTION:1:work-sub", "NODE:1:Node One", "PROVIDER:1:Provider One", "BATCH_NODE:1:Node One", "BATCH_PROVIDER:1:Provider One", "EDIT:--auth-key --auth-key-stdin --auth-key-file", "ADD:--control-url", "PASTE:--control-url"} {
 				if !strings.Contains(string(out), want) {
 					t.Fatalf("missing %s in %s", want, out)
 				}
@@ -46,7 +47,7 @@ func TestTailscaleCompletionAllShells(t *testing.T) {
 		if !ok {
 			t.Fatal(shell)
 		}
-		for _, want := range []string{"tailscale-nodes", "tailscale-targets", "list show targets add edit bind unbind remove", "hostname", "control-url", "exit-node", "auth-key-file", "auth-key-stdin"} {
+		for _, want := range []string{"tailscale-nodes", "tailscale-targets", "list show targets add edit bind unbind remove", "hostname", "control-url", "exit-node", "auth-key-file", "auth-key-stdin", "node provider subscription"} {
 			if !strings.Contains(script, want) {
 				t.Fatalf("%s omitted %s", shell, want)
 			}

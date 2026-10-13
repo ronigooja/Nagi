@@ -304,6 +304,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 					}
 				} else {
 					targets, e := store.TailscaleTargets(name)
+					if e == nil {
+						entire, candidateErr := subscriptionTailscaleTargets(subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), nil), store, name)
+						targets = append(targets, entire...)
+						e = candidateErr
+					}
 					if e != nil {
 						return nil, e
 					}
@@ -887,7 +892,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				}
 				reloaded = status.Running
 			}
-			result, e := tailscaleCommand(ctx, args, store, profileName, reloaded)
+			result, e := tailscaleCommand(ctx, args, store, subs, profileName, reloaded)
 			if e != nil {
 				return nil, fail("proxy_tailscale_error", e)
 			}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/menu"
 	"github.com/ronigooja/Nagi/internal/profile"
+	"github.com/ronigooja/Nagi/internal/subscription"
 )
 
 type tailscaleOptions struct {
@@ -48,15 +49,21 @@ func tailscaleArguments(args []string) (tailscaleOptions, error) {
 		if action == "unbind" {
 			index = 3
 		}
-		if len(args) <= index || (args[index] != "node" && args[index] != "provider") {
-			return o, errors.New("KIND must be node or provider")
+		if len(args) <= index || (args[index] != "node" && args[index] != "provider" && args[index] != "subscription") {
+			return o, errors.New("KIND must be node, provider, or subscription")
 		}
 		if len(args) <= index+1 {
 			return o, errors.New("TARGET is required")
 		}
 		seen := map[string]bool{}
 		for _, target := range args[index+1:] {
-			if err := profile.ValidateTailscaleName(target); err != nil {
+			if args[index] == "subscription" {
+				if target == "" || len(target) > 128 || strings.IndexFunc(target, func(r rune) bool {
+					return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_')
+				}) >= 0 {
+					return o, errors.New("subscription TARGET must contain 1..128 ASCII letters, digits, _ or -")
+				}
+			} else if err := profile.ValidateTailscaleName(target); err != nil {
 				return o, errors.New("TARGET must contain 1..128 printable bytes and must not be reserved")
 			}
 			if seen[target] {
@@ -121,7 +128,7 @@ func tailscaleArguments(args []string) (tailscaleOptions, error) {
 	}
 	return o, profile.ValidateTailscaleOptions(o.TailscaleOptions)
 }
-func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, name string, reloaded bool) (any, error) {
+func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, subscriptions *subscription.Store, name string, reloaded bool) (any, error) {
 	action := args[2]
 	switch action {
 	case "list":
@@ -132,6 +139,11 @@ func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, 
 		return map[string]any{"profile": name, "node": node, "bindings": bindings}, err
 	case "targets":
 		targets, err := store.TailscaleTargets(name)
+		if err == nil {
+			var entire []profile.TailscaleTarget
+			entire, err = subscriptionTailscaleTargets(subscriptions, store, name)
+			targets = append(targets, entire...)
+		}
 		return map[string]any{"profile": name, "targets": targets}, err
 	}
 	o, err := tailscaleArguments(args)
@@ -168,7 +180,9 @@ func tailscaleCommand(ctx context.Context, args []string, store *profile.Store, 
 			return nil
 		}
 	}
-	if len(targets) > 0 {
+	if kind == "subscription" {
+		err = mutateSubscriptionTailscale(ctx, subscriptions, store, name, action, node, targets)
+	} else if len(targets) > 0 {
 		err = store.MutateTailscaleBindings(ctx, name, action, node, kind, targets)
 	} else {
 		err = store.MutateTailscale(ctx, name, action, node, kind, target, o.TailscaleOptions)

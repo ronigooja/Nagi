@@ -73,7 +73,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
     if [[ ${#semantic[@]} -eq 3 && ( ${semantic[2]} == show || ${semantic[2]} == edit || ${semantic[2]} == bind || ${semantic[2]} == remove ) ]]; then
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates tailscale-nodes 2>/dev/null); return 0
     fi
-    if [[ ${#semantic[@]} -eq 3 && ${semantic[2]} == unbind || ${#semantic[@]} -eq 4 && ${semantic[2]} == bind ]]; then COMPREPLY=( $(compgen -W 'node provider' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 3 && ${semantic[2]} == unbind || ${#semantic[@]} -eq 4 && ${semantic[2]} == bind ]]; then COMPREPLY=( $(compgen -W 'node provider subscription' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -ge 4 && ${semantic[2]} == unbind || ${#semantic[@]} -ge 5 && ${semantic[2]} == bind ]]; then
       local target_kind="${semantic[3]}"; [[ ${semantic[2]} == bind ]] && target_kind="${semantic[4]}"
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates tailscale-targets "$target_kind" 2>/dev/null); return 0
@@ -177,7 +177,7 @@ _nagi() {
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == tailscale ]]; then
     if (( ${#semantic} == 2 )); then compadd -- list show targets add edit bind unbind remove; return; fi
     if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == show || ${semantic[3]} == edit || ${semantic[3]} == bind || ${semantic[3]} == remove ]]; then compadd -- ${(f)"$(nagi completion candidates tailscale-nodes 2>/dev/null)"}; return; fi
-    if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == unbind ]] || (( ${#semantic} == 4 )) && [[ ${semantic[3]} == bind ]]; then compadd -- node provider; return; fi
+    if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == unbind ]] || (( ${#semantic} == 4 )) && [[ ${semantic[3]} == bind ]]; then compadd -- node provider subscription; return; fi
     if (( ${#semantic} >= 4 )) && [[ ${semantic[3]} == unbind ]] || (( ${#semantic} >= 5 )) && [[ ${semantic[3]} == bind ]]; then
       local target_kind="${semantic[4]}"; [[ ${semantic[3]} == bind ]] && target_kind="${semantic[5]}"
       compadd -- ${(f)"$(nagi completion candidates tailscale-targets "$target_kind" 2>/dev/null)"}; return
@@ -275,7 +275,7 @@ end
 	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
 	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = tailscale' -a 'list show targets add edit bind unbind remove'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] show edit bind remove' -a '(nagi completion candidates tailscale-nodes 2>/dev/null)'
-complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -eq 3; and test "$s[3]" = unbind; or test (count $s) -eq 4; and test "$s[3]" = bind; end' -a 'node provider'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -eq 3; and test "$s[3]" = unbind; or test (count $s) -eq 4; and test "$s[3]" = bind; end' -a 'node provider subscription'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -ge 4; and test "$s[3]" = unbind; or test (count $s) -ge 5; and test "$s[3]" = bind; end' -a '(set -l s (__nagi_semantic); set -l target_kind $s[4]; if test "$s[3]" = bind; set target_kind $s[5]; end; nagi completion candidates tailscale-targets "$target_kind" 2>/dev/null)'
 complete -c nagi -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -eq 5; and test "$s[3]" = add; or test "$s[-1]" = --auth-key-file; end' -F
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] add edit' -l auth-key -l auth-key-stdin

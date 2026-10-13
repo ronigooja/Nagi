@@ -340,6 +340,13 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		if v["reloaded"] == true {
 			state = "Saved and reloaded mihomo."
 		}
+		if v["kind"] == "subscription" {
+			if v["action"] == "bind" {
+				state += " Entire-subscription policy survives apply and scheduled refresh; new nodes inherit the exit."
+			} else {
+				state += " Removed entire-subscription policy; retained the Tailscale node."
+			}
+		}
 		if targets, ok := v["targets"].([]string); ok {
 			return line(w, fmt.Sprintf("Tailscale %s: %d %s targets in profile %s. %s", v["action"], len(targets), v["kind"], v["profile"], state))
 		}
@@ -714,7 +721,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	}
 	if targets, ok := v["targets"].([]profile.TailscaleTarget); ok {
 		if len(targets) == 0 {
-			return line(w, "No eligible proxy nodes or providers.")
+			return line(w, "No eligible proxy nodes, providers, or applied subscriptions.")
 		}
 		for _, t := range targets {
 			dialer := t.DialerProxy

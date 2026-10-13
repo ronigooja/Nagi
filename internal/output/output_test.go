@@ -173,3 +173,27 @@ func TestTUNDNSHumanAndJSONResults(t *testing.T) {
 		t.Fatalf("JSON=%s", encoded.String())
 	}
 }
+
+func TestTailscaleSubscriptionResultExplainsPersistenceAndUnbind(t *testing.T) {
+	for _, action := range []string{"bind", "unbind"} {
+		var out bytes.Buffer
+		data := map[string]any{"profile": "work", "action": action, "saved": true, "reloaded": true, "kind": "subscription", "target": "work-sub"}
+		if err := Write(&out, false, data); err != nil {
+			t.Fatal(err)
+		}
+		want := "policy survives apply and scheduled refresh"
+		if action == "unbind" {
+			want = "Removed entire-subscription policy; retained the Tailscale node"
+		}
+		if !strings.Contains(out.String(), want) || !strings.Contains(out.String(), "Saved and reloaded mihomo") {
+			t.Fatal(out.String())
+		}
+		out.Reset()
+		if err := Write(&out, true, data); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(out.String(), "policy") || !strings.Contains(out.String(), `"kind":"subscription"`) {
+			t.Fatal(out.String())
+		}
+	}
+}

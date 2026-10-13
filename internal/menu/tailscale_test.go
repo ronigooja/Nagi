@@ -422,3 +422,76 @@ func TestTailscaleBatchEmptySubmitAndReadFailure(t *testing.T) {
 		t.Fatalf("empty view=%v err=%v", view, err)
 	}
 }
+
+func TestTailscaleEntireSubscriptionScopeAndRetainedFailure(t *testing.T) {
+	r := tailscaleFixture()
+	r.targets = append(r.targets, menuTailscaleTarget{Kind: "subscription", Name: "work-sub", Type: "subscription"})
+	r.fail["proxy tailscale bind Tail Shared subscription work-sub"] = 1
+	var out bytes.Buffer
+	// Scope -> entire subscriptions -> select actual record -> submit, retry -> back.
+	RunPage(context.Background(), NewSession(r, strings.NewReader("3\n1\n2\n2\n0\n0\n"), &out), tailscaleBatchKindPage("Tail Shared", false))
+	if countTailscaleCall(r.calls, "proxy", "tailscale", "bind", "Tail Shared", "subscription", "work-sub") != 2 || r.targets[5].DialerProxy != "Tail Shared" || r.targets[4].DialerProxy != "" {
+		t.Fatalf("calls=%v output=%s", r.calls, out.String())
+	}
+	for _, want := range []string{"Specified nodes", "Entire providers", "Entire subscriptions", "already applied to this profile", "survives apply and scheduled refresh", "New nodes inherit the exit", "Selections are retained", "selected: 1"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("missing %s: %s", want, out.String())
+		}
+	}
+	r.calls = nil
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n0\n"), &out), tailscaleBatchPage("Tail Shared", "subscription", true))
+	if countTailscaleCall(r.calls, "proxy", "tailscale", "unbind", "subscription", "work-sub") != 1 || r.targets[5].DialerProxy != "" {
+		t.Fatalf("calls=%v output=%s", r.calls, out.String())
+	}
+}
+
+func TestTailscaleSubscriptionSelectionsPruneUnavailableRecords(t *testing.T) {
+	r := tailscaleFixture()
+	r.targets = append(r.targets, menuTailscaleTarget{Kind: "subscription", Name: "work-sub"})
+	var out bytes.Buffer
+	s := NewSession(r, strings.NewReader(""), &out)
+	page := tailscaleBatchPage("Tail Shared", "subscription", false)
+	view, err := page.Load(context.Background(), s)
+	if err != nil || len(view.Items) != 1 {
+		t.Fatalf("view=%v err=%v", view, err)
+	}
+	if err := view.Items[0].Action(context.Background(), s); err != nil {
+		t.Fatal(err)
+	}
+	r.targets = r.targets[:5]
+	view, err = page.Load(context.Background(), s)
+	if err != nil || len(view.Items) != 0 || len(view.Actions) != 0 || !strings.Contains(view.Context, "selected: 0") {
+		t.Fatalf("view=%v err=%v", view, err)
+	}
+	r.targets = append(r.targets, menuTailscaleTarget{Kind: "subscription", Name: "work-sub"})
+	view, err = page.Load(context.Background(), s)
+	if err != nil || view.Items[0].Selected {
+		t.Fatalf("stale selection: view=%v err=%v", view, err)
+	}
+}
+
+func TestTailscaleManagedSubscriptionAvoidsIndividualMutationChoices(t *testing.T) {
+	r := tailscaleFixture()
+	for i := range r.targets {
+		r.targets[i].DialerProxy = "Tail Shared"
+	}
+	r.targets = append(r.targets, menuTailscaleTarget{Kind: "subscription", Name: "work-sub", DialerProxy: "Tail Shared"})
+	s := NewSession(r, strings.NewReader(""), &bytes.Buffer{})
+	view, err := tailscaleDetailPage("Tail Shared").Load(context.Background(), s)
+	if err != nil || len(view.Items) != 1 || view.Items[0].Name != "work-sub" || !strings.Contains(view.Context, "inherited") {
+		t.Fatalf("view=%v err=%v", view, err)
+	}
+	for _, kind := range []string{"node", "provider"} {
+		view, err = tailscaleBatchPage("Tail Shared", kind, true).Load(context.Background(), s)
+		if err != nil || len(view.Items) != 0 || len(view.Actions) != 0 || !strings.Contains(view.Empty, "Unbind the subscription first") {
+			t.Fatalf("view=%v err=%v", view, err)
+		}
+	}
+	var out bytes.Buffer
+	if err := tailscaleTargetForm(context.Background(), NewSession(r, strings.NewReader("1\n"), &out), "Tail Shared", r.targets, true); err != nil {
+		t.Fatal(err)
+	}
+	if countTailscaleCall(r.calls, "proxy", "tailscale", "unbind", "subscription", "work-sub") != 1 {
+		t.Fatalf("calls=%v output=%s", r.calls, out.String())
+	}
+}

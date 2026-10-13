@@ -13,7 +13,7 @@ import (
 
 const tailscaleControlURL = "https://controlplane.tailscale.com"
 
-const tailscaleEffects = "Subscription apply clears these changes; reloads mihomo if running."
+const tailscaleEffects = "Subscription apply clears ordinary overrides; entire-subscription bindings persist. Reloads mihomo if running."
 
 type menuTailscaleNode struct {
 	Name              string `json:"name"`
@@ -75,11 +75,25 @@ func tailscaleDetailPage(name string) *Page {
 			hostname = "default"
 		}
 		view.Context = fmt.Sprintf("Profile: %s\nExit node: %s; hostname: %s; control server: %s\nAuth key: %s", data.Profile, data.Node.ExitNode, hostname, control, key)
+		managed := false
 		for _, binding := range data.Bindings {
+			if binding.Kind == "subscription" {
+				managed = true
+			}
+		}
+		if managed {
+			view.Context += "\nEntire-subscription policy manages inherited node/provider bindings. Unbind the subscription before changing individual bindings or deleting the exit."
+		}
+		for _, binding := range data.Bindings {
+			if managed && binding.Kind != "subscription" {
+				continue
+			}
 			binding := binding
 			impact := "Unbinds this target"
 			if binding.Kind == "provider" {
 				impact += "; affects all current and future nodes"
+			} else if binding.Kind == "subscription" {
+				impact += "; removes persistent policy and retains Tailscale node"
 			}
 			view.Items = append(view.Items, Item{Name: binding.Name, Label: tailscaleTargetLabel(binding), Impact: impact, Action: func(ctx context.Context, s *Session) error {
 				_, err := s.Form(ctx, nil, nil, func(map[string]string) Result {
@@ -106,9 +120,14 @@ func tailscaleDetailPage(name string) *Page {
 }
 
 func tailscaleBatchKindPage(name string, unbind bool) *Page {
+	effect := "Persistent binding; current and future nodes after apply or scheduled refresh"
+	if unbind {
+		effect = "Removes persistent binding; retains Tailscale node"
+	}
 	return actionPage("Choose binding scope",
 		Item{Label: "Specified nodes", Next: func() *Page { return tailscaleBatchPage(name, "node", unbind) }},
 		Item{Label: "Entire providers", Impact: "Affects all current and future nodes", Next: func() *Page { return tailscaleBatchPage(name, "provider", unbind) }},
+		Item{Label: "Entire subscriptions", Impact: effect, Next: func() *Page { return tailscaleBatchPage(name, "subscription", unbind) }},
 	)
 }
 
@@ -125,6 +144,10 @@ func tailscaleBatchPage(name, kind string, unbind bool) *Page {
 		}
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "tailscale", "targets"), &data); err != nil {
 			return view, err
+		}
+		if kind != "subscription" && hasSubscriptionPolicy(data.Targets) {
+			view.Empty = "An entire-subscription policy manages these targets. Unbind the subscription first."
+			return view, nil
 		}
 		targets := []menuTailscaleTarget{}
 		available := map[string]bool{}
@@ -149,6 +172,13 @@ func tailscaleBatchPage(name, kind string, unbind bool) *Page {
 			}
 		}
 		view.Context = fmt.Sprintf("Tailscale: %s; selected: %d\nChoose numbers to toggle targets, then Submit. Existing bindings appear after →.\n%s", name, count, tailscaleEffects)
+		if kind == "subscription" {
+			if unbind {
+				view.Context += "\nEntire subscriptions: removes the persistent policy, restores source bindings, and retains the Tailscale node."
+			} else {
+				view.Context += "\nEntire subscriptions: already applied to this profile; binding survives apply and scheduled refresh. New nodes inherit the exit."
+			}
+		}
 		if kind == "provider" {
 			view.Context += "\nProviders: affects all current and future nodes, including refresh additions."
 		}
@@ -273,12 +303,22 @@ func bindTailscale(ctx context.Context, s *Session, name string) error {
 }
 
 func tailscaleTargetForm(ctx context.Context, s *Session, name string, targets []menuTailscaleTarget, unbind bool) error {
+	if hasSubscriptionPolicy(targets) {
+		retained := []menuTailscaleTarget{}
+		for _, target := range targets {
+			if target.Kind == "subscription" {
+				retained = append(retained, target)
+			}
+		}
+		targets = retained
+	}
 	if len(targets) == 0 {
 		s.feedback(feedbackWarning, "No eligible targets available.")
 		return nil
 	}
 	s.WriteLine(tailscaleEffects)
 	s.WriteLine("Providers: affects all nodes, including future additions.")
+	s.WriteLine("Entire subscriptions: persistent binding includes new nodes after apply and scheduled refresh; only already-applied records are eligible.")
 	choices := []string{}
 	byLabel := map[string]menuTailscaleTarget{}
 	for _, target := range targets {
@@ -332,4 +372,13 @@ func runTailscaleInput(ctx context.Context, s *Session, input io.Reader, args ..
 	}
 	s.feedback(feedbackSuccess, message)
 	return result
+}
+
+func hasSubscriptionPolicy(targets []menuTailscaleTarget) bool {
+	for _, target := range targets {
+		if target.Kind == "subscription" && target.DialerProxy != "" {
+			return true
+		}
+	}
+	return false
 }

@@ -3,6 +3,7 @@ package command
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/ronigooja/Nagi/internal/subscription"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,10 @@ func TestTailscaleHelpAndPreflightWithoutRuntime(t *testing.T) {
 		{"proxy", "tailscale", "unbind", "invalid", "Target"},
 		{"proxy", "tailscale", "bind", "Tail", "node", "Target", "Target"},
 		{"proxy", "tailscale", "unbind", "provider", "Feed", "DIRECT"},
+		{"proxy", "tailscale", "bind", "Tail", "subscription"},
+		{"proxy", "tailscale", "bind", "Tail", "subscription", "work", "work"},
+		{"proxy", "tailscale", "unbind", "subscription", "bad name"},
+		{"completion", "candidates", "tailscale-targets", "invalid"},
 	} {
 		var out, errs bytes.Buffer
 		code := Run(append([]string{"--json"}, args...), &out, &errs, "test", "test")
@@ -256,5 +261,76 @@ func TestTailscaleTransactionExcludesOnlyIdentitySubtree(t *testing.T) {
 		if configMutation(args) || transactionalMutation(args) {
 			t.Fatal("query treated as mutation", action)
 		}
+	}
+}
+
+func TestTailscaleSubscriptionCLIJSONAndOfflineCandidates(t *testing.T) {
+	root := t.TempDir()
+	paths := isolatedTestPaths(t, root)
+	dir := filepath.Join(paths.ConfigDir, "profiles")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	source := []byte("proxies: [{name: Tail, type: tailscale, exit-node: exit}, {name: Target, type: socks5, server: localhost, port: 1080}]\n")
+	if err := os.WriteFile(filepath.Join(dir, "default.yaml"), source, 0600); err != nil {
+		t.Fatal(err)
+	}
+	subs := subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), nil)
+	for _, name := range []string{"work", "unapplied", "other"} {
+		if err := subs.Add(name, "https://example.invalid/feed"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := subs.RecordApplySuccess("work", "default", "version", source); err != nil {
+		t.Fatal(err)
+	}
+	if err := subs.RecordApplySuccess("other", "elsewhere", "version", source); err != nil {
+		t.Fatal(err)
+	}
+	binary := writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\nexit 0\n")
+	t.Setenv("NAGI_MIHOMO_BIN", binary)
+	for _, action := range []string{"bind", "unbind"} {
+		args := []string{"--json", "proxy", "tailscale", action}
+		if action == "bind" {
+			args = append(args, "Tail")
+		}
+		args = append(args, "subscription", "work")
+		var out, errs bytes.Buffer
+		if code := Run(args, &out, &errs, "test", "test"); code != 0 {
+			t.Fatalf("%v: code=%d %s", args, code, errs.String())
+		}
+		var result struct {
+			OK   bool           `json:"ok"`
+			Data map[string]any `json:"data"`
+		}
+		if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if !result.OK || result.Data["kind"] != "subscription" || result.Data["target"] != "work" || result.Data["saved"] != true || result.Data["reloaded"] != false || result.Data["targets"] != nil {
+			t.Fatal(out.String())
+		}
+		if action == "bind" {
+			t.Setenv("NAGI_MIHOMO_BIN", "/missing/mihomo")
+			out.Reset()
+			errs.Reset()
+			if code := Run([]string{"completion", "candidates", "tailscale-targets", "subscription"}, &out, &errs, "test", "test"); code != 0 || out.String() != "work\n" {
+				t.Fatalf("offline candidates: %d %s %s", code, out.String(), errs.String())
+			}
+			out.Reset()
+			errs.Reset()
+			if code := Run([]string{"--json", "proxy", "tailscale", "show", "Tail"}, &out, &errs, "test", "test"); code != 0 || !strings.Contains(out.String(), `"kind":"subscription"`) || !strings.Contains(out.String(), `"name":"work"`) {
+				t.Fatalf("offline show: %d %s %s", code, out.String(), errs.String())
+			}
+			t.Setenv("NAGI_MIHOMO_BIN", binary)
+		}
+	}
+	for _, target := range []string{"unapplied", "other", "missing"} {
+		var out, errs bytes.Buffer
+		if code := Run([]string{"--json", "proxy", "tailscale", "bind", "Tail", "subscription", target}, &out, &errs, "test", "test"); code != 1 || !strings.Contains(errs.String(), `"code":"proxy_tailscale_error"`) {
+			t.Fatalf("target=%s code=%d %s", target, code, errs.String())
+		}
+	}
+	if _, err := os.Stat(paths.PIDPath); !os.IsNotExist(err) {
+		t.Fatal("binding started engine")
 	}
 }
