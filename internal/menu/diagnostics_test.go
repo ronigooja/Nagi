@@ -3,10 +3,63 @@ package menu
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestLoginStartupPageSummary(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		data string
+		code int
+		err  *CLIError
+		want string
+	}{
+		{name: "running", data: `{"service":{"installed":true,"enabled":true,"active":true},"engine":{"running":true}}`, want: "Login startup: enabled | Service: running | Mihomo: running"},
+		{name: "engine stopped with monitor active", data: `{"service":{"enabled":true,"active":true},"engine":{"running":false}}`, want: "Login startup: enabled | Service: running | Mihomo: stopped"},
+		{name: "disabled", data: `{"service":{"enabled":false,"active":false},"engine":{"running":false}}`, want: "Login startup: disabled | Service: stopped | Mihomo: stopped"},
+		{name: "missing enabled", data: `{"service":{"active":true},"engine":{"running":true}}`, want: "Login startup: unknown | Service: running | Mihomo: running"},
+		{name: "missing engine", data: `{"service":{"enabled":true,"active":false}}`, want: "Login startup: enabled | Service: stopped | Mihomo: unknown"},
+		{name: "null and wrong types", data: `{"service":{"enabled":null,"active":"yes"},"engine":{"running":true}}`, want: "Login startup: unknown | Service: unknown | Mihomo: running"},
+		{name: "malformed service", data: `{"service":true,"engine":{"running":false}}`, want: "Login startup: unknown | Service: unknown | Mihomo: stopped"},
+		{name: "empty", data: `{}`, want: "Login startup: unknown | Service: unknown | Mihomo: unknown"},
+		{name: "manager unavailable", code: 1, err: &CLIError{Message: "systemd user session unavailable"}, want: "Login startup: unavailable | Service: unavailable | Mihomo: unavailable — systemd user session unavailable"},
+		{name: "read failed", code: 1, want: "Login startup: unavailable | Service: unavailable | Mihomo: unavailable — read failed; open Startup details"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			runner := &fakeRunner{results: map[string]Result{"startup status": {Data: json.RawMessage(tt.data), Code: tt.code, Error: tt.err}}}
+			view, err := ServicePage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+			if err != nil || view.Context != tt.want || len(view.Actions) != 6 {
+				t.Fatalf("view=%+v err=%v, want %q", view, err, tt.want)
+			}
+			if !reflect.DeepEqual(runner.calls, [][]string{{"startup", "status"}}) {
+				t.Fatalf("unexpected reads: %v", runner.calls)
+			}
+		})
+	}
+}
+
+func TestLoginStartupDisableRefreshesSummary(t *testing.T) {
+	runner := &sequenceRunner{results: map[string][]Result{
+		"startup status": {
+			{Data: json.RawMessage(`{"service":{"enabled":true,"active":true},"engine":{"running":true}}`)},
+			{Data: json.RawMessage(`{"service":{"enabled":false,"active":false},"engine":{"running":false}}`)},
+		},
+	}}
+	var out bytes.Buffer
+	code := RunPage(context.Background(), NewSession(runner, strings.NewReader("5\n0\n"), &out), ServicePage())
+	wantCalls := [][]string{{"startup", "status"}, {"startup", "disable"}, {"startup", "status"}}
+	if code != 0 || !reflect.DeepEqual(runner.calls, wantCalls) {
+		t.Fatalf("code=%d calls=%v", code, runner.calls)
+	}
+	before := strings.Index(out.String(), "Login startup: enabled | Service: running | Mihomo: running")
+	after := strings.Index(out.String(), "Login startup: disabled | Service: stopped | Mihomo: stopped")
+	if before < 0 || after <= before {
+		t.Fatalf("summary did not refresh: %s", out.String())
+	}
+}
 
 func diagnosticItem(t *testing.T, page *Page, label string) Item {
 	t.Helper()

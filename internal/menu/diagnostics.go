@@ -2,6 +2,7 @@ package menu
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -16,7 +17,7 @@ func init() {
 // ServicePage exposes the existing per-user service and startup commands.
 func ServicePage() *Page {
 	return &Page{Title: "Start at Login", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		return PageView{Context: pageStatus(ctx, s, "Service", []string{"service", "status"}, "installed", "enabled", "active") + "\n" + pageStatus(ctx, s, "Startup", []string{"startup", "status"}, "enabled", "status"), Actions: []Item{
+		return PageView{Context: loginStartupSummary(s.Fetch(ctx, "startup", "status")), Actions: []Item{
 			{Label: "Service details", Args: []string{"service", "status"}},
 			{Label: "Install login service", Args: []string{"service", "install"}, Impact: "Also enables login startup"},
 			{Label: "Startup details", Args: []string{"startup", "status"}},
@@ -25,6 +26,33 @@ func ServicePage() *Page {
 			{Label: "Uninstall login service", Args: []string{"service", "uninstall"}, Impact: "Can stop mihomo"},
 		}}, nil
 	}}
+}
+
+func loginStartupSummary(result Result) string {
+	if result.Error != nil || result.Code != 0 {
+		reason := "read failed; open Startup details"
+		if result.Error != nil && result.Error.Message != "" {
+			reason = result.Error.Message
+		}
+		return "Login startup: unavailable | Service: unavailable | Mihomo: unavailable — " + reason
+	}
+	object := menuObject(result.Data)
+	var service, engine map[string]json.RawMessage
+	_ = json.Unmarshal(object["service"], &service)
+	_ = json.Unmarshal(object["engine"], &engine)
+	state := func(raw json.RawMessage, yes, no string) string {
+		var flag *bool
+		if json.Unmarshal(raw, &flag) != nil || flag == nil {
+			return "unknown"
+		}
+		if *flag {
+			return yes
+		}
+		return no
+	}
+	return "Login startup: " + state(service["enabled"], "enabled", "disabled") +
+		" | Service: " + state(service["active"], "running", "stopped") +
+		" | Mihomo: " + state(engine["running"], "running", "stopped")
 }
 
 func DiagnosticsPage() *Page { return diagnosticsPageForOS(runtime.GOOS) }
