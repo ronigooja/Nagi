@@ -16,6 +16,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/profile"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/traffic"
+	"gopkg.in/yaml.v3"
 )
 
 // configMutation covers operations that can replace the selected effective
@@ -247,6 +248,30 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 		}
 		if oldErr == nil && len(oldEffective) == 0 {
 			oldEffective, oldErr = store.Effective(name)
+			if oldErr == nil {
+				oldEffective, oldErr = applySavedTUN(paths, oldEffective)
+			}
+		}
+		// Runtime TUN patches do not advance the activation marker. Preserve the
+		// actual prior settings in the rollback PUT itself so an older recorded
+		// image cannot momentarily close the adapter before the recovery PATCH.
+		if oldErr == nil {
+			if priorTUN, ok := beforeCfg["tun"].(map[string]any); ok {
+				var doc map[string]any
+				if e := yaml.Unmarshal(oldEffective, &doc); e != nil || doc == nil {
+					oldErr = errors.New("prior effective configuration is invalid YAML")
+				} else {
+					tun, _ := doc["tun"].(map[string]any)
+					if tun == nil {
+						tun = map[string]any{}
+						doc["tun"] = tun
+					}
+					for key, value := range tunRuntimeSnapshot(priorTUN) {
+						tun[key] = value
+					}
+					oldEffective, oldErr = yaml.Marshal(doc)
+				}
+			}
 		}
 		if oldErr == nil {
 			binary := os.Getenv("NAGI_MIHOMO_BIN")
@@ -264,6 +289,13 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 		}
 	}
 	result, actionErr := fn()
+	if actionErr == nil && activeErr == nil {
+		if currentID, _, e := configID(ctx, client); e != nil {
+			actionErr = e
+		} else if currentID != beforeID {
+			actionErr = confirmSavedTUN(ctx, paths, client)
+		}
+	}
 	if actionErr == nil {
 		if activeErr == nil && runtime.GOOS == "darwin" {
 			_, cfg, e := configID(ctx, client)
@@ -287,7 +319,12 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 				store := profile.NewStore(paths.ConfigDir, nil, nil)
 				if name, e := store.Current(); e == nil {
 					if effective, e := store.Effective(name); e == nil {
-						actionErr = recordRunningImageBytes(paths.ConfigDir, client, effective)
+						effective, e = applySavedTUN(paths, effective)
+						if e == nil {
+							actionErr = recordRunningImageBytes(paths.ConfigDir, client, effective)
+						} else {
+							actionErr = e
+						}
 					} else {
 						actionErr = e
 					}
@@ -342,11 +379,9 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 	if e != nil {
 		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration failed; current state is uncertain: %w", e))
 	}
-	if tunDNSOS == "darwin" {
-		if priorTUN, ok := beforeCfg["tun"].(map[string]any); ok {
-			if e := restoreRuntimeTUN(recoveryCtx, client, priorTUN); e != nil {
-				return nil, errors.Join(actionErr, fileErr, fmt.Errorf("configuration restored but prior temporary TUN settings could not be restored: %w", e))
-			}
+	if priorTUN, ok := beforeCfg["tun"].(map[string]any); ok {
+		if e := restoreRuntimeTUN(recoveryCtx, client, priorTUN); e != nil {
+			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("configuration restored but prior temporary TUN settings could not be restored: %w", e))
 		}
 	}
 	if runtime.GOOS == "darwin" {

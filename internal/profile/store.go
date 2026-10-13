@@ -16,6 +16,8 @@ type Store struct {
 	Dir      string
 	Validate func([]byte) error
 	Reload   func(context.Context) error
+	// EffectiveOverlay applies durable user preferences after profile layers.
+	EffectiveOverlay func([]byte) ([]byte, error)
 }
 
 var ErrInvalidSelectedProfile = errors.New("invalid selected profile")

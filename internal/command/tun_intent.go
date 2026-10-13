@@ -10,28 +10,68 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/control"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
+	"gopkg.in/yaml.v3"
 )
 
 func tunIntentPath(paths nagiruntime.Paths) string {
 	return filepath.Join(paths.StateDir, "tun-intent")
 }
 
-func readTUNIntent(paths nagiruntime.Paths) (bool, error) {
+// A missing or legacy empty preference leaves profile TUN settings unchanged.
+func savedTUNPreference(paths nagiruntime.Paths) (*bool, error) {
 	data, err := os.ReadFile(tunIntentPath(paths))
 	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
+		return nil, nil
 	}
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var enabled bool
 	switch strings.TrimSpace(string(data)) {
 	case "enabled":
-		return true, nil
-	case "disabled", "":
-		return false, nil
+		enabled = true
+	case "disabled":
+		enabled = false
+	case "":
+		return nil, nil
 	default:
-		return false, errors.New("invalid saved TUN intent")
+		return nil, errors.New("invalid saved TUN intent")
 	}
+	return &enabled, nil
+}
+
+func readTUNIntent(paths nagiruntime.Paths) (bool, error) {
+	preference, err := savedTUNPreference(paths)
+	return preference != nil && *preference, err
+}
+
+// Apply the durable user choice before mihomo validates or activates the full
+// configuration. Source profiles and subscription caches remain untouched.
+func applySavedTUN(paths nagiruntime.Paths, data []byte) ([]byte, error) {
+	preference, err := savedTUNPreference(paths)
+	if err != nil || preference == nil {
+		return data, err
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(data, &doc); err != nil || doc == nil {
+		return nil, errors.New("profile YAML cannot be merged with saved TUN preference")
+	}
+	tun, ok := doc["tun"].(map[string]any)
+	if !ok {
+		if raw, exists := doc["tun"]; exists && raw != nil {
+			return nil, errors.New("saved TUN preference requires a TUN mapping")
+		}
+		tun = map[string]any{}
+		doc["tun"] = tun
+	}
+	tun["enable"] = *preference
+	if *preference {
+		tun["auto-route"] = true
+		tun["auto-detect-interface"] = true
+		tun["strict-route"] = true
+		tun["dns-hijack"] = tunDNSHijack(tun["dns-hijack"])
+	}
+	return yaml.Marshal(doc)
 }
 
 func writeTUNIntent(paths nagiruntime.Paths, enabled bool) error {
@@ -62,22 +102,20 @@ func writeTUNIntent(paths nagiruntime.Paths, enabled bool) error {
 	return os.Rename(name, tunIntentPath(paths))
 }
 
-func restoreSavedTUN(ctx context.Context, paths nagiruntime.Paths, client *control.Client) error {
-	wanted, err := readTUNIntent(paths)
-	if err != nil {
+// Mihomo reports enable=false when adapter creation fails, even though the
+// full configuration's activation marker has advanced.
+func confirmSavedTUN(ctx context.Context, paths nagiruntime.Paths, client *control.Client) error {
+	preference, err := savedTUNPreference(paths)
+	if err != nil || preference == nil {
 		return err
-	}
-	if !wanted {
-		return nil
 	}
 	cfg, err := trafficConfig(ctx, client)
 	if err != nil {
 		return err
 	}
 	tun, _ := cfg["tun"].(map[string]any)
-	payload := map[string]any{"enable": true, "auto-route": true, "auto-detect-interface": true, "strict-route": true, "dns-hijack": tunDNSHijack(tun["dns-hijack"])}
-	if _, err := changeRuntimeTUN(ctx, paths, client, tun, payload); err != nil {
-		return fmt.Errorf("saved TUN preference could not be restored: %w", err)
+	if (tun["enable"] == true) != *preference {
+		return fmt.Errorf("mihomo did not activate saved TUN preference (enabled=%t); inspect `nagi tun status`, `nagi logs`, and OS TUN permissions", *preference)
 	}
 	return nil
 }

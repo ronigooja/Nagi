@@ -1,6 +1,7 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -172,6 +173,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		return nil
 	}
 	store = profile.NewStore(paths.ConfigDir, validate, reload)
+	store.EffectiveOverlay = func(data []byte) ([]byte, error) { return applySavedTUN(paths, data) }
 	return store
 }
 
@@ -212,12 +214,16 @@ func materializeProfileWithSelections(store *profile.Store, configDir, name stri
 		return "", err
 	}
 	needsOverlay := hasTailscale || overrideErr == nil || rules.Exists(configDir)
-	if !needsOverlay && !includeSelections {
+	if !needsOverlay && !includeSelections && store.EffectiveOverlay == nil {
 		return path, nil
 	}
 	data, err := store.Effective(name)
 	if err != nil {
 		return "", err
+	}
+	needsOverlay = needsOverlay || !bytes.Equal(data, source)
+	if !needsOverlay && !includeSelections {
+		return path, nil
 	}
 	if includeSelections {
 		var selected bool

@@ -58,6 +58,14 @@ func mergeMap(base, patch map[string]any) {
 // local override and applies Nagi-owned rules. It is used while validating an
 // update before replacing the source file.
 func (s *Store) EffectiveSource(name string, source []byte) ([]byte, error) {
+	data, err := s.effectiveSource(name, source)
+	if err != nil || s.EffectiveOverlay == nil {
+		return data, err
+	}
+	return s.EffectiveOverlay(data)
+}
+
+func (s *Store) effectiveSource(name string, source []byte) ([]byte, error) {
 	patch, err := s.Override(name)
 	if errors.Is(err, fs.ErrNotExist) {
 		managed, err := s.applySubscriptionTailscale(name, source)

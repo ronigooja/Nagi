@@ -133,6 +133,14 @@ func startWithTUNDNS(ctx context.Context, paths nagiruntime.Paths, manager lifec
 	if err != nil && !errors.Is(err, engine.ErrAlreadyRunning) {
 		return result, err
 	}
+	if err == nil {
+		if confirmErr := confirmSavedTUN(ctx, paths, client); confirmErr != nil {
+			recovery, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+			defer cancel()
+			_, stopErr := manager.Stop(recovery)
+			return nil, fail("tun_error", errors.Join(confirmErr, stopErr))
+		}
+	}
 	if tunDNSOS != "darwin" {
 		return result, err
 	}

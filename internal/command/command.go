@@ -637,9 +637,6 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		result, err := startWithTUNDNS(ctx, paths, m, client, configPath, profileName)
 		if err == nil {
-			if e := restoreSavedTUN(ctx, paths, client); e != nil {
-				return nil, fail("tun_error", e)
-			}
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			if _, restoreErr := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies); restoreErr != nil {
 				return nil, fail("proxy_selection_error", fmt.Errorf("mihomo started, but saved proxy selections were not fully restored: %w", restoreErr))
@@ -691,9 +688,6 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		result, err := startWithTUNDNS(ctx, paths, m, client, configPath, profileName)
 		if err == nil {
-			if e := restoreSavedTUN(ctx, paths, client); e != nil {
-				return nil, fail("tun_error", e)
-			}
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			if _, restoreErr := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies); restoreErr != nil {
 				return nil, fail("proxy_selection_error", fmt.Errorf("mihomo restarted, but saved proxy selections were not fully restored: %w", restoreErr))
@@ -868,6 +862,19 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		store, err := getProfiles()
 		if err != nil {
 			return nil, err
+		}
+		if len(args) == 3 && args[1] == "tun" {
+			preference, e := savedTUNPreference(paths)
+			if e != nil {
+				return nil, fail("dns_error", e)
+			}
+			if preference != nil && *preference != (args[2] == "on") {
+				action := "disable"
+				if args[2] == "on" {
+					action = "enable"
+				}
+				return nil, fail("dns_error", fmt.Errorf("DNS TUN setting conflicts with saved TUN preference; with mihomo running, run `nagi tun %s` first, then retry", action))
+			}
 		}
 		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
