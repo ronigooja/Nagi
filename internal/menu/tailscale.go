@@ -13,7 +13,7 @@ import (
 
 const tailscaleControlURL = "https://controlplane.tailscale.com"
 
-const tailscaleEffects = "Subscription apply clears ordinary overrides; entire-subscription bindings persist. Reloads mihomo if running."
+const tailscaleEffects = "Subscription apply retains local settings and nodes; entire-subscription bindings persist. Reloads mihomo if running."
 
 type menuTailscaleNode struct {
 	Name              string `json:"name"`

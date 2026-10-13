@@ -44,7 +44,7 @@ nagi proxy provider update airport
 nagi proxy provider healthcheck airport
 ```
 
-Provider updates refresh nodes within the current configuration. Nagi's subscription download and apply operations manage whole profile configurations instead. Explicitly applying a subscription or clearing/replacing the profile's override removes locally added providers and group attachments. Automatic subscription refreshes retain the local override, including its full group snapshot. See the [persistence contract](../reference/cli.md#adding-proxy-providers) before combining the two workflows.
+Provider updates refresh nodes within the current configuration. Nagi's subscription download and apply operations manage whole profile configurations instead. Explicit and automatic subscription applications retain locally added providers and group attachments while rebasing node/group changes against the new feed. Clearing or replacing the profile's override can remove these additions. See the [persistence contract](../reference/cli.md#adding-proxy-providers) before combining the two workflows.
 
 ## Remove a provider
 

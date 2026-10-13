@@ -67,6 +67,10 @@ func (s *Store) EffectiveSource(name string, source []byte) ([]byte, error) {
 
 func (s *Store) effectiveSource(name string, source []byte) ([]byte, error) {
 	patch, err := s.Override(name)
+	return s.effectiveSourceWithOverride(name, source, patch, err)
+}
+
+func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, err error) ([]byte, error) {
 	if errors.Is(err, fs.ErrNotExist) {
 		managed, err := s.applySubscriptionTailscale(name, source)
 		if err != nil {

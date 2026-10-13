@@ -140,7 +140,7 @@ func TestSubscriptionPreviewApplyAndRollback(t *testing.T) {
 	}
 }
 
-func TestSubscriptionApplyClearsExistingLocalOverride(t *testing.T) {
+func TestSubscriptionApplyPreservesExistingLocalOverride(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("mixed-port: 7890\nproxies:\n  - name: New\n    type: direct\n"))
 	}))
@@ -174,11 +174,11 @@ func TestSubscriptionApplyClearsExistingLocalOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(effective), "mixed-port: 7999") || !strings.Contains(string(effective), "mixed-port: 7890") {
-		t.Fatalf("old override still affects subscription: %s", effective)
+	if !strings.Contains(string(effective), "mixed-port: 7999") {
+		t.Fatalf("local override lost during subscription apply: %s", effective)
 	}
-	if _, err := profiles.Override("work"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("override still exists: %v", err)
+	if saved, err := profiles.Override("work"); err != nil || string(saved) != "mixed-port: 7999\n" {
+		t.Fatalf("override changed: %s, %v", saved, err)
 	}
 	if err := profiles.SetOverride(context.Background(), "work", []byte("mixed-port: 7999\n")); err != nil {
 		t.Fatal(err)

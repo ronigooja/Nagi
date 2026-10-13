@@ -283,7 +283,7 @@ func subscriptionKey(ctx context.Context, s *Session, name string) error {
 	return err
 }
 
-const subscriptionApplyImpact = "Replaces target configuration; clears local overrides and saved node selections"
+const subscriptionApplyImpact = "Updates subscription; retains local settings and nodes; clears saved node selections"
 
 // Each successful stage is kept if a later stage fails. Creation forms submit
 // only add; download/apply failures return to the saved subscription's details.

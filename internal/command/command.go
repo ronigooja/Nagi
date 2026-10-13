@@ -1669,6 +1669,9 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		if err != nil {
 			return nil, fail("subscription_error", err)
 		}
+		if err := validateRuleTargets(profiles.Dir, args[2], merged); err != nil {
+			return nil, fail("subscription_error", err)
+		}
 		if err := profiles.ApplySubscription(context.WithValue(ctx, skipSelectionRestoreKey{}, true), args[2], merged); err != nil {
 			return nil, fail("subscription_error", err)
 		}

@@ -125,7 +125,7 @@ func TestSubscriptionMetadataWithoutPreview(t *testing.T) {
 	if !reflect.DeepEqual(runner.calls, [][]string{{"subscription", "list"}, {"subscription", "list"}}) {
 		t.Fatalf("unexpected preview: %v", runner.calls)
 	}
-	if !strings.Contains(profileAction(t, view, "Update and Apply").Impact, "clears local overrides and saved node selections") {
+	if !strings.Contains(profileAction(t, view, "Update and Apply").Impact, "retains local settings and nodes; clears saved node selections") {
 		t.Fatal("missing apply disclosure")
 	}
 }

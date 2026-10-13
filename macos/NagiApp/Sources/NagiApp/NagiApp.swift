@@ -314,7 +314,7 @@ import AppKit
             let updateAndApply = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
                                      enabled: !model.busy, to: actions)
             updateAndApply.representedObject = subscription.name
-            updateAndApply.toolTip = "Replaces configuration and clears local overrides and saved selections; does not start mihomo or enable traffic access."
+            updateAndApply.toolTip = "Updates subscription, retains local settings and nodes, and clears saved selections; does not start mihomo or enable traffic access."
             actions.addItem(.separator())
             let autoUpdate = subscription.scheduleSeconds > 0 ? "Auto Update: On" : "Auto Update: Off"
             add(autoUpdate, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
@@ -556,7 +556,7 @@ import AppKit
     @objc private func addAndApplySubscription() {
         let alert = NSAlert()
         alert.messageText = "Add and Apply Subscription"
-        alert.informativeText = "Save, download, and apply this subscription. Applying replaces the target configuration and clears local overrides and saved selections. This does not start mihomo or enable traffic access."
+        alert.informativeText = "Save, download, and apply this subscription. Applying updates the subscription, retains local settings and nodes, and clears saved selections. This does not start mihomo or enable traffic access."
         alert.addButton(withTitle: "Add and Apply")
         alert.addButton(withTitle: "Cancel")
 

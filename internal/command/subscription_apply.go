@@ -44,7 +44,7 @@ func ApplyCachedSubscriptionPreservingSource(ctx context.Context, paths nagirunt
 			if profiles == nil {
 				return nil, errors.New("profile store is required")
 			}
-			if err = profiles.Apply(ctx, name, encoded); err != nil {
+			if err = profiles.ApplySubscription(ctx, name, encoded); err != nil {
 				return nil, classifyScheduledApply(err)
 			}
 			if err = pruneSavedChoices(ctx, paths, name, encoded); err != nil {
@@ -113,7 +113,7 @@ func applyScheduledCacheFactory(ctx context.Context, p nagiruntime.Paths, s *sub
 			return nil, err
 		}
 		return applyTransaction(ctx, p, []string{"subscription", "apply-preserving"}, func() (any, error) {
-			if err := profiles.Apply(ctx, latest.Profile, encoded); err != nil {
+			if err := profiles.ApplySubscription(ctx, latest.Profile, encoded); err != nil {
 				return nil, classifyScheduledApply(err)
 			}
 			if err := pruneSavedChoices(ctx, p, latest.Profile, encoded); err != nil {
@@ -135,9 +135,9 @@ func classifyScheduledApply(err error) error {
 }
 func validateRuleTargets(dir, profileName string, candidate []byte) error {
 	profiles := profile.NewStore(dir, nil, nil)
-	effective, err := profiles.EffectiveSource(profileName, candidate)
+	effective, err := profiles.EffectiveSubscriptionSource(profileName, candidate)
 	if err != nil {
-		return fmt.Errorf("%w: effective profile unavailable", errRuleConflict)
+		return fmt.Errorf("%w: effective profile unavailable: %v", errRuleConflict, err)
 	}
 	var doc map[string]any
 	if err := yaml.Unmarshal(effective, &doc); err != nil || doc == nil {
@@ -178,7 +178,7 @@ func validateRuleTargets(dir, profileName string, candidate []byte) error {
 		}
 		for _, target := range rules.Targets(rule) {
 			if !valid[target] && !remoteProvider {
-				return fmt.Errorf("%w: rule %s targets a missing choice", errRuleConflict, rule.Name)
+				return fmt.Errorf("%w: rule %s targets a missing choice; inspect `nagi rules custom` and update the rule or restore its target before retrying", errRuleConflict, rule.Name)
 			}
 		}
 	}
