@@ -471,13 +471,13 @@ import AppKit
                 let latencyGroup = NSBox(frame: NSRect(x: -10, y: 22, width: 520, height: 286))
                 latencyGroup.title = "Automatic Latency Checks"
                 form.addSubview(latencyGroup)
-                func label(_ title: String, y: CGFloat, height: CGFloat = 20) -> NSTextField {
+                @MainActor func label(_ title: String, y: CGFloat, height: CGFloat = 20) -> NSTextField {
                     let field = NSTextField(wrappingLabelWithString: title)
                     field.frame = NSRect(x: 0, y: y, width: 500, height: height)
                     form.addSubview(field)
                     return field
                 }
-                func mode(y: CGFloat, inherit: String) -> NSPopUpButton {
+                @MainActor func mode(y: CGFloat, inherit: String) -> NSPopUpButton {
                     let popup = NSPopUpButton(frame: NSRect(x: 0, y: y, width: 500, height: 26))
                     popup.addItems(withTitles: ["Set a local value", inherit])
                     form.addSubview(popup)
@@ -513,7 +513,7 @@ import AppKit
                 // Editing a field and pressing Return must not save another section.
                 alert.buttons[0].keyEquivalent = ""
                 alert.buttons[1].keyEquivalent = "\r"
-                func updateCurrentValues() {
+                @MainActor func updateCurrentValues() {
                     let downloadValue = (download["interval_seconds"]?.int64).map { $0 == 0 ? "off" : "\($0) seconds" } ?? "unknown"
                     downloadCurrent.stringValue = "Current: \(downloadValue) · Source: \(download["source"]?.string ?? "unknown")\nEnter 1–31536000 seconds, or off."
                     downloadMode.item(at: 1)?.isEnabled = download["can_reset"]?.bool == true
@@ -613,14 +613,14 @@ import AppKit
                 alert.informativeText = "Save each setting separately. Closing keeps settings already saved."
                 alert.addButton(withTitle: "Close")
                 let content = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 510))
-                func label(_ text: String, x: CGFloat = 12, y: CGFloat, width: CGFloat = 470, height: CGFloat = 32, in parent: NSView) -> NSTextField {
+                @MainActor func label(_ text: String, x: CGFloat = 12, y: CGFloat, width: CGFloat = 470, height: CGFloat = 32, in parent: NSView) -> NSTextField {
                     let field = NSTextField(wrappingLabelWithString: text)
                     field.frame = NSRect(x: x, y: y, width: width, height: height)
                     field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
                     parent.addSubview(field)
                     return field
                 }
-                func saveButton(_ title: String, tag: Int, y: CGFloat, in parent: NSView) {
+                @MainActor func saveButton(_ title: String, tag: Int, y: CGFloat, in parent: NSView) {
                     let button = NSButton(title: title, target: self, action: #selector(saveSubscriptionSettingsSection(_:)))
                     button.tag = tag
                     button.frame = NSRect(x: 12, y: y, width: 220, height: 28)
@@ -668,11 +668,11 @@ import AppKit
                 let result = label("Saving intervals or URLs keeps disabled checks disabled.", x: 0, y: 0, width: 500, height: 46, in: content)
                 alert.accessoryView = content
 
-                func showUpdateStatus() {
+                @MainActor func showUpdateStatus() {
                     let seconds = model.subscriptions.first(where: { $0.name == name })?.scheduleSeconds ?? subscription.scheduleSeconds
                     currentUpdate.stringValue = "Current: \(seconds > 0 ? "on · every \(seconds) seconds" : "off")\nSource: saved subscription schedule"
                 }
-                func showLatencyStatus(_ value: JSONValue) {
+                @MainActor func showLatencyStatus(_ value: JSONValue) {
                     let interval = (value["interval_seconds"]?.int64).flatMap { $0 > 0 ? "\($0) seconds" : nil } ??
                         (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")
                     let profile = value["profile"]?.string ?? ""
