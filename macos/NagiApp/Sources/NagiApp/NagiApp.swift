@@ -479,9 +479,6 @@ import AppKit
                 let currentInterval = interval.map { "\($0) seconds (\(source))" } ??
                     (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")
                 alert.informativeText = "Profile: \(settingsProfile)\nInterval: \(currentInterval)\nEnter seconds (1–31536000). Saving does not enable disabled checks."
-                if let reason = value["reason"]?.string, !reason.isEmpty {
-                    alert.informativeText += "\nReason: \(reason)"
-                }
                 let input = NSTextField(string: interval.map { String($0) } ?? "")
                 input.frame = NSRect(x: 0, y: 0, width: 360, height: 24)
                 alert.accessoryView = input
