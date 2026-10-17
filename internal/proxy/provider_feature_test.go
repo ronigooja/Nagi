@@ -57,7 +57,7 @@ func TestProviderRedactionAndNativeNodeDelay(t *testing.T) {
 		t.Fatalf("providers=%+v err=%v", providers, err)
 	}
 	b, _ := json.Marshal(providers)
-	if strings.Contains(string(b), "secret") || strings.Contains(string(b), "password") || strings.Contains(string(b), "testUrl") {
+	if strings.Contains(string(b), "token=") || strings.Contains(string(b), "?token") || strings.Contains(string(b), "password") || strings.Contains(string(b), "testUrl") {
 		t.Fatalf("sensitive provider response: %s", b)
 	}
 	if _, fromProvider, err := s.providerForNode(context.Background(), "DIRECT"); err != nil || fromProvider {

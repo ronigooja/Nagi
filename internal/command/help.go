@@ -82,7 +82,11 @@ var commandSpecs = []commandSpec{
 	{"dns tun off", "dns tun off", "Disable TUN DNS interception", "Disables TUN in the selected profile override.", "nagi dns tun off", "", 0, 0},
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
-	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|tailscale SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|tailscale SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy healthcheck", "proxy healthcheck <show|set|reset> group|provider NAME [SECONDS]", "Manage configured healthcheck intervals", "Reads or changes the selected profile while offline; mutations validate and reload only when running. Provider and group schedulers may differ.", "nagi proxy healthcheck show group Auto", "", 0, -1},
+	{"proxy healthcheck show", "proxy healthcheck show group|provider NAME", "Show a healthcheck interval", "Reports interval, source, lazy setting, and scheduling caveats without probing nodes.", "nagi proxy healthcheck show provider work", "", 2, 2},
+	{"proxy healthcheck set", "proxy healthcheck set group|provider NAME SECONDS", "Save a healthcheck interval", "SECONDS must be 1..31536000. Changes interval only; provider enable and URL remain unchanged.", "nagi proxy healthcheck set group Auto 300", "", 3, 3},
+	{"proxy healthcheck reset", "proxy healthcheck reset group|provider NAME", "Restore the source healthcheck interval", "Removes only the local interval setting while retaining unrelated overrides.", "nagi proxy healthcheck reset group Auto", "", 2, 2},
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups in the current profile's order with their live selections.", "nagi proxy groups", "", 0, 0},
 	{"proxy show", "proxy show GROUP", "Show a proxy group", "Shows one group and its available nodes.", "nagi proxy show 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 1},
 	{"proxy search", "proxy search QUERY", "Search nodes", "Lists case-insensitive node-name matches by group.", "nagi proxy search Hong", "Run `nagi proxy groups` to inspect all nodes.", 1, 1},
@@ -160,7 +164,7 @@ var commandSpecs = []commandSpec{
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
-	{"completion candidates", "completion candidates profile|subscription|rules|profile-groups NAME|groups|nodes [GROUP]|providers|tailscale-nodes|tailscale-targets [node|provider|subscription]", "List completion candidates", "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
+	{"completion candidates", "completion candidates profile|subscription|rules|profile-groups NAME|groups|nodes [GROUP]|providers|tailscale-nodes|tailscale-targets [node|provider|subscription]|healthcheck-targets group|provider", "List completion candidates", "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
 }
 
 func findSpec(path string) *commandSpec {
@@ -270,6 +274,21 @@ func validateInvocation(args []string) error {
 		}
 	}
 
+	if strings.HasPrefix(spec.path, "proxy healthcheck ") {
+		if args[3] != "group" && args[3] != "provider" {
+			return syntaxError("KIND must be group or provider", spec)
+		}
+		if strings.TrimSpace(args[4]) == "" {
+			return syntaxError("NAME is required", spec)
+		}
+		if args[2] == "set" {
+			v, e := strconv.Atoi(args[5])
+			if e != nil || v < 1 || v > 31536000 {
+				return syntaxError("SECONDS must be an integer from 1 to 31536000", spec)
+			}
+		}
+	}
+
 	if spec.path == "proxy provider remove" {
 		if err := profile.ValidateProviderRemoval(args[3]); err != nil {
 			return syntaxError(err.Error(), spec)
@@ -297,12 +316,16 @@ func validateInvocation(args []string) error {
 		}
 	}
 	if spec.path == "completion candidates" {
-		if args[2] != "profile" && args[2] != "rules" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" && args[2] != "tailscale-nodes" && args[2] != "tailscale-targets" {
-			return syntaxError("RESOURCE must be profile, subscription, rules, profile-groups, groups, nodes, providers, tailscale-nodes, or tailscale-targets", spec)
+		if args[2] != "profile" && args[2] != "rules" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" && args[2] != "tailscale-nodes" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
+			return syntaxError("RESOURCE must be profile, subscription, rules, profile-groups, groups, nodes, providers, tailscale-nodes, tailscale-targets, or healthcheck-targets", spec)
 		}
-		if n == 2 && args[2] != "nodes" && args[2] != "profile-groups" && args[2] != "tailscale-targets" {
-			return syntaxError("second argument is only valid for nodes, profile-groups, or tailscale-targets", spec)
+		if n == 2 && args[2] != "nodes" && args[2] != "profile-groups" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
+			return syntaxError("second argument is only valid for nodes, profile-groups, tailscale-targets, or healthcheck-targets", spec)
 		}
+		if args[2] == "healthcheck-targets" && (n != 2 || args[3] != "group" && args[3] != "provider") {
+			return syntaxError("healthcheck-targets requires group or provider", spec)
+		}
+
 		if n == 2 && args[2] == "tailscale-targets" && args[3] != "node" && args[3] != "provider" && args[3] != "subscription" {
 			return syntaxError("KIND must be node, provider, or subscription", spec)
 		}

@@ -26,15 +26,16 @@ type Candidates []string
 func NewService(client Client) *Service { return &Service{Client: client} }
 
 type Group struct {
-	Name           string   `json:"name"`
-	Type           string   `json:"type"`
-	Now            string   `json:"now,omitempty"`
-	Fixed          string   `json:"fixed,omitempty"`
-	All            []string `json:"all,omitempty"`
-	Alive          bool     `json:"alive"`
-	SelectedStatus string   `json:"selected_status,omitempty"`
-	Hidden         bool     `json:"hidden,omitempty"`
-	Icon           string   `json:"icon,omitempty"`
+	Name           string               `json:"name"`
+	NodeDelays     map[string]NodeDelay `json:"node_delays,omitempty"`
+	Type           string               `json:"type"`
+	Now            string               `json:"now,omitempty"`
+	Fixed          string               `json:"fixed,omitempty"`
+	All            []string             `json:"all,omitempty"`
+	Alive          bool                 `json:"alive"`
+	SelectedStatus string               `json:"selected_status,omitempty"`
+	Hidden         bool                 `json:"hidden,omitempty"`
+	Icon           string               `json:"icon,omitempty"`
 }
 
 type Connection struct {
@@ -89,7 +90,7 @@ type BatchDelayResult struct {
 }
 
 func (s *Service) Delays(ctx context.Context, group, target string, timeoutMS int) (BatchDelayResult, error) {
-	g, err := s.Show(ctx, group)
+	g, err := s.ShowState(ctx, group)
 	if err != nil {
 		return BatchDelayResult{Group: group, URL: target, TimeoutMS: timeoutMS, Results: []BatchDelayItem{}}, err
 	}
@@ -217,7 +218,7 @@ func delayQuery(target string, timeoutMS int) url.Values {
 // Auto clears mihomo's fixed node for an automatic group. Selector groups
 // require a selection and cannot be reset through this endpoint.
 func (s *Service) Auto(ctx context.Context, group string) error {
-	g, err := s.Show(ctx, group)
+	g, err := s.ShowState(ctx, group)
 	if err != nil {
 		return err
 	}
@@ -233,23 +234,41 @@ func (s *Service) Auto(ctx context.Context, group string) error {
 	return c.Delete(ctx, "/proxies/"+url.PathEscape(group), nil)
 }
 
-func (s *Service) Groups(ctx context.Context) ([]Group, error) {
+func (s *Service) Groups(ctx context.Context) ([]Group, error)      { return s.groups(ctx, true) }
+func (s *Service) GroupsState(ctx context.Context) ([]Group, error) { return s.groups(ctx, false) }
+func (s *Service) groups(ctx context.Context, delays bool) ([]Group, error) {
 	if s == nil || s.Client == nil {
 		return nil, errors.New("proxy control client unavailable")
 	}
 	var response struct {
-		Proxies map[string]Group `json:"proxies"`
+		Proxies map[string]struct {
+			Group
+			History []historyRecord `json:"history"`
+			Extra   map[string]struct {
+				History []historyRecord `json:"history"`
+			} `json:"extra"`
+			TestURL string `json:"testUrl"`
+		} `json:"proxies"`
 	}
 	if err := s.Client.Get(ctx, "/proxies", &response); err != nil {
 		return nil, err
 	}
 	groups := make([]Group, 0)
-	for name, group := range response.Proxies {
+	top := map[string]proxyHistory{}
+	for name, raw := range response.Proxies {
+		top[name] = proxyHistory{History: raw.History, Extra: raw.Extra}
+	}
+	reader := groupHistoryReader{top: top}
+	for name, raw := range response.Proxies {
+		group := raw.Group
 		if len(group.All) == 0 {
 			continue
 		}
 		group.Name = name
 		group.SelectedStatus = selectedStatus(group)
+		if delays {
+			reader.decorate(ctx, s, &group, raw.TestURL)
+		}
 		groups = append(groups, group)
 	}
 	order := make(map[string]int, len(s.GroupOrder))
@@ -273,6 +292,12 @@ func (s *Service) Groups(ctx context.Context) ([]Group, error) {
 }
 
 func (s *Service) Show(ctx context.Context, group string) (Group, error) {
+	return s.show(ctx, group, true)
+}
+func (s *Service) ShowState(ctx context.Context, group string) (Group, error) {
+	return s.show(ctx, group, false)
+}
+func (s *Service) show(ctx context.Context, group string, delays bool) (Group, error) {
 	var result Group
 	if s == nil || s.Client == nil {
 		return result, errors.New("proxy control client unavailable")
@@ -280,8 +305,21 @@ func (s *Service) Show(ctx context.Context, group string) (Group, error) {
 	if group == "" {
 		return result, errors.New("proxy group required")
 	}
-	if err := s.Client.Get(ctx, "/proxies/"+url.PathEscape(group), &result); err != nil {
+	var raw struct {
+		Group
+		TestURL string `json:"testUrl"`
+	}
+	if err := s.Client.Get(ctx, "/proxies/"+url.PathEscape(group), &raw); err != nil {
 		return result, err
+	}
+	result = raw.Group
+	if delays {
+		var top struct {
+			Proxies map[string]proxyHistory `json:"proxies"`
+		}
+		_ = s.Client.Get(ctx, "/proxies", &top)
+		reader := groupHistoryReader{top: top.Proxies}
+		reader.decorate(ctx, s, &result, raw.TestURL)
 	}
 	if result.Name == "" {
 		result.Name = group
@@ -309,7 +347,7 @@ func (s *Service) Select(ctx context.Context, group, node string) error {
 	if node == "" {
 		return errors.New("proxy node required")
 	}
-	g, err := s.Show(ctx, group)
+	g, err := s.ShowState(ctx, group)
 	if err != nil {
 		return err
 	}

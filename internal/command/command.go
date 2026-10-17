@@ -314,6 +314,20 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				}
 				return names, nil
 			}
+
+			if args[2] == "healthcheck-targets" {
+				paths, e := nagiruntime.Resolve()
+				if e != nil {
+					return nil, e
+				}
+				store := profile.NewStore(paths.ConfigDir, nil, nil)
+				name, e := store.Current()
+				if e != nil {
+					return nil, e
+				}
+				names, e := store.HealthcheckTargets(name, args[3])
+				return output.Candidates(names), e
+			}
 			if args[2] == "tailscale-nodes" || args[2] == "tailscale-targets" {
 				paths, e := nagiruntime.Resolve()
 				if e != nil {
@@ -592,7 +606,8 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	}
 	addingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "add"
 	removingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "remove"
-	needsProfile := tailscaleInvocation(args) || addingProvider || removingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	healthcheck := command == "proxy" && len(args) > 1 && args[1] == "healthcheck"
+	needsProfile := healthcheck || tailscaleInvocation(args) || addingProvider || removingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -909,6 +924,29 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
+		if healthcheck {
+			store := profile.NewStore(paths.ConfigDir, nil, nil)
+			if args[2] != "show" {
+				var e error
+				store, e = getProfiles()
+				if e != nil {
+					return nil, fail("proxy_healthcheck_error", e)
+				}
+				var seconds *int
+				if args[2] == "set" {
+					v, _ := strconv.Atoi(args[5])
+					seconds = &v
+				}
+				if e = store.SetHealthcheck(ctx, profileName, args[3], args[4], seconds); e != nil {
+					return nil, fail("proxy_healthcheck_error", e)
+				}
+			}
+			r, e := store.Healthcheck(profileName, args[3], args[4])
+			if e != nil {
+				return nil, fail("proxy_healthcheck_error", e)
+			}
+			return r, nil
+		}
 		if tailscaleInvocation(args) {
 			var store *profile.Store
 			reloaded := false
@@ -1813,7 +1851,7 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		if len(args) == 5 {
 			timeoutMS, _ = strconv.Atoi(args[4])
 		}
-		g, err := service.Show(ctx, args[2])
+		g, err := service.ShowState(ctx, args[2])
 		if err != nil {
 			return nil, err
 		}
@@ -1829,7 +1867,7 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		if automatic && state == proxy.DelayResetUnknown {
 			// A transport failure may occur after the handler cleared the pin.
 			// Only a visible transition from fixed to automatic proves the reset.
-			observed, readErr := service.Show(ctx, args[2])
+			observed, readErr := service.ShowState(ctx, args[2])
 			if readErr == nil && g.Fixed != "" && observed.Fixed == "" {
 				state = proxy.DelayResetConfirmed
 			} else {

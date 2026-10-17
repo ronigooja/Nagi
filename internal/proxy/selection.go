@@ -230,7 +230,7 @@ func (s SelectionStore) Restore(ctx context.Context, profile string, service *Se
 	if len(choices) == 0 {
 		return result, nil
 	}
-	groups, err := service.Groups(ctx)
+	groups, err := service.GroupsState(ctx)
 	if err != nil {
 		return result, err
 	}

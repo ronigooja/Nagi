@@ -74,6 +74,13 @@ func bashCompletion(roots []string, children map[string][]string) string {
   if [[ ${semantic[0]} == rules && ${semantic[1]} == import ]]; then
     if [[ ${#semantic[@]} -eq 3 ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
   fi
+  if [[ ${semantic[0]} == proxy && ${semantic[1]} == healthcheck ]]; then
+    if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'show set reset' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'group provider' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 4 ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates healthcheck-targets "${semantic[3]}" 2>/dev/null); return 0
+    fi
+  fi
   if [[ ${semantic[0]} == proxy && ${semantic[1]} == tailscale ]]; then
     if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'list show targets add edit bind unbind remove' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -eq 3 && ( ${semantic[2]} == show || ${semantic[2]} == edit || ${semantic[2]} == bind || ${semantic[2]} == remove ) ]]; then
@@ -99,7 +106,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
   fi
   root="${semantic[0]}"
   if [[ ${#semantic[@]} -eq 2 && "$root" == completion && "${semantic[1]}" == candidates ]]; then
-    COMPREPLY=( $(compgen -W 'profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets' -- "$cur") ); return 0
+    COMPREPLY=( $(compgen -W 'profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets healthcheck-targets' -- "$cur") ); return 0
   fi
   if [[ ${#semantic[@]} -eq 2 ]]; then
     if [[ "$root" == profile && ( "${semantic[1]}" == use || "${semantic[1]}" == remove ) ]]; then
@@ -186,6 +193,11 @@ _nagi() {
   if [[ ${semantic[1]} == rules && ${semantic[2]} == import ]]; then
     if (( ${#semantic} == 3 )); then _files; return; fi
   fi
+  if [[ ${semantic[1]} == proxy && ${semantic[2]} == healthcheck ]]; then
+    if (( ${#semantic} == 2 )); then compadd -- show set reset; return; fi
+    if (( ${#semantic} == 3 )); then compadd -- group provider; return; fi
+    if (( ${#semantic} == 4 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets "${semantic[4]}" 2>/dev/null)"}; return; fi
+  fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == tailscale ]]; then
     if (( ${#semantic} == 2 )); then compadd -- list show targets add edit bind unbind remove; return; fi
     if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == show || ${semantic[3]} == edit || ${semantic[3]} == bind || ${semantic[3]} == remove ]]; then compadd -- ${(f)"$(nagi completion candidates tailscale-nodes 2>/dev/null)"}; return; fi
@@ -199,7 +211,7 @@ _nagi() {
   fi
   if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi
   if (( ${#semantic} == 0 )); then compadd -- %s; return; fi
-  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets; return; fi
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets healthcheck-targets; return; fi
   if (( ${#semantic} == 2 )); then
     if [[ ${semantic[1]} == profile && ( ${semantic[2]} == use || ${semantic[2]} == remove ) ]]; then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
     if [[ ${semantic[1]} == subscription && ( ${semantic[2]} == update || ${semantic[2]} == apply || ${semantic[2]} == remove || ${semantic[2]} == key || ${semantic[2]} == schedule ) ]]; then compadd -- ${(f)"$(nagi completion candidates subscription 2>/dev/null)"}; return; fi
@@ -252,6 +264,10 @@ function __nagi_semantic
   end
 end
 `)
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a 'show set reset'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a 'group provider'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a '(set -l s (__nagi_semantic); nagi completion candidates healthcheck-targets "$s[4]" 2>/dev/null)'
+`)
 	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = rules; and contains -- "$s[2]" remove enable disable' -a '(nagi completion candidates rules 2>/dev/null)'
 `)
 	b.WriteString(`complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = rules; and test "$s[2]" = import' -F
@@ -267,7 +283,7 @@ end
 		fmt.Fprintf(&b, "complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = %s' -a '%s'\n", root, shellWords(values))
 	}
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = mode' -a 'rule global direct'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets healthcheck-targets'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and contains -- $s[2] use remove' -a '(nagi completion candidates profile 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = subscription; and contains -- $s[2] update apply remove key schedule' -a '(nagi completion candidates subscription 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = subscription; and test \"$s[2]\" = key' -F -a clear\n")

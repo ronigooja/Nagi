@@ -41,6 +41,20 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return json.NewEncoder(w).Encode(Envelope{OK: true, Data: data})
 	}
 	switch v := data.(type) {
+	case profile.Healthcheck:
+		enabled := "unknown (attached provider scheduling)"
+		if v.Enabled != nil {
+			enabled = fmt.Sprint(*v.Enabled)
+		}
+		if err := line(w, fmt.Sprintf("%s %s: interval %d seconds (%s); enabled %s; lazy %t", v.Kind, v.Name, v.IntervalSeconds, v.Source, enabled, v.Lazy)); err != nil {
+			return err
+		}
+		if v.TestURL != "" {
+			if err := line(w, "Test URL origin: "+v.TestURL); err != nil {
+				return err
+			}
+		}
+		return line(w, v.Reason)
 	case string:
 		return line(w, v)
 	case Candidates:

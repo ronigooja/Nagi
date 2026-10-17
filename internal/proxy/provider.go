@@ -11,11 +11,12 @@ import (
 // Provider contains only public operational fields. The native response also
 // contains test URLs and full proxy definitions, which must not be returned.
 type Provider struct {
-	Name        string   `json:"name"`
-	Type        string   `json:"type"`
-	VehicleType string   `json:"vehicle_type"`
-	UpdatedAt   string   `json:"updated_at,omitempty"`
-	Nodes       []string `json:"nodes"`
+	Name        string               `json:"name"`
+	NodeDelays  map[string]NodeDelay `json:"node_delays"`
+	Type        string               `json:"type"`
+	VehicleType string               `json:"vehicle_type"`
+	UpdatedAt   string               `json:"updated_at,omitempty"`
+	Nodes       []string             `json:"nodes"`
 }
 
 func (s *Service) Providers(ctx context.Context) ([]Provider, error) {
@@ -24,13 +25,12 @@ func (s *Service) Providers(ctx context.Context) ([]Provider, error) {
 	}
 	var response struct {
 		Providers map[string]struct {
-			Name        string `json:"name"`
-			Type        string `json:"type"`
-			VehicleType string `json:"vehicleType"`
-			UpdatedAt   string `json:"updatedAt"`
-			Proxies     []struct {
-				Name string `json:"name"`
-			} `json:"proxies"`
+			Name        string         `json:"name"`
+			Type        string         `json:"type"`
+			VehicleType string         `json:"vehicleType"`
+			UpdatedAt   string         `json:"updatedAt"`
+			TestURL     string         `json:"testUrl"`
+			Proxies     []proxyHistory `json:"proxies"`
 		} `json:"providers"`
 	}
 	if err := s.Client.Get(ctx, "/providers/proxies", &response); err != nil {
@@ -41,9 +41,10 @@ func (s *Service) Providers(ctx context.Context) ([]Provider, error) {
 		if name == "COMPATIBLE" || raw.VehicleType == "Compatible" {
 			continue
 		}
-		p := Provider{Name: name, Type: raw.Type, VehicleType: raw.VehicleType, UpdatedAt: raw.UpdatedAt, Nodes: []string{}}
+		p := Provider{Name: name, Type: raw.Type, VehicleType: raw.VehicleType, UpdatedAt: raw.UpdatedAt, Nodes: []string{}, NodeDelays: map[string]NodeDelay{}}
 		for _, node := range raw.Proxies {
 			p.Nodes = append(p.Nodes, node.Name)
+			p.NodeDelays[node.Name] = latestDelay(node, raw.TestURL)
 		}
 		result = append(result, p)
 	}

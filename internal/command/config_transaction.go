@@ -44,6 +44,9 @@ func configMutation(args []string) bool {
 		if len(args) < 2 {
 			return false
 		}
+		if args[1] == "healthcheck" {
+			return len(args) > 2 && args[2] != "show"
+		}
 		if args[1] == "tailscale" {
 			return !tailscaleRead(args)
 		}
@@ -67,7 +70,7 @@ func transactionalMutation(args []string) bool {
 	}
 	switch args[0] {
 	case "proxy":
-		return tailscaleInvocation(args) && !tailscaleRead(args) || len(args) > 2 && args[1] == "provider" && (args[2] == "add" || args[2] == "remove")
+		return args[1] == "healthcheck" && len(args) > 2 && args[2] != "show" || tailscaleInvocation(args) && !tailscaleRead(args) || len(args) > 2 && args[1] == "provider" && (args[2] == "add" || args[2] == "remove")
 	case "profile":
 		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override" && (len(args) < 3 || args[2] != "default-status")
 	case "subscription":
