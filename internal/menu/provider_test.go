@@ -46,7 +46,7 @@ func TestProviderSessionRefreshesAfterUpdateAndDispatchesActions(t *testing.T) {
 			t.Fatalf("missing %v in %#v", want, r.calls)
 		}
 	}
-	if hasProxyCall(r.calls, []string{"proxy", "delay", "Old"}) || !strings.Contains(out.String(), "New (measure latency)") {
+	if hasProxyCall(r.calls, []string{"proxy", "delay", "Old"}) || !strings.Contains(out.String(), "New — untested (measure latency)") {
 		t.Fatalf("stale provider node: %s", out.String())
 	}
 }
@@ -185,7 +185,7 @@ func TestProviderDeleteReturnsToListOnlyOnSuccess(t *testing.T) {
 		}
 		s := NewSession(r, strings.NewReader(""), &bytes.Buffer{})
 		view, _ := providerDetailPage("work").Load(context.Background(), s)
-		nav, err := view.Actions[2].Navigate(context.Background(), s)
+		nav, err := view.Actions[len(view.Actions)-1].Navigate(context.Background(), s)
 		if err != nil || nav.Back == fails {
 			t.Fatalf("fails=%t navigation=%v err=%v", fails, nav, err)
 		}

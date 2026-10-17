@@ -9,15 +9,16 @@ import (
 )
 
 type menuProxyGroup struct {
-	Name           string   `json:"name"`
-	Type           string   `json:"type"`
-	Now            string   `json:"now"`
-	Fixed          string   `json:"fixed"`
-	All            []string `json:"all"`
-	Alive          bool     `json:"alive"`
-	SelectedStatus string   `json:"selected_status"`
-	Hidden         bool     `json:"hidden"`
-	Icon           string   `json:"icon"`
+	Name           string                   `json:"name"`
+	Type           string                   `json:"type"`
+	Now            string                   `json:"now"`
+	Fixed          string                   `json:"fixed"`
+	All            []string                 `json:"all"`
+	Alive          bool                     `json:"alive"`
+	SelectedStatus string                   `json:"selected_status"`
+	Hidden         bool                     `json:"hidden"`
+	Icon           string                   `json:"icon"`
+	NodeDelays     map[string]menuNodeDelay `json:"node_delays"`
 }
 
 func init() { RegisterPage("proxy", ProxyPage) }
@@ -120,8 +121,8 @@ type menuProxyMeasurement struct {
 
 func proxyGroupPage(name string) *Page { return proxyNodesPage(name, false) }
 
-// Measurements belong to the page, so refresh and node selection retain their
-// original order. Only a new successful batch test replaces that snapshot.
+// Batch ordering belongs to the page. Engine measurements remain authoritative
+// on every reload, including failures newer than the last batch.
 func proxyNodesPage(name string, testOnly bool) *Page {
 	measurements := map[string]menuProxyMeasurement{}
 	order := []string{}
@@ -182,6 +183,9 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 				view.Actions = append(view.Actions, Item{Label: "Resume automatic selection", Impact: "Clears this group's fixed choice and saved selection", Args: []string{"proxy", "auto", name}})
 			}
 		}
+		if !testOnly {
+			view.Actions = append(view.Actions, Item{Label: "Automatic latency checks", Next: func() *Page { return healthcheckPage("group", name) }})
+		}
 		if testOnly {
 			view.Context += "\nChoose a node to measure latency."
 		} else {
@@ -213,7 +217,9 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 		}
 		for _, node := range nodes {
 			label := node
-			if measurement, ok := measurements[node]; ok {
+			if delay, ok := group.NodeDelays[node]; ok {
+				label += " — " + delay.label()
+			} else if measurement, ok := measurements[node]; ok {
 				if measurement.DelayMS != nil {
 					label += fmt.Sprintf(" — %d ms", *measurement.DelayMS)
 				} else if measurement.Error != "" {
@@ -221,6 +227,8 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 				} else {
 					label += " — latency unknown"
 				}
+			} else {
+				label += " — untested"
 			}
 			if node == group.Now {
 				label += " (selected)"

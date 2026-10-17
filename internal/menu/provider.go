@@ -10,10 +10,11 @@ import (
 )
 
 type menuProvider struct {
-	Name        string   `json:"name"`
-	Type        string   `json:"type"`
-	VehicleType string   `json:"vehicle_type"`
-	Nodes       []string `json:"nodes"`
+	Name        string                   `json:"name"`
+	Type        string                   `json:"type"`
+	VehicleType string                   `json:"vehicle_type"`
+	Nodes       []string                 `json:"nodes"`
+	NodeDelays  map[string]menuNodeDelay `json:"node_delays"`
 }
 
 func init() { RegisterPage("provider", providerListPage) }
@@ -87,6 +88,8 @@ func providerDetailPage(name string) *Page {
 		view := PageView{Context: "Provider state: unknown", Actions: []Item{
 			{Label: "Update provider", Args: []string{"proxy", "provider", "update", name}},
 			{Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", name}},
+			{Label: "Automatic latency checks", Next: func() *Page { return healthcheckPage("provider", name) }},
+			{Label: "Show measurement details", Args: []string{"proxy", "provider", "show", name}},
 			{Label: "Delete provider", Impact: "Removes provider and group references; reloads running mihomo", Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
 				result := s.Run(ctx, "proxy", "provider", "remove", name)
 				s.ShowResult([]string{"proxy", "provider", "remove", name}, result)
@@ -100,7 +103,7 @@ func providerDetailPage(name string) *Page {
 		view.Context = fmt.Sprintf("Type: %s; nodes: %d", p.Type, len(p.Nodes))
 		for _, node := range p.Nodes {
 			// Make numbered provider nodes useful: invoke the canonical CLI latency check.
-			view.Items = append(view.Items, Item{Name: node, Label: node + " (measure latency)", Args: []string{"proxy", "delay", node}})
+			view.Items = append(view.Items, Item{Name: node, Label: node + " — " + p.NodeDelays[node].label() + " (measure latency)", Args: []string{"proxy", "delay", node}})
 		}
 		return view, nil
 	}}

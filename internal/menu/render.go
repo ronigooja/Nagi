@@ -208,9 +208,16 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
-		for _, k := range keys {
+		limit := len(keys)
+		if label == "node delays" && limit > pageSize {
+			limit = pageSize
+		}
+		for _, k := range keys[:limit] {
 			b, _ := json.Marshal(v[k])
 			s.renderValue(strings.ReplaceAll(k, "_", " "), b, depth+1)
+		}
+		if len(keys) > limit {
+			s.Printf("%s  %d more measurements; use the ordinary CLI for full details.\n", indent, len(keys)-limit)
 		}
 	case []any:
 		s.Printf("%s%s: %d entries\n", indent, label, len(v))
@@ -238,6 +245,10 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 			return
 		}
 		text := output.RedactError(fmt.Sprint(value))
+		if label == "test url" {
+			label = "test endpoint"
+			text = output.RedactError(menuTestEndpoint(fmt.Sprint(value)))
+		}
 		if strings.EqualFold(label, "profile") || strings.EqualFold(label, "selected profile") {
 			text = output.StyleProfileValue(text, s.styles)
 		} else if statusLabel(label) {
@@ -292,6 +303,9 @@ func mutationFeedback(args []string) string {
 			"backup": "Configuration backed up.", "restore": "Backup restored.", "remove": "Profile removed.",
 		}[args[1]]
 	case "proxy":
+		if args[1] == "healthcheck" && len(args) > 2 {
+			return map[string]string{"set": "Local healthcheck interval saved.", "reset": "Profile healthcheck interval restored."}[args[2]]
+		}
 		if args[1] == "provider" && len(args) > 2 {
 			return map[string]string{
 				"add": "Provider added.", "remove": "Provider removed.", "update": "Provider updated.", "healthcheck": "Healthcheck started.",
