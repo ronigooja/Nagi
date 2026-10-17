@@ -25,12 +25,6 @@ private final class SourceSettingsPanel: NSPanel {
     private let loadResult = NSTextField(wrappingLabelWithString: "Loading settings…")
     private let retryLoad = NSButton(title: "Retry Loading", target: nil, action: nil)
     private let closeButton = NSButton(title: "Close", target: nil, action: nil)
-    private let currentUpdate = NSTextField(wrappingLabelWithString: "")
-    private let currentInterval = NSTextField(wrappingLabelWithString: "")
-    private let currentURL = NSTextField(wrappingLabelWithString: "")
-    private let updateSource = NSTextField(wrappingLabelWithString: "")
-    private let intervalSource = NSTextField(wrappingLabelWithString: "")
-    private let urlSource = NSTextField(wrappingLabelWithString: "")
     private let checkContext = NSTextField(wrappingLabelWithString: "")
     private let automatic = NSButton(checkboxWithTitle: "Automatic updates", target: nil, action: nil)
     private let updateChoice = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -53,7 +47,7 @@ private final class SourceSettingsPanel: NSPanel {
         let panel = SourceSettingsPanel(contentRect: NSRect(x: 0, y: 0, width: 520, height: 620),
             styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: panel)
-        panel.title = page == .update ? "Update Settings" : "Latency Check Settings"
+        panel.title = "\(page == .update ? "Update Settings" : "Latency Check Settings") · \(name)"
         panel.delegate = self
         panel.requestClose = { [weak self] in self?.requestClose() }
         panel.isReleasedWhenClosed = false
@@ -100,11 +94,6 @@ private final class SourceSettingsPanel: NSPanel {
             body.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
             body.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24)
         ])
-        let heading = label(panel.title, heading: true)
-        heading.font = .systemFont(ofSize: 20, weight: .semibold)
-        body.addArrangedSubview(heading)
-        body.setCustomSpacing(4, after: heading)
-        body.addArrangedSubview(label("\(kind == "provider" ? "Provider" : "Subscription") · \(name)", secondary: true))
         body.addArrangedSubview(loadResult)
         retryLoad.target = self; retryLoad.action = #selector(retryInitial)
         body.addArrangedSubview(retryLoad)
@@ -117,14 +106,14 @@ private final class SourceSettingsPanel: NSPanel {
                 field.widthAnchor.constraint(equalTo: body.widthAnchor).isActive = true
             }
         }
-        for view in [loadResult, currentUpdate, currentInterval, currentURL, original, urlReason, updateSource, intervalSource, urlSource, checkContext] { configureLabel(view) }
-        for view in [original, urlReason, updateSource, intervalSource, urlSource, checkContext] {
+        for view in [loadResult, original, urlReason, checkContext] { configureLabel(view) }
+        for view in [original, urlReason, checkContext] {
             view.textColor = .secondaryLabelColor
             view.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         }
-        for (field, name) in [(updateCustom, "Custom update interval in seconds"), (intervalCustom, "Custom check interval in seconds"), (urlField, "Complete replacement test URL")] {
+        for (field, name) in [(updateCustom, "Custom update interval in seconds"), (intervalCustom, "Custom check interval in seconds"), (urlField, "Test URL")] {
             field.delegate = self; field.setAccessibilityLabel(name)
-            field.placeholderString = field === urlField ? "Complete HTTP(S) URL" : "Seconds (1–31536000)"
+            field.placeholderString = field === urlField ? "Full HTTP(S) URL" : "Seconds (1–31536000)"
             if field.superview != nil { field.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
         }
         for (control, name) in [(updateChoice, "Update interval"), (intervalMode, "Check interval source"),
@@ -135,7 +124,8 @@ private final class SourceSettingsPanel: NSPanel {
             control.target = self; control.action = #selector(draftChanged)
         }
         let visibleHeight = NSScreen.main?.visibleFrame.height ?? 800
-        panel.setContentSize(NSSize(width: 520, height: min(page == .update ? 440 : 680, max(260, visibleHeight - 90))))
+        let preferredHeight: CGFloat = page == .update ? (kind == "provider" ? 280 : 220) : 480
+        panel.setContentSize(NSSize(width: 520, height: min(preferredHeight, max(220, visibleHeight - 90))))
         render()
     }
 
@@ -172,37 +162,31 @@ private final class SourceSettingsPanel: NSPanel {
         retry.tag = tag(section); retries[section] = retry; add(retry)
     }
     private func buildUpdate() {
-        add(label(kind == "provider" ? "Automatically download this provider's node source." : "Automatically download and apply this subscription when eligible."))
-        add(currentUpdate); add(updateSource)
-        content.setCustomSpacing(2, after: currentUpdate)
-        add(automatic); add(label("Update interval", heading: true))
+        if kind == "subscription" { automatic.title = "Automatically download and apply" }
+        add(automatic)
+        add(label("Update interval", heading: true))
         updateChoice.addItems(withTitles: ["1 hour", "6 hours", "24 hours", "Custom…"])
         add(updateChoice); add(updateCustom)
-        add(label("When off, updates run only when you request them.", secondary: true))
         restore.target = self; restore.action = #selector(restoreClicked)
         if kind == "provider" {
             add(original)
             add(restore)
         }
-        sectionFooter(.update, title: "Save Update Settings")
+        sectionFooter(.update, title: "Save")
     }
     private func buildLatency() {
         add(checkContext)
-        add(label("Interval and test URL save separately. Saving does not enable disabled checks.", secondary: true))
-        add(label("Check interval", heading: true)); add(currentInterval); add(intervalSource)
-        content.setCustomSpacing(2, after: currentInterval)
+        add(label("Check interval", heading: true))
         intervalMode.addItems(withTitles: ["Use inherited settings", "Custom interval"])
         intervalChoice.addItems(withTitles: ["5 minutes", "10 minutes", "30 minutes", "1 hour", "Custom…"])
         add(intervalMode); add(intervalChoice); add(intervalCustom)
         sectionFooter(.interval, title: "Save Interval")
         let divider = NSBox(); divider.boxType = .separator; add(divider)
         divider.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
-        add(label("Test URL", heading: true)); add(currentURL); add(urlSource)
-        content.setCustomSpacing(2, after: currentURL)
-        urlMode.addItems(withTitles: ["Use inherited settings", "Replace test URL"])
+        add(label("Test URL", heading: true))
+        urlMode.addItems(withTitles: ["Use inherited settings", "Custom URL"])
         urlMode.autoenablesItems = false
         add(urlMode); add(urlReason); add(urlField)
-        add(label("The current URL shows only its redacted origin. Enter a complete URL to replace it.", secondary: true))
         sectionFooter(.url, title: "Save Test URL")
     }
     private func tag(_ section: SettingsSection) -> Int { section == .update ? 0 : section == .interval ? 1 : 2 }
@@ -254,7 +238,7 @@ private final class SourceSettingsPanel: NSPanel {
             intervalMode.isEnabled = editing && !state.pendingRefresh.contains(.interval)
             intervalChoice.isEnabled = intervalMode.isEnabled && !state.interval.inherited
             intervalCustom.isEnabled = intervalChoice.isEnabled
-            intervalCustom.isHidden = state.interval.interval.selectedIndex != state.interval.interval.presets.count
+            intervalCustom.isHidden = state.interval.inherited || state.interval.interval.selectedIndex != state.interval.interval.presets.count
             urlMode.isEnabled = editing && !state.pendingRefresh.contains(.url)
             urlMode.item(at: 0)?.isEnabled = state.canResetURL
             urlField.isEnabled = urlMode.isEnabled && !state.urlInherited
@@ -315,31 +299,26 @@ private final class SourceSettingsPanel: NSPanel {
                     throw CLIError.command("proxy_provider_error", "Provider update interval is unavailable.")
                 }
                 seconds = currentSeconds
-                currentUpdate.stringValue = Self.cadence(seconds)
-                updateSource.stringValue = "Source: \(Self.source(value["source"]?.string))"
                 original.stringValue = (value["source_interval_seconds"]?.int64).map { "Original cadence: \(Self.cadence($0))" } ?? "Original interval unavailable"
             } else {
                 seconds = try await model.subscriptionUpdateSettings(name)
-                currentUpdate.stringValue = Self.cadence(seconds)
-                updateSource.stringValue = "Source: saved subscription schedule"
             }
             if initialize || restore { state.loadUpdate(seconds: seconds); syncControls([.update]) }
         } else {
             let value = try await model.healthcheckSettings(kind: kind, name: name)
             snapshot = value
             let seconds = value["interval_seconds"]?.int64
-            let cadence = seconds.flatMap { $0 > 0 ? Self.cadence($0) : nil } ?? "Source-dependent; effective interval unavailable"
             let detail: String
             if kind == "provider" { detail = (value["enabled"]?.bool).map { $0 ? "Own checks enabled" : "Own checks disabled" } ?? "Own check state unavailable" }
             else { detail = (value["profile"]?.string).flatMap { $0.isEmpty ? nil : "Profile: \($0)" } ?? "Not yet applied" }
             checkContext.stringValue = detail
-            currentInterval.stringValue = cadence
-            intervalSource.stringValue = "Source: \(Self.source(value["source"]?.string))"
-            currentURL.stringValue = value["test_url"]?.string ?? "Inherited URL unavailable; values may vary by group"
-            urlSource.stringValue = "Source: \(Self.source(value["url_source"]?.string))"
             if initialize {
                 state.loadInterval(seconds: seconds.flatMap { $0 > 0 ? $0 : nil }, inherited: value["source"]?.string != "override")
-                state.loadURL(inherited: value["url_source"]?.string != "override", canReset: value["can_reset_url"]?.bool != false)
+            }
+            if initialize || section == .url {
+                state.loadURL(inherited: value["url_source"]?.string != "override", canReset: value["can_reset_url"]?.bool != false,
+                    value: value["test_url"]?.string ?? "")
+                syncControls([.url])
             }
         }
     }
@@ -401,9 +380,6 @@ private final class SourceSettingsPanel: NSPanel {
             guard alert.runModal() == .alertSecondButtonReturn else { return }
         }
         NSApp.stopModal()
-    }
-    private static func source(_ raw: String?) -> String {
-        switch raw { case "override": return "local setting"; case "subscription": return "subscription"; case "profile": return "original configuration"; default: return "unknown" }
     }
     private static func cadence(_ seconds: Int64) -> String {
         if seconds == 0 { return "Manual updates only" }

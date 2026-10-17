@@ -1020,7 +1020,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 					return nil, fail("proxy_healthcheck_error", e)
 				}
 				if args[2] == "show" {
-					return subscriptionHealthcheckResult(entry), nil
+					r := subscriptionHealthcheckResult(entry)
+					if len(args) == 6 {
+						r.TestURL = r.FullTestURL
+					}
+					return r, nil
 				}
 				var seconds *int
 				if args[2] == "set" {
@@ -1059,6 +1063,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			r, e := store.Healthcheck(profileName, args[3], args[4])
 			if e != nil {
 				return nil, fail("proxy_healthcheck_error", e)
+			}
+			if args[2] == "show" && len(args) == 6 {
+				r.TestURL = r.FullTestURL
 			}
 			return r, nil
 		}

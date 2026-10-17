@@ -584,7 +584,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         busy = true
         defer { busy = false }
         await waitForConnectionsOperation()
-        return try await runCommand(["proxy", "healthcheck", "show", kind, name])
+        return try await runCommand(["proxy", "healthcheck", "show", kind, name, "--full-url"])
     }
 
     func saveHealthcheckSettings(kind: String, name: String, seconds: Int64?) async -> String? {

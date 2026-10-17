@@ -73,7 +73,7 @@ final class SourceSettingsStateTests: XCTestCase {
         XCTAssertTrue(session.canSaveURL)
     }
 
-    func testReplacementURLStartsBlankAndRejectsUnsafeOrIncompleteValues() {
+    func testMissingURLStartsBlankAndRejectsUnsafeOrIncompleteValues() {
         var session = SourceSettingsSession()
         session.loadURL(inherited: false, canReset: true)
         XCTAssertEqual(session.urlText, "")
@@ -86,6 +86,38 @@ final class SourceSettingsStateTests: XCTestCase {
         XCTAssertTrue(session.canSaveURL)
         session.urlInherited = true
         XCTAssertTrue(session.canSaveURL)
+    }
+
+    func testFullSavedURLIsEditableAndRemainsAfterSave() {
+        var session = SourceSettingsSession()
+        let saved = "https://example.invalid/check?token=placeholder"
+        session.loadURL(inherited: false, canReset: true, value: saved)
+        XCTAssertEqual(session.urlText, saved)
+        XCTAssertFalse(session.dirty)
+        XCTAssertFalse(session.canSaveURL)
+        session.urlText = ""
+        XCTAssertTrue(session.needsDiscardConfirmation)
+        XCTAssertFalse(session.canSaveURL)
+        session.urlText = saved + "&status=204"
+        XCTAssertTrue(session.canSaveURL)
+        XCTAssertTrue(session.begin(.url))
+        session.saveSucceeded(.url)
+        session.failed(.url) // Refresh failure must retain the saved full value.
+        XCTAssertEqual(session.urlText, saved + "&status=204")
+        XCTAssertFalse(session.urlChanged)
+        XCTAssertFalse(session.canSaveURL)
+    }
+
+    func testInheritedFullURLCanBecomeCustomWithoutRetyping() {
+        var session = SourceSettingsSession()
+        let saved = "https://example.invalid/path?status=204"
+        session.loadURL(inherited: true, canReset: true, value: saved)
+        XCTAssertEqual(session.urlText, saved)
+        XCTAssertFalse(session.dirty)
+        session.urlInherited = false
+        XCTAssertTrue(session.canSaveURL)
+        session.urlInherited = true
+        XCTAssertFalse(session.dirty)
     }
 
     func testUnappliedSubscriptionCanSetIntervalWithoutInheritedSeconds() {

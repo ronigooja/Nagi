@@ -52,13 +52,11 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			if err := line(w, fmt.Sprintf("subscription %s: follows subscription configuration and mihomo defaults", v.Name)); err != nil {
 				return err
 			}
-			return line(w, v.Reason)
-		}
-		if err := line(w, fmt.Sprintf("%s %s: interval %d seconds (%s); enabled %s; lazy %t", v.Kind, v.Name, v.IntervalSeconds, v.Source, enabled, v.Lazy)); err != nil {
+		} else if err := line(w, fmt.Sprintf("%s %s: interval %d seconds (%s); enabled %s; lazy %t", v.Kind, v.Name, v.IntervalSeconds, v.Source, enabled, v.Lazy)); err != nil {
 			return err
 		}
 		if v.TestURL != "" {
-			if err := line(w, "Test URL origin: "+v.TestURL+" ("+v.URLSource+")"); err != nil {
+			if err := line(w, "Test URL: "+v.TestURL+" ("+v.URLSource+")"); err != nil {
 				return err
 			}
 		}

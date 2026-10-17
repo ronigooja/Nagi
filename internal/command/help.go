@@ -84,7 +84,7 @@ var commandSpecs = []commandSpec{
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
 	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|tailscale SUBCOMMAND|test SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy healthcheck", "proxy healthcheck <show|set|reset|url> group|provider|subscription NAME [SECONDS]", "Manage configured healthcheck intervals and test URLs", "Reads or changes local configuration while offline. Subscription settings can be saved before first apply; associated profiles validate and reload only when selected and running. Provider and group schedulers may differ.", "nagi proxy healthcheck show group Auto", "", 0, -1},
-	{"proxy healthcheck show", "proxy healthcheck show group|provider|subscription NAME", "Show automatic-check settings", "Reports interval, sanitized test URL, their sources, lazy setting, and scheduling caveats without probing nodes.", "nagi proxy healthcheck show provider work", "", 2, 2},
+	{"proxy healthcheck show", "proxy healthcheck show group|provider|subscription NAME [--full-url]", "Show automatic-check settings", "Reports interval, test URL origin, sources, lazy setting, and scheduling caveats without probing nodes. --full-url includes the complete saved test URL for editing.", "nagi proxy healthcheck show provider work", "", 2, 3},
 	{"proxy healthcheck set", "proxy healthcheck set group|provider|subscription NAME SECONDS", "Save a healthcheck interval", "SECONDS must be 1..31536000. Changes interval only; provider enable and URL remain unchanged.", "nagi proxy healthcheck set group Auto 300", "", 3, 3},
 	{"proxy healthcheck reset", "proxy healthcheck reset group|provider|subscription NAME", "Restore the source healthcheck interval", "Removes only the local interval setting while retaining unrelated overrides.", "nagi proxy healthcheck reset group Auto", "", 2, 2},
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups in the current profile's order with their live selections.", "nagi proxy groups", "", 0, 0},
@@ -93,7 +93,7 @@ var commandSpecs = []commandSpec{
 	{"proxy select", "proxy select GROUP NODE", "Select a proxy node", "Selects a node in a group and saves the choice for the selected profile.", "nagi proxy select 'Proxy Group' 'Node A'", "Run `nagi proxy groups` and `nagi proxy show GROUP` to find names.", 2, 2},
 	{"proxy auto", "proxy auto GROUP", "Resume automatic selection", "Clears the fixed node of a URLTest or Fallback group and removes its saved choice.", "nagi proxy auto 'Auto Group'", "Run `nagi proxy groups` to find an automatic group.", 1, 1},
 	{"proxy healthcheck url", "proxy healthcheck url <set|reset> group|provider|subscription NAME [URL]", "Manage persistent test URLs", "Changes only native healthcheck URLs, independently of intervals.", "nagi proxy healthcheck url set provider work https://example.com/check", "", 0, -1},
-	{"proxy healthcheck url set", "proxy healthcheck url set group|provider|subscription NAME URL", "Save a test URL", "URL must be absolute HTTP(S), without userinfo or fragment. Saved URLs remain private; inspection shows only their origin.", "nagi proxy healthcheck url set group Auto https://example.com/check", "", 3, 3},
+	{"proxy healthcheck url set", "proxy healthcheck url set group|provider|subscription NAME URL", "Save a test URL", "URL must be absolute HTTP(S), without userinfo or fragment. Inspection shows the origin by default; show --full-url returns the complete test URL.", "nagi proxy healthcheck url set group Auto https://example.com/check", "", 3, 3},
 	{"proxy healthcheck url reset", "proxy healthcheck url reset group|provider|subscription NAME", "Restore the inherited test URL", "Removes only the local URL setting.", "nagi proxy healthcheck url reset provider work", "", 2, 2},
 	{"proxy provider interval", "proxy provider interval <show|set|reset> NAME [SECONDS|off]", "Manage provider download intervals", "Changes downloads independently of latency checks. Off disables automatic downloads.", "nagi proxy provider interval show work", "", 0, -1},
 	{"proxy provider interval show", "proxy provider interval show NAME", "Show provider download interval", "Reads local configuration while stopped.", "nagi proxy provider interval show work", "", 1, 1},
@@ -277,6 +277,9 @@ func validateInvocation(args []string) error {
 		}
 	}
 
+	if spec.path == "proxy healthcheck show" && n == 3 && args[5] != "--full-url" {
+		return syntaxError("expected --full-url", spec)
+	}
 	if strings.HasPrefix(spec.path, "proxy healthcheck ") && !strings.HasPrefix(spec.path, "proxy healthcheck url") {
 		if args[3] != "group" && args[3] != "provider" && args[3] != "subscription" {
 			return syntaxError("KIND must be group, provider, or subscription", spec)

@@ -101,6 +101,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
       fi
       return 0
     fi
+    if [[ ${#semantic[@]} -eq 5 && ${semantic[2]} == show ]]; then COMPREPLY=( $(compgen -W '--full-url' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'show set reset url' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'group provider subscription' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -eq 4 ]]; then
@@ -242,6 +243,7 @@ _nagi() {
       if (( ${#semantic} == 5 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets "${semantic[5]}" 2>/dev/null)"}; return; fi
       return
     fi
+    if (( ${#semantic} == 5 )) && [[ ${semantic[3]} == show ]]; then compadd -- --full-url; return; fi
     if (( ${#semantic} == 2 )); then compadd -- show set reset url; return; fi
     if (( ${#semantic} == 3 )); then compadd -- group provider subscription; return; fi
     if (( ${#semantic} == 4 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets "${semantic[4]}" 2>/dev/null)"}; return; fi
@@ -320,6 +322,7 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and t
 `)
 	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a 'show set reset url'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" != url' -a 'group provider subscription'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" = show' -l full-url -d 'Include complete test URL'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" != url' -a '(set -l s (__nagi_semantic); nagi completion candidates healthcheck-targets "$s[4]" 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" = url' -a 'set reset'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" = url' -a 'group provider subscription'

@@ -75,6 +75,7 @@ type Healthcheck struct {
 	URLSource         string `json:"url_source"`
 	CanResetURL       bool   `json:"can_reset_url"`
 	TestURL           string `json:"test_url,omitempty"`
+	FullTestURL       string `json:"-"`
 	Reason            string `json:"reason,omitempty"`
 	IntervalDefaulted bool   `json:"interval_defaulted"`
 }
@@ -300,6 +301,7 @@ func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) 
 	u, e := url.Parse(raw)
 	if e == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") {
 		r.TestURL = u.Scheme + "://" + u.Host
+		r.FullTestURL = raw
 	}
 	return r, nil
 }

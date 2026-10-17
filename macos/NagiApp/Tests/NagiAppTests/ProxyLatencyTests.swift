@@ -124,7 +124,7 @@ import AppKit
             _ = try await model.healthcheckSettings(kind: "provider", name: "feed")
             XCTFail("Expected failure")
         } catch {}
-        XCTAssertEqual(calls, [["proxy", "healthcheck", "show", "provider", "feed"]])
+        XCTAssertEqual(calls, [["proxy", "healthcheck", "show", "provider", "feed", "--full-url"]])
         XCTAssertFalse(model.busy)
     }
     func testGroupAndBuiltinRowsKeepNamesAndSelectionWithoutMeasurements() throws {

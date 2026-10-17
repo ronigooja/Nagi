@@ -85,7 +85,7 @@ import XCTest
     func testSavedMutationWithFailedRefreshRetriesReadWithoutRepeatingWrite() async {
         let commands = Commands(), model = commands.model()
         let write = ["proxy", "healthcheck", "url", "set", "subscription", "work", "https://example.invalid/check"]
-        let read = ["proxy", "healthcheck", "show", "subscription", "work"]
+        let read = ["proxy", "healthcheck", "show", "subscription", "work", "--full-url"]
         var session = SourceSettingsSession()
         session.loadURL(inherited: true, canReset: true)
         session.urlInherited = false
@@ -120,7 +120,7 @@ import XCTest
 
     func testFailedReadRetriesOnlyReadAndReleasesOperation() async {
         let commands = Commands(), model = commands.model()
-        let read = ["proxy", "healthcheck", "show", "subscription", "work"]
+        let read = ["proxy", "healthcheck", "show", "subscription", "work", "--full-url"]
         commands.failures.insert(read)
         do {
             _ = try await model.healthcheckSettings(kind: "subscription", name: "work")

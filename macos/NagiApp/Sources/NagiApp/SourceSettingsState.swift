@@ -44,6 +44,7 @@ struct SourceSettingsSession {
     private(set) var updateBaseline: Int64?
     private(set) var intervalBaseline: LatencyIntervalDraft?
     private(set) var urlInheritedBaseline = true
+    private(set) var urlTextBaseline = ""
     private(set) var busy: SettingsSection?
     private(set) var pendingRefresh: Set<SettingsSection> = []
 
@@ -55,15 +56,16 @@ struct SourceSettingsSession {
         interval = .init(inherited: inherited, interval: .init(presets: interval.interval.presets, seconds: seconds))
         intervalBaseline = interval
     }
-    mutating func loadURL(inherited: Bool, canReset: Bool) {
+    mutating func loadURL(inherited: Bool, canReset: Bool, value: String = "") {
         canResetURL = canReset
         urlInherited = inherited && canReset
         urlInheritedBaseline = urlInherited
-        urlText = ""
+        urlText = value
+        urlTextBaseline = value
     }
     var updateChanged: Bool { updateBaseline != nil && (update.value != updateBaseline || !update.isValid) }
     var intervalChanged: Bool { intervalBaseline.map { !interval.hasSameSetting(as: $0) || !interval.isValid } ?? false }
-    var urlChanged: Bool { urlInherited != urlInheritedBaseline || (!urlInherited && !urlText.isEmpty) }
+    var urlChanged: Bool { urlInherited != urlInheritedBaseline || (!urlInherited && urlText != urlTextBaseline) }
     var dirty: Bool { updateChanged || intervalChanged || urlChanged }
     var canClose: Bool { busy == nil }
     var needsDiscardConfirmation: Bool { dirty && canClose }
@@ -88,7 +90,7 @@ struct SourceSettingsSession {
         switch section {
         case .update: updateBaseline = update.value
         case .interval: intervalBaseline = interval
-        case .url: urlInheritedBaseline = urlInherited; urlText = ""
+        case .url: urlInheritedBaseline = urlInherited; urlTextBaseline = urlText
         }
         pendingRefresh.insert(section)
     }

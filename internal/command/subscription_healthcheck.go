@@ -19,6 +19,7 @@ func subscriptionHealthcheckResult(entry subscription.Entry) profile.Healthcheck
 	if entry.HealthcheckURL != nil {
 		u, _ := url.Parse(*entry.HealthcheckURL)
 		r.TestURL = u.Scheme + "://" + u.Host
+		r.FullTestURL = *entry.HealthcheckURL
 		r.URLSource = "override"
 	}
 	return r

@@ -19,7 +19,7 @@ import XCTest
                     return try JSONDecoder().decode(JSONValue.self, from: Data("""
                     {"interval_seconds":3600,"source":"override","source_interval_seconds":21600,
                      "can_reset":true,"url_source":"override","can_reset_url":false,
-                     "test_url":"https://example.invalid","enabled":false,"profile":"",
+                     "test_url":"https://example.invalid/check?token=placeholder","enabled":false,"profile":"",
                      "subscriptions":[{"name":"work","schedule_seconds":3600}]}
                     """.utf8))
                 })
@@ -39,6 +39,12 @@ import XCTest
                 XCTAssertFalse(model.busy)
                 if page == .latency {
                     XCTAssertTrue(labels.contains { $0.stringValue == (kind == "provider" ? "Own checks disabled" : "Not yet applied") })
+                    XCTAssertTrue(labels.contains { $0.isEditable && $0.stringValue == "https://example.invalid/check?token=placeholder" })
+                    XCTAssertTrue(buttons.contains { $0.title == "Save Test URL" && !$0.isEnabled })
+                    XCTAssertEqual(calls.first, ["proxy", "healthcheck", "show", kind, "work", "--full-url"])
+                } else {
+                    XCTAssertEqual(choices.first?.titleOfSelectedItem, "1 hour")
+                    XCTAssertTrue(buttons.contains { $0.title == "Save" && !$0.isEnabled })
                 }
             }
         }
@@ -60,6 +66,6 @@ import XCTest
         await controller.loadSettings()
         XCTAssertTrue(controller.window === window)
         XCTAssertEqual(attempts, 2)
-        XCTAssertTrue(descendants(root, of: NSTextField.self).contains { $0.stringValue == "Every hour" })
+        XCTAssertEqual(descendants(root, of: NSPopUpButton.self).first?.titleOfSelectedItem, "1 hour")
     }
 }
