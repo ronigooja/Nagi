@@ -248,19 +248,20 @@ import AppKit
         else if model.providers.isEmpty { disabled("No proxy providers", to: providersMenu) }
         for provider in model.providers {
             let actions = NSMenu()
-            add("Update", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
-            add("Healthcheck", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: actions)
+            disabled("\(provider.type) · \(provider.nodes.count) nodes", to: actions)
+            actions.addItem(.separator())
+            add("Update Nodes Now", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
             let tests = NSMenu()
+            add("All Nodes", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: tests)
+            if !provider.testableNodes.isEmpty { tests.addItem(.separator()) }
             for node in provider.testableNodes {
                 let item = add("\(node) · \(provider.nodeDelays[node]?.label ?? "Untested")", command: ["proxy", "test", "provider", provider.name, node], enabled: model.state == .running && !model.busy, to: tests)
                 item.toolTip = (provider.nodeDelays[node] ?? NodeDelay()).detail
             }
-            addSubmenu("Test Single Node", tests, enabled: !provider.testableNodes.isEmpty && model.state == .running, to: actions)
-            addHealthcheckSettings(kind: "provider", name: provider.name, to: actions)
-            add("Update Interval…", action: #selector(updateIntervalSettings(_:)), enabled: !model.busy, to: actions).representedObject = ["provider", provider.name]
+            addSubmenu("Test Latency", tests, enabled: model.state == .running && !model.busy, to: actions)
+            add("Provider Settings…", action: #selector(providerSettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
+            actions.addItem(.separator())
             add("Delete Provider", command: provider.removeCommand, enabled: !model.busy, to: actions)
-            let metadata = NSMenuItem(title: "\(provider.type) · \(provider.nodes.count) nodes", action: nil, keyEquivalent: "")
-            metadata.isEnabled = false; actions.addItem(metadata)
             addSubmenu(provider.name, actions, to: providersMenu)
         }
         addSubmenu("Proxy Providers", providersMenu, enabled: !model.busy)
@@ -456,6 +457,143 @@ import AppKit
         }
         addSubmenu("Test Single Node", singleTests, enabled: !group.testableNodes.isEmpty, to: choices)
         return choices
+    }
+
+    @objc private func providerSettings(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String, !model.busy else { return }
+        Task {
+            do {
+                var download = try await model.providerUpdateSettings(name)
+                var latency = try await model.healthcheckSettings(kind: "provider", name: name)
+                let alert = NSAlert()
+                alert.messageText = "Provider Settings · \(name)"
+                let guidance = "Profile: \(download["profile"]?.string ?? "unknown"). Save each section separately. Each save applies only that section; other edits stay here until saved."
+                alert.informativeText = guidance
+                let form = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 450))
+                func label(_ title: String, y: CGFloat, height: CGFloat = 20) -> NSTextField {
+                    let field = NSTextField(wrappingLabelWithString: title)
+                    field.frame = NSRect(x: 0, y: y, width: 500, height: height)
+                    form.addSubview(field)
+                    return field
+                }
+                func mode(y: CGFloat, inherit: String) -> NSPopUpButton {
+                    let popup = NSPopUpButton(frame: NSRect(x: 0, y: y, width: 500, height: 26))
+                    popup.addItems(withTitles: ["Set a local value", inherit])
+                    form.addSubview(popup)
+                    return popup
+                }
+                _ = label("Node source download interval", y: 420)
+                let downloadCurrent = label("", y: 382, height: 36)
+                let downloadMode = mode(y: 352, inherit: "Use original download interval")
+                let downloadInput = NSComboBox(frame: NSRect(x: 0, y: 322, width: 500, height: 24))
+                downloadInput.isEditable = true
+                downloadInput.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
+                downloadInput.stringValue = (download["interval_seconds"]?.int64).map { $0 == 0 ? "off" : String($0) } ?? ""
+                form.addSubview(downloadInput)
+                _ = label("Automatic latency check interval", y: 292)
+                let latencyCurrent = label("", y: 238, height: 50)
+                let latencyMode = mode(y: 208, inherit: "Inherit subscription or original interval")
+                let latencyInput = NSTextField(frame: NSRect(x: 0, y: 178, width: 500, height: 24))
+                latencyInput.stringValue = (latency["interval_seconds"]?.int64).flatMap { $0 > 0 ? String($0) : nil } ?? ""
+                latencyInput.placeholderString = "1–31536000 seconds"
+                form.addSubview(latencyInput)
+                _ = label("Latency test URL", y: 148)
+                let urlCurrent = label("", y: 94, height: 50)
+                let urlMode = mode(y: 64, inherit: "Inherit subscription or original URL")
+                let urlInput = NSTextField(frame: NSRect(x: 0, y: 34, width: 500, height: 24))
+                // The CLI exposes only the redacted origin, never the complete URL.
+                urlInput.placeholderString = "Enter a complete HTTP(S) URL to replace the current URL"
+                form.addSubview(urlInput)
+                alert.accessoryView = form
+                alert.addButton(withTitle: "Save Download")
+                alert.addButton(withTitle: "Done")
+                alert.addButton(withTitle: "Save Auto Latency")
+                alert.addButton(withTitle: "Save Test URL")
+                // Editing a field and pressing Return must not save another section.
+                alert.buttons[0].keyEquivalent = ""
+                alert.buttons[1].keyEquivalent = "\r"
+                func updateCurrentValues() {
+                    let downloadValue = (download["interval_seconds"]?.int64).map { $0 == 0 ? "off" : "\($0) seconds" } ?? "unknown"
+                    downloadCurrent.stringValue = "Current: \(downloadValue) · Source: \(download["source"]?.string ?? "unknown")\nEnter 1–31536000 seconds, or off."
+                    downloadMode.item(at: 1)?.isEnabled = download["can_reset"]?.bool == true
+                    downloadMode.toolTip = download["can_reset"]?.bool == true ? "Restore the source profile’s download interval." : "This provider has no source interval to restore."
+                    let interval = (latency["interval_seconds"]?.int64).flatMap { $0 > 0 ? "\($0) seconds" : nil } ??
+                        (latency["interval_defaulted"]?.bool == true ? "mihomo default" : "unknown")
+                    let enabled = (latency["enabled"]?.bool).map { $0 ? "enabled" : "disabled" } ?? "unknown"
+                    latencyCurrent.stringValue = "Current: \(interval) · Source: \(latency["source"]?.string ?? "unknown")\nOwn checks: \(enabled). Saving does not enable disabled checks; unused checks may be skipped."
+                    urlCurrent.stringValue = "Current origin (redacted): \(latency["test_url"]?.string ?? "not configured")\nSource: \(latency["url_source"]?.string ?? "unknown") · Enter the complete URL to replace it."
+                    urlMode.item(at: 1)?.isEnabled = latency["can_reset_url"]?.bool != false
+                    urlMode.toolTip = latency["can_reset_url"]?.bool == false ? "No usable inherited test URL is available." : "Restore the subscription or source test URL."
+                }
+                updateCurrentValues()
+                while true {
+                    let response = alert.runModal()
+                    let arguments: [String]
+                    let section: String
+                    switch response.rawValue {
+                    case NSApplication.ModalResponse.alertFirstButtonReturn.rawValue:
+                        section = "Download interval"
+                        if downloadMode.indexOfSelectedItem == 1 {
+                            arguments = ["proxy", "provider", "interval", "reset", name]
+                        } else {
+                            let seconds = downloadInput.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard Self.validUpdateInterval(seconds) else {
+                                alert.informativeText = "Download interval: enter 1–31536000 seconds, or off.\n" + guidance
+                                continue
+                            }
+                            arguments = ["proxy", "provider", "interval", "set", name, seconds]
+                        }
+                    case NSApplication.ModalResponse.alertThirdButtonReturn.rawValue:
+                        section = "Automatic latency interval"
+                        if latencyMode.indexOfSelectedItem == 1 {
+                            arguments = ["proxy", "healthcheck", "reset", "provider", name]
+                        } else {
+                            guard let seconds = Int64(latencyInput.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
+                                  (1...31_536_000).contains(seconds) else {
+                                alert.informativeText = "Automatic latency interval: enter 1–31536000 seconds.\n" + guidance
+                                continue
+                            }
+                            arguments = ["proxy", "healthcheck", "set", "provider", name, String(seconds)]
+                        }
+                    case NSApplication.ModalResponse.alertThirdButtonReturn.rawValue + 1:
+                        section = "Latency test URL"
+                        if urlMode.indexOfSelectedItem == 1 {
+                            arguments = ["proxy", "healthcheck", "url", "reset", "provider", name]
+                        } else {
+                            let url = urlInput.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard Self.validTestURL(url), url.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else {
+                                alert.informativeText = "Test URL: enter a complete HTTP(S) URL without credentials, whitespace, or a fragment.\n" + guidance
+                                continue
+                            }
+                            arguments = ["proxy", "healthcheck", "url", "set", "provider", name, url]
+                        }
+                    default:
+                        return
+                    }
+                    // Exactly one CLI mutation per save: no combined success can hide a partial failure.
+                    if let failure = await model.saveSourceSetting(arguments) {
+                        alert.informativeText = "\(section) change failed: \(failure)\nYour edits are retained. Earlier successful saves remain applied."
+                        continue
+                    }
+                    alert.informativeText = "\(section) saved.\n" + guidance
+                    do {
+                        download = try await model.providerUpdateSettings(name)
+                        latency = try await model.healthcheckSettings(kind: "provider", name: name)
+                        updateCurrentValues()
+                    } catch {
+                        downloadCurrent.stringValue = "Current download settings unavailable; reopen to refresh."
+                        latencyCurrent.stringValue = "Current latency settings unavailable; reopen to refresh."
+                        urlCurrent.stringValue = "Current URL origin unavailable; reopen to refresh."
+                        alert.informativeText = "\(section) saved, but current settings could not be refreshed: \(error.localizedDescription)\nOther edits are retained."
+                    }
+                }
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Provider settings unavailable"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
+        }
     }
 
     private func addHealthcheckSettings(kind: String, name: String, to target: NSMenu) {
