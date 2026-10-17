@@ -217,6 +217,11 @@ func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) 
 	if r.IntervalDefaulted {
 		r.Reason += " Interval is omitted or zero; mihomo defaults apply."
 	}
+	if interval, e := s.subscriptionHealthcheck(name); e != nil {
+		return r, e
+	} else if interval != nil && (kind == "provider" && fields != nil || kind == "group" && subscriptionGroupEligible(target)) {
+		r.Source = "subscription"
+	}
 	local, _ := healthTarget(overlay, kind, targetName)
 	localFields := healthFields(local, kind)
 	if value, ok := localFields["interval"]; ok {
@@ -225,6 +230,9 @@ func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) 
 			original, _ := healthTarget(source, kind, targetName)
 			if reflect.DeepEqual(value, original["interval"]) {
 				r.Source = "profile"
+				if interval, _ := s.subscriptionHealthcheck(name); interval != nil && subscriptionGroupEligible(target) {
+					r.Source = "subscription"
+				}
 			}
 		}
 	}

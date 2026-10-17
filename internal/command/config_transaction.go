@@ -74,7 +74,7 @@ func transactionalMutation(args []string) bool {
 	case "profile":
 		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override" && (len(args) < 3 || args[2] != "default-status")
 	case "subscription":
-		return args[1] == "apply"
+		return args[1] == "apply" || args[1] == "remove"
 	case "rules":
 		return args[1] != "test" && args[1] != "list" && args[1] != "providers" && args[1] != "custom" && args[1] != "conflicts" && args[1] != "connection"
 	case "dns":

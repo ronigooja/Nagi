@@ -320,6 +320,14 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				if e != nil {
 					return nil, e
 				}
+				if args[3] == "subscription" {
+					entries, e := subscription.NewStore(paths.ConfigDir, "", nil).List()
+					names := output.Candidates{}
+					for _, entry := range entries {
+						names = append(names, entry.Name)
+					}
+					return names, e
+				}
 				store := profile.NewStore(paths.ConfigDir, nil, nil)
 				name, e := store.Current()
 				if e != nil {
@@ -612,7 +620,8 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	addingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "add"
 	removingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "remove"
 	healthcheck := command == "proxy" && len(args) > 1 && args[1] == "healthcheck"
-	needsProfile := healthcheck || tailscaleInvocation(args) || addingProvider || removingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	subscriptionHealthcheck := healthcheck && len(args) > 3 && args[3] == "subscription"
+	needsProfile := healthcheck && !subscriptionHealthcheck || tailscaleInvocation(args) || addingProvider || removingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -908,6 +917,19 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 			return subscriptionCommand(ctx, args, subs, store, proxies)
 		}
+		if len(args) > 1 && args[1] == "remove" {
+			entry, e := subs.Find(args[2])
+			if e != nil {
+				return nil, fail("subscription_error", e)
+			}
+			if entry.Profile != "" && entry.HealthcheckIntervalSeconds != nil {
+				store, e := getProfiles()
+				if e != nil {
+					return nil, fail("subscription_error", e)
+				}
+				return subscriptionCommand(ctx, args, subs, store, nil)
+			}
+		}
 		return subscriptionCommand(ctx, args, subs, nil, nil)
 	case "dns":
 		store, err := getProfiles()
@@ -930,6 +952,32 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
 		if healthcheck {
+			if subscriptionHealthcheck {
+				entry, e := subs.Find(args[4])
+				if e != nil {
+					return nil, fail("proxy_healthcheck_error", e)
+				}
+				if args[2] == "show" {
+					return subscriptionHealthcheckResult(entry), nil
+				}
+				var seconds *int
+				if args[2] == "set" {
+					v, _ := strconv.Atoi(args[5])
+					seconds = &v
+				}
+				var store *profile.Store
+				if entry.Profile != "" {
+					store, e = getProfiles()
+					if e != nil {
+						return nil, fail("proxy_healthcheck_error", e)
+					}
+				}
+				r, e := mutateSubscriptionHealthcheck(ctx, subs, store, args[4], seconds)
+				if e != nil {
+					return nil, fail("proxy_healthcheck_error", e)
+				}
+				return r, nil
+			}
 			store := profile.NewStore(paths.ConfigDir, nil, nil)
 			if args[2] != "show" {
 				var e error
@@ -1417,13 +1465,13 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 		if err := store.ClearSubscriptionTailscale(args[2]); err != nil {
 			return nil, fail("profile_error", err)
 		}
-		if err := store.Write(ctx, args[2], data); err != nil {
-			return nil, fail("profile_error", err)
-		}
 		if subs != nil {
 			if err := subs.DetachProfile(args[2]); err != nil {
 				return nil, fail("profile_error", err)
 			}
+		}
+		if err := store.Write(ctx, args[2], data); err != nil {
+			return nil, fail("profile_error", err)
 		}
 		return map[string]any{"name": args[2], "imported": true}, nil
 	case "export":
@@ -1692,6 +1740,16 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 				return nil, fail("subscription_error", errors.New("subscription has a persistent Tailscale binding; unbind the subscription before removing it"))
 			}
 		}
+		if entry.Profile != "" && entry.HealthcheckIntervalSeconds != nil && profiles != nil {
+			// Validate and activate the inherited configuration before deleting
+			// cache/key files, which live outside the config snapshot.
+			if err := store.SetHealthcheckInterval(entry.Name, nil); err != nil {
+				return nil, fail("subscription_error", err)
+			}
+			if err := profiles.ActivateHealthcheckPolicy(ctx, entry.Profile); err != nil {
+				return nil, fail("subscription_error", err)
+			}
+		}
 		if err := store.Remove(args[2]); err != nil {
 			return nil, fail("subscription_error", err)
 		}
@@ -1730,6 +1788,11 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		}
 		merged, err := subscription.Encode(incoming)
 		if err != nil {
+			return nil, fail("subscription_error", err)
+		}
+		// Stage association inside the outer transaction so initial application
+		// uses saved interval intent; failed activation restores prior metadata.
+		if err := store.StageProfileAssociation(args[2], args[2]); err != nil {
 			return nil, fail("subscription_error", err)
 		}
 		if err := validateRuleTargets(profiles.Dir, args[2], merged); err != nil {

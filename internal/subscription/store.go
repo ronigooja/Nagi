@@ -27,45 +27,47 @@ const DefaultScheduleSeconds int64 = 3600
 const MaxScheduleSeconds int64 = 31536000
 
 type Entry struct {
-	Name                string    `json:"name"`
-	KeyConfigured       bool      `json:"key_configured"`
-	URL                 string    `json:"url"`
-	Generation          string    `json:"generation,omitempty"`
-	ScheduleSeconds     int64     `json:"schedule_seconds"`
-	NextDue             time.Time `json:"next_due,omitempty"`
-	LastFailureStage    string    `json:"last_failure_stage,omitempty"`
-	LastFailureReason   string    `json:"last_failure_reason,omitempty"`
-	PauseReason         string    `json:"pause_reason,omitempty"`
-	CacheVersion        string    `json:"cache_version,omitempty"`
-	AppliedCacheVersion string    `json:"applied_cache_version,omitempty"`
-	SourceHash          string    `json:"source_hash,omitempty"`
-	Profile             string    `json:"profile,omitempty"`
-	UpdatedAt           time.Time `json:"updated_at,omitempty"`
-	ExpiresAt           time.Time `json:"expires_at,omitempty"`
-	Upload              int64     `json:"upload,omitempty"`
-	Download            int64     `json:"download,omitempty"`
-	Total               int64     `json:"total,omitempty"`
+	Name                       string    `json:"name"`
+	KeyConfigured              bool      `json:"key_configured"`
+	URL                        string    `json:"url"`
+	Generation                 string    `json:"generation,omitempty"`
+	HealthcheckIntervalSeconds *int      `json:"healthcheck_interval_seconds,omitempty"`
+	ScheduleSeconds            int64     `json:"schedule_seconds"`
+	NextDue                    time.Time `json:"next_due,omitempty"`
+	LastFailureStage           string    `json:"last_failure_stage,omitempty"`
+	LastFailureReason          string    `json:"last_failure_reason,omitempty"`
+	PauseReason                string    `json:"pause_reason,omitempty"`
+	CacheVersion               string    `json:"cache_version,omitempty"`
+	AppliedCacheVersion        string    `json:"applied_cache_version,omitempty"`
+	SourceHash                 string    `json:"source_hash,omitempty"`
+	Profile                    string    `json:"profile,omitempty"`
+	UpdatedAt                  time.Time `json:"updated_at,omitempty"`
+	ExpiresAt                  time.Time `json:"expires_at,omitempty"`
+	Upload                     int64     `json:"upload,omitempty"`
+	Download                   int64     `json:"download,omitempty"`
+	Total                      int64     `json:"total,omitempty"`
 }
 
 func (e Entry) MarshalJSON() ([]byte, error) {
 	view := struct {
-		Name                string     `json:"name"`
-		KeyConfigured       bool       `json:"key_configured"`
-		ScheduleSeconds     int64      `json:"schedule_seconds"`
-		NextDue             *time.Time `json:"next_due,omitempty"`
-		LastFailureStage    string     `json:"last_failure_stage,omitempty"`
-		LastFailureReason   string     `json:"last_failure_reason,omitempty"`
-		PauseReason         string     `json:"pause_reason,omitempty"`
-		CacheVersion        string     `json:"cache_version,omitempty"`
-		AppliedCacheVersion string     `json:"applied_cache_version,omitempty"`
-		SourceHash          string     `json:"source_hash,omitempty"`
-		Profile             string     `json:"profile,omitempty"`
-		UpdatedAt           *time.Time `json:"updated_at,omitempty"`
-		ExpiresAt           *time.Time `json:"expires_at,omitempty"`
-		Upload              int64      `json:"upload,omitempty"`
-		Download            int64      `json:"download,omitempty"`
-		Total               int64      `json:"total,omitempty"`
-	}{Name: e.Name, KeyConfigured: e.KeyConfigured, ScheduleSeconds: e.ScheduleSeconds, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile}
+		Name                       string     `json:"name"`
+		KeyConfigured              bool       `json:"key_configured"`
+		HealthcheckIntervalSeconds *int       `json:"healthcheck_interval_seconds,omitempty"`
+		ScheduleSeconds            int64      `json:"schedule_seconds"`
+		NextDue                    *time.Time `json:"next_due,omitempty"`
+		LastFailureStage           string     `json:"last_failure_stage,omitempty"`
+		LastFailureReason          string     `json:"last_failure_reason,omitempty"`
+		PauseReason                string     `json:"pause_reason,omitempty"`
+		CacheVersion               string     `json:"cache_version,omitempty"`
+		AppliedCacheVersion        string     `json:"applied_cache_version,omitempty"`
+		SourceHash                 string     `json:"source_hash,omitempty"`
+		Profile                    string     `json:"profile,omitempty"`
+		UpdatedAt                  *time.Time `json:"updated_at,omitempty"`
+		ExpiresAt                  *time.Time `json:"expires_at,omitempty"`
+		Upload                     int64      `json:"upload,omitempty"`
+		Download                   int64      `json:"download,omitempty"`
+		Total                      int64      `json:"total,omitempty"`
+	}{Name: e.Name, KeyConfigured: e.KeyConfigured, HealthcheckIntervalSeconds: e.HealthcheckIntervalSeconds, ScheduleSeconds: e.ScheduleSeconds, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile}
 	if !e.NextDue.IsZero() {
 		view.NextDue = &e.NextDue
 	}
@@ -132,23 +134,24 @@ func validURL(raw string) bool {
 func (s *Store) indexPath() string { return filepath.Join(s.ConfigDir, "subscriptions.yaml") }
 
 type storedEntry struct {
-	Name                string    `json:"name"`
-	URL                 string    `json:"url"`
-	Generation          string    `json:"generation,omitempty"`
-	ScheduleSeconds     int64     `json:"schedule_seconds,omitempty"`
-	NextDue             time.Time `json:"next_due,omitempty"`
-	LastFailureStage    string    `json:"last_failure_stage,omitempty"`
-	LastFailureReason   string    `json:"last_failure_reason,omitempty"`
-	PauseReason         string    `json:"pause_reason,omitempty"`
-	CacheVersion        string    `json:"cache_version,omitempty"`
-	AppliedCacheVersion string    `json:"applied_cache_version,omitempty"`
-	SourceHash          string    `json:"source_hash,omitempty"`
-	Profile             string    `json:"profile,omitempty"`
-	UpdatedAt           time.Time `json:"updated_at,omitempty"`
-	ExpiresAt           time.Time `json:"expires_at,omitempty"`
-	Upload              int64     `json:"upload,omitempty"`
-	Download            int64     `json:"download,omitempty"`
-	Total               int64     `json:"total,omitempty"`
+	Name                       string    `json:"name"`
+	URL                        string    `json:"url"`
+	Generation                 string    `json:"generation,omitempty"`
+	HealthcheckIntervalSeconds *int      `json:"healthcheck_interval_seconds,omitempty"`
+	ScheduleSeconds            int64     `json:"schedule_seconds,omitempty"`
+	NextDue                    time.Time `json:"next_due,omitempty"`
+	LastFailureStage           string    `json:"last_failure_stage,omitempty"`
+	LastFailureReason          string    `json:"last_failure_reason,omitempty"`
+	PauseReason                string    `json:"pause_reason,omitempty"`
+	CacheVersion               string    `json:"cache_version,omitempty"`
+	AppliedCacheVersion        string    `json:"applied_cache_version,omitempty"`
+	SourceHash                 string    `json:"source_hash,omitempty"`
+	Profile                    string    `json:"profile,omitempty"`
+	UpdatedAt                  time.Time `json:"updated_at,omitempty"`
+	ExpiresAt                  time.Time `json:"expires_at,omitempty"`
+	Upload                     int64     `json:"upload,omitempty"`
+	Download                   int64     `json:"download,omitempty"`
+	Total                      int64     `json:"total,omitempty"`
 }
 
 func (s *Store) read() ([]Entry, error) {
@@ -168,11 +171,11 @@ func (s *Store) read() ([]Entry, error) {
 	seen := map[string]bool{}
 	result := make([]Entry, 0, len(file.Subscriptions))
 	for _, stored := range file.Subscriptions {
-		e := Entry{Name: stored.Name, URL: stored.URL, Generation: stored.Generation, ScheduleSeconds: stored.ScheduleSeconds, NextDue: stored.NextDue, LastFailureStage: stored.LastFailureStage, LastFailureReason: stored.LastFailureReason, PauseReason: stored.PauseReason, CacheVersion: stored.CacheVersion, AppliedCacheVersion: stored.AppliedCacheVersion, SourceHash: stored.SourceHash, Profile: stored.Profile, UpdatedAt: stored.UpdatedAt, ExpiresAt: stored.ExpiresAt, Upload: stored.Upload, Download: stored.Download, Total: stored.Total}
+		e := Entry{Name: stored.Name, URL: stored.URL, Generation: stored.Generation, HealthcheckIntervalSeconds: stored.HealthcheckIntervalSeconds, ScheduleSeconds: stored.ScheduleSeconds, NextDue: stored.NextDue, LastFailureStage: stored.LastFailureStage, LastFailureReason: stored.LastFailureReason, PauseReason: stored.PauseReason, CacheVersion: stored.CacheVersion, AppliedCacheVersion: stored.AppliedCacheVersion, SourceHash: stored.SourceHash, Profile: stored.Profile, UpdatedAt: stored.UpdatedAt, ExpiresAt: stored.ExpiresAt, Upload: stored.Upload, Download: stored.Download, Total: stored.Total}
 		if e.PauseReason == "" && e.LastFailureStage == "paused" {
 			e.PauseReason = e.LastFailureReason // Migrate indices written before pause_reason existed.
 		}
-		if !validName(e.Name) || !validURL(e.URL) || seen[e.Name] || e.ScheduleSeconds < 0 || e.ScheduleSeconds > MaxScheduleSeconds || (e.Profile != "" && !validName(e.Profile)) {
+		if !validName(e.Name) || !validURL(e.URL) || seen[e.Name] || (e.HealthcheckIntervalSeconds != nil && (*e.HealthcheckIntervalSeconds < 1 || *e.HealthcheckIntervalSeconds > 31536000)) || e.ScheduleSeconds < 0 || e.ScheduleSeconds > MaxScheduleSeconds || (e.Profile != "" && !validName(e.Profile)) {
 			return nil, errors.New("invalid subscriptions index")
 		}
 		seen[e.Name] = true
@@ -336,6 +339,13 @@ func (s *Store) RecordApplySuccess(name, profileName, cacheVersion string, sourc
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for i := range entries {
 			if entries[i].Name == name {
+				for j := range entries {
+					if j != i && entries[j].Profile == profileName {
+						entries[j].Profile = ""
+						entries[j].AppliedCacheVersion = ""
+						entries[j].SourceHash = ""
+					}
+				}
 				entries[i].Profile = profileName
 				entries[i].AppliedCacheVersion = cacheVersion
 				entries[i].SourceHash = Hash(source)
@@ -663,7 +673,7 @@ func (s *Store) write(entries []Entry) error {
 		Subscriptions []storedEntry `json:"subscriptions"`
 	}{Subscriptions: make([]storedEntry, 0, len(entries))}
 	for _, e := range entries {
-		file.Subscriptions = append(file.Subscriptions, storedEntry{Name: e.Name, URL: e.URL, Generation: e.Generation, ScheduleSeconds: e.ScheduleSeconds, NextDue: e.NextDue, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile, UpdatedAt: e.UpdatedAt, ExpiresAt: e.ExpiresAt, Upload: e.Upload, Download: e.Download, Total: e.Total})
+		file.Subscriptions = append(file.Subscriptions, storedEntry{Name: e.Name, URL: e.URL, Generation: e.Generation, HealthcheckIntervalSeconds: e.HealthcheckIntervalSeconds, ScheduleSeconds: e.ScheduleSeconds, NextDue: e.NextDue, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile, UpdatedAt: e.UpdatedAt, ExpiresAt: e.ExpiresAt, Upload: e.Upload, Download: e.Download, Total: e.Total})
 	}
 	data, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
@@ -710,4 +720,51 @@ func writeReplace(path string, data []byte) error {
 		return err
 	}
 	return os.Rename(f.Name(), path)
+}
+
+// SetHealthcheckInterval saves intent independently of downloads and profile activation.
+// The caller owns config.lock and the outer configuration transaction.
+func (s *Store) SetHealthcheckInterval(name string, seconds *int) error {
+	if seconds != nil && (*seconds < 1 || *seconds > 31536000) {
+		return errors.New("SECONDS must be an integer from 1 to 31536000")
+	}
+	return s.mutate(func(entries []Entry) ([]Entry, error) {
+		for i := range entries {
+			if entries[i].Name == name {
+				entries[i].HealthcheckIntervalSeconds = seconds
+				return entries, nil
+			}
+		}
+		return nil, errors.New("subscription not found")
+	})
+}
+
+// StageProfileAssociation makes saved policy available to candidate composition.
+// Call only inside a configuration transaction; RecordApplySuccess commits the
+// applied version and source hash after activation succeeds.
+func (s *Store) StageProfileAssociation(name, profileName string) error {
+	if !validName(profileName) {
+		return errors.New("invalid profile name")
+	}
+	return s.mutate(func(entries []Entry) ([]Entry, error) {
+		found := -1
+		for i := range entries {
+			if entries[i].Name == name {
+				found = i
+				break
+			}
+		}
+		if found < 0 {
+			return nil, errors.New("subscription not found")
+		}
+		for i := range entries {
+			if i != found && entries[i].Profile == profileName {
+				entries[i].Profile = ""
+				entries[i].AppliedCacheVersion = ""
+				entries[i].SourceHash = ""
+			}
+		}
+		entries[found].Profile = profileName
+		return entries, nil
+	})
 }

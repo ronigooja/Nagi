@@ -72,6 +72,10 @@ func (s *Store) effectiveSource(name string, source []byte) ([]byte, error) {
 
 func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, err error) ([]byte, error) {
 	if errors.Is(err, fs.ErrNotExist) {
+		source, err := s.applySubscriptionHealthcheckSource(name, source)
+		if err != nil {
+			return nil, err
+		}
 		managed, err := s.applySubscriptionTailscale(name, source)
 		if err != nil {
 			return nil, err
@@ -113,7 +117,14 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 	delete(overlay, proxyAdditionsKey)
 	intervals := overlay[groupHealthcheckIntervalsKey]
 	delete(overlay, groupHealthcheckIntervalsKey)
+	var original map[string]any
+	if err := yaml.Unmarshal(source, &original); err != nil {
+		return nil, err
+	}
 	mergeMap(base, overlay)
+	if err := s.applySubscriptionHealthcheck(name, base, original, overlay); err != nil {
+		return nil, err
+	}
 	if err := applyGroupHealthcheckIntervals(base, intervals); err != nil {
 		return nil, err
 	}

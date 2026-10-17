@@ -46,6 +46,12 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		if v.Enabled != nil {
 			enabled = fmt.Sprint(*v.Enabled)
 		}
+		if v.Kind == "subscription" && v.IntervalDefaulted {
+			if err := line(w, fmt.Sprintf("subscription %s: follows subscription configuration and mihomo defaults", v.Name)); err != nil {
+				return err
+			}
+			return line(w, v.Reason)
+		}
 		if err := line(w, fmt.Sprintf("%s %s: interval %d seconds (%s); enabled %s; lazy %t", v.Kind, v.Name, v.IntervalSeconds, v.Source, enabled, v.Lazy)); err != nil {
 			return err
 		}
