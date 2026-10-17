@@ -44,6 +44,7 @@ struct ProxyGroup {
         ["selector", "urltest", "fallback"].contains(kind.lowercased())
     }
     var automatic: Bool { ["urltest", "fallback"].contains(kind.lowercased()) }
+    var supportsHealthcheck: Bool { automatic || ["loadbalance", "load-balance"].contains(kind.lowercased()) }
     func selectCommand(_ node: String) -> [String]? {
         guard selectable, !hidden, nodes.contains(node) else { return nil }
         return ["proxy", "select", name, node]

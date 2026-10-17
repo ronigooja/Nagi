@@ -44,6 +44,27 @@ import AppKit
         XCTAssertFalse(model.busy) // Constructing/opening menus dispatches no test.
     }
 
+    func testLoadBalanceHealthcheckSettingsKeepMembersReadOnly() throws {
+        _ = NSApplication.shared
+        let delegate = MenuAppDelegate(model: AppModel())
+        for kind in ["LoadBalance", "load-balance"] {
+            let group = ProxyGroup(name: "balanced", kind: kind, selected: "one", fixed: nil, selectedStatus: nil,
+                                   nodes: ["one"], hidden: false, icon: nil)
+            XCTAssertTrue(group.supportsHealthcheck)
+            XCTAssertFalse(group.automatic)
+            XCTAssertFalse(group.selectable)
+            XCTAssertNil(group.restoreAutomaticCommand)
+            let menu = delegate.makeGroupMenu(group)
+            let member = try XCTUnwrap(menu.item(withTitle: group.nodeTitle("one")))
+            XCTAssertFalse(member.isEnabled)
+            XCTAssertNil(member.representedObject)
+            let settings = try XCTUnwrap(menu.item(withTitle: "Healthcheck Settings…"))
+            XCTAssertEqual(settings.representedObject as? [String], ["group", "balanced"])
+            XCTAssertEqual(group.testTitle, "Test Current Group")
+            XCTAssertFalse(group.testExplanation.contains("clears"))
+        }
+    }
+
     func testExplicitTestsRefreshMeasurementsAfterSuccessAndFailure() async throws {
         var calls: [[String]] = []
         var fail = false

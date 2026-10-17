@@ -445,7 +445,7 @@ import AppKit
             item.toolTip = (group.nodeDelays[node] ?? NodeDelay()).detail + "\nTests only this node; keeps the group selection."
         }
         addSubmenu("Test Single Node", singleTests, enabled: !group.nodes.isEmpty, to: choices)
-        if group.automatic {
+        if group.supportsHealthcheck {
             addHealthcheckSettings(kind: "group", name: group.name, to: choices)
         }
         return choices
@@ -468,6 +468,9 @@ import AppKit
                 let enabled = (value["enabled"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
                 let lazy = (value["lazy"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
                 alert.informativeText = "Profile: \(value["profile"]?.string ?? "unknown")\nInterval: \(interval.map { "\($0) seconds" } ?? "unknown") · Source: \(value["source"]?.string ?? "unknown")\nEnabled: \(enabled) · Lazy: \(lazy)\nTest origin: \(value["test_url"]?.string ?? "unknown")\nEnter 1–31536000 seconds. This changes the interval without enabling disabled checks. Lazy checks may wait until used. Provider nodes use their provider's interval when configured. Restore removes this profile's interval override."
+                if let reason = value["reason"]?.string, !reason.isEmpty {
+                    alert.informativeText += "\nReason: \(reason)"
+                }
                 let input = NSTextField(string: interval.map { String($0) } ?? "")
                 input.frame = NSRect(x: 0, y: 0, width: 360, height: 24)
                 alert.accessoryView = input
