@@ -2,6 +2,30 @@ import AppKit
 import Foundation
 import ServiceManagement
 
+struct NodeDelay {
+    let status: String
+    let milliseconds: Int64?
+    let measuredAt: String?
+    let testOrigin: String?
+    init(_ value: JSONValue? = nil) {
+        status = value?["status"]?.string ?? "untested"
+        milliseconds = value?["delay_ms"]?.int64
+        measuredAt = value?["measured_at"]?.string
+        testOrigin = value?["test_url"]?.string
+    }
+    var label: String {
+        if status == "ok", let milliseconds { return "\(milliseconds) ms" }
+        return status == "failed" ? "Failed" : "Untested"
+    }
+    var detail: String {
+        "Latest engine measurement: \(label)\nMeasured at: \(measuredAt ?? "unknown")\nTest origin: \(testOrigin ?? "unknown")"
+    }
+    static func parse(_ value: JSONValue?) -> [String: NodeDelay] {
+        guard let value, case .objectValue(let entries) = value else { return [:] }
+        return entries.mapValues { NodeDelay($0) }
+    }
+}
+
 struct ProxyGroup {
     let name: String
     let kind: String
@@ -11,6 +35,11 @@ struct ProxyGroup {
     let nodes: [String]
     let hidden: Bool
     let icon: String?
+    var nodeDelays: [String: NodeDelay] = [:]
+    func nodeTitle(_ node: String) -> String { "\(node) · \(nodeDelays[node]?.label ?? "Untested")" }
+    var testCommand: [String] { ["proxy", "delays", name] }
+    var testTitle: String { automatic ? "Test Current Group (Restores Automatic Selection)" : "Test Current Group" }
+    var testExplanation: String { automatic ? "Tests this group, clears its fixed choice and saved choice, and restores automatic selection." : "Tests all nodes in this group; preserves the selected node." }
     var selectable: Bool {
         ["selector", "urltest", "fallback"].contains(kind.lowercased())
     }
@@ -37,6 +66,7 @@ struct Subscription {
 }
 struct ProxyProvider {
     let name: String; let type: String; let vehicleType: String; let nodes: [String]
+    var nodeDelays: [String: NodeDelay] = [:]
     var updateCommand: [String] { ["proxy", "provider", "update", name] }
     var removeCommand: [String] { ["proxy", "provider", "remove", name] }
     var healthcheckCommand: [String] { ["proxy", "provider", "healthcheck", name] }
@@ -393,7 +423,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                         return ProxyGroup(name: name, kind: item["type"]?.string ?? "", selected: item["now"]?.string ?? "",
                                           fixed: item["fixed"]?.string, selectedStatus: item["selected_status"]?.string,
                                           nodes: item["all"]?.array.compactMap(\.string) ?? [],
-                                          hidden: item["hidden"]?.bool == true, icon: item["icon"]?.string)
+                                          hidden: item["hidden"]?.bool == true, icon: item["icon"]?.string, nodeDelays: NodeDelay.parse(item["node_delays"]))
                     } ?? []
                 } catch {
                     guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
@@ -435,7 +465,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                     providersUnavailable = false
                     providers = value["providers"]?.array.compactMap { item in
                         guard let name = item["name"]?.string else { return nil }
-                        return ProxyProvider(name: name, type: item["type"]?.string ?? "", vehicleType: item["vehicle_type"]?.string ?? "", nodes: item["nodes"]?.array.compactMap(\.string) ?? [])
+                        return ProxyProvider(name: name, type: item["type"]?.string ?? "", vehicleType: item["vehicle_type"]?.string ?? "", nodes: item["nodes"]?.array.compactMap(\.string) ?? [], nodeDelays: NodeDelay.parse(item["node_delays"]))
                     } ?? []
                 } catch {
                     guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
@@ -473,7 +503,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                         if arguments.count == 4 {
                             groups = groups.map { group in
                                 guard group.name == arguments[2] else { return group }
-                                return ProxyGroup(name: group.name, kind: group.kind, selected: arguments[3], fixed: group.fixed, selectedStatus: group.selectedStatus, nodes: group.nodes, hidden: group.hidden, icon: group.icon)
+                                return ProxyGroup(name: group.name, kind: group.kind, selected: arguments[3], fixed: group.fixed, selectedStatus: group.selectedStatus, nodes: group.nodes, hidden: group.hidden, icon: group.icon, nodeDelays: group.nodeDelays)
                             }
                         }
                     case ("service", "install"): serviceInstalled = true
@@ -488,7 +518,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                         await requestRefresh([.profiles, .runtime], force: true)
                     case ("proxy", "auto"):
                         await requestRefresh(.groups, force: true)
-                    case ("proxy", "provider"):
+                    case ("proxy", "delay"), ("proxy", "delays"), ("proxy", "healthcheck"), ("proxy", "provider"):
                         await requestRefresh([.groups, .providers], force: true)
                     case ("subscription", "schedule"), ("subscription", "key"):
                         await requestRefresh(.subscriptions, force: true)
@@ -499,9 +529,21 @@ enum EngineState { case starting, running, stopped, unavailable }
             }
             catch {
                 settingsGeneration += 1
+                if arguments.first == "proxy", arguments.count > 1,
+                   ["delay", "delays", "provider", "healthcheck"].contains(arguments[1]) {
+                    await requestRefresh([.groups, .providers], force: true)
+                }
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    func healthcheckSettings(kind: String, name: String) async throws -> JSONValue {
+        guard !busy && !quitting else { throw CLIError.command("busy", "Another operation is in progress.") }
+        busy = true
+        defer { busy = false }
+        await waitForConnectionsOperation()
+        return try await runCommand(["proxy", "healthcheck", "show", kind, name])
     }
 
     // Configuration, validation, persistence, and activation remain CLI operations.

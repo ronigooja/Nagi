@@ -226,36 +226,7 @@ import AppKit
         if model.groups.allSatisfy(\.hidden) { disabled("No visible proxy groups", to: groupsMenu) }
         for group in model.groups {
             if group.hidden { continue }
-            let choices = NSMenu()
-            let automatic = group.automatic
-            if automatic {
-                disabled(group.fixed.map { "Fixed: \($0)" } ?? "Automatic: \(group.selected)", to: choices)
-                if let status = group.selectedStatus, status != "available" { disabled("Selection: \(status)", to: choices) }
-                choices.addItem(.separator())
-            }
-            if group.selectable {
-                for node in group.nodes {
-                    guard let command = group.selectCommand(node) else { continue }
-                    add(node, command: command,
-                        checked: group.selected == node, enabled: !model.busy, to: choices)
-                }
-            } else {
-                disabled("\(group.kind) · \(group.selected)", to: choices)
-                if !group.nodes.isEmpty { choices.addItem(.separator()) }
-                for node in group.nodes {
-                    let item = NSMenuItem(title: node, action: nil, keyEquivalent: "")
-                    item.state = group.selected == node ? .on : .off
-                    item.isEnabled = false
-                    choices.addItem(item)
-                }
-            }
-            if let restoreCommand = group.restoreAutomaticCommand {
-                choices.addItem(.separator())
-                let automatic = add("Restore Automatic Selection", command: restoreCommand,
-                    enabled: !model.busy, to: choices)
-                automatic.toolTip = "Clear the fixed choice through mihomo"
-            }
-            if group.nodes.isEmpty { disabled("No nodes in this group", to: choices) }
+            let choices = makeGroupMenu(group)
             let groupItem = addSubmenu(group.name, choices, to: groupsMenu)
             if let icon = group.icon {
                 groupItem.representedObject = icon
@@ -279,6 +250,7 @@ import AppKit
             let actions = NSMenu()
             add("Update", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
             add("Healthcheck", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: actions)
+            addHealthcheckSettings(kind: "provider", name: provider.name, to: actions)
             add("Delete Provider", command: provider.removeCommand, enabled: !model.busy, to: actions)
             let metadata = NSMenuItem(title: "\(provider.type) · \(provider.nodes.count) nodes", action: nil, keyEquivalent: "")
             metadata.isEnabled = false; actions.addItem(metadata)
@@ -430,6 +402,102 @@ import AppKit
         display.dateFormat = "yyyy-MM-dd HH:mm"
         return display.string(from: date)
     }
+    func makeGroupMenu(_ group: ProxyGroup) -> NSMenu {
+        let choices = NSMenu()
+        let automatic = group.automatic
+        if automatic {
+            disabled(group.fixed.map { "Fixed: \($0)" } ?? "Automatic: \(group.selected)", to: choices)
+            if let status = group.selectedStatus, status != "available" { disabled("Selection: \(status)", to: choices) }
+            choices.addItem(.separator())
+        }
+        if group.selectable {
+            for node in group.nodes {
+                guard let command = group.selectCommand(node) else { continue }
+                let item = add(group.nodeTitle(node), command: command,
+                               checked: group.selected == node, enabled: !model.busy, to: choices)
+                item.toolTip = (group.nodeDelays[node] ?? NodeDelay()).detail
+            }
+        } else {
+            disabled("\(group.kind) · \(group.selected)", to: choices)
+            if !group.nodes.isEmpty { choices.addItem(.separator()) }
+            for node in group.nodes {
+                let item = NSMenuItem(title: group.nodeTitle(node), action: nil, keyEquivalent: "")
+                item.state = group.selected == node ? .on : .off
+                item.isEnabled = false
+                item.toolTip = (group.nodeDelays[node] ?? NodeDelay()).detail
+                choices.addItem(item)
+            }
+        }
+        if let restoreCommand = group.restoreAutomaticCommand {
+            choices.addItem(.separator())
+            let automatic = add("Restore Automatic Selection", command: restoreCommand,
+                enabled: !model.busy, to: choices)
+            automatic.toolTip = "Clear the fixed choice through mihomo"
+        }
+        if group.nodes.isEmpty { disabled("No nodes in this group", to: choices) }
+        choices.addItem(.separator())
+        let test = add(group.testTitle, command: group.testCommand,
+                       enabled: !model.busy && !group.nodes.isEmpty, to: choices)
+        test.toolTip = group.testExplanation
+        let singleTests = NSMenu()
+        for node in group.nodes {
+            let item = add(group.nodeTitle(node), command: ["proxy", "delay", node], enabled: !model.busy, to: singleTests)
+            item.toolTip = (group.nodeDelays[node] ?? NodeDelay()).detail + "\nTests only this node; keeps the group selection."
+        }
+        addSubmenu("Test Single Node", singleTests, enabled: !group.nodes.isEmpty, to: choices)
+        if group.automatic {
+            addHealthcheckSettings(kind: "group", name: group.name, to: choices)
+        }
+        return choices
+    }
+
+    private func addHealthcheckSettings(kind: String, name: String, to target: NSMenu) {
+        let item = add("Healthcheck Settings…", action: #selector(healthcheckSettings(_:)), enabled: !model.busy, to: target)
+        item.representedObject = [kind, name]
+        item.toolTip = "View and change this \(kind)'s healthcheck interval for the current profile."
+    }
+
+    @objc private func healthcheckSettings(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? [String], target.count == 2, !model.busy else { return }
+        Task {
+            do {
+                let value = try await model.healthcheckSettings(kind: target[0], name: target[1])
+                let alert = NSAlert()
+                alert.messageText = "Healthcheck · \(target[1])"
+                let interval = value["interval_seconds"]?.int64
+                let enabled = (value["enabled"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
+                let lazy = (value["lazy"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
+                alert.informativeText = "Profile: \(value["profile"]?.string ?? "unknown")\nInterval: \(interval.map { "\($0) seconds" } ?? "unknown") · Source: \(value["source"]?.string ?? "unknown")\nEnabled: \(enabled) · Lazy: \(lazy)\nTest origin: \(value["test_url"]?.string ?? "unknown")\nEnter 1–31536000 seconds. This changes the interval without enabling disabled checks. Lazy checks may wait until used. Provider nodes use their provider's interval when configured. Restore removes this profile's interval override."
+                let input = NSTextField(string: interval.map { String($0) } ?? "")
+                input.frame = NSRect(x: 0, y: 0, width: 360, height: 24)
+                alert.accessoryView = input
+                alert.addButton(withTitle: "Save Interval")
+                alert.addButton(withTitle: "Cancel")
+                alert.addButton(withTitle: "Restore Profile Interval")
+                while true {
+                    let response = alert.runModal()
+                    if response == .alertThirdButtonReturn {
+                        model.perform(["proxy", "healthcheck", "reset"] + target)
+                        return
+                    }
+                    guard response == .alertFirstButtonReturn else { return }
+                    guard let seconds = Int64(input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
+                          (1...31_536_000).contains(seconds) else {
+                        alert.messageText = "Enter an interval from 1 to 31536000 seconds"
+                        continue
+                    }
+                    model.perform(["proxy", "healthcheck", "set"] + target + [String(seconds)])
+                    return
+                }
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Healthcheck settings unavailable"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
+        }
+    }
+
     private func disabled(_ title: String, to target: NSMenu) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false; target.addItem(item)
