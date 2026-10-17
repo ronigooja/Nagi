@@ -183,20 +183,30 @@ import AppKit
         if tunEnabled && tunAdapter != "up" {
             errors.append("TUN adapter: \(tunAdapter ?? "unknown") · Check logs in CLI")
         }
-        let title = !errors.isEmpty ? "Nagi · Error ⚠"
-            : (notice != nil ? "Nagi · Info ⓘ" : "Nagi · \(engineState)")
+        let title = !errors.isEmpty ? "Nagi · Error"
+            : (notice != nil ? "Nagi · Info" : "Nagi · \(engineState)")
         let status = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         guard !errors.isEmpty || notice != nil else {
             status.isEnabled = false
             return status
         }
+        let font = NSFont.menuFont(ofSize: 0)
+        let symbolName = errors.isEmpty ? "info.circle" : "exclamationmark.triangle"
+        let iconSize: CGFloat = 14
+        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: errors.isEmpty ? "Info" : "Error")?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: font.pointSize, weight: .regular)) {
+            symbol.size = NSSize(width: iconSize, height: iconSize)
+            let attachment = NSTextAttachment()
+            attachment.image = symbol
+            attachment.bounds = NSRect(x: 0, y: (font.capHeight - iconSize) / 2,
+                                       width: iconSize, height: iconSize)
+            let attributedTitle = NSMutableAttributedString(string: title + " ", attributes: [.font: font])
+            attributedTitle.append(NSAttributedString(attachment: attachment))
+            status.attributedTitle = attributedTitle
+        }
         let details = NSMenu()
-        let engine = NSMenuItem(title: "Engine: \(engineState)", action: nil, keyEquivalent: "")
-        engine.isEnabled = false
-        details.addItem(engine)
-        details.addItem(.separator())
-        for error in errors { details.addItem(wrappedStatusDetail("⚠ \(error)")) }
-        if let notice { details.addItem(wrappedStatusDetail("ⓘ \(notice)")) }
+        for error in errors { details.addItem(wrappedStatusDetail(error)) }
+        if let notice { details.addItem(wrappedStatusDetail(notice)) }
         status.submenu = details
         return status
     }
