@@ -7,18 +7,22 @@ struct NodeDelay {
     let milliseconds: Int64?
     let measuredAt: String?
     let testOrigin: String?
+    let reason: String?
     init(_ value: JSONValue? = nil) {
         status = value?["status"]?.string ?? "untested"
         milliseconds = value?["delay_ms"]?.int64
         measuredAt = value?["measured_at"]?.string
         testOrigin = value?["test_url"]?.string
+        reason = (value?["reason"]?.string).flatMap { $0.isEmpty ? nil : $0 }
     }
     var label: String {
         if status == "ok", let milliseconds { return "\(milliseconds) ms" }
-        return status == "failed" ? "Failed" : "Untested"
+        if status == "failed" { return "Failed" }
+        return reason == nil ? "Untested" : "Unknown"
     }
     var detail: String {
-        "Latest engine measurement: \(label)\nMeasured at: \(measuredAt ?? "unknown")\nTest origin: \(testOrigin ?? "unknown")"
+        let measurement = "Latest engine measurement: \(label)\nMeasured at: \(measuredAt ?? "unknown")\nTest origin: \(testOrigin ?? "unknown")"
+        return measurement + (reason.map { "\nReason: \($0)" } ?? "")
     }
     static func parse(_ value: JSONValue?) -> [String: NodeDelay] {
         guard let value, case .objectValue(let entries) = value else { return [:] }

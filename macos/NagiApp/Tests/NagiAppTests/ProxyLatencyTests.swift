@@ -20,6 +20,17 @@ import AppKit
         XCTAssertTrue(delays["fast"]!.detail.contains("Test origin: https://example.com"))
     }
 
+    func testUnavailableHistoryShowsUnknownWithItsReason() throws {
+        for reason in ["ambiguous node ownership", "history unavailable"] {
+            let delay = NodeDelay(try decode("{\"status\":\"untested\",\"reason\":\"\(reason)\"}"))
+            XCTAssertEqual(delay.label, "Unknown")
+            XCTAssertTrue(delay.detail.contains("Reason: \(reason)"))
+            XCTAssertFalse(delay.detail.contains("Untested"))
+        }
+        let untested = NodeDelay(try decode("{\"status\":\"untested\",\"reason\":\"\"}"))
+        XCTAssertEqual(untested.label, "Untested")
+    }
+
     func testMenusKeepSelectionSeparateFromTestsAndDiscloseAutomaticReset() throws {
         _ = NSApplication.shared
         let model = AppModel()
