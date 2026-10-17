@@ -261,6 +261,9 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 			return
 		}
 		text := output.RedactError(fmt.Sprint(value))
+		if label == "delay ms" && value == float64(0) {
+			text = "<1"
+		}
 		if label == "measured at" {
 			text = subscriptionTime(fmt.Sprint(value))
 		}

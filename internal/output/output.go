@@ -130,7 +130,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 	case proxy.Connection:
 		return writeConnection(w, v)
 	case proxy.DelayResult:
-		return line(w, fmt.Sprintf("Proxy %s delay: %d ms (URL: %s, timeout: %d ms)", v.Proxy, v.DelayMS, v.URL, v.TimeoutMS))
+		return line(w, fmt.Sprintf("Proxy %s delay: %s (URL: %s, timeout: %d ms)", v.Proxy, latencyText(v.DelayMS), v.URL, v.TimeoutMS))
 	case proxy.BatchDelayResult:
 		if err := line(w, "Proxy group "+v.Group+" latency:"); err != nil {
 			return err
@@ -146,7 +146,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		for _, item := range v.Results {
 			value := "latency unavailable"
 			if item.DelayMS != nil {
-				value = fmt.Sprintf("%d ms", *item.DelayMS)
+				value = latencyText(*item.DelayMS)
 			}
 			if item.Error != "" {
 				value = item.Error
@@ -225,6 +225,13 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(data)
 	}
+}
+
+func latencyText(milliseconds int) string {
+	if milliseconds == 0 {
+		return "<1 ms"
+	}
+	return fmt.Sprintf("%d ms", milliseconds)
 }
 
 func line(w io.Writer, s string) error {

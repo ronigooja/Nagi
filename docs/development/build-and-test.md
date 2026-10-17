@@ -97,3 +97,11 @@ The Tailscale implementation was checked against engine commit `e8555db99bb89111
 | Documentation relative paths and changed command/field examples | Reviewed |
 | Authenticated TCP and UDP-transport exit/proxy transit | Unverified; dedicated tailnet, approved exit and test proxy credentials unavailable |
 | Native macOS helper, TUN and system DNS restoration | Unverified; no macOS runtime host used |
+
+## Latency management verification
+
+The October 2026 Linux verification used the exact engine commit in `engine.lock`, isolated XDG directories, and a local HTTP subscription/test server with DNS, TUN, and proxy listeners disabled. It covered saved-but-unapplied subscription intervals, initial application, Provider-local precedence, inheritance and reset, unchanged source bytes, new feed groups, and scheduled refresh retaining local policy. A separate inactive-profile check confirmed that editing or removing its subscription policy leaves the current profile and source files unchanged.
+
+Native requests verified same-name top-level and Provider nodes remain distinct, ambiguous ownership fails before probing, inherited group test URLs and configured timeouts/expected HTTP status are used, unexpected status fails, and successful zero milliseconds remains successful. Nested group availability followed the selected leaf; built-ins retained plain names without delay observations. Single-node tests retained fixed choices, while native automatic-group batch tests released them. A real terminal PTY verified passive menu opening, nested availability, plain DIRECT/REJECT entries, and absence of per-group interval settings.
+
+Go unit/installer tests, targeted race tests, Go vet, Bash and Bash 3.2 contextual completion, Darwin AMD64/ARM64 CLI cross-builds, and modified Markdown links passed. App regression tests cover the same presentation and dispatch contracts, but native Swift compilation and macOS interactive acceptance were not run on the Linux host. On macOS, run `swift test --package-path macos/NagiApp` and `make build app`, then inspect nested-group selection changes, built-in rows, contextual single tests, and subscription/Provider interval dialogs against the matching CLI.

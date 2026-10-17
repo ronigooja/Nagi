@@ -42,11 +42,12 @@ Use **Update provider** to reload its node source and **Start healthcheck** to t
 ```sh
 nagi proxy provider update airport
 nagi proxy provider healthcheck airport
+nagi proxy test provider airport 'NODE_NAME'
 ```
 
 Provider node lists in the terminal menu show the latest measured latency, failure, untested, or unknown state. Group node lists in both interfaces show the same engine observations; opening a menu does not measure nodes. In the App, use **Proxy Groups → GROUP → Test Single Node** for an individual check, or the group's batch-test action. Automatic-group batch tests disclose that they restore automatic selection.
 
-To inspect or change the automatic check interval, open **Automatic latency checks** in the terminal provider details, or **Healthcheck Settings…** in the App provider submenu. The CLI equivalents are:
+To inspect or change the automatic check interval, open **Automatic latency checks** in the terminal provider details, or **Automatic Latency Settings…** in the App provider submenu. The CLI equivalents are:
 
 ```sh
 nagi proxy healthcheck show provider airport
@@ -54,7 +55,7 @@ nagi proxy healthcheck set provider airport 600
 nagi proxy healthcheck reset provider airport
 ```
 
-These settings affect latency checks separately from provider downloads. Saving an interval retains the provider's enable setting; lazy scheduling can skip unused nodes. The [interval reference](../reference/cli.md#automatic-latency-check-intervals) defines constraints, scheduling caveats, and restore behavior.
+These settings affect latency checks separately from provider downloads. Provider local intervals override an associated subscription setting; resetting inherits that subscription policy or the original configuration. Subscription details expose their own automatic-latency setting, while per-group interval controls remain in the CLI. Saving an interval retains the provider's enable setting; lazy scheduling can skip unused nodes. The [interval reference](../reference/cli.md#automatic-latency-check-intervals) defines constraints, scheduling caveats, and restore behavior.
 
 Provider updates refresh nodes within the current configuration. Nagi's subscription download and apply operations manage whole profile configurations instead. Explicit and automatic subscription applications retain locally added providers and group attachments while rebasing node/group changes against the new feed. Clearing or replacing the profile's override can remove these additions. See the [persistence contract](../reference/cli.md#adding-proxy-providers) before combining the two workflows.
 
