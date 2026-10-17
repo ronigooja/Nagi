@@ -26,11 +26,7 @@ import AppKit
             ]
             let rows = rates.split(separator: "\n").map(String.init)
             let rateX = symbol.size.width + 2
-            // Preserve the original item width independently of the displayed font.
-            let widthAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.monospacedSystemFont(ofSize: 9, weight: .regular), .kern: -1.2
-            ]
-            let rateWidth = ("999 KB/s" as NSString).size(withAttributes: widthAttributes).width
+            let rateWidth: CGFloat = 40
             let size = NSSize(width: rateX + rateWidth, height: 22)
             image = NSImage(size: size, flipped: false) { _ in
                 symbol.draw(in: NSRect(x: 0, y: (size.height - 18) / 2, width: 22, height: 18),
