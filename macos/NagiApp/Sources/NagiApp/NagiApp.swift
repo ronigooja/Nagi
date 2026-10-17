@@ -468,6 +468,9 @@ import AppKit
                 let guidance = "Profile: \(download["profile"]?.string ?? "unknown"). Save each section separately. Each save applies only that section; other edits stay here until saved."
                 alert.informativeText = guidance
                 let form = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 450))
+                let latencyGroup = NSBox(frame: NSRect(x: -10, y: 22, width: 520, height: 286))
+                latencyGroup.title = "Automatic Latency Checks"
+                form.addSubview(latencyGroup)
                 func label(_ title: String, y: CGFloat, height: CGFloat = 20) -> NSTextField {
                     let field = NSTextField(wrappingLabelWithString: title)
                     field.frame = NSRect(x: 0, y: y, width: 500, height: height)

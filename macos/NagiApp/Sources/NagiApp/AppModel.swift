@@ -812,11 +812,6 @@ enum EngineState { case starting, running, stopped, unavailable }
             }
         }
     }
-    func scheduleSubscription(_ name: String, seconds: Int64?) {
-        var args = ["subscription", "schedule", name, "off"]
-        if let seconds { args[3] = String(seconds) }
-        perform(args)
-    }
     func clearSubscriptionKey(_ name: String) { perform(["subscription", "key", name, "clear"]) }
     func setSubscriptionKey(_ name: String, file: String) { perform(["subscription", "key", name, file]) }
     private func waitForConnectionsOperation() async {
