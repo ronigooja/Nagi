@@ -91,6 +91,52 @@ rules: ["MATCH,DIRECT"]
 	}
 }
 
+func TestSubscriptionRebaseDropsRemovedNodeWithEmptyLocalDialer(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+	old := []byte(`proxies:
+  - {name: "Remaining: 40 GB", type: direct}
+  - {name: Edited, type: direct}
+  - {name: Bound, type: direct, dialer-proxy: DIRECT}
+`)
+	patch := []byte(`proxies:
+  - {name: "Remaining: 40 GB", type: direct, dialer-proxy: ""}
+  - {name: Edited, type: direct, interface-name: local-interface}
+  - {name: Bound, type: direct, dialer-proxy: ""}
+  - {name: Manual, type: direct, dialer-proxy: ""}
+`)
+	next := []byte(`proxies:
+  - {name: "Remaining: 36 GB", type: direct}
+  - {name: Edited, type: direct}
+`)
+	if err := s.Apply(ctx, "work", old); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOverride(ctx, "work", patch); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplySubscription(ctx, "work", next); err != nil {
+		t.Fatal(err)
+	}
+	effective, err := s.Effective("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal(effective, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	_, nodes, err := namedList(cfg["proxies"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 4 || nodes["Remaining: 40 GB"] != nil || nodes["Remaining: 36 GB"] == nil ||
+		nodes["Edited"]["interface-name"] != "local-interface" || nodes["Bound"]["dialer-proxy"] != "" ||
+		nodes["Manual"]["dialer-proxy"] != "" {
+		t.Fatalf("incorrectly rebased local nodes: %#v", nodes)
+	}
+}
+
 func TestSubscriptionRetainsDefaultSettingsAndRestorePoint(t *testing.T) {
 	for _, failure := range []string{"none", "validate", "reload", "collision"} {
 		t.Run(failure, func(t *testing.T) {

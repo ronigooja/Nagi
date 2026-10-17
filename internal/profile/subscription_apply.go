@@ -126,11 +126,31 @@ func rebaseNamedList(old, next, patch any) ([]any, error) {
 		if _, exists := incoming[name]; exists {
 			continue
 		}
-		if before, existed := previous[name]; !existed || !reflect.DeepEqual(before, node) {
+		if before, existed := previous[name]; !existed || !sameSubscriptionEntry(before, node) {
 			merged = append(merged, node)
 		}
 	}
 	return merged, nil
+}
+
+// Unbinding a Tailscale front proxy can leave an explicit empty dialer-proxy
+// in a local snapshot. When the source had no dialer, that empty value does
+// not change the node and must not retain it after the feed removes it.
+func sameSubscriptionEntry(source, local map[string]any) bool {
+	if reflect.DeepEqual(source, local) {
+		return true
+	}
+	emptyDialer, hasDialer := local["dialer-proxy"]
+	if _, hadDialer := source["dialer-proxy"]; hadDialer || !hasDialer || emptyDialer != "" {
+		return false
+	}
+	withoutEmptyDialer := make(map[string]any, len(local)-1)
+	for key, value := range local {
+		if key != "dialer-proxy" {
+			withoutEmptyDialer[key] = value
+		}
+	}
+	return reflect.DeepEqual(source, withoutEmptyDialer)
 }
 
 // rebaseMapping applies only local changes to the new source, including field
