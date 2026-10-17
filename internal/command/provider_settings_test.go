@@ -43,7 +43,7 @@ func TestProviderSettingsCLIStoppedPersistenceAndRollback(t *testing.T) {
 		return out.String()
 	}
 	out := run("proxy", "provider", "interval", "set", "feed", "off")
-	if !strings.Contains(out, `"enabled":false`) || !strings.Contains(out, `"can_reset":true`) {
+	if !strings.Contains(out, `"enabled":false`) || !strings.Contains(out, `"can_reset":true`) || !strings.Contains(out, `"source_interval_seconds":600`) {
 		t.Fatal(out)
 	}
 	out = run("proxy", "healthcheck", "url", "set", "provider", "feed", "https://new.example/PRIVATE?token=SECRET")

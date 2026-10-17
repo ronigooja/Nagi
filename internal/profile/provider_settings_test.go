@@ -75,7 +75,7 @@ func TestProviderIntervalAndURLValidationRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, err := s.ProviderInterval("default", "work")
-	if err != nil || r.IntervalSeconds != 71 || r.Source != "override" {
+	if err != nil || r.IntervalSeconds != 71 || r.Source != "override" || r.CanReset || r.SourceIntervalSeconds != nil {
 		t.Fatal(r, err)
 	}
 	h, _ := s.Healthcheck("default", "provider", "work")

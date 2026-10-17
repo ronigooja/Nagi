@@ -113,14 +113,15 @@ func (s *Store) SetHealthcheckURL(ctx context.Context, name, kind, targetName st
 }
 
 type ProviderInterval struct {
-	Kind              string `json:"kind"`
-	Name              string `json:"name"`
-	Profile           string `json:"profile"`
-	IntervalSeconds   int    `json:"interval_seconds"`
-	Source            string `json:"source"`
-	Enabled           bool   `json:"enabled"`
-	IntervalDefaulted bool   `json:"interval_defaulted"`
-	CanReset          bool   `json:"can_reset"`
+	Kind                  string `json:"kind"`
+	Name                  string `json:"name"`
+	Profile               string `json:"profile"`
+	IntervalSeconds       int    `json:"interval_seconds"`
+	Source                string `json:"source"`
+	Enabled               bool   `json:"enabled"`
+	IntervalDefaulted     bool   `json:"interval_defaulted"`
+	CanReset              bool   `json:"can_reset"`
+	SourceIntervalSeconds *int   `json:"source_interval_seconds,omitempty"`
 }
 
 func (s *Store) ProviderInterval(name, targetName string) (ProviderInterval, error) {
@@ -131,6 +132,13 @@ func (s *Store) ProviderInterval(name, targetName string) (ProviderInterval, err
 	}
 	original, _ := healthTarget(source, "provider", targetName)
 	r.CanReset = original != nil
+	if original != nil {
+		seconds, err := healthInterval(original["interval"])
+		if err != nil {
+			return r, err
+		}
+		r.SourceIntervalSeconds = &seconds
+	}
 	target, err := healthTarget(effective, "provider", targetName)
 	if err != nil {
 		return r, err
