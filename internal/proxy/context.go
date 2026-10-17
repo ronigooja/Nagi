@@ -40,7 +40,11 @@ type effectiveConfig struct {
 	} `yaml:"proxy-providers"`
 }
 
+func (s *Service) RequireEffectiveConfig() { s.requireConfig = true }
+
 func (s *Service) Configure(data []byte) error {
+	s.requireConfig = true
+	s.config = nil
 	var c effectiveConfig
 	if err := yaml.Unmarshal(data, &c); err != nil {
 		return err
@@ -93,6 +97,9 @@ func (s *Service) conditions(kind, name string) (checkConfig, error) {
 	return c, validateDelay(c.URL, int(c.Timeout))
 }
 func (s *Service) GroupTestConditions(name string) (string, int, error) {
+	if s.requireConfig && s.config == nil {
+		return "", 0, errors.New("effective profile unavailable; inspect the selected profile or supply explicit URL and timeout")
+	}
 	c, e := s.conditions("group", name)
 	return c.URL, int(c.Timeout), e
 }

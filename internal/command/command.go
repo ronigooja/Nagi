@@ -1916,7 +1916,10 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		}
 		return service.TestNode(ctx, args[2], args[3], args[4])
 	case "delays":
-		target, timeoutMS, _ := service.GroupTestConditions(args[2])
+		target, timeoutMS, conditionErr := service.GroupTestConditions(args[2])
+		if conditionErr != nil && len(args) < 5 {
+			return nil, conditionErr
+		}
 		if len(args) >= 4 {
 			target = args[3]
 		}

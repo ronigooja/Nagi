@@ -206,3 +206,40 @@ func TestNestedCycleAndAmbiguityHaveNoStatus(t *testing.T) {
 		t.Fatal(status)
 	}
 }
+
+type compatibleProviderClient struct{ contextClient }
+
+func (c *compatibleProviderClient) Get(ctx context.Context, path string, dst any) error {
+	if path == "/providers/proxies" {
+		return json.Unmarshal([]byte(`{"providers":{"Real":{"vehicleType":"HTTP","proxies":[{"name":"Twin","history":[{"delay":7}]}]},"Generated":{"vehicleType":"Compatible","proxies":[{"name":"Twin","history":[{"delay":99}]}]}}}`), dst)
+	}
+	return c.contextClient.Get(ctx, path, dst)
+}
+func TestIncludeAllProvidersIgnoresGeneratedCompatibleProviders(t *testing.T) {
+	c := &compatibleProviderClient{}
+	s := NewService(c)
+	if e := s.Configure([]byte("proxy-groups:\n- name: G\n  include-all-providers: true\nproxy-providers:\n  Real: {}\n")); e != nil {
+		t.Fatal(e)
+	}
+	reader, e := s.historyReader(context.Background())
+	if e != nil {
+		t.Fatal(e)
+	}
+	p, provider, ok := reader.resolve(context.Background(), s, "G", "Twin")
+	if !ok || provider != "Real" || *latestDelay(p, "").DelayMS != 7 {
+		t.Fatalf("ownership %s %v %+v", provider, ok, p)
+	}
+}
+func TestUnavailableEffectiveConfigurationRejectsImplicitConditions(t *testing.T) {
+	s := NewService(&contextClient{})
+	s.RequireEffectiveConfig()
+	if _, _, e := s.GroupTestConditions("G"); e == nil {
+		t.Fatal("missing profile silently defaulted")
+	}
+	if e := s.Configure([]byte("proxy-groups: [bad]")); e == nil {
+		t.Fatal("invalid config accepted")
+	}
+	if _, _, e := s.GroupTestConditions("G"); e == nil {
+		t.Fatal("invalid profile silently defaulted")
+	}
+}

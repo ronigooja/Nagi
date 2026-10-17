@@ -143,3 +143,17 @@ func TestGroupDelayPreDispatchAndPersistenceFailure(t *testing.T) {
 		}
 	})
 }
+
+func TestGroupDelayUnavailableProfilePreventsImplicitDispatch(t *testing.T) {
+	c := &delayScenarioClient{kind: "selector"}
+	service := proxy.NewService(c)
+	service.RequireEffectiveConfig()
+	_, err := proxyCommand(context.Background(), []string{"proxy", "delays", "Auto"}, service, proxy.SelectionStore{}, t.TempDir())
+	if err == nil || len(c.calls) != 0 {
+		t.Fatalf("implicit request err=%v calls=%v", err, c.calls)
+	}
+	_, err = proxyCommand(context.Background(), []string{"proxy", "delays", "Auto", "https://example.test", "5000"}, service, proxy.SelectionStore{}, t.TempDir())
+	if err != nil || len(c.calls) != 2 {
+		t.Fatalf("explicit request err=%v calls=%v", err, c.calls)
+	}
+}

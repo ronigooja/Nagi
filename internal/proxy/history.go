@@ -106,12 +106,16 @@ func (r *groupHistoryReader) providerNodes(ctx context.Context, s *Service) map[
 		r.loaded = true
 		var response struct {
 			Providers map[string]struct {
-				Proxies []proxyHistory `json:"proxies"`
+				Proxies     []proxyHistory `json:"proxies"`
+				VehicleType string         `json:"vehicleType"`
 			} `json:"providers"`
 		}
 		if s.Client.Get(ctx, "/providers/proxies", &response) == nil {
 			r.providers = map[string][]proxyHistory{}
 			for k, v := range response.Providers {
+				if k == "COMPATIBLE" || v.VehicleType == "Compatible" {
+					continue
+				}
 				r.providers[k] = v.Proxies
 			}
 		}

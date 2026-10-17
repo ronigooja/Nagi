@@ -184,6 +184,7 @@ type skipSelectionRestoreKey struct{}
 
 func orderedProxyService(client proxy.Client, configDir string) *proxy.Service {
 	service := proxy.NewService(client)
+	service.RequireEffectiveConfig()
 	store := profile.NewStore(configDir, nil, nil)
 	selected, err := store.Current()
 	if err != nil {

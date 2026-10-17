@@ -19,9 +19,10 @@ type Client interface {
 }
 
 type Service struct {
-	Client     Client
-	GroupOrder []string
-	config     *effectiveConfig
+	Client        Client
+	GroupOrder    []string
+	config        *effectiveConfig
+	requireConfig bool
 }
 type Candidates []string
 
