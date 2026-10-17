@@ -280,7 +280,6 @@ import AppKit
             let updateAndApply = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
                                      enabled: !model.busy, to: actions)
             updateAndApply.representedObject = subscription.name
-            updateAndApply.toolTip = "Updates subscription, retains local settings and nodes, and clears saved selections; does not start mihomo or enable traffic access."
             actions.addItem(.separator())
             let autoUpdate = subscription.scheduleSeconds > 0 ? "Auto Update: On" : "Auto Update: Off"
             add(autoUpdate, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
@@ -469,13 +468,12 @@ import AppKit
                 let alert = NSAlert()
                 alert.messageText = "Automatic Latency · \(target[1])"
                 let interval = (value["interval_seconds"]?.int64).flatMap { $0 > 0 ? $0 : nil }
-                let enabled = (value["enabled"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
-                let lazy = (value["lazy"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
                 let rawProfile = value["profile"]?.string ?? ""
                 let settingsProfile = rawProfile.isEmpty ? (target[0] == "subscription" ? "not applied" : "unknown") : rawProfile
-                let checkerState = target[0] == "subscription" ? "Checker enablement and lazy behavior follow each checker's configuration." : "Enabled: \(enabled) · Lazy: \(lazy)"
-                let saveExplanation = target[0] == "subscription" ? "Saves the subscription setting and reloads its active profile. Reset uses the original configuration interval." : "Saves a profile-local provider setting. Reset inherits the subscription or original interval."
-                alert.informativeText = "Profile: \(settingsProfile)\nInterval: \(interval.map { "\($0) seconds" } ?? (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")) · Source: \(value["source"]?.string ?? "unknown")\n\(checkerState)\nTest origin: \(value["test_url"]?.string ?? "unknown")\nEnter 1–31536000 seconds. This changes the interval without enabling disabled checks. Lazy checks may wait until used. Provider nodes use their provider's interval when configured. Provider local settings take precedence over subscription settings, then the original configuration. \(saveExplanation)"
+                let source = value["source"]?.string ?? "unknown"
+                let currentInterval = interval.map { "\($0) seconds (\(source))" } ??
+                    (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")
+                alert.informativeText = "Profile: \(settingsProfile)\nInterval: \(currentInterval)\nEnter seconds (1–31536000). Saving does not enable disabled checks."
                 if let reason = value["reason"]?.string, !reason.isEmpty {
                     alert.informativeText += "\nReason: \(reason)"
                 }
@@ -578,7 +576,7 @@ import AppKit
         guard !model.busy else { return }
         let alert = NSAlert()
         alert.messageText = "Add Provider"
-        let instructions = "Add an HTTP(S) provider to the selected profile. Choose an existing group or enter a new name. A new Select group includes DIRECT and leaves routing rules unchanged. Its choices appear in Select Node (Proxy Groups); use Global mode or existing routing rules to route through it. Saving while stopped does not start the engine."
+        let instructions = "Add an HTTP(S) provider to the selected profile. A new group does not change routing."
         alert.informativeText = instructions
         alert.addButton(withTitle: "Add Provider")
         alert.addButton(withTitle: "Cancel")
@@ -604,7 +602,7 @@ import AppKit
             ["selector", "urltest", "fallback", "loadbalance"].contains($0.kind.lowercased())
         }.map(\.name))
         accessory.addSubview(groupField)
-        label("Interval (s)", y: 6)
+        label("Update (s)", y: 6)
         let intervalField = NSTextField(frame: NSRect(x: 90, y: 6, width: 310, height: 24))
         intervalField.stringValue = "3600"
         accessory.addSubview(intervalField)
@@ -659,7 +657,7 @@ import AppKit
     @objc private func addAndApplySubscription() {
         let alert = NSAlert()
         alert.messageText = "Add and Apply Subscription"
-        alert.informativeText = "Save, download, and apply this subscription. Applying updates the subscription, retains local settings and nodes, and clears saved selections. This does not start mihomo or enable traffic access."
+        alert.informativeText = "Downloads and applies the subscription without starting the engine. Keeps local settings and nodes; clears saved selections."
         alert.addButton(withTitle: "Add and Apply")
         alert.addButton(withTitle: "Cancel")
 
