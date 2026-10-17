@@ -2,6 +2,10 @@
 
 These guidelines define development responsibilities and documentation practices for agents working in the Nagi repository.
 
+## Highest Priority Rule
+
+- Before modifying any file, explain the modification scope to the user in Chinese and request permission. Modify files only within the scope authorized by the user; do not rewrite unrelated documentation or implementation.
+
 ## Architecture Boundaries and Feature Design
 
 These rules apply to every feature:
@@ -49,7 +53,6 @@ Use each location as follows:
 ## Agent Workflow
 
 - Before making changes, read this file, `README.md` if present, and the architecture, design, and reference documents directly related to the task.
-- Before modifying any file, explain the modification scope to the user in Chinese and request permission. Modify files only within the scope authorized by the user; do not rewrite unrelated documentation or implementation.
 - When using independent worktrees, place them under `$HOME/subagents`.
 - Check `$HOME/environment` for required development tools before installing or downloading anything.
 - Classify content before choosing a documentation destination. Do not move documents merely because the implementation phase has changed.
