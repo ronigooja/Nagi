@@ -275,20 +275,18 @@ import AppKit
         else { subscriptionMenu.addItem(.separator()) }
         for subscription in model.subscriptions {
             let actions = NSMenu()
-            let quota = Self.quotaLabel(subscription)
-            let quotaItem = NSMenuItem(title: quota, action: nil, keyEquivalent: ""); quotaItem.isEnabled = false; actions.addItem(quotaItem)
-            if let expiry = subscription.expiresAt { let expiryItem = NSMenuItem(title: "Expires: \(Self.subscriptionTime(expiry))", action: nil, keyEquivalent: ""); expiryItem.isEnabled = false; actions.addItem(expiryItem) }
-            disabled(subscription.schedulerRunning ? (subscription.nextDue.map { "Next update: \(Self.subscriptionTime($0))" } ?? "Next update: pending") : "Scheduler: not running", to: actions)
+            disabled(Self.quotaLabel(subscription), to: actions)
+            if let expiry = subscription.expiresAt { disabled("Expires: \(Self.subscriptionTime(expiry))", to: actions) }
+            let nextUpdate = subscription.scheduleSeconds == 0 ? "Next update: off" :
+                (subscription.schedulerRunning ? (subscription.nextDue.map { "Next update: \(Self.subscriptionTime($0))" } ?? "Next update: pending") : "Next update: scheduler not running")
+            disabled(nextUpdate, to: actions)
+            if let pause = subscription.pauseReason { disabled("Auto-apply paused: \(pause)", to: actions) }
+            if let stage = subscription.lastFailureStage { disabled("Last failure: \(stage)/\(subscription.lastFailureReason ?? "unknown")", to: actions) }
+            actions.addItem(.separator())
             let updateAndApply = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
                                      enabled: !model.busy, to: actions)
             updateAndApply.representedObject = subscription.name
-            actions.addItem(.separator())
-            let autoUpdate = subscription.scheduleSeconds > 0 ? "Auto Update: On" : "Auto Update: Off"
-            add(autoUpdate, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
-            add("Update Interval…", action: #selector(updateIntervalSettings(_:)), enabled: !model.busy, to: actions).representedObject = ["subscription", subscription.name]
-            addHealthcheckSettings(kind: "subscription", name: subscription.name, to: actions)
-            if let pause = subscription.pauseReason { disabled("Auto-apply paused: \(pause)", to: actions) }
-            if let stage = subscription.lastFailureStage { disabled("Last failure: \(stage)/\(subscription.lastFailureReason ?? "unknown")", to: actions) }
+            add("Subscription Settings…", action: #selector(subscriptionSettings(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
             actions.addItem(.separator())
             let delete = add("Delete Subscription…", action: #selector(deleteSubscription(_:)),
                              enabled: !model.busy, to: actions)
@@ -596,148 +594,144 @@ import AppKit
         }
     }
 
-    private func addHealthcheckSettings(kind: String, name: String, to target: NSMenu) {
-        let item = add("Automatic Latency Settings…", action: #selector(healthcheckSettings(_:)), enabled: !model.busy, to: target)
-        item.representedObject = [kind, name]
-        item.toolTip = "View and change this \(kind)'s automatic latency test interval."
-        add("Latency Test URL…", action: #selector(testURLSettings(_:)), enabled: !model.busy, to: target).representedObject = [kind, name]
+    @objc private func saveSubscriptionSettingsSection(_ sender: NSButton) {
+        sender.window?.makeFirstResponder(nil)
+        NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: 2000 + sender.tag))
     }
 
-    @objc private func healthcheckSettings(_ sender: NSMenuItem) {
-        guard let target = sender.representedObject as? [String], target.count == 2, !model.busy else { return }
+    @objc private func subscriptionSettings(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String, !model.busy,
+              let subscription = model.subscriptions.first(where: { $0.name == name }) else { return }
         Task {
             do {
-                let value = try await model.healthcheckSettings(kind: target[0], name: target[1])
+                let settings = try await model.healthcheckSettings(kind: "subscription", name: name)
                 let alert = NSAlert()
-                alert.messageText = "Automatic Latency · \(target[1])"
-                let interval = (value["interval_seconds"]?.int64).flatMap { $0 > 0 ? $0 : nil }
-                let rawProfile = value["profile"]?.string ?? ""
-                let settingsProfile = rawProfile.isEmpty ? (target[0] == "subscription" ? "not applied" : "unknown") : rawProfile
-                let source = value["source"]?.string ?? "unknown"
-                let currentInterval = interval.map { "\($0) seconds (\(source))" } ??
-                    (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")
-                alert.informativeText = "Profile: \(settingsProfile)\nInterval: \(currentInterval)\nEnter seconds (1–31536000). Saving does not enable disabled checks."
-                let input = NSTextField(string: interval.map { String($0) } ?? "")
-                input.frame = NSRect(x: 0, y: 0, width: 360, height: 24)
-                alert.accessoryView = input
-                alert.addButton(withTitle: "Save Interval")
-                alert.addButton(withTitle: "Cancel")
-                alert.addButton(withTitle: target[0] == "provider" ? "Inherit Subscription or Original Interval" : "Use Original Configuration Interval")
+                alert.messageText = "Subscription Settings · \(name)"
+                alert.informativeText = "Save each setting separately. Closing keeps settings already saved."
+                alert.addButton(withTitle: "Close")
+                let content = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 510))
+                func label(_ text: String, x: CGFloat = 12, y: CGFloat, width: CGFloat = 470, height: CGFloat = 32, in parent: NSView) -> NSTextField {
+                    let field = NSTextField(wrappingLabelWithString: text)
+                    field.frame = NSRect(x: x, y: y, width: width, height: height)
+                    field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+                    parent.addSubview(field)
+                    return field
+                }
+                func saveButton(_ title: String, tag: Int, y: CGFloat, in parent: NSView) {
+                    let button = NSButton(title: title, target: self, action: #selector(saveSubscriptionSettingsSection(_:)))
+                    button.tag = tag
+                    button.frame = NSRect(x: 12, y: y, width: 220, height: 28)
+                    parent.addSubview(button)
+                }
+                let updates = NSBox(frame: NSRect(x: 0, y: 324, width: 500, height: 186))
+                updates.title = "Automatic Updates"
+                content.addSubview(updates)
+                let updateContent = updates.contentView!
+                let currentUpdate = label("", y: 126, in: updateContent)
+                let automatic = NSButton(checkboxWithTitle: "Automatically download and apply new configuration", target: nil, action: nil)
+                automatic.state = subscription.scheduleSeconds > 0 ? .on : .off
+                automatic.frame = NSRect(x: 12, y: 96, width: 470, height: 24)
+                updateContent.addSubview(automatic)
+                _ = label("Download interval (seconds, 1–31536000):", y: 65, width: 270, height: 22, in: updateContent)
+                let downloadInterval = NSComboBox(frame: NSRect(x: 290, y: 65, width: 180, height: 26))
+                downloadInterval.isEditable = true
+                downloadInterval.addItems(withObjectValues: ["3600", "21600", "86400"])
+                downloadInterval.stringValue = subscription.scheduleSeconds > 0 ? String(subscription.scheduleSeconds) : ""
+                downloadInterval.placeholderString = "Required when enabled"
+                updateContent.addSubview(downloadInterval)
+                saveButton("Save Automatic Updates", tag: 1, y: 25, in: updateContent)
+
+                let latency = NSBox(frame: NSRect(x: 0, y: 54, width: 500, height: 264))
+                latency.title = "Automatic Latency Checks"
+                content.addSubview(latency)
+                let latencyContent = latency.contentView!
+                let currentLatency = label("", y: 184, height: 58, in: latencyContent)
+                let intervalMode = NSPopUpButton(frame: NSRect(x: 12, y: 152, width: 285, height: 26), pullsDown: false)
+                intervalMode.addItems(withTitles: ["Set interval (seconds)", "Use Original Configuration Interval"])
+                latencyContent.addSubview(intervalMode)
+                let checkInterval = NSTextField(frame: NSRect(x: 305, y: 152, width: 165, height: 24))
+                checkInterval.stringValue = (settings["interval_seconds"]?.int64).flatMap { $0 > 0 ? String($0) : nil } ?? ""
+                checkInterval.placeholderString = "1–31536000"
+                latencyContent.addSubview(checkInterval)
+                saveButton("Save Latency Interval", tag: 2, y: 116, in: latencyContent)
+                let currentURL = label("", y: 72, height: 40, in: latencyContent)
+                let urlMode = NSPopUpButton(frame: NSRect(x: 12, y: 40, width: 155, height: 26), pullsDown: false)
+                urlMode.addItems(withTitles: ["Replace Test URL", "Inherit Test URL"])
+                latencyContent.addSubview(urlMode)
+                let testURL = NSTextField(frame: NSRect(x: 175, y: 40, width: 295, height: 24))
+                testURL.placeholderString = "Complete HTTP(S) URL"
+                latencyContent.addSubview(testURL)
+                saveButton("Save Test URL", tag: 3, y: 4, in: latencyContent)
+                let result = label("Saving intervals or URLs keeps disabled checks disabled.", x: 0, y: 0, width: 500, height: 46, in: content)
+                alert.accessoryView = content
+
+                func showUpdateStatus() {
+                    let seconds = model.subscriptions.first(where: { $0.name == name })?.scheduleSeconds ?? subscription.scheduleSeconds
+                    currentUpdate.stringValue = "Current: \(seconds > 0 ? "on · every \(seconds) seconds" : "off")\nSource: saved subscription schedule"
+                }
+                func showLatencyStatus(_ value: JSONValue) {
+                    let interval = (value["interval_seconds"]?.int64).flatMap { $0 > 0 ? "\($0) seconds" : nil } ??
+                        (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")
+                    let profile = value["profile"]?.string ?? ""
+                    let enabled = (value["enabled"]?.bool).map { $0 ? "enabled" : "disabled" } ?? "varies by source configuration"
+                    currentLatency.stringValue = "Profile: \(profile.isEmpty ? "not applied" : profile)\nInterval: \(interval) · Source: \(value["source"]?.string ?? "unknown")\nChecks: \(enabled). Saving keeps disabled checks disabled."
+                    currentURL.stringValue = "Current URL origin: \(value["test_url"]?.string ?? "original configuration") (redacted)\nSource: \(value["url_source"]?.string ?? "unknown"); enter a complete URL to replace."
+                    currentURL.toolTip = currentURL.stringValue
+                    urlMode.item(at: 1)?.isEnabled = value["can_reset_url"]?.bool != false
+                }
+                showUpdateStatus()
+                showLatencyStatus(settings)
+                NSApp.activate(ignoringOtherApps: true)
                 while true {
-                    let response = alert.runModal()
-                    if response == .alertThirdButtonReturn {
-                        if let failure = await model.saveHealthcheckSettings(kind: target[0], name: target[1], seconds: nil) {
-                            alert.messageText = "Interval change failed"
-                            alert.informativeText = failure + "\nYour value is retained. Retry or cancel."
+                    let response = alert.runModal().rawValue
+                    guard (2001...2003).contains(response) else { return }
+                    let failure: String?
+                    let saved: String
+                    if response == 2001 {
+                        let seconds = downloadInterval.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard automatic.state != .on || (Int64(seconds).map { (1...31_536_000).contains($0) } == true) else {
+                            result.stringValue = "Enter a download interval from 1 to 31536000 seconds before enabling automatic updates."
                             continue
                         }
-                        return
+                        failure = await model.saveSourceSetting(["subscription", "schedule", name, automatic.state == .on ? seconds : "off"])
+                        saved = "Automatic updates"
+                        showUpdateStatus()
+                    } else if response == 2002 {
+                        let reset = intervalMode.indexOfSelectedItem == 1
+                        let seconds = Int64(checkInterval.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+                        guard reset || (seconds.map { (1...31_536_000).contains($0) } == true) else {
+                            result.stringValue = "Enter a latency interval from 1 to 31536000 seconds."
+                            continue
+                        }
+                        failure = await model.saveHealthcheckSettings(kind: "subscription", name: name, seconds: reset ? nil : seconds)
+                        saved = "Latency interval"
+                    } else {
+                        let reset = urlMode.indexOfSelectedItem == 1
+                        let url = testURL.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard reset || Self.validTestURL(url) else {
+                            result.stringValue = "Enter a complete HTTP(S) URL without credentials or a fragment."
+                            continue
+                        }
+                        failure = await model.saveSourceSetting(["proxy", "healthcheck", "url", reset ? "reset" : "set", "subscription", name] + (reset ? [] : [url]))
+                        saved = "Test URL"
                     }
-                    guard response == .alertFirstButtonReturn else { return }
-                    guard let seconds = Int64(input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
-                          (1...31_536_000).contains(seconds) else {
-                        alert.messageText = "Enter an interval from 1 to 31536000 seconds"
-                        continue
+                    if let failure {
+                        result.stringValue = "\(saved) save failed: \(failure)\nYour edits are retained; previously saved settings remain saved."
+                    } else {
+                        result.stringValue = "\(saved) saved. Other edits still require their own Save button."
+                        do {
+                            showLatencyStatus(try await model.healthcheckSettings(kind: "subscription", name: name))
+                        } catch {
+                            result.stringValue = "\(saved) saved; refreshing latency settings failed: \(error.localizedDescription)"
+                        }
                     }
-                    if let failure = await model.saveHealthcheckSettings(kind: target[0], name: target[1], seconds: seconds) {
-                        alert.messageText = "Interval change failed"
-                        alert.informativeText = failure + "\nYour value is retained. Retry or cancel."
-                        continue
-                    }
-                    return
+                    result.toolTip = result.stringValue
                 }
             } catch {
                 let alert = NSAlert()
-                alert.messageText = "Automatic latency settings unavailable"
+                alert.messageText = "Subscription settings unavailable"
                 alert.informativeText = error.localizedDescription
                 alert.runModal()
-            }
-        }
-    }
-
-    @objc private func testURLSettings(_ sender: NSMenuItem) {
-        guard let target = sender.representedObject as? [String], target.count == 2, !model.busy else { return }
-        Task {
-            do {
-                let value = try await model.healthcheckSettings(kind: target[0], name: target[1])
-                let alert = NSAlert()
-                alert.messageText = "Latency Test URL · \(target[1])"
-                let origin = value["test_url"]?.string ?? "original configuration"
-                let source = value["test_url_source"]?.string ?? value["url_source"]?.string ?? "original configuration"
-                alert.informativeText = "Current origin: \(origin)\nSource: \(source)\nEnter a complete HTTP(S) URL to replace it. Check enablement is unchanged."
-                let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 400, height: 24))
-                input.placeholderString = "https://example.com/generate_204"
-                alert.accessoryView = input
-                alert.addButton(withTitle: "Save URL")
-                alert.addButton(withTitle: "Cancel")
-                if value["can_reset_url"]?.bool != false { alert.addButton(withTitle: "Inherit Test URL") }
-                while true {
-                    let response = alert.runModal()
-                    if response == .alertSecondButtonReturn { return }
-                    let url = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if response == .alertFirstButtonReturn && !Self.validTestURL(url) {
-                        alert.informativeText = "Enter an HTTP(S) URL without credentials or a fragment."
-                        continue
-                    }
-                    guard response == .alertFirstButtonReturn || response == .alertThirdButtonReturn else { return }
-                    let arguments = ["proxy", "healthcheck", "url", response == .alertThirdButtonReturn ? "reset" : "set", target[0], target[1]] + (response == .alertThirdButtonReturn ? [] : [url])
-                    if let failure = await model.saveSourceSetting(arguments) {
-                        alert.informativeText = failure + "\nYour value is retained. Retry or cancel."
-                        continue
-                    }
-                    return
-                }
-            } catch {
-                let alert = NSAlert(); alert.messageText = "Test URL unavailable"
-                alert.informativeText = error.localizedDescription; alert.runModal()
-            }
-        }
-    }
-
-    @objc private func updateIntervalSettings(_ sender: NSMenuItem) {
-        guard let target = sender.representedObject as? [String], target.count == 2, !model.busy else { return }
-        Task {
-            do {
-                let current: String
-                let canReset: Bool
-                if target[0] == "provider" {
-                    let value = try await model.providerUpdateSettings(target[1])
-                    canReset = value["can_reset"]?.bool == true
-                    current = (value["interval_seconds"]?.int64).map { $0 == 0 ? "off" : String($0) } ?? ""
-                } else {
-                    canReset = false
-                    current = model.subscriptions.first(where: { $0.name == target[1] }).map { $0.scheduleSeconds == 0 ? "off" : String($0.scheduleSeconds) } ?? ""
-                }
-                let alert = NSAlert(); alert.messageText = "Update Interval · \(target[1])"
-                alert.informativeText = "Download interval in seconds (1–31536000), or off. Automatic latency checks have a separate interval."
-                let input = NSComboBox(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
-                input.isEditable = true
-                input.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
-                input.stringValue = current
-                alert.accessoryView = input
-                alert.addButton(withTitle: "Save Interval"); alert.addButton(withTitle: "Cancel")
-                if canReset { alert.addButton(withTitle: "Use Original Update Interval") }
-                while true {
-                    let response = alert.runModal()
-                    guard response == .alertFirstButtonReturn || response == .alertThirdButtonReturn else { return }
-                    let seconds = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    var arguments: [String]
-                    if response == .alertThirdButtonReturn {
-                        arguments = ["proxy", "provider", "interval", "reset", target[1]]
-                    } else {
-                        guard Self.validUpdateInterval(seconds) else {
-                            alert.informativeText = "Enter 1–31536000 seconds, or off."; continue
-                        }
-                        arguments = target[0] == "provider" ? ["proxy", "provider", "interval", "set", target[1], seconds] : ["subscription", "schedule", target[1], seconds]
-                    }
-                    if let failure = await model.saveSourceSetting(arguments) {
-                        alert.informativeText = failure + "\nYour value is retained. Retry or cancel."; continue
-                    }
-                    return
-                }
-            } catch {
-                let alert = NSAlert(); alert.messageText = "Update interval unavailable"
-                alert.informativeText = error.localizedDescription; alert.runModal()
             }
         }
     }
@@ -790,11 +784,6 @@ import AppKit
     @objc private func updateAndApplySubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         model.updateAndApplySubscription(name)
-    }
-    @objc private func scheduleSubscription(_ sender: NSMenuItem) {
-        guard let name = sender.representedObject as? String,
-              let sub = model.subscriptions.first(where: { $0.name == name }) else { return }
-        model.scheduleSubscription(name, seconds: sub.scheduleSeconds > 0 ? nil : 3600)
     }
     @objc private func addProvider() {
         guard !model.busy else { return }
