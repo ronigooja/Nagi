@@ -81,7 +81,7 @@ struct ProxyGroup {
         NodeInfo.kind(node, in: nodeInfo) == "node" ? (nodeDelays[node] ?? NodeDelay()).detail : nil
     }
     var testCommand: [String] { ["proxy", "delays", name] }
-    var testTitle: String { automatic ? "Test Current Group (Restores Automatic Selection)" : "Test Current Group" }
+    var testTitle: String { "Test Current Group" }
     var testExplanation: String { automatic ? "Tests this group, clears its fixed choice and saved choice, and restores automatic selection." : "Tests all nodes in this group; preserves the selected node." }
     var selectable: Bool {
         ["selector", "urltest", "fallback"].contains(kind.lowercased())

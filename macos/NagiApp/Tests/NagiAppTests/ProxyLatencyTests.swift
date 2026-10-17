@@ -47,8 +47,8 @@ import AppKit
             XCTAssertEqual(tests.items[0].representedObject as? [String], ["proxy", "test", "group", "group", "one"])
             let batch = try XCTUnwrap(menu.item(withTitle: group.testTitle))
             XCTAssertEqual(batch.representedObject as? [String], ["proxy", "delays", "group"])
+            XCTAssertEqual(batch.title, "Test Current Group")
             if group.automatic {
-                XCTAssertTrue(batch.title.contains("Restores Automatic Selection"))
                 XCTAssertTrue(batch.toolTip!.contains("fixed choice and saved choice"))
                 XCTAssertNil(menu.item(withTitle: "Automatic Latency Settings…"))
             }
