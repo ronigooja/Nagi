@@ -120,6 +120,22 @@ final class SourceSettingsStateTests: XCTestCase {
         XCTAssertFalse(session.dirty)
     }
 
+    func testSwitchingToInheritedReplacesValuesWithoutKeepingPreviousInputs() {
+        var session = SourceSettingsSession()
+        session.loadInterval(seconds: 900, inherited: false)
+        session.loadURL(inherited: false, canReset: true, value: "https://local.invalid/check")
+        session.selectIntervalMode(inherited: true, inheritedSeconds: 450)
+        session.selectURLMode(inherited: true, inheritedValue: "https://source.invalid/full?status=204")
+        XCTAssertEqual(session.interval.interval.seconds, 450)
+        XCTAssertEqual(session.urlText, "https://source.invalid/full?status=204")
+        session.selectIntervalMode(inherited: false, inheritedSeconds: nil)
+        session.selectURLMode(inherited: false, inheritedValue: "")
+        XCTAssertEqual(session.interval.value, 450)
+        XCTAssertEqual(session.urlText, "https://source.invalid/full?status=204")
+        XCTAssertTrue(session.canSaveInterval)
+        XCTAssertTrue(session.canSaveURL)
+    }
+
     func testUnappliedSubscriptionCanSetIntervalWithoutInheritedSeconds() {
         var session = SourceSettingsSession()
         session.loadInterval(seconds: nil, inherited: true)

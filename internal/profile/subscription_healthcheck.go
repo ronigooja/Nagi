@@ -79,6 +79,10 @@ func (s *Store) applySubscriptionHealthcheck(name string, base, source, overlay 
 	if err != nil {
 		return err
 	}
+	return applyHealthcheckPolicy(base, source, overlay, interval, testURL)
+}
+
+func applyHealthcheckPolicy(base, source, overlay map[string]any, interval *int, testURL *string) error {
 	if interval == nil && testURL == nil {
 		return nil
 	}

@@ -63,6 +63,14 @@ struct SourceSettingsSession {
         urlText = value
         urlTextBaseline = value
     }
+    mutating func selectIntervalMode(inherited: Bool, inheritedSeconds: Int64?) {
+        interval.inherited = inherited
+        if inherited { interval.interval = .init(presets: interval.interval.presets, seconds: inheritedSeconds) }
+    }
+    mutating func selectURLMode(inherited: Bool, inheritedValue: String) {
+        urlInherited = inherited
+        if inherited { urlText = inheritedValue }
+    }
     var updateChanged: Bool { updateBaseline != nil && (update.value != updateBaseline || !update.isValid) }
     var intervalChanged: Bool { intervalBaseline.map { !interval.hasSameSetting(as: $0) || !interval.isValid } ?? false }
     var urlChanged: Bool { urlInherited != urlInheritedBaseline || (!urlInherited && urlText != urlTextBaseline) }

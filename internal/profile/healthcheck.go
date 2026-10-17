@@ -65,19 +65,23 @@ func applyGroupHealthcheckIntervals(base map[string]any, raw any) error {
 }
 
 type Healthcheck struct {
-	Kind              string `json:"kind"`
-	Name              string `json:"name"`
-	Profile           string `json:"profile"`
-	IntervalSeconds   int    `json:"interval_seconds"`
-	Enabled           *bool  `json:"enabled"`
-	Lazy              bool   `json:"lazy"`
-	Source            string `json:"source"`
-	URLSource         string `json:"url_source"`
-	CanResetURL       bool   `json:"can_reset_url"`
-	TestURL           string `json:"test_url,omitempty"`
-	FullTestURL       string `json:"-"`
-	Reason            string `json:"reason,omitempty"`
-	IntervalDefaulted bool   `json:"interval_defaulted"`
+	Kind                     string `json:"kind"`
+	Name                     string `json:"name"`
+	Profile                  string `json:"profile"`
+	IntervalSeconds          int    `json:"interval_seconds"`
+	Enabled                  *bool  `json:"enabled"`
+	Lazy                     bool   `json:"lazy"`
+	Source                   string `json:"source"`
+	URLSource                string `json:"url_source"`
+	CanResetURL              bool   `json:"can_reset_url"`
+	TestURL                  string `json:"test_url,omitempty"`
+	FullTestURL              string `json:"-"`
+	InheritedIntervalSeconds *int   `json:"inherited_interval_seconds,omitempty"`
+	InheritedTestURL         string `json:"inherited_test_url,omitempty"`
+	InheritedIntervalStatus  string `json:"inherited_interval_status,omitempty"`
+	InheritedURLStatus       string `json:"inherited_url_status,omitempty"`
+	Reason                   string `json:"reason,omitempty"`
+	IntervalDefaulted        bool   `json:"interval_defaulted"`
 }
 
 func healthTarget(m map[string]any, kind, name string) (map[string]any, error) {
@@ -168,11 +172,15 @@ func groupHasExplicitNodes(group, effective map[string]any) *bool {
 }
 
 func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) {
-	r := Healthcheck{Kind: kind, Name: targetName, Profile: name, Source: "profile", URLSource: "profile", CanResetURL: kind == "group", Lazy: true}
 	effective, source, overlay, err := s.healthMaps(name)
 	if err != nil {
-		return r, err
+		return Healthcheck{}, err
 	}
+	return s.healthcheckFromMaps(name, kind, targetName, effective, source, overlay)
+}
+
+func (s *Store) healthcheckFromMaps(name, kind, targetName string, effective, source, overlay map[string]any) (Healthcheck, error) {
+	r := Healthcheck{Kind: kind, Name: targetName, Profile: name, Source: "profile", URLSource: "profile", CanResetURL: kind == "group", Lazy: true}
 	target, err := healthTarget(effective, kind, targetName)
 	if err != nil {
 		return r, err

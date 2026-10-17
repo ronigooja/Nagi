@@ -198,11 +198,21 @@ private final class SourceSettingsPanel: NSPanel {
             state.update.interval.selectedIndex = updateChoice.indexOfSelectedItem
             state.update.interval.customText = updateCustom.stringValue
         } else {
-            state.interval.inherited = intervalMode.indexOfSelectedItem == 0
-            state.interval.interval.selectedIndex = intervalChoice.indexOfSelectedItem
-            state.interval.interval.customText = intervalCustom.stringValue
-            state.urlInherited = urlMode.indexOfSelectedItem == 0
-            state.urlText = urlField.stringValue
+            let inheritedInterval = intervalMode.indexOfSelectedItem == 0
+            if inheritedInterval != state.interval.inherited {
+                state.selectIntervalMode(inherited: inheritedInterval, inheritedSeconds: snapshot?["inherited_interval_seconds"]?.int64)
+                syncControls([.interval])
+            } else if !inheritedInterval {
+                state.interval.interval.selectedIndex = intervalChoice.indexOfSelectedItem
+                state.interval.interval.customText = intervalCustom.stringValue
+            }
+            let inheritedURL = urlMode.indexOfSelectedItem == 0
+            if inheritedURL != state.urlInherited {
+                state.selectURLMode(inherited: inheritedURL, inheritedValue: snapshot?["inherited_test_url"]?.string ?? "")
+                syncControls([.url])
+            } else if !inheritedURL {
+                state.urlText = urlField.stringValue
+            }
         }
     }
 
@@ -215,7 +225,9 @@ private final class SourceSettingsPanel: NSPanel {
         if page == .latency && sections.contains(.interval) {
             intervalMode.selectItem(at: state.interval.inherited ? 0 : 1)
             intervalChoice.selectItem(at: state.interval.interval.selectedIndex)
-            intervalCustom.stringValue = state.interval.interval.customText
+            intervalCustom.stringValue = state.interval.inherited
+                ? state.interval.interval.seconds.map { "\($0) seconds" } ?? ""
+                : state.interval.interval.customText
         }
         if page == .latency && sections.contains(.url) {
             urlMode.selectItem(at: state.urlInherited ? 0 : 1)
@@ -238,10 +250,15 @@ private final class SourceSettingsPanel: NSPanel {
             intervalMode.isEnabled = editing && !state.pendingRefresh.contains(.interval)
             intervalChoice.isEnabled = intervalMode.isEnabled && !state.interval.inherited
             intervalCustom.isEnabled = intervalChoice.isEnabled
-            intervalCustom.isHidden = state.interval.inherited || state.interval.interval.selectedIndex != state.interval.interval.presets.count
+            intervalChoice.isHidden = state.interval.inherited
+            intervalCustom.isHidden = !state.interval.inherited && state.interval.interval.selectedIndex != state.interval.interval.presets.count
+            intervalCustom.placeholderString = state.interval.inherited
+                ? inheritedPlaceholder(snapshot?["inherited_interval_status"]?.string)
+                : "Seconds (1–31536000)"
             urlMode.isEnabled = editing && !state.pendingRefresh.contains(.url)
             urlMode.item(at: 0)?.isEnabled = state.canResetURL
             urlField.isEnabled = urlMode.isEnabled && !state.urlInherited
+            urlField.placeholderString = state.urlInherited ? inheritedPlaceholder(snapshot?["inherited_url_status"]?.string) : "Full HTTP(S) URL"
             urlReason.isHidden = state.canResetURL
             urlReason.stringValue = "This source has no original test URL to restore. Enter a replacement URL."
         }
@@ -312,12 +329,16 @@ private final class SourceSettingsPanel: NSPanel {
             if kind == "provider" { detail = (value["enabled"]?.bool).map { $0 ? "Own checks enabled" : "Own checks disabled" } ?? "Own check state unavailable" }
             else { detail = (value["profile"]?.string).flatMap { $0.isEmpty ? nil : "Profile: \($0)" } ?? "Not yet applied" }
             checkContext.stringValue = detail
-            if initialize {
-                state.loadInterval(seconds: seconds.flatMap { $0 > 0 ? $0 : nil }, inherited: value["source"]?.string != "override")
+            if initialize || section == .interval {
+                let inherited = value["source"]?.string != "override"
+                let displayed = inherited ? value["inherited_interval_seconds"]?.int64 : seconds
+                state.loadInterval(seconds: displayed.flatMap { $0 > 0 ? $0 : nil }, inherited: inherited)
+                syncControls([.interval])
             }
             if initialize || section == .url {
-                state.loadURL(inherited: value["url_source"]?.string != "override", canReset: value["can_reset_url"]?.bool != false,
-                    value: value["test_url"]?.string ?? "")
+                let inherited = value["url_source"]?.string != "override"
+                state.loadURL(inherited: inherited, canReset: value["can_reset_url"]?.bool != false,
+                    value: (inherited ? value["inherited_test_url"]?.string : value["test_url"]?.string) ?? "")
                 syncControls([.url])
             }
         }
@@ -380,6 +401,13 @@ private final class SourceSettingsPanel: NSPanel {
             guard alert.runModal() == .alertSecondButtonReturn else { return }
         }
         NSApp.stopModal()
+    }
+    private func inheritedPlaceholder(_ status: String?) -> String {
+        switch status {
+        case "mixed": return "Varies by group or provider"
+        case "not_applied": return "Not yet applied"
+        default: return "Inherited value unavailable"
+        }
     }
     private static func cadence(_ seconds: Int64) -> String {
         if seconds == 0 { return "Manual updates only" }

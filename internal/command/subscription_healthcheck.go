@@ -60,3 +60,40 @@ func mutateSubscriptionHealthcheckURL(ctx context.Context, subscriptions *subscr
 	entry.HealthcheckURL = value
 	return subscriptionHealthcheckResult(entry), nil
 }
+
+// Editing responses include an inherited value only when all applicable
+// checkers agree. Default inspection and mutation responses retain their shape.
+func healthcheckEditingResult(r profile.Healthcheck, store *profile.Store) (profile.Healthcheck, error) {
+	r.TestURL = r.FullTestURL
+	r.InheritedIntervalStatus, r.InheritedURLStatus = "unavailable", "unavailable"
+	if r.Profile == "" {
+		r.InheritedIntervalStatus, r.InheritedURLStatus = "not_applied", "not_applied"
+		return r, nil
+	}
+	values, err := store.InheritedHealthchecks(r.Profile, r.Kind, r.Name)
+	if err != nil {
+		return r, err
+	}
+	if len(values) == 0 {
+		return r, nil
+	}
+	seconds, testURL := values[0].IntervalSeconds, values[0].FullTestURL
+	sameInterval, sameURL := true, true
+	for _, value := range values[1:] {
+		sameInterval = sameInterval && value.IntervalSeconds == seconds
+		sameURL = sameURL && value.FullTestURL == testURL
+	}
+	if !sameInterval {
+		r.InheritedIntervalStatus = "mixed"
+	} else if seconds > 0 {
+		r.InheritedIntervalSeconds = &seconds
+		r.InheritedIntervalStatus = "known"
+	}
+	if !sameURL {
+		r.InheritedURLStatus = "mixed"
+	} else if testURL != "" {
+		r.InheritedTestURL = testURL
+		r.InheritedURLStatus = "known"
+	}
+	return r, nil
+}

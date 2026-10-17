@@ -50,6 +50,42 @@ import XCTest
         }
     }
 
+    func testInheritedValuesAppearInDisabledFieldsIncludingCustomSeconds() async throws {
+        _ = NSApplication.shared
+        let model = AppModel(runCommand: { _ in
+            return try JSONDecoder().decode(JSONValue.self, from: Data("""
+            {"interval_seconds":0,"source":"profile","url_source":"profile","profile":"work",
+             "can_reset_url":true,"inherited_interval_seconds":450,"inherited_interval_status":"known",
+             "inherited_test_url":"https://source.invalid/path?status=204","inherited_url_status":"known"}
+            """.utf8))
+        })
+        let controller = SourceSettingsPanelController(model: model, kind: "subscription", name: "work", page: .latency)
+        await controller.loadSettings()
+        let root = try XCTUnwrap(controller.window?.contentView)
+        let fields = descendants(root, of: NSTextField.self)
+        XCTAssertTrue(fields.contains { $0.stringValue == "450 seconds" && !$0.isHidden && !$0.isEnabled })
+        XCTAssertTrue(fields.contains { $0.stringValue == "https://source.invalid/path?status=204" && !$0.isHidden && !$0.isEnabled })
+        let buttons = descendants(root, of: NSButton.self)
+        XCTAssertTrue(buttons.contains { $0.title == "Save Interval" && !$0.isEnabled })
+        XCTAssertTrue(buttons.contains { $0.title == "Save Test URL" && !$0.isEnabled })
+    }
+
+    func testMixedInheritedValuesShowPlaceholdersInsteadOfInventingValues() async throws {
+        _ = NSApplication.shared
+        let model = AppModel(runCommand: { _ in
+            return try JSONDecoder().decode(JSONValue.self, from: Data("""
+            {"interval_seconds":0,"source":"profile","url_source":"profile","profile":"work",
+             "can_reset_url":true,"inherited_interval_status":"mixed","inherited_url_status":"mixed"}
+            """.utf8))
+        })
+        let controller = SourceSettingsPanelController(model: model, kind: "subscription", name: "work", page: .latency)
+        await controller.loadSettings()
+        let root = try XCTUnwrap(controller.window?.contentView)
+        let fields = descendants(root, of: NSTextField.self).filter { $0.placeholderString == "Varies by group or provider" }
+        XCTAssertEqual(fields.count, 2)
+        XCTAssertTrue(fields.allSatisfy { $0.stringValue.isEmpty && !$0.isHidden && !$0.isEnabled })
+    }
+
     func testInitialReadFailureCanRetryInSameWindow() async throws {
         _ = NSApplication.shared
         var attempts = 0
