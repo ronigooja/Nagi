@@ -156,7 +156,11 @@ func validateControl(req privileged.Request) error {
 			q := u.Query()
 			target, targetErr := url.Parse(q.Get("url"))
 			timeout, timeoutErr := strconv.Atoi(q.Get("timeout"))
-			if len(q) == 2 && targetErr == nil && (target.Scheme == "http" || target.Scheme == "https") && target.Host != "" && target.User == nil && timeoutErr == nil && timeout >= 1 && timeout <= 30000 {
+			_, hasExpected := q["expected"]
+			knownFields := len(q) == 2 || len(q) == 3 && hasExpected
+			// Mihomo parses the expected-status ranges. The helper only bounds
+			// this optional value and rejects additional or repeated fields.
+			if knownFields && len(q["url"]) == 1 && len(q["timeout"]) == 1 && len(q["expected"]) <= 1 && len(q.Get("expected")) <= 1024 && targetErr == nil && (target.Scheme == "http" || target.Scheme == "https") && target.Host != "" && target.User == nil && timeoutErr == nil && timeout >= 1 && timeout <= 30000 {
 				return nil
 			}
 		}
