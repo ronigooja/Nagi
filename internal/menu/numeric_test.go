@@ -147,7 +147,7 @@ func TestSubscriptionDetailOrderWithoutPreview(t *testing.T) {
 	for _, item := range view.Actions {
 		labels = append(labels, item.Label)
 	}
-	want := []string{"Update and Apply", "Automatic Updates", "Encryption Settings", "Remove subscription and cache"}
+	want := []string{"Update and Apply", "Automatic Updates", "Automatic latency checks", "Encryption Settings", "Remove subscription and cache"}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatal(labels)
 	}

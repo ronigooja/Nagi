@@ -14,6 +14,7 @@ type menuProvider struct {
 	Type        string                   `json:"type"`
 	VehicleType string                   `json:"vehicle_type"`
 	Nodes       []string                 `json:"nodes"`
+	NodeInfo    map[string]menuNodeInfo  `json:"node_info"`
 	NodeDelays  map[string]menuNodeDelay `json:"node_delays"`
 }
 
@@ -102,8 +103,11 @@ func providerDetailPage(name string) *Page {
 		}
 		view.Context = fmt.Sprintf("Type: %s; nodes: %d", p.Type, len(p.Nodes))
 		for _, node := range p.Nodes {
-			// Make numbered provider nodes useful: invoke the canonical CLI latency check.
-			view.Items = append(view.Items, Item{Name: node, Label: node + " — " + p.NodeDelays[node].label() + " (measure latency)", Args: []string{"proxy", "delay", node}})
+			item := Item{Name: node, Label: nodeLabel(node, p.NodeInfo, p.NodeDelays)}
+			if nodeKind(node, p.NodeInfo) == "node" {
+				item.Args = []string{"proxy", "test", "provider", name, node}
+			}
+			view.Items = append(view.Items, item)
 		}
 		return view, nil
 	}}

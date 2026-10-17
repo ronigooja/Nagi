@@ -18,6 +18,7 @@ type menuProxyGroup struct {
 	SelectedStatus string                   `json:"selected_status"`
 	Hidden         bool                     `json:"hidden"`
 	Icon           string                   `json:"icon"`
+	NodeInfo       map[string]menuNodeInfo  `json:"node_info"`
 	NodeDelays     map[string]menuNodeDelay `json:"node_delays"`
 }
 
@@ -183,9 +184,6 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 				view.Actions = append(view.Actions, Item{Label: "Resume automatic selection", Impact: "Clears this group's fixed choice and saved selection", Args: []string{"proxy", "auto", name}})
 			}
 		}
-		if !testOnly {
-			view.Actions = append(view.Actions, Item{Label: "Automatic latency checks", Next: func() *Page { return healthcheckPage("group", name) }})
-		}
 		if testOnly {
 			view.Context += "\nChoose a node to measure latency."
 		} else {
@@ -216,26 +214,27 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 			view.Context += "\nLast latency results first; unmeasured nodes follow."
 		}
 		for _, node := range nodes {
-			label := node
-			if delay, ok := group.NodeDelays[node]; ok {
-				label += " — " + delay.label()
-			} else if measurement, ok := measurements[node]; ok {
-				if measurement.DelayMS != nil {
-					label += fmt.Sprintf(" — %d ms", *measurement.DelayMS)
-				} else if measurement.Error != "" {
-					label += " — " + measurement.Error
-				} else {
-					label += " — latency unknown"
+			if testOnly && nodeKind(node, group.NodeInfo) != "node" {
+				continue
+			}
+			label := nodeLabel(node, group.NodeInfo, group.NodeDelays)
+			if nodeKind(node, group.NodeInfo) == "node" {
+				if _, liveHistory := group.NodeDelays[node]; !liveHistory {
+					if measurement, ok := measurements[node]; ok {
+						delay := menuNodeDelay{Status: "ok", DelayMS: measurement.DelayMS}
+						if measurement.Error != "" {
+							delay.Status = "failed"
+						}
+						label = node + " — " + delay.label()
+					}
 				}
-			} else {
-				label += " — untested"
 			}
 			if node == group.Now {
 				label += " (selected)"
 			}
 			args := []string{"proxy", "select", name, node}
 			if testOnly {
-				args = []string{"proxy", "delay", node}
+				args = []string{"proxy", "test", "group", name, node}
 			}
 			view.Items = append(view.Items, Item{Name: node, Label: label, Selected: node == group.Now, Args: args})
 		}

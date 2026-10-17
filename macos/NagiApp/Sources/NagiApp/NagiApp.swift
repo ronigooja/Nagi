@@ -250,6 +250,12 @@ import AppKit
             let actions = NSMenu()
             add("Update", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
             add("Healthcheck", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: actions)
+            let tests = NSMenu()
+            for node in provider.testableNodes {
+                let item = add("\(node) · \(provider.nodeDelays[node]?.label ?? "Untested")", command: ["proxy", "test", "provider", provider.name, node], enabled: model.state == .running && !model.busy, to: tests)
+                item.toolTip = (provider.nodeDelays[node] ?? NodeDelay()).detail
+            }
+            addSubmenu("Test Single Node", tests, enabled: !provider.testableNodes.isEmpty && model.state == .running, to: actions)
             addHealthcheckSettings(kind: "provider", name: provider.name, to: actions)
             add("Delete Provider", command: provider.removeCommand, enabled: !model.busy, to: actions)
             let metadata = NSMenuItem(title: "\(provider.type) · \(provider.nodes.count) nodes", action: nil, keyEquivalent: "")
@@ -279,6 +285,7 @@ import AppKit
             let autoUpdate = subscription.scheduleSeconds > 0 ? "Auto Update: On" : "Auto Update: Off"
             add(autoUpdate, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
             add("Schedule: every hour", action: #selector(scheduleHour(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
+            addHealthcheckSettings(kind: "subscription", name: subscription.name, to: actions)
             add(subscription.keyConfigured ? "Clear Encryption Key" : "Set Encryption Key…", action: #selector(subscriptionKey(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
             if let pause = subscription.pauseReason { disabled("Auto-apply paused: \(pause)", to: actions) }
             if let stage = subscription.lastFailureStage { disabled("Last failure: \(stage)/\(subscription.lastFailureReason ?? "unknown")", to: actions) }
@@ -415,7 +422,7 @@ import AppKit
                 guard let command = group.selectCommand(node) else { continue }
                 let item = add(group.nodeTitle(node), command: command,
                                checked: group.selected == node, enabled: !model.busy, to: choices)
-                item.toolTip = (group.nodeDelays[node] ?? NodeDelay()).detail
+                item.toolTip = group.nodeDetail(node)
             }
         } else {
             disabled("\(group.kind) · \(group.selected)", to: choices)
@@ -424,7 +431,7 @@ import AppKit
                 let item = NSMenuItem(title: group.nodeTitle(node), action: nil, keyEquivalent: "")
                 item.state = group.selected == node ? .on : .off
                 item.isEnabled = false
-                item.toolTip = (group.nodeDelays[node] ?? NodeDelay()).detail
+                item.toolTip = group.nodeDetail(node)
                 choices.addItem(item)
             }
         }
@@ -440,21 +447,18 @@ import AppKit
                        enabled: !model.busy && !group.nodes.isEmpty, to: choices)
         test.toolTip = group.testExplanation
         let singleTests = NSMenu()
-        for node in group.nodes {
-            let item = add(group.nodeTitle(node), command: ["proxy", "delay", node], enabled: !model.busy, to: singleTests)
-            item.toolTip = (group.nodeDelays[node] ?? NodeDelay()).detail + "\nTests only this node; keeps the group selection."
+        for node in group.testableNodes {
+            let item = add(group.nodeTitle(node), command: ["proxy", "test", "group", group.name, node], enabled: !model.busy, to: singleTests)
+            item.toolTip = (group.nodeDetail(node) ?? "") + "\nTests only this node; keeps the group selection."
         }
-        addSubmenu("Test Single Node", singleTests, enabled: !group.nodes.isEmpty, to: choices)
-        if group.supportsHealthcheck {
-            addHealthcheckSettings(kind: "group", name: group.name, to: choices)
-        }
+        addSubmenu("Test Single Node", singleTests, enabled: !group.testableNodes.isEmpty, to: choices)
         return choices
     }
 
     private func addHealthcheckSettings(kind: String, name: String, to target: NSMenu) {
-        let item = add("Healthcheck Settings…", action: #selector(healthcheckSettings(_:)), enabled: !model.busy, to: target)
+        let item = add("Automatic Latency Settings…", action: #selector(healthcheckSettings(_:)), enabled: !model.busy, to: target)
         item.representedObject = [kind, name]
-        item.toolTip = "View and change this \(kind)'s healthcheck interval for the current profile."
+        item.toolTip = "View and change this \(kind)'s automatic latency test interval."
     }
 
     @objc private func healthcheckSettings(_ sender: NSMenuItem) {
@@ -463,11 +467,11 @@ import AppKit
             do {
                 let value = try await model.healthcheckSettings(kind: target[0], name: target[1])
                 let alert = NSAlert()
-                alert.messageText = "Healthcheck · \(target[1])"
-                let interval = value["interval_seconds"]?.int64
+                alert.messageText = "Automatic Latency · \(target[1])"
+                let interval = (value["interval_seconds"]?.int64).flatMap { $0 > 0 ? $0 : nil }
                 let enabled = (value["enabled"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
                 let lazy = (value["lazy"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
-                alert.informativeText = "Profile: \(value["profile"]?.string ?? "unknown")\nInterval: \(interval.map { "\($0) seconds" } ?? "unknown") · Source: \(value["source"]?.string ?? "unknown")\nEnabled: \(enabled) · Lazy: \(lazy)\nTest origin: \(value["test_url"]?.string ?? "unknown")\nEnter 1–31536000 seconds. This changes the interval without enabling disabled checks. Lazy checks may wait until used. Provider nodes use their provider's interval when configured. Restore removes this profile's interval override."
+                alert.informativeText = "Profile: \(value["profile"]?.string ?? "unknown")\nInterval: \(interval.map { "\($0) seconds" } ?? (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")) · Source: \(value["source"]?.string ?? "unknown")\nEnabled: \(enabled) · Lazy: \(lazy)\nTest origin: \(value["test_url"]?.string ?? "unknown")\nEnter 1–31536000 seconds. This changes the interval without enabling disabled checks. Lazy checks may wait until used. Provider nodes use their provider's interval when configured. Provider local settings take precedence over subscription settings, then the original configuration. Reset removes this local interval override."
                 if let reason = value["reason"]?.string, !reason.isEmpty {
                     alert.informativeText += "\nReason: \(reason)"
                 }
@@ -476,11 +480,15 @@ import AppKit
                 alert.accessoryView = input
                 alert.addButton(withTitle: "Save Interval")
                 alert.addButton(withTitle: "Cancel")
-                alert.addButton(withTitle: "Restore Profile Interval")
+                alert.addButton(withTitle: target[0] == "provider" ? "Inherit Subscription or Original Interval" : "Use Original Configuration Interval")
                 while true {
                     let response = alert.runModal()
                     if response == .alertThirdButtonReturn {
-                        model.perform(["proxy", "healthcheck", "reset"] + target)
+                        if let failure = await model.saveHealthcheckSettings(kind: target[0], name: target[1], seconds: nil) {
+                            alert.messageText = "Interval change failed"
+                            alert.informativeText = failure + "\nYour value is retained. Retry or cancel."
+                            continue
+                        }
                         return
                     }
                     guard response == .alertFirstButtonReturn else { return }
@@ -489,12 +497,16 @@ import AppKit
                         alert.messageText = "Enter an interval from 1 to 31536000 seconds"
                         continue
                     }
-                    model.perform(["proxy", "healthcheck", "set"] + target + [String(seconds)])
+                    if let failure = await model.saveHealthcheckSettings(kind: target[0], name: target[1], seconds: seconds) {
+                        alert.messageText = "Interval change failed"
+                        alert.informativeText = failure + "\nYour value is retained. Retry or cancel."
+                        continue
+                    }
                     return
                 }
             } catch {
                 let alert = NSAlert()
-                alert.messageText = "Healthcheck settings unavailable"
+                alert.messageText = "Automatic latency settings unavailable"
                 alert.informativeText = error.localizedDescription
                 alert.runModal()
             }

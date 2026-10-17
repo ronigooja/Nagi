@@ -19,6 +19,9 @@ func (d menuNodeDelay) label() string {
 	switch d.Status {
 	case "ok":
 		if d.DelayMS != nil {
+			if *d.DelayMS == 0 {
+				return "<1 ms"
+			}
 			return fmt.Sprintf("%d ms", *d.DelayMS)
 		}
 		return "latency unknown"
@@ -32,14 +35,39 @@ func (d menuNodeDelay) label() string {
 	}
 }
 
+type menuNodeInfo struct {
+	Kind   string `json:"kind"`
+	Status string `json:"status"`
+}
+
+func nodeKind(name string, info map[string]menuNodeInfo) string {
+	switch name {
+	case "DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE":
+		return "builtin"
+	}
+	return info[name].Kind
+}
+func nodeLabel(name string, info map[string]menuNodeInfo, delays map[string]menuNodeDelay) string {
+	switch nodeKind(name, info) {
+	case "node":
+		return name + " — " + delays[name].label()
+	case "group":
+		if status := info[name].Status; status == "available" || status == "unavailable" {
+			return name + " — " + status
+		}
+	}
+	return name
+}
+
 type menuHealthcheck struct {
-	IntervalSeconds *int   `json:"interval_seconds"`
-	Enabled         *bool  `json:"enabled"`
-	Lazy            *bool  `json:"lazy"`
-	Source          string `json:"source"`
-	Profile         string `json:"profile"`
-	TestURL         string `json:"test_url"`
-	Reason          string `json:"reason"`
+	IntervalDefaulted bool   `json:"interval_defaulted"`
+	IntervalSeconds   *int   `json:"interval_seconds"`
+	Enabled           *bool  `json:"enabled"`
+	Lazy              *bool  `json:"lazy"`
+	Source            string `json:"source"`
+	Profile           string `json:"profile"`
+	TestURL           string `json:"test_url"`
+	Reason            string `json:"reason"`
 }
 
 func healthcheckPage(kind, name string) *Page {
@@ -64,13 +92,15 @@ func healthcheckPage(kind, name string) *Page {
 				})
 				return err
 			}},
-			{Label: "Restore profile interval", Impact: "Removes this local override; reloads running mihomo", Args: []string{"proxy", "healthcheck", "reset", kind, name}},
+			{Label: healthcheckResetLabel(kind), Impact: "Removes this local override; reloads running mihomo", Args: []string{"proxy", "healthcheck", "reset", kind, name}},
 		}
 		if err != nil {
 			return view, err
 		}
 		interval := "unknown"
-		if config.IntervalSeconds != nil {
+		if config.IntervalDefaulted && (config.IntervalSeconds == nil || *config.IntervalSeconds == 0) {
+			interval = "original configuration"
+		} else if config.IntervalSeconds != nil {
 			interval = fmt.Sprintf("%d seconds", *config.IntervalSeconds)
 		}
 		state := func(v *bool) string {
@@ -94,9 +124,7 @@ func healthcheckPage(kind, name string) *Page {
 			view.Context += "\nTest endpoint: " + menuTestEndpoint(config.TestURL)
 		}
 		view.Context += "\nMihomo schedules these checks. Lazy checks may skip unused groups or providers.\nThis setting belongs to this profile's " + kind + "; subscription download intervals are separate."
-		if kind == "group" {
-			view.Context += "\nAttached providers use their own healthcheck intervals."
-		}
+		view.Context += "\nProvider local settings take precedence over subscription settings, then the original configuration."
 		return view, nil
 	}}
 }
@@ -108,4 +136,11 @@ func menuTestEndpoint(raw string) string {
 		return "unknown"
 	}
 	return u.Host + " (" + u.Scheme + ")"
+}
+
+func healthcheckResetLabel(kind string) string {
+	if kind == "provider" {
+		return "Inherit subscription or original interval"
+	}
+	return "Use original configuration interval"
 }

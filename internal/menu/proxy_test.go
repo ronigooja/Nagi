@@ -25,8 +25,8 @@ func (r *featureRunner) Run(_ context.Context, args []string) Result {
 func TestProxyGroupNodeNamesStaySingleArguments(t *testing.T) {
 	ctx := context.Background()
 	runner := &featureRunner{results: map[string]Result{
-		"proxy\x00groups":               {Data: map[string]any{"groups": []any{map[string]any{"name": "World Select", "all": []string{"Node A"}, "now": "Node A", "selected_status": "available"}}}},
-		"proxy\x00show\x00World Select": {Data: map[string]any{"name": "World Select", "all": []string{"Node A"}, "now": "Node A", "selected_status": "available"}},
+		"proxy\x00groups":               {Data: map[string]any{"groups": []any{map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}, "now": "Node A", "selected_status": "available"}}}},
+		"proxy\x00show\x00World Select": {Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}, "now": "Node A", "selected_status": "available"}},
 	}}
 	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
 	groups, err := ProxyPage().Load(ctx, s)
@@ -58,7 +58,7 @@ func hasProxyCall(calls [][]string, want []string) bool {
 func TestProxySwitchNeedsThreeSelectionsFromRoot(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{
 		"proxy\x00groups":                           {Data: map[string]any{"groups": []any{map[string]any{"name": "World Select"}}}},
-		"proxy\x00show\x00World Select":             {Data: map[string]any{"name": "World Select", "all": []string{"Node A"}}},
+		"proxy\x00show\x00World Select":             {Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}}},
 		"proxy\x00select\x00World Select\x00Node A": {Data: map[string]any{"group": "World Select", "node": "Node A"}},
 	}}
 	root := &Page{Title: "Root", Load: func(context.Context, *Session) (PageView, error) {
@@ -87,12 +87,12 @@ func TestProxyPaginationAndBatchSelectSameNames(t *testing.T) {
 	}
 	ms := 12
 	runner := &featureRunner{results: map[string]Result{
-		"proxy\x00show\x00Auto":              {Data: map[string]any{"name": "Auto", "type": "URLTest", "fixed": "Node 00", "now": "Node 00", "all": nodes}},
+		"proxy\x00show\x00Auto":              {Data: map[string]any{"name": "Auto", "type": "URLTest", "fixed": "Node 00", "now": "Node 00", "node_info": ordinaryNodeInfo(nodes), "all": nodes}},
 		"proxy\x00delays\x00Auto":            {Data: map[string]any{"results": []any{map[string]any{"proxy": "Node 11", "delay_ms": ms}, map[string]any{"proxy": "Node 00", "error": "latency test failed"}}}},
 		"proxy\x00select\x00Auto\x00Node 11": {Data: map[string]any{"group": "Auto", "node": "Node 11"}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("17\n2\n9\n13\n1\n1\n0\n"), &out), proxyGroupPage("Auto"))
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("16\n2\n8\n13\n1\n1\n0\n"), &out), proxyGroupPage("Auto"))
 	count := 0
 	for _, call := range runner.calls {
 		if reflect.DeepEqual(call, []string{"proxy", "select", "Auto", "Node 11"}) {
@@ -114,7 +114,7 @@ func TestProxyPaginationAndBatchSelectSameNames(t *testing.T) {
 
 func TestProxyMeasurementsPruneRemovedNodes(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{
-		"proxy\x00show\x00Group":   {Data: map[string]any{"name": "Group", "all": []string{"A", "B"}}},
+		"proxy\x00show\x00Group":   {Data: map[string]any{"name": "Group", "node_info": ordinaryNodeInfo([]string{"A", "B"}), "all": []string{"A", "B"}}},
 		"proxy\x00delays\x00Group": {Data: map[string]any{"results": []any{map[string]any{"proxy": "B", "delay_ms": 1}, map[string]any{"proxy": "A", "delay_ms": 2}}}},
 	}}
 	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
@@ -130,7 +130,7 @@ func TestProxyMeasurementsPruneRemovedNodes(t *testing.T) {
 			}
 		}
 	}
-	runner.results["proxy\x00show\x00Group"] = Result{Data: map[string]any{"name": "Group", "all": []string{"A", "C"}}}
+	runner.results["proxy\x00show\x00Group"] = Result{Data: map[string]any{"name": "Group", "node_info": ordinaryNodeInfo([]string{"A", "C"}), "all": []string{"A", "C"}}}
 	view, err = page.Load(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestProxyMeasurementsPruneRemovedNodes(t *testing.T) {
 		t.Fatalf("pruned items=%#v", view.Items)
 	}
 	// A reappearing node does not inherit a stale measurement.
-	runner.results["proxy\x00show\x00Group"] = Result{Data: map[string]any{"name": "Group", "all": []string{"A", "B"}}}
+	runner.results["proxy\x00show\x00Group"] = Result{Data: map[string]any{"name": "Group", "node_info": ordinaryNodeInfo([]string{"A", "B"}), "all": []string{"A", "B"}}}
 	view, _ = page.Load(context.Background(), s)
 	if strings.Contains(view.Items[1].Label, "ms") {
 		t.Fatalf("stale measurement=%q", view.Items[1].Label)
@@ -209,8 +209,8 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 		},
 		"start": {{Data: map[string]any{"running": true}}},
 		"proxy show World Select": {
-			{Data: map[string]any{"name": "World Select", "all": []string{"Node A"}}},
-			{Data: map[string]any{"name": "World Select", "all": []string{"Node A"}, "now": "Node A"}},
+			{Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}}},
+			{Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}, "now": "Node A"}},
 		},
 		"proxy select World Select Node A": {{Data: map[string]any{"group": "World Select", "node": "Node A"}}},
 	}}
@@ -243,7 +243,7 @@ func TestProxyGroupsSuccessfulReadDoesNotQueryRuntime(t *testing.T) {
 func TestProxyBatchErrorsRetainUnderlyingStateExplanation(t *testing.T) {
 	message := "measurement failed; fixed-node reset is unknown; run proxy show Auto"
 	runner := &featureRunner{results: map[string]Result{
-		"proxy\x00show\x00Auto":   {Data: map[string]any{"name": "Auto", "type": "Fallback", "all": []string{"Node"}}},
+		"proxy\x00show\x00Auto":   {Data: map[string]any{"name": "Auto", "type": "Fallback", "node_info": ordinaryNodeInfo([]string{"Node"}), "all": []string{"Node"}}},
 		"proxy\x00delays\x00Auto": {Code: 1, Error: &CLIError{Message: message}},
 	}}
 	var out bytes.Buffer
@@ -255,7 +255,7 @@ func TestProxyBatchErrorsRetainUnderlyingStateExplanation(t *testing.T) {
 
 func TestProxyLatencyFailureKeepsLastMeasurementsAndRedactsNames(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{
-		"proxy\x00show\x00https://secret.example/token":   {Data: map[string]any{"name": "https://secret.example/token", "all": []string{"Node"}}},
+		"proxy\x00show\x00https://secret.example/token":   {Data: map[string]any{"name": "https://secret.example/token", "node_info": ordinaryNodeInfo([]string{"Node"}), "all": []string{"Node"}}},
 		"proxy\x00delays\x00https://secret.example/token": {Data: map[string]any{"results": []any{map[string]any{"proxy": "Node", "delay_ms": 7}}}},
 	}}
 	var out bytes.Buffer

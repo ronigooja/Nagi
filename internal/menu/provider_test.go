@@ -21,7 +21,7 @@ func (r *changingProviderRunner) Run(_ context.Context, args []string) Result {
 	case "proxy groups":
 		return Result{Data: map[string]any{"groups": []any{}}}
 	case "proxy providers":
-		return Result{Data: map[string]any{"providers": []any{map[string]any{"name": "work", "type": "HTTP", "nodes": []string{"Old"}}}}}
+		return Result{Data: map[string]any{"providers": []any{map[string]any{"name": "work", "type": "HTTP", "node_info": ordinaryNodeInfo([]string{"Old"}), "nodes": []string{"Old"}}}}}
 	case "proxy provider show work":
 		r.shows++
 		if r.fail {
@@ -31,7 +31,7 @@ func (r *changingProviderRunner) Run(_ context.Context, args []string) Result {
 		if r.shows > 1 {
 			node = "New"
 		}
-		return Result{Data: map[string]any{"name": "work", "type": "HTTP", "nodes": []string{node}}}
+		return Result{Data: map[string]any{"name": "work", "type": "HTTP", "node_info": ordinaryNodeInfo([]string{node}), "nodes": []string{node}}}
 	default:
 		return Result{Data: map[string]any{}}
 	}
@@ -41,12 +41,12 @@ func TestProviderSessionRefreshesAfterUpdateAndDispatchesActions(t *testing.T) {
 	r := &changingProviderRunner{}
 	var out bytes.Buffer
 	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n1\n"), &out), providerListPage())
-	for _, want := range [][]string{{"proxy", "provider", "show", "work"}, {"proxy", "provider", "update", "work"}, {"proxy", "provider", "healthcheck", "work"}, {"proxy", "delay", "New"}} {
+	for _, want := range [][]string{{"proxy", "provider", "show", "work"}, {"proxy", "provider", "update", "work"}, {"proxy", "provider", "healthcheck", "work"}, {"proxy", "test", "provider", "work", "New"}} {
 		if !hasProxyCall(r.calls, want) {
 			t.Fatalf("missing %v in %#v", want, r.calls)
 		}
 	}
-	if hasProxyCall(r.calls, []string{"proxy", "delay", "Old"}) || !strings.Contains(out.String(), "New — untested (measure latency)") {
+	if hasProxyCall(r.calls, []string{"proxy", "delay", "Old"}) || !strings.Contains(out.String(), "New — untested") {
 		t.Fatalf("stale provider node: %s", out.String())
 	}
 }

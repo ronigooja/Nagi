@@ -131,6 +131,22 @@ func (s *Session) presentResult(args []string, result Result) {
 		return
 	}
 	data := menuObject(result.Data)
+	// History for groups and built-in actions is not a node measurement.
+	if _, ok := data["node_delays"]; ok {
+		raw := data["node_info"]
+		var info map[string]menuNodeInfo
+		var delays map[string]json.RawMessage
+		_ = json.Unmarshal(raw, &info)
+		if json.Unmarshal(data["node_delays"], &delays) == nil {
+			for name := range delays {
+				if nodeKind(name, info) != "node" {
+					delete(delays, name)
+				}
+			}
+			data["node_delays"], _ = json.Marshal(delays)
+		}
+	}
+	delete(data, "node_info")
 	if len(args) >= 2 && args[0] == "rules" && args[1] == "test" {
 		encoded, _ := json.Marshal(result.Data)
 		var test rules.TestResult
@@ -245,6 +261,9 @@ func (s *Session) renderValue(label string, raw json.RawMessage, depth int) {
 			return
 		}
 		text := output.RedactError(fmt.Sprint(value))
+		if label == "measured at" {
+			text = subscriptionTime(fmt.Sprint(value))
+		}
 		if label == "test url" {
 			label = "test endpoint"
 			text = output.RedactError(menuTestEndpoint(fmt.Sprint(value)))
@@ -304,7 +323,7 @@ func mutationFeedback(args []string) string {
 		}[args[1]]
 	case "proxy":
 		if args[1] == "healthcheck" && len(args) > 2 {
-			return map[string]string{"set": "Local healthcheck interval saved.", "reset": "Profile healthcheck interval restored."}[args[2]]
+			return map[string]string{"set": "Local healthcheck interval saved.", "reset": "Inherited healthcheck interval restored."}[args[2]]
 		}
 		if args[1] == "provider" && len(args) > 2 {
 			return map[string]string{

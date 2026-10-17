@@ -12,7 +12,7 @@ import AppKit
         {"fast":{"status":"ok","delay_ms":0,"measured_at":"2026-10-16T10:00:00Z","test_url":"https://example.com"},
          "bad":{"status":"failed","measured_at":"2026-10-16T10:00:01Z"},"new":{"status":"untested"}}
         """))
-        XCTAssertEqual(delays["fast"]?.label, "0 ms")
+        XCTAssertEqual(delays["fast"]?.label, "<1 ms")
         XCTAssertEqual(delays["bad"]?.label, "Failed")
         XCTAssertEqual(delays["new"]?.label, "Untested")
         XCTAssertEqual(NodeDelay().label, "Untested")
@@ -38,19 +38,19 @@ import AppKit
         let delegate = MenuAppDelegate(model: model)
         for kind in ["Selector", "URLTest", "Fallback"] {
             let group = ProxyGroup(name: "group", kind: kind, selected: "one", fixed: "one", selectedStatus: nil,
-                                   nodes: ["one", "two"], hidden: false, icon: nil)
+                                   nodes: ["one", "two"], hidden: false, icon: nil, nodeInfo: ["one": NodeInfo(kind: "node", status: nil), "two": NodeInfo(kind: "node", status: nil)])
             let menu = delegate.makeGroupMenu(group)
             let choice = try XCTUnwrap(menu.item(withTitle: "one · Untested"))
             XCTAssertEqual(choice.representedObject as? [String], ["proxy", "select", "group", "one"])
             XCTAssertEqual(choice.state, .on)
             let tests = try XCTUnwrap(menu.item(withTitle: "Test Single Node")?.submenu)
-            XCTAssertEqual(tests.items[0].representedObject as? [String], ["proxy", "delay", "one"])
+            XCTAssertEqual(tests.items[0].representedObject as? [String], ["proxy", "test", "group", "group", "one"])
             let batch = try XCTUnwrap(menu.item(withTitle: group.testTitle))
             XCTAssertEqual(batch.representedObject as? [String], ["proxy", "delays", "group"])
             if group.automatic {
                 XCTAssertTrue(batch.title.contains("Restores Automatic Selection"))
                 XCTAssertTrue(batch.toolTip!.contains("fixed choice and saved choice"))
-                XCTAssertNotNil(menu.item(withTitle: "Healthcheck Settings…"))
+                XCTAssertNil(menu.item(withTitle: "Automatic Latency Settings…"))
             }
         }
         XCTAssertFalse(model.busy) // Constructing/opening menus dispatches no test.
@@ -70,8 +70,7 @@ import AppKit
             let member = try XCTUnwrap(menu.item(withTitle: group.nodeTitle("one")))
             XCTAssertFalse(member.isEnabled)
             XCTAssertNil(member.representedObject)
-            let settings = try XCTUnwrap(menu.item(withTitle: "Healthcheck Settings…"))
-            XCTAssertEqual(settings.representedObject as? [String], ["group", "balanced"])
+            XCTAssertNil(menu.item(withTitle: "Automatic Latency Settings…"))
             XCTAssertEqual(group.testTitle, "Test Current Group")
             XCTAssertFalse(group.testExplanation.contains("clears"))
         }
@@ -82,7 +81,7 @@ import AppKit
         var fail = false
         let model = AppModel(cli: NagiCLIClient(executable: URL(fileURLWithPath: "/nagi-latency-no-cli")), runCommand: { arguments in
             calls.append(arguments)
-            if arguments.prefix(2) == ["proxy", "delay"], fail { throw CLIError.command("test", "Test failed") }
+            if arguments.prefix(2) == ["proxy", "test"], fail { throw CLIError.command("test", "Test failed") }
             let json: String
             switch arguments {
             case ["status"]: json = "{\"running\":true,\"profile\":\"one\"}"
@@ -101,13 +100,13 @@ import AppKit
         for shouldFail in [false, true] {
             fail = shouldFail
             calls.removeAll()
-            model.perform(["proxy", "delay", "node"])
+            model.perform(["proxy", "test", "group", "group", "node"])
             for _ in 0..<200 {
                 if !model.busy { break }
                 try? await Task.sleep(nanoseconds: 5_000_000)
             }
             XCTAssertFalse(model.busy)
-            XCTAssertEqual(calls.filter { $0 == ["proxy", "delay", "node"] }.count, 1)
+            XCTAssertEqual(calls.filter { $0 == ["proxy", "test", "group", "group", "node"] }.count, 1)
             XCTAssertTrue(calls.contains(["proxy", "groups"]))
             XCTAssertTrue(calls.contains(["proxy", "providers"]))
             if shouldFail { XCTAssertTrue(model.errorMessage?.contains("Test failed") == true) }
@@ -128,4 +127,69 @@ import AppKit
         XCTAssertEqual(calls, [["proxy", "healthcheck", "show", "provider", "feed"]])
         XCTAssertFalse(model.busy)
     }
+    func testGroupAndBuiltinRowsKeepNamesAndSelectionWithoutMeasurements() throws {
+        _ = NSApplication.shared
+        let delegate = MenuAppDelegate(model: AppModel())
+        let failed = NodeDelay(try decode("{\"status\":\"failed\"}"))
+        let nodes = ["Child", "Balance", "DIRECT", "REJECT", "Fast", "Unknown"]
+        let info = ["Child": NodeInfo(kind: "group", status: "unavailable"),
+                    "Balance": NodeInfo(kind: "group", status: nil), "Fast": NodeInfo(kind: "node", status: nil)]
+        let group = ProxyGroup(name: "Parent", kind: "Selector", selected: "DIRECT", fixed: nil, selectedStatus: nil,
+                               nodes: nodes, hidden: false, icon: nil,
+                               nodeDelays: Dictionary(uniqueKeysWithValues: nodes.map { ($0, failed) }), nodeInfo: info)
+        let menu = delegate.makeGroupMenu(group)
+        for name in ["Balance", "DIRECT", "REJECT", "Unknown"] {
+            let item = try XCTUnwrap(menu.item(withTitle: name))
+            XCTAssertNil(item.toolTip)
+            XCTAssertEqual(item.state, name == "DIRECT" ? .on : .off)
+        }
+        XCTAssertNotNil(menu.item(withTitle: "Child · Unavailable"))
+        let tests = try XCTUnwrap(menu.item(withTitle: "Test Single Node")?.submenu)
+        XCTAssertEqual(tests.items.count, 1)
+        XCTAssertEqual(tests.items[0].representedObject as? [String], ["proxy", "test", "group", "Parent", "Fast"])
+        XCTAssertNil(menu.item(withTitle: "Automatic Latency Settings…"))
+    }
+
+    func testSelectingRefreshesActualFixedChoiceAndNestedAvailability() async throws {
+        var calls: [[String]] = []
+        let model = AppModel(cli: NagiCLIClient(executable: URL(fileURLWithPath: "/nagi-latency-no-cli")), runCommand: { arguments in
+            calls.append(arguments)
+            let json: String
+            switch arguments {
+            case ["status"]: json = "{\"running\":true,\"profile\":\"one\"}"
+            case ["proxy", "groups"]:
+                json = """
+                {"groups":[{"name":"Parent","type":"URLTest","now":"Child","fixed":"Child","all":["Child"],
+                "node_info":{"Child":{"kind":"group","status":"unavailable"}}}]}
+                """
+            default: json = "{}"
+            }
+            return try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))
+        })
+        await model.refreshMenuData()
+        calls.removeAll()
+        model.perform(["proxy", "select", "Parent", "Child"])
+        for _ in 0..<200 {
+            if !model.busy { break }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertFalse(model.busy)
+        XCTAssertTrue(calls.contains(["proxy", "groups"]))
+        XCTAssertEqual(model.groups.first?.fixed, "Child")
+        XCTAssertEqual(model.groups.first?.nodeTitle("Child"), "Child · Unavailable")
+        model.pauseForSleep()
+    }
+
+    func testIntervalMutationUsesSubscriptionContextAndReleasesBusyAfterFailure() async throws {
+        var calls: [[String]] = []
+        let model = AppModel(runCommand: { arguments in
+            calls.append(arguments)
+            throw CLIError.command("activation", "Activation failed")
+        })
+        let failure = await model.saveHealthcheckSettings(kind: "subscription", name: "feed", seconds: 120)
+        XCTAssertNotNil(failure)
+        XCTAssertEqual(calls.first, ["proxy", "healthcheck", "set", "subscription", "feed", "120"])
+        XCTAssertFalse(model.busy)
+    }
+
 }

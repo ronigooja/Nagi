@@ -137,7 +137,7 @@ func TestMenuSelectedFlagsFollowProfileAndNodeState(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			runner := &featureRunner{results: map[string]Result{
 				"profile\x00list":        {Data: map[string]any{"profiles": []string{"Literal (selected)", "Actual"}, "current": "Actual"}},
-				"proxy\x00show\x00Group": {Data: map[string]any{"name": "Group", "all": []string{"Literal (selected)", "Actual"}, "now": "Actual"}},
+				"proxy\x00show\x00Group": {Data: map[string]any{"name": "Group", "node_info": ordinaryNodeInfo([]string{"Literal (selected)", "Actual"}), "all": []string{"Literal (selected)", "Actual"}, "now": "Actual"}},
 			}}
 			s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
 			page := profileListPage()
@@ -327,7 +327,7 @@ func TestMenuStyledProfileComparisonPreservesContent(t *testing.T) {
 
 func TestMenuSelectedFlagsRefreshWithLatencyRankedNodes(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{
-		"proxy\x00show\x00Group": {Data: map[string]any{"name": "Group", "all": []string{"A", "B (selected)"}, "now": "A"}},
+		"proxy\x00show\x00Group": {Data: map[string]any{"name": "Group", "node_info": ordinaryNodeInfo([]string{"A", "B (selected)"}), "all": []string{"A", "B (selected)"}, "now": "A"}},
 		"proxy\x00delays\x00Group": {Data: map[string]any{"results": []any{
 			map[string]any{"proxy": "B (selected)", "delay_ms": 1}, map[string]any{"proxy": "A", "delay_ms": 10},
 		}}},

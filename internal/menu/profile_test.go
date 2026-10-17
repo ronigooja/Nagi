@@ -252,7 +252,7 @@ func TestSubscriptionMenuAddAndRemoveJourney(t *testing.T) {
 		"subscription\x00remove\x00feed": {},
 	}}
 	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader("1\nfeed\nhttps://example.invalid/feed\n4\n0\n"), &out)
+	s := NewSession(runner, strings.NewReader("1\nfeed\nhttps://example.invalid/feed\n5\n0\n"), &out)
 	if code := RunPage(context.Background(), s, subscriptionListPage()); code != 0 {
 		t.Fatal(code)
 	}

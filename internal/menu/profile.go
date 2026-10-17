@@ -320,6 +320,7 @@ func subscriptionDetailPage(name string) *Page {
 					Item{Label: "Set update interval", Action: func(ctx context.Context, s *Session) error { return subscriptionSchedule(ctx, s, name) }},
 					Item{Label: "Disable automatic updates", Args: []string{"subscription", "schedule", name, "off"}})
 			}},
+			{Label: "Automatic latency checks", Next: func() *Page { return healthcheckPage("subscription", name) }},
 			{Label: "Encryption Settings", Next: func() *Page {
 				return actionPage("Encryption Settings",
 					Item{Label: "Set identity file", Action: func(ctx context.Context, s *Session) error { return subscriptionKey(ctx, s, name) }},

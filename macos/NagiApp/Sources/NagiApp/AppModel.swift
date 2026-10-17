@@ -16,7 +16,7 @@ struct NodeDelay {
         reason = (value?["reason"]?.string).flatMap { $0.isEmpty ? nil : $0 }
     }
     var label: String {
-        if status == "ok", let milliseconds { return "\(milliseconds) ms" }
+        if status == "ok", let milliseconds { return milliseconds == 0 ? "<1 ms" : "\(milliseconds) ms" }
         if status == "failed" { return "Failed" }
         return reason == nil ? "Untested" : "Unknown"
     }
@@ -31,6 +31,19 @@ struct NodeDelay {
     }
 }
 
+struct NodeInfo {
+    let kind: String
+    let status: String?
+    static func parse(_ value: JSONValue?) -> [String: NodeInfo] {
+        guard case let .objectValue(entries)? = value else { return [:] }
+        return entries.mapValues { NodeInfo(kind: $0["kind"]?.string ?? "unknown", status: $0["status"]?.string) }
+    }
+    static func kind(_ name: String, in info: [String: NodeInfo]) -> String {
+        if ["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"].contains(name) { return "builtin" }
+        return info[name]?.kind ?? "unknown"
+    }
+}
+
 struct ProxyGroup {
     let name: String
     let kind: String
@@ -41,7 +54,20 @@ struct ProxyGroup {
     let hidden: Bool
     let icon: String?
     var nodeDelays: [String: NodeDelay] = [:]
-    func nodeTitle(_ node: String) -> String { "\(node) · \(nodeDelays[node]?.label ?? "Untested")" }
+    var nodeInfo: [String: NodeInfo] = [:]
+    var testableNodes: [String] { nodes.filter { NodeInfo.kind($0, in: nodeInfo) == "node" } }
+    func nodeTitle(_ node: String) -> String {
+        switch NodeInfo.kind(node, in: nodeInfo) {
+        case "node": return "\(node) · \(nodeDelays[node]?.label ?? "Untested")"
+        case "group":
+            if let status = nodeInfo[node]?.status, ["available", "unavailable"].contains(status) { return "\(node) · \(status.capitalized)" }
+        default: break
+        }
+        return node
+    }
+    func nodeDetail(_ node: String) -> String? {
+        NodeInfo.kind(node, in: nodeInfo) == "node" ? (nodeDelays[node] ?? NodeDelay()).detail : nil
+    }
     var testCommand: [String] { ["proxy", "delays", name] }
     var testTitle: String { automatic ? "Test Current Group (Restores Automatic Selection)" : "Test Current Group" }
     var testExplanation: String { automatic ? "Tests this group, clears its fixed choice and saved choice, and restores automatic selection." : "Tests all nodes in this group; preserves the selected node." }
@@ -75,6 +101,8 @@ struct ProxyProvider {
     var nodeDelays: [String: NodeDelay] = [:]
     var updateCommand: [String] { ["proxy", "provider", "update", name] }
     var removeCommand: [String] { ["proxy", "provider", "remove", name] }
+    var nodeInfo: [String: NodeInfo] = [:]
+    var testableNodes: [String] { nodes.filter { NodeInfo.kind($0, in: nodeInfo) == "node" } }
     var healthcheckCommand: [String] { ["proxy", "provider", "healthcheck", name] }
 }
 enum TrafficDisplay: String, CaseIterable {
@@ -429,7 +457,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                         return ProxyGroup(name: name, kind: item["type"]?.string ?? "", selected: item["now"]?.string ?? "",
                                           fixed: item["fixed"]?.string, selectedStatus: item["selected_status"]?.string,
                                           nodes: item["all"]?.array.compactMap(\.string) ?? [],
-                                          hidden: item["hidden"]?.bool == true, icon: item["icon"]?.string, nodeDelays: NodeDelay.parse(item["node_delays"]))
+                                          hidden: item["hidden"]?.bool == true, icon: item["icon"]?.string, nodeDelays: NodeDelay.parse(item["node_delays"]), nodeInfo: NodeInfo.parse(item["node_info"]))
                     } ?? []
                 } catch {
                     guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
@@ -471,7 +499,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                     providersUnavailable = false
                     providers = value["providers"]?.array.compactMap { item in
                         guard let name = item["name"]?.string else { return nil }
-                        return ProxyProvider(name: name, type: item["type"]?.string ?? "", vehicleType: item["vehicle_type"]?.string ?? "", nodes: item["nodes"]?.array.compactMap(\.string) ?? [], nodeDelays: NodeDelay.parse(item["node_delays"]))
+                        return ProxyProvider(name: name, type: item["type"]?.string ?? "", vehicleType: item["vehicle_type"]?.string ?? "", nodes: item["nodes"]?.array.compactMap(\.string) ?? [], nodeDelays: NodeDelay.parse(item["node_delays"]), nodeInfo: NodeInfo.parse(item["node_info"]))
                     } ?? []
                 } catch {
                     guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
@@ -506,12 +534,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                         tunAdapter = result["adapter_status"]?.string
                     case ("mode", _): mode = result["mode"]?.string
                     case ("proxy", "select"):
-                        if arguments.count == 4 {
-                            groups = groups.map { group in
-                                guard group.name == arguments[2] else { return group }
-                                return ProxyGroup(name: group.name, kind: group.kind, selected: arguments[3], fixed: group.fixed, selectedStatus: group.selectedStatus, nodes: group.nodes, hidden: group.hidden, icon: group.icon, nodeDelays: group.nodeDelays)
-                            }
-                        }
+                        await requestRefresh(.groups, force: true)
                     case ("service", "install"): serviceInstalled = true
                     case ("service", "uninstall"): serviceInstalled = false
                     case ("profile", "use"):
@@ -524,7 +547,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                         await requestRefresh([.profiles, .runtime], force: true)
                     case ("proxy", "auto"):
                         await requestRefresh(.groups, force: true)
-                    case ("proxy", "delay"), ("proxy", "delays"), ("proxy", "healthcheck"), ("proxy", "provider"):
+                    case ("proxy", "test"), ("proxy", "delay"), ("proxy", "delays"), ("proxy", "healthcheck"), ("proxy", "provider"):
                         await requestRefresh([.groups, .providers], force: true)
                     case ("subscription", "schedule"), ("subscription", "key"):
                         await requestRefresh(.subscriptions, force: true)
@@ -536,7 +559,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             catch {
                 settingsGeneration += 1
                 if arguments.first == "proxy", arguments.count > 1,
-                   ["delay", "delays", "provider", "healthcheck"].contains(arguments[1]) {
+                   ["test", "delay", "delays", "provider", "healthcheck"].contains(arguments[1]) {
                     await requestRefresh([.groups, .providers], force: true)
                 }
                 errorMessage = error.localizedDescription
@@ -550,6 +573,29 @@ enum EngineState { case starting, running, stopped, unavailable }
         defer { busy = false }
         await waitForConnectionsOperation()
         return try await runCommand(["proxy", "healthcheck", "show", kind, name])
+    }
+
+    func saveHealthcheckSettings(kind: String, name: String, seconds: Int64?) async -> String? {
+        guard !busy && !quitting else { return "Another operation is in progress." }
+        if let seconds, !(1...31_536_000).contains(seconds) { return "Test interval must be 1–31536000 seconds." }
+        settingsGeneration += 1
+        busy = true
+        applyingSetting = true
+        defer { applyingSetting = false; busy = false }
+        await waitForConnectionsOperation()
+        do {
+            let arguments = ["proxy", "healthcheck", seconds == nil ? "reset" : "set", kind, name] + (seconds.map { [String($0)] } ?? [])
+            _ = try await runCommand(arguments)
+            settingsGeneration += 1
+            await requestRefresh([.groups, .providers], force: true)
+            errorMessage = nil
+            return nil
+        } catch {
+            settingsGeneration += 1
+            await requestRefresh([.groups, .providers], force: true)
+            errorMessage = error.localizedDescription
+            return error.localizedDescription
+        }
     }
 
     // Configuration, validation, persistence, and activation remain CLI operations.

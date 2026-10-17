@@ -18,7 +18,7 @@ func TestEngineLatencyDisplayedWithoutImplicitMeasurement(t *testing.T) {
 			}
 			key := "proxy show Group"
 			page := proxyGroupPage("Group")
-			data := map[string]any{"all": []string{"Fast", "Failed", "New"}, "now": "Fast", "node_delays": delays}
+			data := map[string]any{"node_info": ordinaryNodeInfo([]string{"Fast", "Failed", "New"}), "all": []string{"Fast", "Failed", "New"}, "now": "Fast", "node_delays": delays}
 			if provider {
 				key = "proxy provider show Group"
 				page = providerDetailPage("Group")
@@ -41,7 +41,7 @@ func TestEngineLatencyDisplayedWithoutImplicitMeasurement(t *testing.T) {
 
 func TestLatestEngineFailureOverridesBatchValueKeepsOrdering(t *testing.T) {
 	r := &fakeRunner{results: map[string]Result{
-		"proxy show Group":   {Data: map[string]any{"all": []string{"A", "B"}}},
+		"proxy show Group":   {Data: map[string]any{"node_info": ordinaryNodeInfo([]string{"A", "B"}), "all": []string{"A", "B"}}},
 		"proxy delays Group": {Data: map[string]any{"results": []any{map[string]any{"proxy": "B", "delay_ms": 1}, map[string]any{"proxy": "A", "delay_ms": 2}}}},
 	}}
 	s := NewSession(r, strings.NewReader(""), &bytes.Buffer{})
@@ -54,7 +54,7 @@ func TestLatestEngineFailureOverridesBatchValueKeepsOrdering(t *testing.T) {
 			}
 		}
 	}
-	r.results["proxy show Group"] = Result{Data: map[string]any{"all": []string{"A", "B"}, "node_delays": map[string]any{"B": map[string]any{"status": "failed"}, "A": map[string]any{"status": "ok", "delay_ms": 8}}}}
+	r.results["proxy show Group"] = Result{Data: map[string]any{"node_info": ordinaryNodeInfo([]string{"A", "B"}), "all": []string{"A", "B"}, "node_delays": map[string]any{"B": map[string]any{"status": "failed"}, "A": map[string]any{"status": "ok", "delay_ms": 8}}}}
 	view, _ = page.Load(context.Background(), s)
 	if view.Items[0].Name != "B" || !strings.Contains(view.Items[0].Label, "failed") || !strings.Contains(view.Items[1].Label, "8 ms") {
 		t.Fatalf("latest results=%#v", view.Items)
@@ -64,8 +64,8 @@ func TestLatestEngineFailureOverridesBatchValueKeepsOrdering(t *testing.T) {
 func TestMeasurementDetailsShowTimeAndOnlyEndpoint(t *testing.T) {
 	var out bytes.Buffer
 	s := NewSession(&fakeRunner{}, strings.NewReader(""), &out)
-	s.ShowResult([]string{"proxy", "show", "Group"}, Result{Data: map[string]any{"node_delays": map[string]any{"Node": map[string]any{"status": "ok", "delay_ms": 5, "measured_at": "2026-10-16T20:00:00Z", "test_url": "https://user:secret@example.invalid/private?token=secret"}}}})
-	for _, want := range []string{"2026-10-16T20:00:00Z", "example.invalid (https)", "test endpoint"} {
+	s.ShowResult([]string{"proxy", "show", "Group"}, Result{Data: map[string]any{"node_info": ordinaryNodeInfo([]string{"Node"}), "node_delays": map[string]any{"Node": map[string]any{"status": "ok", "delay_ms": 5, "measured_at": "2026-10-16T20:00:00Z", "test_url": "https://user:secret@example.invalid/private?token=secret"}}}})
+	for _, want := range []string{subscriptionTime("2026-10-16T20:00:00Z"), "example.invalid (https)", "test endpoint"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("missing %q: %s", want, out.String())
 		}
@@ -78,7 +78,7 @@ func TestMeasurementDetailsShowTimeAndOnlyEndpoint(t *testing.T) {
 }
 
 func TestHealthcheckRetainedFormAndRestorationJourney(t *testing.T) {
-	for _, kind := range []string{"group", "provider"} {
+	for _, kind := range []string{"subscription", "provider"} {
 		t.Run(kind, func(t *testing.T) {
 			r := &sequenceRunner{results: map[string][]Result{
 				"proxy healthcheck show " + kind + " Work":    {{Data: map[string]any{"profile": "work", "interval_seconds": 300, "enabled": true, "lazy": true, "source": "profile", "test_url": "https://example.invalid"}}},
@@ -100,12 +100,12 @@ func TestHealthcheckRetainedFormAndRestorationJourney(t *testing.T) {
 					t.Fatalf("dispatch %s=%d calls=%v", cmd, counts[cmd], r.calls)
 				}
 			}
-			for _, want := range []string{"Values are retained", "Configuration source: profile", "Lazy checks may skip", "subscription download intervals are separate", "Local healthcheck interval saved.", "Profile healthcheck interval restored."} {
+			for _, want := range []string{"Values are retained", "Configuration source: profile", "Lazy checks may skip", "subscription download intervals are separate", "Local healthcheck interval saved.", "Inherited healthcheck interval restored."} {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("missing %q: %s", want, out.String())
 				}
 			}
-			if kind == "group" && !strings.Contains(out.String(), "Attached providers use their own") {
+			if kind == "subscription" && !strings.Contains(out.String(), "Provider local settings take precedence") {
 				t.Fatal(out.String())
 			}
 		})
@@ -116,7 +116,7 @@ func TestHealthcheckFailureKeepsSettingsActionsAndCancelDoesNotMutate(t *testing
 	r := &fakeRunner{results: map[string]Result{"proxy healthcheck show group Work": {Code: 1, Error: &CLIError{Message: "profile unavailable"}}}}
 	var out bytes.Buffer
 	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n"), &out), healthcheckPage("group", "Work"))
-	if len(r.calls) != 1 || !strings.Contains(out.String(), "unknown") || !strings.Contains(out.String(), "Restore profile interval") {
+	if len(r.calls) != 1 || !strings.Contains(out.String(), "unknown") || !strings.Contains(out.String(), "Use original configuration interval") {
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
 	}
 }
@@ -125,7 +125,7 @@ func TestUnavailableMeasurementsRemainUnknownInNodeListsAndDetails(t *testing.T)
 	for _, provider := range []bool{false, true} {
 		t.Run(map[bool]string{false: "group", true: "provider"}[provider], func(t *testing.T) {
 			reason := "ambiguous node ownership"
-			data := map[string]any{"all": []string{"Unknown", "Untested"}, "nodes": []string{"Unknown", "Untested"}, "node_delays": map[string]any{
+			data := map[string]any{"node_info": ordinaryNodeInfo([]string{"Unknown", "Untested"}), "all": []string{"Unknown", "Untested"}, "nodes": []string{"Unknown", "Untested"}, "node_delays": map[string]any{
 				"Unknown":  map[string]any{"status": "untested", "reason": reason},
 				"Untested": map[string]any{"status": "untested"},
 			}}
@@ -178,5 +178,80 @@ func TestHealthcheckSchedulingReasonDisplayedWithUnknownAndDisabledFields(t *tes
 				t.Fatalf("implicit mutation: %v", r.calls)
 			}
 		})
+	}
+}
+
+func ordinaryNodeInfo(nodes []string) map[string]menuNodeInfo {
+	info := map[string]menuNodeInfo{}
+	for _, name := range nodes {
+		info[name] = menuNodeInfo{Kind: "node"}
+	}
+	return info
+}
+
+func TestNodeIdentityControlsLatencyAndIndividualTests(t *testing.T) {
+	nodes := []string{"Child", "Balance", "DIRECT", "REJECT", "Fast", "Mystery"}
+	info := map[string]menuNodeInfo{"Child": {Kind: "group", Status: "unavailable"}, "Balance": {Kind: "group"}, "Fast": {Kind: "node"}}
+	zero := 0
+	delays := map[string]menuNodeDelay{}
+	for _, name := range nodes {
+		delays[name] = menuNodeDelay{Status: "failed"}
+	}
+	delays["Fast"] = menuNodeDelay{Status: "ok", DelayMS: &zero}
+	data := map[string]any{"all": nodes, "nodes": nodes, "now": "DIRECT", "node_info": info, "node_delays": delays}
+	r := &fakeRunner{results: map[string]Result{"proxy show Group": {Data: data}, "proxy provider show Feed": {Data: data}}}
+	s := NewSession(r, strings.NewReader(""), &bytes.Buffer{})
+	view, err := proxyGroupPage("Group").Load(context.Background(), s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Child — unavailable", "Balance", "DIRECT (selected)", "REJECT", "Fast — <1 ms", "Mystery"}
+	for i, item := range view.Items {
+		if item.Label != want[i] {
+			t.Fatalf("item=%+v want=%s", item, want[i])
+		}
+	}
+	for _, a := range view.Actions {
+		if strings.Contains(a.Label, "Automatic latency") {
+			t.Fatal("group retains interval settings")
+		}
+	}
+	tests, _ := proxyNodesPage("Group", true).Load(context.Background(), s)
+	if len(tests.Items) != 1 || !reflect.DeepEqual(tests.Items[0].Args, []string{"proxy", "test", "group", "Group", "Fast"}) {
+		t.Fatalf("unsafe tests: %+v", tests.Items)
+	}
+	provider, _ := providerDetailPage("Feed").Load(context.Background(), s)
+	for _, item := range provider.Items {
+		if item.Name == "Fast" {
+			if !reflect.DeepEqual(item.Args, []string{"proxy", "test", "provider", "Feed", "Fast"}) {
+				t.Fatal(item.Args)
+			}
+		} else if len(item.Args) > 0 {
+			t.Fatal(item)
+		}
+	}
+	info["Child"] = menuNodeInfo{Kind: "group", Status: "available"}
+	view, _ = proxyGroupPage("Group").Load(context.Background(), s)
+	if view.Items[0].Label != "Child — available" {
+		t.Fatal(view.Items[0])
+	}
+	var out bytes.Buffer
+	NewSession(r, strings.NewReader(""), &out).ShowResult([]string{"proxy", "show", "Group"}, Result{Data: data})
+	if strings.Contains(out.String(), "latency test failed") || strings.Contains(out.String(), "DIRECT:\n") || strings.Contains(out.String(), "Child:\n") {
+		t.Fatal(out.String())
+	}
+}
+
+func TestSubscriptionLatencyEntryIsExplicitAndUsesOriginalDefault(t *testing.T) {
+	r := &fakeRunner{results: map[string]Result{"proxy healthcheck show subscription Feed": {Data: map[string]any{"interval_seconds": 0, "interval_defaulted": true, "source": "profile"}}}}
+	s := NewSession(r, strings.NewReader(""), &bytes.Buffer{})
+	view, _ := subscriptionDetailPage("Feed").Load(context.Background(), s)
+	action := profileAction(t, view, "Automatic latency checks")
+	if hasProxyCall(r.calls, []string{"proxy", "healthcheck", "show", "subscription", "Feed"}) {
+		t.Fatal("implicit settings read")
+	}
+	settings, _ := action.Next().Load(context.Background(), s)
+	if !strings.Contains(settings.Context, "Interval: original configuration") || strings.Contains(settings.Context, "0 seconds") || settings.Actions[1].Label != "Use original configuration interval" {
+		t.Fatalf("%+v", settings)
 	}
 }
