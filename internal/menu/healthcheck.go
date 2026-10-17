@@ -12,6 +12,7 @@ type menuNodeDelay struct {
 	DelayMS    *int   `json:"delay_ms"`
 	MeasuredAt string `json:"measured_at"`
 	TestURL    string `json:"test_url"`
+	Reason     string `json:"reason"`
 }
 
 func (d menuNodeDelay) label() string {
@@ -24,6 +25,9 @@ func (d menuNodeDelay) label() string {
 	case "failed":
 		return "latency test failed"
 	default:
+		if d.Reason != "" {
+			return "latency unknown"
+		}
 		return "untested"
 	}
 }
@@ -35,6 +39,7 @@ type menuHealthcheck struct {
 	Source          string `json:"source"`
 	Profile         string `json:"profile"`
 	TestURL         string `json:"test_url"`
+	Reason          string `json:"reason"`
 }
 
 func healthcheckPage(kind, name string) *Page {
@@ -82,6 +87,9 @@ func healthcheckPage(kind, name string) *Page {
 			source = "local override"
 		}
 		view.Context = fmt.Sprintf("Profile: %s\nInterval: %s; enabled: %s; lazy: %s\nConfiguration source: %s", config.Profile, interval, state(config.Enabled), state(config.Lazy), source)
+		if config.Reason != "" {
+			view.Context += "\nScheduling note: " + config.Reason
+		}
 		if config.TestURL != "" {
 			view.Context += "\nTest endpoint: " + menuTestEndpoint(config.TestURL)
 		}

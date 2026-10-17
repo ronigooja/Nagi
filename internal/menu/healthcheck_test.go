@@ -120,3 +120,63 @@ func TestHealthcheckFailureKeepsSettingsActionsAndCancelDoesNotMutate(t *testing
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
 	}
 }
+
+func TestUnavailableMeasurementsRemainUnknownInNodeListsAndDetails(t *testing.T) {
+	for _, provider := range []bool{false, true} {
+		t.Run(map[bool]string{false: "group", true: "provider"}[provider], func(t *testing.T) {
+			reason := "ambiguous node ownership"
+			data := map[string]any{"all": []string{"Unknown", "Untested"}, "nodes": []string{"Unknown", "Untested"}, "node_delays": map[string]any{
+				"Unknown":  map[string]any{"status": "untested", "reason": reason},
+				"Untested": map[string]any{"status": "untested"},
+			}}
+			key := "proxy show Group"
+			page := proxyGroupPage("Group")
+			if provider {
+				key = "proxy provider show Group"
+				page = providerDetailPage("Group")
+			}
+			r := &fakeRunner{results: map[string]Result{key: {Data: data}}}
+			var out bytes.Buffer
+			s := NewSession(r, strings.NewReader("0\n"), &out)
+			RunPage(context.Background(), s, page)
+			for _, want := range []string{"Unknown — latency unknown", "Untested — untested"} {
+				if !strings.Contains(out.String(), want) {
+					t.Fatalf("missing %q: %s", want, out.String())
+				}
+			}
+			s.ShowResult(strings.Split(key, " "), Result{Data: data})
+			if !strings.Contains(out.String(), "reason: "+reason) {
+				t.Fatalf("missing measurement reason: %s", out.String())
+			}
+			if len(r.calls) != 1 {
+				t.Fatalf("implicit operation: %v", r.calls)
+			}
+		})
+	}
+}
+
+func TestHealthcheckSchedulingReasonDisplayedWithUnknownAndDisabledFields(t *testing.T) {
+	for _, tc := range []struct {
+		kind, reason string
+		enabled      any
+	}{
+		{"group", "provider-only group has no native checker", nil},
+		{"provider", "provider healthchecks are disabled", false},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			r := &fakeRunner{results: map[string]Result{"proxy healthcheck show " + tc.kind + " Work": {Data: map[string]any{
+				"profile": "work", "interval_seconds": nil, "lazy": nil, "enabled": tc.enabled, "reason": tc.reason, "source": "profile",
+			}}}}
+			var out bytes.Buffer
+			RunPage(context.Background(), NewSession(r, strings.NewReader("0\n"), &out), healthcheckPage(tc.kind, "Work"))
+			for _, want := range []string{"Interval: unknown", "lazy: unknown", "Scheduling note: " + tc.reason} {
+				if !strings.Contains(out.String(), want) {
+					t.Fatalf("missing %q: %s", want, out.String())
+				}
+			}
+			if len(r.calls) != 1 {
+				t.Fatalf("implicit mutation: %v", r.calls)
+			}
+		})
+	}
+}
