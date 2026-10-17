@@ -610,6 +610,19 @@ enum EngineState { case starting, running, stopped, unavailable }
         }
     }
 
+    func subscriptionUpdateSettings(_ name: String) async throws -> Int64 {
+        guard !busy && !quitting else { throw CLIError.command("busy", "Another operation is in progress.") }
+        busy = true
+        defer { busy = false }
+        await waitForConnectionsOperation()
+        let value = try await runCommand(["subscription", "list"])
+        guard let item = value["subscriptions"]?.array.first(where: { $0["name"]?.string == name }),
+              let seconds = item["schedule_seconds"]?.int64 else {
+            throw CLIError.command("subscription_error", "Subscription schedule is unavailable.")
+        }
+        return seconds
+    }
+
     func providerUpdateSettings(_ name: String) async throws -> JSONValue {
         guard !busy && !quitting else { throw CLIError.command("busy", "Another operation is in progress.") }
         busy = true
