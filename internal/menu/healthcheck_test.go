@@ -251,7 +251,23 @@ func TestSubscriptionLatencyEntryIsExplicitAndUsesOriginalDefault(t *testing.T) 
 		t.Fatal("implicit settings read")
 	}
 	settings, _ := action.Next().Load(context.Background(), s)
+	if settings.Actions[0].Impact != "Saves subscription setting; reloads its active profile" || !strings.Contains(settings.Context, "Profile: not applied") || !strings.Contains(settings.Context, "Checker enablement and lazy behavior follow") || strings.Contains(settings.Context, "enabled: false") {
+		t.Fatalf("misleading subscription settings: %+v", settings)
+	}
 	if !strings.Contains(settings.Context, "Interval: original configuration") || strings.Contains(settings.Context, "0 seconds") || settings.Actions[1].Label != "Use original configuration interval" {
 		t.Fatalf("%+v", settings)
+	}
+}
+
+func TestExplicitProviderNodeIdentityOverridesReservedNameFallback(t *testing.T) {
+	zero := 0
+	data := map[string]any{"nodes": []string{"DIRECT"}, "node_info": ordinaryNodeInfo([]string{"DIRECT"}), "node_delays": map[string]menuNodeDelay{"DIRECT": {Status: "ok", DelayMS: &zero}}}
+	r := &fakeRunner{results: map[string]Result{"proxy provider show Feed": {Data: data}}}
+	view, err := providerDetailPage("Feed").Load(context.Background(), NewSession(r, strings.NewReader(""), &bytes.Buffer{}))
+	if err != nil || len(view.Items) != 1 || view.Items[0].Label != "DIRECT — <1 ms" || !reflect.DeepEqual(view.Items[0].Args, []string{"proxy", "test", "provider", "Feed", "DIRECT"}) {
+		t.Fatalf("view=%+v err=%v", view, err)
+	}
+	if nodeKind("DIRECT", nil) != "builtin" {
+		t.Fatal("missing reserved fallback")
 	}
 }

@@ -471,7 +471,11 @@ import AppKit
                 let interval = (value["interval_seconds"]?.int64).flatMap { $0 > 0 ? $0 : nil }
                 let enabled = (value["enabled"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
                 let lazy = (value["lazy"]?.bool).map { $0 ? "yes" : "no" } ?? "unknown"
-                alert.informativeText = "Profile: \(value["profile"]?.string ?? "unknown")\nInterval: \(interval.map { "\($0) seconds" } ?? (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")) · Source: \(value["source"]?.string ?? "unknown")\nEnabled: \(enabled) · Lazy: \(lazy)\nTest origin: \(value["test_url"]?.string ?? "unknown")\nEnter 1–31536000 seconds. This changes the interval without enabling disabled checks. Lazy checks may wait until used. Provider nodes use their provider's interval when configured. Provider local settings take precedence over subscription settings, then the original configuration. Reset removes this local interval override."
+                let rawProfile = value["profile"]?.string ?? ""
+                let settingsProfile = rawProfile.isEmpty ? (target[0] == "subscription" ? "not applied" : "unknown") : rawProfile
+                let checkerState = target[0] == "subscription" ? "Checker enablement and lazy behavior follow each checker's configuration." : "Enabled: \(enabled) · Lazy: \(lazy)"
+                let saveExplanation = target[0] == "subscription" ? "Saves the subscription setting and reloads its active profile. Reset uses the original configuration interval." : "Saves a profile-local provider setting. Reset inherits the subscription or original interval."
+                alert.informativeText = "Profile: \(settingsProfile)\nInterval: \(interval.map { "\($0) seconds" } ?? (value["interval_defaulted"]?.bool == true ? "original configuration" : "unknown")) · Source: \(value["source"]?.string ?? "unknown")\n\(checkerState)\nTest origin: \(value["test_url"]?.string ?? "unknown")\nEnter 1–31536000 seconds. This changes the interval without enabling disabled checks. Lazy checks may wait until used. Provider nodes use their provider's interval when configured. Provider local settings take precedence over subscription settings, then the original configuration. \(saveExplanation)"
                 if let reason = value["reason"]?.string, !reason.isEmpty {
                     alert.informativeText += "\nReason: \(reason)"
                 }

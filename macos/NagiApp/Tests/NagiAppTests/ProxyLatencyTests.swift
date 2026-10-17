@@ -192,4 +192,11 @@ import AppKit
         XCTAssertFalse(model.busy)
     }
 
+    func testProviderNodeNamedDirectUsesExplicitIdentityAndContext() {
+        let provider = ProxyProvider(name: "Feed", type: "http", vehicleType: "HTTP", nodes: ["DIRECT"], nodeInfo: ["DIRECT": NodeInfo(kind: "node", status: nil)])
+        XCTAssertEqual(provider.testableNodes, ["DIRECT"])
+        XCTAssertEqual(NodeInfo.kind("DIRECT", in: provider.nodeInfo), "node")
+        XCTAssertEqual(NodeInfo.kind("DIRECT", in: [:]), "builtin")
+    }
+
 }

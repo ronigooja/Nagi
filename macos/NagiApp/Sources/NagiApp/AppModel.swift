@@ -39,6 +39,7 @@ struct NodeInfo {
         return entries.mapValues { NodeInfo(kind: $0["kind"]?.string ?? "unknown", status: $0["status"]?.string) }
     }
     static func kind(_ name: String, in info: [String: NodeInfo]) -> String {
+        if let node = info[name] { return node.kind }
         if ["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"].contains(name) { return "builtin" }
         return info[name]?.kind ?? "unknown"
     }

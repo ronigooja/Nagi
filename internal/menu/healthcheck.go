@@ -41,6 +41,9 @@ type menuNodeInfo struct {
 }
 
 func nodeKind(name string, info map[string]menuNodeInfo) string {
+	if node, exists := info[name]; exists {
+		return node.Kind
+	}
 	switch name {
 	case "DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE":
 		return "builtin"
@@ -75,8 +78,14 @@ func healthcheckPage(kind, name string) *Page {
 		view := PageView{Context: "Automatic latency check settings: unknown"}
 		var config menuHealthcheck
 		err := decodeMenuResult(s.Fetch(ctx, "proxy", "healthcheck", "show", kind, name), &config)
+		saveImpact := "Saves a profile override; reloads running mihomo"
+		resetImpact := "Removes this local override; reloads running mihomo"
+		if kind == "subscription" {
+			saveImpact = "Saves subscription setting; reloads its active profile"
+			resetImpact = "Removes subscription setting; reloads its active profile"
+		}
 		view.Actions = []Item{
-			{Label: "Set local interval", Impact: "Saves a profile override; reloads running mihomo", Action: func(ctx context.Context, s *Session) error {
+			{Label: "Set local interval", Impact: saveImpact, Action: func(ctx context.Context, s *Session) error {
 				values := map[string]string{}
 				if config.IntervalSeconds != nil && *config.IntervalSeconds > 0 {
 					values["seconds"] = strconv.Itoa(*config.IntervalSeconds)
@@ -92,7 +101,7 @@ func healthcheckPage(kind, name string) *Page {
 				})
 				return err
 			}},
-			{Label: healthcheckResetLabel(kind), Impact: "Removes this local override; reloads running mihomo", Args: []string{"proxy", "healthcheck", "reset", kind, name}},
+			{Label: healthcheckResetLabel(kind), Impact: resetImpact, Args: []string{"proxy", "healthcheck", "reset", kind, name}},
 		}
 		if err != nil {
 			return view, err
@@ -116,14 +125,25 @@ func healthcheckPage(kind, name string) *Page {
 		if source == "override" {
 			source = "local override"
 		}
-		view.Context = fmt.Sprintf("Profile: %s\nInterval: %s; enabled: %s; lazy: %s\nConfiguration source: %s", config.Profile, interval, state(config.Enabled), state(config.Lazy), source)
+		profile := config.Profile
+		if profile == "" {
+			if kind == "subscription" {
+				profile = "not applied"
+			} else {
+				profile = "unknown"
+			}
+		}
+		view.Context = fmt.Sprintf("Profile: %s\nInterval: %s; enabled: %s; lazy: %s\nConfiguration source: %s", profile, interval, state(config.Enabled), state(config.Lazy), source)
+		if kind == "subscription" {
+			view.Context = fmt.Sprintf("Profile: %s\nInterval: %s\nConfiguration source: %s\nChecker enablement and lazy behavior follow each checker's configuration.", profile, interval, source)
+		}
 		if config.Reason != "" {
 			view.Context += "\nScheduling note: " + config.Reason
 		}
 		if config.TestURL != "" {
 			view.Context += "\nTest endpoint: " + menuTestEndpoint(config.TestURL)
 		}
-		view.Context += "\nMihomo schedules these checks. Lazy checks may skip unused groups or providers.\nThis setting belongs to this profile's " + kind + "; subscription download intervals are separate."
+		view.Context += "\nMihomo schedules these checks. Lazy checks may skip unused groups or providers.\nAutomatic latency tests and subscription download intervals are separate."
 		view.Context += "\nProvider local settings take precedence over subscription settings, then the original configuration."
 		return view, nil
 	}}
