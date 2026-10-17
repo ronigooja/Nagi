@@ -74,6 +74,17 @@ func bashCompletion(roots []string, children map[string][]string) string {
   if [[ ${semantic[0]} == rules && ${semantic[1]} == import ]]; then
     if [[ ${#semantic[@]} -eq 3 ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
   fi
+  if [[ ${semantic[0]} == proxy && ${semantic[1]} == test ]]; then
+    if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'group provider' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 3 ]]; then
+      local source=groups; [[ ${semantic[2]} == provider ]] && source=providers
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates "$source" 2>/dev/null); return 0
+    fi
+    if [[ ${#semantic[@]} -eq 4 ]]; then
+      local source=nodes; [[ ${semantic[2]} == provider ]] && source=provider-nodes
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates "$source" "${semantic[3]}" 2>/dev/null); return 0
+    fi
+  fi
   if [[ ${semantic[0]} == proxy && ${semantic[1]} == healthcheck ]]; then
     if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'show set reset' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'group provider' -- "$cur") ); return 0; fi
@@ -193,6 +204,17 @@ _nagi() {
   if [[ ${semantic[1]} == rules && ${semantic[2]} == import ]]; then
     if (( ${#semantic} == 3 )); then _files; return; fi
   fi
+  if [[ ${semantic[1]} == proxy && ${semantic[2]} == test ]]; then
+    if (( ${#semantic} == 2 )); then compadd -- group provider; return; fi
+    if (( ${#semantic} == 3 )); then
+      local source=groups; [[ ${semantic[3]} == provider ]] && source=providers
+      compadd -- ${(f)"$(nagi completion candidates "$source" 2>/dev/null)"}; return
+    fi
+    if (( ${#semantic} == 4 )); then
+      local source=nodes; [[ ${semantic[3]} == provider ]] && source=provider-nodes
+      compadd -- ${(f)"$(nagi completion candidates "$source" "${semantic[4]}" 2>/dev/null)"}; return
+    fi
+  fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == healthcheck ]]; then
     if (( ${#semantic} == 2 )); then compadd -- show set reset; return; fi
     if (( ${#semantic} == 3 )); then compadd -- group provider; return; fi
@@ -263,6 +285,12 @@ function __nagi_semantic
     printf '%s\n' $out
   end
 end
+`)
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = test' -a 'group provider'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]" = group' -a '(nagi completion candidates groups 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]" = provider' -a '(nagi completion candidates providers 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]" = group' -a '(set -l s (__nagi_semantic); nagi completion candidates nodes "$s[4]" 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]"  = provider' -a '(set -l s (__nagi_semantic); nagi completion candidates provider-nodes "$s[4]" 2>/dev/null)'
 `)
 	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a 'show set reset'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a 'group provider'

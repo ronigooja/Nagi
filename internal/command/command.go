@@ -415,6 +415,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				}
 				return proxy.Candidates(names), nil
 			}
+			if len(args) == 4 && args[2] == "provider-nodes" {
+				p, e := service.Provider(ctx, args[3])
+				return proxy.Candidates(p.Nodes), e
+			}
+
 			groups, err := service.Groups(ctx)
 			if err != nil {
 				return nil, err
@@ -593,7 +598,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		return nil, usage("diagnostics [export ABSOLUTE_FILE]")
 	}
 	controlTimeout := 10 * time.Second
-	if len(args) >= 2 && command == "proxy" && (args[1] == "delay" || args[1] == "delays") {
+	if len(args) >= 2 && command == "proxy" && (args[1] == "delay" || args[1] == "delays" || args[1] == "test") {
 		controlTimeout = 31 * time.Second
 	}
 	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
@@ -1842,9 +1847,13 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		}
 		groups, err := service.Search(ctx, args[2])
 		return map[string]any{"query": args[2], "groups": groups}, err
+	case "test":
+		if len(args) != 5 || (args[2] != "group" && args[2] != "provider") {
+			return nil, usage("proxy test group|provider OWNER NODE")
+		}
+		return service.TestNode(ctx, args[2], args[3], args[4])
 	case "delays":
-		target := "https://www.gstatic.com/generate_204"
-		timeoutMS := 5000
+		target, timeoutMS, _ := service.GroupTestConditions(args[2])
 		if len(args) >= 4 {
 			target = args[3]
 		}

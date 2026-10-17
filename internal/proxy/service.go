@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
 )
@@ -20,6 +21,7 @@ type Client interface {
 type Service struct {
 	Client     Client
 	GroupOrder []string
+	config     *effectiveConfig
 }
 type Candidates []string
 
@@ -27,6 +29,7 @@ func NewService(client Client) *Service { return &Service{Client: client} }
 
 type Group struct {
 	Name           string               `json:"name"`
+	NodeInfo       map[string]NodeInfo  `json:"node_info"`
 	NodeDelays     map[string]NodeDelay `json:"node_delays,omitempty"`
 	Type           string               `json:"type"`
 	Now            string               `json:"now,omitempty"`
@@ -114,7 +117,22 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 	if err := validateDelay(target, timeoutMS); err != nil {
 		return result, DelayNotSent, err
 	}
+	if s.config != nil {
+		reader, e := s.historyReader(ctx)
+		if e != nil {
+			return result, DelayNotSent, e
+		}
+		for _, name := range g.All {
+			if _, _, ok := reader.resolve(ctx, s, g.Name, name); !ok {
+				return result, DelayNotSent, errors.New("group contains a node with ambiguous ownership; test a specific provider node instead")
+			}
+		}
+	}
+	started := time.Now()
 	u := delayQuery(target, timeoutMS)
+	if c, e := s.conditions("group", g.Name); e == nil && c.Expected != "" {
+		u.Set("expected", c.Expected)
+	}
 	var measured map[string]int
 	if err := s.Client.Get(ctx, "/group/"+url.PathEscape(g.Name)+"/delay?"+u.Encode(), &measured); err != nil {
 		var apiErr *control.APIError
@@ -122,6 +140,29 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 			return result, DelayResetConfirmed, err
 		}
 		return result, DelayResetUnknown, err
+	}
+	if c, e := s.conditions("group", g.Name); e == nil && c.Expected != "" {
+		reader, readErr := s.historyReader(ctx)
+		if readErr != nil {
+			return result, DelayResetConfirmed, errors.New("group test completed but availability results could not be read")
+		}
+		actualURL := target
+		if g.Type == "URLTest" {
+			actualURL = c.URL
+		}
+		for _, name := range g.All {
+			p, _, ok := reader.resolve(ctx, s, g.Name, name)
+			if !ok {
+				delete(measured, name)
+				continue
+			}
+			state, exists := p.Extra[actualURL]
+			if !exists || state.Alive == nil || !*state.Alive || len(state.History) == 0 || latestURLTime(p, actualURL).Before(started) {
+				delete(measured, name)
+				continue
+			}
+			measured[name] = state.History[len(state.History)-1].Delay
+		}
 	}
 	for _, name := range g.All {
 		item := BatchDelayItem{Proxy: name}
@@ -180,21 +221,12 @@ func (s *Service) Delay(ctx context.Context, name, target string, timeoutMS int)
 	if err := validateDelay(target, timeoutMS); err != nil {
 		return result, err
 	}
-	u := delayQuery(target, timeoutMS)
-	path := "/proxies/" + url.PathEscape(name) + "/delay?" + u.Encode()
-	if provider, ok, err := s.providerForNode(ctx, name); err != nil {
-		return result, err
-	} else if ok {
-		path = "/providers/proxies/" + url.PathEscape(provider) + "/" + url.PathEscape(name) + "/healthcheck?" + u.Encode()
-	}
-	var response struct {
-		Delay int `json:"delay"`
-	}
-	if err := s.Client.Get(ctx, path, &response); err != nil {
+	provider, _, err := s.providerForNode(ctx, name)
+	if err != nil {
 		return result, err
 	}
-	result = DelayResult{Proxy: name, URL: target, TimeoutMS: timeoutMS, DelayMS: response.Delay}
-	return result, nil
+	before, _ := s.scopedHistory(ctx, name, provider)
+	return s.delayResolved(ctx, name, provider, checkConfig{URL: target, Timeout: flexibleInt(timeoutMS)}, before)
 }
 
 func validateDelay(target string, timeoutMS int) error {
@@ -240,26 +272,12 @@ func (s *Service) groups(ctx context.Context, delays bool) ([]Group, error) {
 	if s == nil || s.Client == nil {
 		return nil, errors.New("proxy control client unavailable")
 	}
-	var response struct {
-		Proxies map[string]struct {
-			Group
-			History []historyRecord `json:"history"`
-			Extra   map[string]struct {
-				History []historyRecord `json:"history"`
-			} `json:"extra"`
-			TestURL string `json:"testUrl"`
-		} `json:"proxies"`
-	}
-	if err := s.Client.Get(ctx, "/proxies", &response); err != nil {
+	reader, err := s.historyReader(ctx)
+	if err != nil {
 		return nil, err
 	}
 	groups := make([]Group, 0)
-	top := map[string]proxyHistory{}
-	for name, raw := range response.Proxies {
-		top[name] = proxyHistory{History: raw.History, Extra: raw.Extra}
-	}
-	reader := groupHistoryReader{top: top}
-	for name, raw := range response.Proxies {
+	for name, raw := range reader.top {
 		group := raw.Group
 		if len(group.All) == 0 {
 			continue
@@ -314,12 +332,14 @@ func (s *Service) show(ctx context.Context, group string, delays bool) (Group, e
 	}
 	result = raw.Group
 	if delays {
-		var top struct {
-			Proxies map[string]proxyHistory `json:"proxies"`
+		reader, e := s.historyReader(ctx)
+		if e == nil {
+			if result.Name == "" {
+				result.Name = group
+			}
+			reader.decorate(ctx, s, &result, raw.TestURL)
 		}
-		_ = s.Client.Get(ctx, "/proxies", &top)
-		reader := groupHistoryReader{top: top.Proxies}
-		reader.decorate(ctx, s, &result, raw.TestURL)
+
 	}
 	if result.Name == "" {
 		result.Name = group

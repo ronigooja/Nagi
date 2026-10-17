@@ -11,6 +11,7 @@ import (
 // Provider contains only public operational fields. The native response also
 // contains test URLs and full proxy definitions, which must not be returned.
 type Provider struct {
+	NodeInfo    map[string]NodeInfo  `json:"node_info"`
 	Name        string               `json:"name"`
 	NodeDelays  map[string]NodeDelay `json:"node_delays"`
 	Type        string               `json:"type"`
@@ -41,10 +42,16 @@ func (s *Service) Providers(ctx context.Context) ([]Provider, error) {
 		if name == "COMPATIBLE" || raw.VehicleType == "Compatible" {
 			continue
 		}
-		p := Provider{Name: name, Type: raw.Type, VehicleType: raw.VehicleType, UpdatedAt: raw.UpdatedAt, Nodes: []string{}, NodeDelays: map[string]NodeDelay{}}
+		p := Provider{Name: name, Type: raw.Type, VehicleType: raw.VehicleType, UpdatedAt: raw.UpdatedAt, Nodes: []string{}, NodeDelays: map[string]NodeDelay{}, NodeInfo: map[string]NodeInfo{}}
 		for _, node := range raw.Proxies {
 			p.Nodes = append(p.Nodes, node.Name)
-			p.NodeDelays[node.Name] = latestDelay(node, raw.TestURL)
+			kind := scopedNodeKind(node.Name, node, name)
+			info := NodeInfo{Kind: kind}
+			if kind == "node" {
+				p.NodeDelays[node.Name] = latestDelay(node, raw.TestURL)
+				info.Status = delayStatus(p.NodeDelays[node.Name])
+			}
+			p.NodeInfo[node.Name] = info
 		}
 		result = append(result, p)
 	}

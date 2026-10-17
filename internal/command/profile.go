@@ -194,6 +194,7 @@ func orderedProxyService(client proxy.Client, configDir string) *proxy.Service {
 		return service
 	}
 	service.GroupOrder, _ = proxy.GroupOrderFromYAML(effective)
+	_ = service.Configure(effective)
 	return service
 }
 

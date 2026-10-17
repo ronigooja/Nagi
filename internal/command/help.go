@@ -82,7 +82,7 @@ var commandSpecs = []commandSpec{
 	{"dns tun off", "dns tun off", "Disable TUN DNS interception", "Disables TUN in the selected profile override.", "nagi dns tun off", "", 0, 0},
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
-	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|tailscale SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|tailscale SUBCOMMAND|test SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy healthcheck", "proxy healthcheck <show|set|reset> group|provider NAME [SECONDS]", "Manage configured healthcheck intervals", "Reads or changes the selected profile while offline; mutations validate and reload only when running. Provider and group schedulers may differ.", "nagi proxy healthcheck show group Auto", "", 0, -1},
 	{"proxy healthcheck show", "proxy healthcheck show group|provider NAME", "Show a healthcheck interval", "Reports interval, source, lazy setting, and scheduling caveats without probing nodes.", "nagi proxy healthcheck show provider work", "", 2, 2},
 	{"proxy healthcheck set", "proxy healthcheck set group|provider NAME SECONDS", "Save a healthcheck interval", "SECONDS must be 1..31536000. Changes interval only; provider enable and URL remain unchanged.", "nagi proxy healthcheck set group Auto 300", "", 3, 3},
@@ -108,6 +108,9 @@ var commandSpecs = []commandSpec{
 	{"proxy provider show", "proxy provider show NAME", "Show a proxy provider", "Reports redacted provider metadata and node names.", "nagi proxy provider show work", "", 1, 1},
 	{"proxy provider update", "proxy provider update NAME", "Update a proxy provider", "Asks mihomo to download the provider again.", "nagi proxy provider update work", "", 1, 1},
 	{"proxy provider healthcheck", "proxy provider healthcheck NAME", "Check provider nodes", "Asks mihomo to start its provider healthcheck.", "nagi proxy provider healthcheck work", "", 1, 1},
+	{"proxy test", "proxy test <group|provider> OWNER NODE", "Measure a node in its source context", "Uses the effective group or provider URL, timeout and expected status; requires an unambiguous individual node.", "nagi proxy test group 'Proxy Group' NodeA", "Inspect `nagi proxy groups` or `nagi proxy providers`.", 3, 3},
+	{"proxy test group", "proxy test group GROUP NODE", "Measure a group node", "Uses the group's configured URL, timeout and expected status, resolving only its configured node sources.", "nagi proxy test group 'Proxy Group' NodeA", "Run `nagi proxy show GROUP` to inspect nodes.", 2, 2},
+	{"proxy test provider", "proxy test provider PROVIDER NODE", "Measure a provider node", "Uses the provider's configured health-check URL, timeout and expected status.", "nagi proxy test provider Remote NodeA", "Run `nagi proxy provider show PROVIDER` to inspect nodes.", 2, 2},
 	{"proxy delay", "proxy delay NODE [URL] [TIMEOUT_MS]", "Measure proxy delay", "Measures an HTTP(S) URL through a proxy node. URL defaults to https://www.gstatic.com/generate_204 and timeout to 5000 ms.", "nagi proxy delay NodeA", "Run `nagi proxy groups` to find a node name.", 1, 3},
 	{"rules", "rules <test TARGET [options]|list|providers|custom|conflicts|connection ID|add NAME TYPE PAYLOAD TARGET|remove NAME|enable NAME|disable NAME|import NAME SOURCE>", "Manage routing rules", "Custom rules belong to the selected profile, are stored separately from its source, and apply before its rules. Switching profiles selects that profile's custom rules.", "nagi rules list", "", 0, -1},
 	{"rules test", "rules test TARGET [--ip IP] [--port PORT] [--network tcp|udp] [--process NAME]", "Test a domain or IP against active rules", "Requires a running matching mihomo engine. Tests its active rules and rule providers without connecting to the destination; synthetic matching does not update rule counters. Defaults to TCP port 443. TARGET is an ASCII domain or bare IP; --ip supplies a domain's destination address. Mihomo resolves DNS when a rule requires it. Always tests rules even in global/direct mode. Source, inbound, UID, process path and sniffing are unavailable; use rules connection for actual traffic.", "nagi rules test 154.19.187.117", "Start the matching mihomo engine before testing.", 1, -2},
@@ -121,7 +124,7 @@ var commandSpecs = []commandSpec{
 	{"rules enable", "rules enable NAME", "Enable a custom rule", "Enables a named custom rule, imported per-rule list, or rule set in the selected profile.", "nagi rules enable work", "Run `nagi rules custom` to find names.", 1, 1},
 	{"rules disable", "rules disable NAME", "Disable a custom rule", "Disables a named custom rule, imported per-rule list, or rule set in the selected profile.", "nagi rules disable work", "Run `nagi rules custom` to find names.", 1, 1},
 	{"rules import", "rules import NAME SOURCE", "Import routing rules", "SOURCE is a local file or an absolute HTTP(S) URL without userinfo (maximum 8 MiB). Imports native YAML rules with their own targets into the selected profile. NAME uses 1..128 ASCII letters, digits, _ or -. Imported rules apply before profile rules; validation or reload failure restores saved rules.", "nagi rules import work ./rules.yaml", "", 2, 2},
-	{"proxy delays", "proxy delays GROUP [URL] [TIMEOUT_MS]", "Measure group node delays", "Measures all nodes in a group and sorts successful results by ascending latency. Uses the same URL and timeout defaults as proxy delay.", "nagi proxy delays 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 3},
+	{"proxy delays", "proxy delays GROUP [URL] [TIMEOUT_MS]", "Measure group node delays", "Measures all nodes in a group and sorts successful results by ascending latency. Omitted URL and timeout use the effective group settings (fallback: https://www.gstatic.com/generate_204, 5000 ms). Explicit arguments override them; URLTest uses its native configured URL.", "nagi proxy delays 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 3},
 	{"proxy restore", "proxy restore", "Restore saved proxy choices", "Restores available saved choices for the selected profile and reports missing groups or nodes.", "nagi proxy restore", "Run `nagi proxy groups` to see live selections.", 0, 0},
 	{"connections", "connections <list|show ID|close ID|close-all>", "Inspect connections", "Reads or closes active connections from a running engine.", "nagi connections list", "", 0, -1},
 	{"connections list", "connections list", "List active connections", "Shows a snapshot of active connections.", "nagi connections list", "", 0, 0},
@@ -164,7 +167,7 @@ var commandSpecs = []commandSpec{
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
-	{"completion candidates", "completion candidates profile|subscription|rules|profile-groups NAME|groups|nodes [GROUP]|providers|tailscale-nodes|tailscale-targets [node|provider|subscription]|healthcheck-targets group|provider", "List completion candidates", "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
+	{"completion candidates", "completion candidates profile|subscription|rules|profile-groups NAME|groups|nodes [GROUP]|provider-nodes PROVIDER|providers|tailscale-nodes|tailscale-targets [node|provider|subscription]|healthcheck-targets group|provider", "List completion candidates", "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
 }
 
 func findSpec(path string) *commandSpec {
@@ -316,11 +319,11 @@ func validateInvocation(args []string) error {
 		}
 	}
 	if spec.path == "completion candidates" {
-		if args[2] != "profile" && args[2] != "rules" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" && args[2] != "tailscale-nodes" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
+		if args[2] != "profile" && args[2] != "rules" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" && args[2] != "provider-nodes" && args[2] != "tailscale-nodes" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
 			return syntaxError("RESOURCE must be profile, subscription, rules, profile-groups, groups, nodes, providers, tailscale-nodes, tailscale-targets, or healthcheck-targets", spec)
 		}
-		if n == 2 && args[2] != "nodes" && args[2] != "profile-groups" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
-			return syntaxError("second argument is only valid for nodes, profile-groups, tailscale-targets, or healthcheck-targets", spec)
+		if n == 2 && args[2] != "nodes" && args[2] != "provider-nodes" && args[2] != "profile-groups" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
+			return syntaxError("second argument is only valid for nodes, provider-nodes, profile-groups, tailscale-targets, or healthcheck-targets", spec)
 		}
 		if args[2] == "healthcheck-targets" && (n != 2 || args[3] != "group" && args[3] != "provider") {
 			return syntaxError("healthcheck-targets requires group or provider", spec)
@@ -330,6 +333,9 @@ func validateInvocation(args []string) error {
 			return syntaxError("KIND must be node, provider, or subscription", spec)
 		}
 
+		if n == 1 && args[2] == "provider-nodes" {
+			return syntaxError("provider-nodes requires PROVIDER", spec)
+		}
 		if n == 1 && args[2] == "profile-groups" {
 			return syntaxError("profile-groups requires NAME", spec)
 		}
@@ -341,6 +347,14 @@ func validateInvocation(args []string) error {
 		count, err := strconv.Atoi(args[1])
 		if err != nil || count < 1 || count > 10000 {
 			return syntaxError("lines must be an integer from 1 to 10000", spec)
+		}
+	}
+	if spec.path == "proxy test" {
+		return syntaxError("choose group or provider", spec)
+	}
+	if spec.path == "proxy test group" || spec.path == "proxy test provider" {
+		if strings.TrimSpace(args[3]) == "" || strings.TrimSpace(args[4]) == "" {
+			return syntaxError("owner and node required", spec)
 		}
 	}
 	if spec.path == "proxy delay" || spec.path == "proxy delays" {
