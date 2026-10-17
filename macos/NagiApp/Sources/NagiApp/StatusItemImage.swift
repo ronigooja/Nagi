@@ -25,8 +25,8 @@ import AppKit
                 .foregroundColor: NSColor.black, .paragraphStyle: paragraph
             ]
             let rows = rates.split(separator: "\n").map(String.init)
-            let rateX = symbol.size.width + 2
-            let rateWidth: CGFloat = 40
+            let rateX = symbol.size.width
+            let rateWidth: CGFloat = 45
             let size = NSSize(width: rateX + rateWidth, height: 22)
             image = NSImage(size: size, flipped: false) { _ in
                 symbol.draw(in: NSRect(x: 0, y: (size.height - 18) / 2, width: 22, height: 18),
