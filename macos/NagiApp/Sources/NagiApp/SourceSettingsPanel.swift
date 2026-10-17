@@ -175,7 +175,7 @@ private final class SourceSettingsPanel: NSPanel {
         sectionFooter(.update, title: "Save")
     }
     private func buildLatency() {
-        add(checkContext)
+        if kind == "provider" { add(checkContext) }
         add(label("Check interval", heading: true))
         intervalMode.addItems(withTitles: ["Use inherited settings", "Custom interval"])
         intervalChoice.addItems(withTitles: ["5 minutes", "10 minutes", "30 minutes", "1 hour", "Custom…"])
@@ -325,10 +325,9 @@ private final class SourceSettingsPanel: NSPanel {
             let value = try await model.healthcheckSettings(kind: kind, name: name)
             snapshot = value
             let seconds = value["interval_seconds"]?.int64
-            let detail: String
-            if kind == "provider" { detail = (value["enabled"]?.bool).map { $0 ? "Own checks enabled" : "Own checks disabled" } ?? "Own check state unavailable" }
-            else { detail = (value["profile"]?.string).flatMap { $0.isEmpty ? nil : "Profile: \($0)" } ?? "Not yet applied" }
-            checkContext.stringValue = detail
+            if kind == "provider" {
+                checkContext.stringValue = (value["enabled"]?.bool).map { $0 ? "Own checks enabled" : "Own checks disabled" } ?? "Own check state unavailable"
+            }
             if initialize || section == .interval {
                 let inherited = value["source"]?.string != "override"
                 let displayed = inherited ? value["inherited_interval_seconds"]?.int64 : seconds

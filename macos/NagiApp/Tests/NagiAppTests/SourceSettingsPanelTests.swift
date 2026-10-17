@@ -19,7 +19,7 @@ import XCTest
                     return try JSONDecoder().decode(JSONValue.self, from: Data("""
                     {"interval_seconds":3600,"source":"override","source_interval_seconds":21600,
                      "can_reset":true,"url_source":"override","can_reset_url":false,
-                     "test_url":"https://example.invalid/check?token=placeholder","enabled":false,"profile":"",
+                     "test_url":"https://example.invalid/check?token=placeholder","enabled":false,"profile":"Jimiao",
                      "subscriptions":[{"name":"work","schedule_seconds":3600}]}
                     """.utf8))
                 })
@@ -38,7 +38,10 @@ import XCTest
                 XCTAssertEqual(calls.count, 1)
                 XCTAssertFalse(model.busy)
                 if page == .latency {
-                    XCTAssertTrue(labels.contains { $0.stringValue == (kind == "provider" ? "Own checks disabled" : "Not yet applied") })
+                    if kind == "provider" {
+                        XCTAssertTrue(labels.contains { $0.stringValue == "Own checks disabled" })
+                    }
+                    XCTAssertFalse(labels.contains { $0.stringValue.hasPrefix("Profile:") })
                     XCTAssertTrue(labels.contains { $0.isEditable && $0.stringValue == "https://example.invalid/check?token=placeholder" })
                     XCTAssertTrue(buttons.contains { $0.title == "Save Test URL" && !$0.isEnabled })
                     XCTAssertEqual(calls.first, ["proxy", "healthcheck", "show", kind, "work", "--full-url"])
