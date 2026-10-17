@@ -156,7 +156,41 @@ import XCTest
             await waitUntil { !model.busy }
             let reads = action[1] == "auto" ? [["proxy", "groups"]] : [["proxy", "groups"], ["proxy", "providers"]]
             XCTAssertEqual(commands.calls, [action] + reads)
+            XCTAssertEqual(model.notice, action[2] == "update" ? "Provider “feed” updated." : nil)
         }
+    }
+
+    func testProviderUpdateNoticeWaitsForSuccessAndSurvivesRefresh() async {
+        let commands = Commands(), model = commands.model()
+        commands.running = true
+        await model.refresh()
+        defer { model.pauseForSleep() }
+        let action = ["proxy", "provider", "update", "Work Feed"]
+        commands.blocked = action.joined(separator: " ")
+        model.perform(action)
+        await waitUntil { commands.continuation != nil }
+        XCTAssertNil(model.notice)
+        commands.release()
+        await waitUntil { !model.busy }
+        XCTAssertEqual(model.notice, "Provider “Work Feed” updated.")
+        await model.refresh()
+        XCTAssertEqual(model.notice, "Provider “Work Feed” updated.")
+    }
+
+    func testFailedProviderUpdateClearsPreviousNoticeAndShowsError() async {
+        let commands = Commands(), model = commands.model()
+        commands.running = true
+        await model.refresh()
+        defer { model.pauseForSleep() }
+        let action = ["proxy", "provider", "update", "feed"]
+        model.perform(action)
+        await waitUntil { !model.busy }
+        XCTAssertEqual(model.notice, "Provider “feed” updated.")
+        commands.failures.insert(action.joined(separator: " "))
+        model.perform(action)
+        await waitUntil { !model.busy }
+        XCTAssertNil(model.notice)
+        XCTAssertNotNil(model.errorMessage)
     }
 
     func testBusyMenuRequestIsDrainedAfterMutation() async {

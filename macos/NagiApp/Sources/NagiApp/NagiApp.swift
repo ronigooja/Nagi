@@ -288,7 +288,7 @@ import AppKit
             let actions = NSMenu()
             disabled("\(provider.type) · \(provider.nodes.count) nodes", to: actions)
             actions.addItem(.separator())
-            add("Update Nodes Now", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
+            add("Update Provider", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
             let tests = NSMenu()
             add("All Nodes", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: tests)
             if !provider.testableNodes.isEmpty { tests.addItem(.separator()) }

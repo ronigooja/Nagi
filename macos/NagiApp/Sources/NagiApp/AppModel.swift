@@ -538,6 +538,9 @@ enum EngineState { case starting, running, stopped, unavailable }
                 let result = try await runCommand(arguments)
                 settingsGeneration += 1
                 errorMessage = nil
+                if arguments.count == 4, Array(arguments.prefix(3)) == ["proxy", "provider", "update"] {
+                    notice = "Provider “\(arguments[3])” updated."
+                }
                 if arguments.count >= 2 {
                     switch (arguments[0], arguments[1]) {
                     case ("system-proxy", _): systemProxy = result["enabled"]?.bool
