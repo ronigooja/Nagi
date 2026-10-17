@@ -21,13 +21,16 @@ import AppKit
             let paragraph = NSMutableParagraphStyle()
             paragraph.alignment = .right
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 9, weight: .light),
+                .font: NSFont.systemFont(ofSize: 9, weight: .regular),
                 .foregroundColor: NSColor.black, .paragraphStyle: paragraph
             ]
             let rows = rates.split(separator: "\n").map(String.init)
             let rateX = symbol.size.width + 2
-            // Leave room for a rounded four-digit rate such as "1000 MB/s".
-            let rateWidth: CGFloat = 48
+            // Preserve the original item width independently of the displayed font.
+            let widthAttributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedSystemFont(ofSize: 9, weight: .regular), .kern: -1.2
+            ]
+            let rateWidth = ("999 KB/s" as NSString).size(withAttributes: widthAttributes).width
             let size = NSSize(width: rateX + rateWidth, height: 22)
             image = NSImage(size: size, flipped: false) { _ in
                 symbol.draw(in: NSRect(x: 0, y: (size.height - 18) / 2, width: 22, height: 18),
