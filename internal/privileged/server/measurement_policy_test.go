@@ -35,3 +35,18 @@ func TestConfiguredMeasurementExpectedStatusPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestScopedProviderHistoryRemainsReadOnly(t *testing.T) {
+	req := privileged.Request{Method: "GET", Path: "/providers/proxies/airport"}
+	if err := validateControl(req); err != nil {
+		t.Fatal(err)
+	}
+	if !snapshotControl(req) {
+		t.Fatal("scoped provider history must remain a read-only snapshot")
+	}
+	for _, path := range []string{"/providers/proxies/airport?expected=204", "/providers/proxies/airport?url=https://example.test", "/providers/proxies/airport/Node"} {
+		if err := validateControl(privileged.Request{Method: "GET", Path: path}); err == nil {
+			t.Fatalf("unneeded controller operation accepted: %s", path)
+		}
+	}
+}

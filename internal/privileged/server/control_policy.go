@@ -33,7 +33,7 @@ func snapshotControl(req privileged.Request) bool {
 		return true
 	}
 	parts := strings.Split(u.Path, "/")
-	return len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" && u.RawQuery == ""
+	return u.RawQuery == "" && (len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" || len(parts) == 4 && parts[1] == "providers" && parts[2] == "proxies" && parts[3] != "")
 }
 
 // controlRequest accepts only operations needed by the CLI. The root
@@ -147,6 +147,9 @@ func validateControl(req privileged.Request) error {
 			}
 		}
 		if len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" && u.RawQuery == "" {
+			return nil
+		}
+		if len(parts) == 4 && parts[1] == "providers" && parts[2] == "proxies" && parts[3] != "" && u.RawQuery == "" {
 			return nil
 		}
 		if len(parts) == 5 && parts[1] == "providers" && parts[2] == "proxies" && parts[3] != "" && parts[4] == "healthcheck" && u.RawQuery == "" {
