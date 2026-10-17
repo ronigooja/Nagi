@@ -16,7 +16,8 @@ import AppKit
         XCTAssertEqual(delays["bad"]?.label, "Failed")
         XCTAssertEqual(delays["new"]?.label, "Untested")
         XCTAssertEqual(NodeDelay().label, "Untested")
-        XCTAssertTrue(delays["fast"]!.detail.contains("2026-10-16T10:00:00Z"))
+        XCTAssertTrue(delays["fast"]!.detail.contains("Measured at: \(MenuAppDelegate.subscriptionTime("2026-10-16T10:00:00Z"))"))
+        XCTAssertFalse(delays["fast"]!.detail.contains("2026-10-16T10:00:00Z"))
         XCTAssertTrue(delays["fast"]!.detail.contains("Test origin: https://example.com"))
     }
 

@@ -8,6 +8,7 @@ These rules apply to every feature:
 
 - Treat mihomo as the implementation owner for proxy protocols, DNS resolution, traffic forwarding, routing rules, and TUN networking. Nagi configures and manages those capabilities through mihomo's configuration and APIs.
 - Nagi owns user operations: translating intent into configuration or API calls, persisting settings, managing process lifecycle, displaying state, and handling operation failures.
+- Display user-facing timestamps at minute precision; omit seconds and fractional seconds. Preserve documented machine-readable timestamp formats unless their interface contract is explicitly changed.
 - The macOS UI is the interactive entry point for common daily-use scenarios. The CLI remains the complete interface for advanced configuration, batch operations, automation, diagnostics, recovery, and operational tasks. The UI does not implement those business operations.
 - Before designing a feature, inspect the pinned mihomo version's capabilities, configuration fields, and APIs. Identify the configuration or management work Nagi must provide.
 - Use existing mihomo mechanisms instead of duplicating them in Nagi. If a capability is missing, determine whether the extension belongs in mihomo or Nagi according to the system boundary.

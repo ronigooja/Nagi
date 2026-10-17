@@ -92,6 +92,8 @@ Profile and subscription names consist of ASCII letters, digits, `_`, or `-` and
 
 The optional `Subscription-Userinfo` response header supplies `upload`, `download`, `total` (nonnegative bytes) and `expire` (Unix seconds). Available values appear in `subscription list` and the update result. The URL remains hidden from list output. A missing header clears previously stored traffic and expiry values on a successful update.
 
+Text `subscription list` displays available update, expiry, and next-due timestamps as `YYYY-MM-DD HH:mm` followed by the timestamp's zone abbreviation, without seconds. JSON timestamps retain their RFC 3339 format.
+
 ## Terminal menu
 
 `nagi menu` opens an English, line-oriented menu and preserves terminal scrollback. The home page shows mihomo state and the current profile, followed by these fixed entries:

@@ -480,12 +480,12 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				label += "  Age key configured"
 			}
 			if !entry.UpdatedAt.IsZero() {
-				label += "  Updated: " + entry.UpdatedAt.Format("2006-01-02 15:04:05 MST")
+				label += "  Updated: " + entry.UpdatedAt.Format("2006-01-02 15:04 MST")
 			} else {
 				label += "  Never updated"
 			}
 			if !entry.ExpiresAt.IsZero() {
-				label += "  Expires: " + entry.ExpiresAt.Format("2006-01-02 15:04:05 MST")
+				label += "  Expires: " + entry.ExpiresAt.Format("2006-01-02 15:04 MST")
 			}
 			if entry.Total > 0 {
 				label += fmt.Sprintf("  Traffic: %d/%d bytes", entry.Upload+entry.Download, entry.Total)
@@ -496,7 +496,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				label += fmt.Sprintf("  Schedule: %ds", entry.ScheduleSeconds)
 			}
 			if !entry.NextDue.IsZero() {
-				label += "  Next due: " + entry.NextDue.Format("2006-01-02 15:04:05 MST")
+				label += "  Next due: " + entry.NextDue.Format("2006-01-02 15:04 MST")
 			}
 			if entry.Profile != "" {
 				label += "  Profile: " + entry.Profile

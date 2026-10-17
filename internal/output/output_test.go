@@ -76,6 +76,24 @@ func TestHumanSuccessShapes(t *testing.T) {
 	}
 }
 
+func TestSubscriptionListTimestampsDisplayToMinute(t *testing.T) {
+	stamp := time.Date(2026, 10, 4, 12, 34, 56, 789000000, time.UTC)
+	var out bytes.Buffer
+	data := map[string]any{"subscriptions": []subscription.Entry{{Name: "feed", UpdatedAt: stamp, ExpiresAt: stamp, NextDue: stamp}}}
+	if err := Write(&out, false, data); err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"Updated", "Expires", "Next due"} {
+		want := label + ": 2026-10-04 12:34 UTC"
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output %q missing %q", out.String(), want)
+		}
+	}
+	if strings.Contains(out.String(), "12:34:56") {
+		t.Errorf("output includes seconds: %q", out.String())
+	}
+}
+
 func TestRawContent(t *testing.T) {
 	for _, tt := range []struct {
 		name string

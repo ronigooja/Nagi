@@ -44,6 +44,8 @@ The status menu item shows `Nagi · Running ⚠` when the engine is running and 
 
 Subscription expiry and next-update times use the system's local time zone and `YYYY-MM-DD HH:mm`, without seconds or a zone suffix. Invalid timestamps display `unknown`; a missing next-update time displays `pending`, and a missing expiry is omitted. Quota shows available/total plus uploaded/downloaded amounts in binary units (`B`, `KiB`, `MiB`, `GiB`, `TiB`, `PiB`, `EiB`) with up to two decimal places. Available quota is clamped to zero; an absent or nonpositive total displays `unknown`. These values come from the provider's latest subscription metadata, not live traffic. This display formatting does not change CLI JSON fields or stored metadata.
 
+Proxy node measurement tooltips show the measurement time in the system's local time zone as `YYYY-MM-DD HH:mm`. Invalid or absent times display `unknown`.
+
 Build and package on macOS with Xcode command line tools:
 
 ```sh

@@ -21,7 +21,8 @@ struct NodeDelay {
         return reason == nil ? "Untested" : "Unknown"
     }
     var detail: String {
-        let measurement = "Latest engine measurement: \(label)\nMeasured at: \(measuredAt ?? "unknown")\nTest origin: \(testOrigin ?? "unknown")"
+        let measuredTime = measuredAt.map { MenuAppDelegate.subscriptionTime($0) } ?? "unknown"
+        let measurement = "Latest engine measurement: \(label)\nMeasured at: \(measuredTime)\nTest origin: \(testOrigin ?? "unknown")"
         return measurement + (reason.map { "\nReason: \($0)" } ?? "")
     }
     static func parse(_ value: JSONValue?) -> [String: NodeDelay] {
