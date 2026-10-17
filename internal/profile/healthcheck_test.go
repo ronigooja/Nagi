@@ -110,3 +110,117 @@ func TestHealthcheckProviderSourceAndResetPreserveOtherOverrides(t *testing.T) {
 		t.Fatal("reload failure changed override")
 	}
 }
+
+func TestExplicitEqualGroupIntervalSurvivesSubscriptionAndResetReleasesIntent(t *testing.T) {
+	s, source, _ := providerFixture(t)
+	ctx := context.Background()
+	n := 180
+	if err := s.SetHealthcheck(ctx, "default", "group", "Auto", &n); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := s.Healthcheck("default", "group", "Auto")
+	if r.Source != "override" || r.IntervalSeconds != 180 {
+		t.Fatal(r)
+	}
+	b, _ := s.Override("default")
+	overlay := yamlMapping(t, b)
+	if _, snapshot := overlay["proxy-groups"]; snapshot {
+		t.Fatal("interval created full group snapshot")
+	}
+	next := []byte(strings.Replace(string(source), "interval: 180", "interval: 240", 1))
+	if err := s.ApplySubscription(ctx, "default", next); err != nil {
+		t.Fatal(err)
+	}
+	r, _ = s.Healthcheck("default", "group", "Auto")
+	if r.Source != "override" || r.IntervalSeconds != 180 {
+		t.Fatal(r)
+	}
+	effective, _ := s.Effective("default")
+	if strings.Contains(string(effective), groupHealthcheckIntervalsKey) {
+		t.Fatal("managed marker reached engine")
+	}
+	if err := s.SetHealthcheck(ctx, "default", "group", "Auto", nil); err != nil {
+		t.Fatal(err)
+	}
+	r, _ = s.Healthcheck("default", "group", "Auto")
+	if r.Source != "profile" || r.IntervalSeconds != 240 {
+		t.Fatal(r)
+	}
+	next = []byte(strings.Replace(string(source), "interval: 180", "interval: 300", 1))
+	if err := s.ApplySubscription(ctx, "default", next); err != nil {
+		t.Fatal(err)
+	}
+	r, _ = s.Healthcheck("default", "group", "Auto")
+	if r.IntervalSeconds != 300 || r.Source != "profile" {
+		t.Fatal(r)
+	}
+}
+func TestGroupIntervalIntentDormantWhenSubscriptionRemovesGroup(t *testing.T) {
+	s, source, _ := providerFixture(t)
+	ctx := context.Background()
+	n := 19
+	if err := s.SetHealthcheck(ctx, "default", "group", "Auto", &n); err != nil {
+		t.Fatal(err)
+	}
+	next := []byte("proxy-groups: []\n")
+	if err := s.ApplySubscription(ctx, "default", next); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := s.Effective("default")
+	m := yamlMapping(t, b)
+	if len(m["proxy-groups"].([]any)) != 0 {
+		t.Fatal("deleted group resurrected")
+	}
+	if err := s.ApplySubscription(ctx, "default", source); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := s.Healthcheck("default", "group", "Auto")
+	if r.IntervalSeconds != 19 || r.Source != "override" {
+		t.Fatal(r)
+	}
+}
+func TestHealthcheckIncludedNodesAndQuotedInterval(t *testing.T) {
+	for _, flag := range []string{"include-all", "include-all-proxies"} {
+		s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+		source := []byte("proxies:\n - name: Local\n   type: direct\nproxy-groups:\n - name: Auto\n   type: url-test\n   " + flag + ": true\n")
+		if err := s.Write(context.Background(), "default", source); err != nil {
+			t.Fatal(err)
+		}
+		r, err := s.Healthcheck("default", "group", "Auto")
+		if err != nil || r.IntervalSeconds != 300 || r.Enabled == nil || !*r.Enabled || !r.IntervalDefaulted {
+			t.Fatalf("%s %+v %v", flag, r, err)
+		}
+		source = append(source, []byte("   interval: \"123\"\n")...)
+		if err := s.Write(context.Background(), "default", source); err != nil {
+			t.Fatal(err)
+		}
+		r, err = s.Healthcheck("default", "group", "Auto")
+		if err != nil || r.IntervalSeconds != 123 || r.IntervalDefaulted {
+			t.Fatalf("quoted %+v %v", r, err)
+		}
+	}
+}
+
+func TestResetOneGroupRetainsOtherExplicitInterval(t *testing.T) {
+	s, _, _ := providerFixture(t)
+	ctx := context.Background()
+	n := 180
+	other := 55
+	if err := s.SetHealthcheck(ctx, "default", "group", "Auto", &n); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetHealthcheck(ctx, "default", "group", "My Proxy", &other); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetHealthcheck(ctx, "default", "group", "Auto", nil); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := s.Healthcheck("default", "group", "My Proxy")
+	if r.IntervalSeconds != 55 || r.Source != "override" {
+		t.Fatal(r)
+	}
+	r, _ = s.Healthcheck("default", "group", "Auto")
+	if r.IntervalSeconds != 180 || r.Source != "profile" {
+		t.Fatal(r)
+	}
+}

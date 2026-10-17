@@ -7,9 +7,62 @@ import (
 	"net/url"
 	"reflect"
 	"sort"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// groupHealthcheckIntervalsKey stores explicit interval intent independently of
+// list snapshots, including values equal to the subscription's current value.
+const groupHealthcheckIntervalsKey = "nagi-group-healthcheck-intervals"
+
+func healthInterval(value any) (int, error) {
+	if value == nil {
+		return 0, nil
+	}
+	switch v := value.(type) {
+	case int:
+		return v, nil
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err == nil {
+			return n, nil
+		}
+	}
+	return 0, errors.New("healthcheck interval must be an integer")
+}
+func healthBool(value any) bool {
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		b, _ := strconv.ParseBool(v)
+		return b
+	}
+	return false
+}
+func applyGroupHealthcheckIntervals(base map[string]any, raw any) error {
+	if raw == nil {
+		return nil
+	}
+	intervals, ok := raw.(map[string]any)
+	if !ok {
+		return errors.New("local group healthcheck intervals must be a mapping")
+	}
+	for name, value := range intervals {
+		n, err := healthInterval(value)
+		if err != nil || n < 1 || n > 31536000 {
+			return errors.New("local group healthcheck interval must be 1..31536000")
+		}
+		target, err := healthTarget(base, "group", name)
+		if err != nil {
+			continue // Retain dormant intent if a subscription temporarily removes a group.
+		}
+		target["interval"] = n
+	}
+	return nil
+}
 
 type Healthcheck struct {
 	Kind              string `json:"kind"`
@@ -78,6 +131,39 @@ func (s *Store) healthMaps(name string) (map[string]any, map[string]any, map[str
 	}
 	return effective, source, overlay, nil
 }
+
+// A nil answer leaves filtered include-all expansion to mihomo.
+func groupHasExplicitNodes(group, effective map[string]any) *bool {
+	nodes, _ := group["proxies"].([]any)
+	present := len(nodes) > 0
+	if present {
+		return &present
+	}
+	if !healthBool(group["include-all"]) && !healthBool(group["include-all-proxies"]) {
+		return &present
+	}
+	top, _ := effective["proxies"].([]any)
+	uses, _ := group["use"].([]any)
+	hasProviders := len(uses) > 0
+	if healthBool(group["include-all"]) || healthBool(group["include-all-providers"]) {
+		providers, _ := effective["proxy-providers"].(map[string]any)
+		hasProviders = len(providers) > 0
+	}
+	// Without providers, mihomo fills an empty expanded list with empty-fallback.
+	if !hasProviders {
+		present = true
+		return &present
+	}
+	if len(top) == 0 {
+		return &present
+	}
+	if filter, _ := group["filter"].(string); filter != "" {
+		return nil
+	}
+	present = true
+	return &present
+}
+
 func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) {
 	r := Healthcheck{Kind: kind, Name: targetName, Profile: name, Source: "profile", Lazy: true}
 	effective, source, overlay, err := s.healthMaps(name)
@@ -96,21 +182,24 @@ func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) 
 			return r, errors.New("unsupported group type")
 		}
 	}
-	r.IntervalSeconds, _ = fields["interval"].(int)
+	r.IntervalSeconds, err = healthInterval(fields["interval"])
+	if err != nil {
+		return r, err
+	}
 	r.IntervalDefaulted = r.IntervalSeconds == 0
-	if lazy, ok := fields["lazy"].(bool); ok {
-		r.Lazy = lazy
+	if value, ok := fields["lazy"]; ok {
+		r.Lazy = healthBool(value)
 	}
 	enabled := false
 	if kind == "provider" {
-		enabled, _ = fields["enable"].(bool)
+		enabled = healthBool(fields["enable"])
 		if enabled && r.IntervalSeconds == 0 {
 			r.IntervalSeconds = 300
 		}
 		r.Reason = "Provider scheduling can also be enabled by groups registering a different test URL."
 	} else {
 		enabled = r.IntervalSeconds > 0
-		if nodes, _ := target["proxies"].([]any); len(nodes) > 0 && target["type"] != "select" && r.IntervalSeconds == 0 {
+		if explicit := groupHasExplicitNodes(target, effective); explicit != nil && *explicit && target["type"] != "select" && r.IntervalSeconds == 0 {
 			r.IntervalSeconds = 300
 			enabled = true
 		}
@@ -118,8 +207,11 @@ func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) 
 	}
 	r.Enabled = &enabled
 	if kind == "group" {
-		if nodes, _ := target["proxies"].([]any); len(nodes) == 0 {
+		if explicit := groupHasExplicitNodes(target, effective); explicit == nil || !*explicit {
 			r.Enabled = nil
+			if explicit == nil {
+				r.Reason += " Included node membership is resolved by mihomo; automatic groups with included explicit nodes default to 300 seconds."
+			}
 		}
 	}
 	if r.IntervalDefaulted {
@@ -136,10 +228,24 @@ func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) 
 			}
 		}
 	}
+	if intervals, _ := overlay[groupHealthcheckIntervalsKey].(map[string]any); intervals[targetName] != nil && kind == "group" {
+		r.Source = "override"
+	}
 	raw, _ := fields["url"].(string)
 	if kind == "group" && raw == "" {
 		uses, _ := target["use"].([]any)
 		providers, _ := effective["proxy-providers"].(map[string]any)
+		if healthBool(target["include-all"]) || healthBool(target["include-all-providers"]) {
+			names := make([]string, 0, len(providers))
+			for name := range providers {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			uses = nil
+			for _, name := range names {
+				uses = append(uses, name)
+			}
+		}
 		for _, v := range uses {
 			key, _ := v.(string)
 			provider, _ := providers[key].(map[string]any)
@@ -169,7 +275,7 @@ func (s *Store) SetHealthcheck(ctx context.Context, name, kind, targetName strin
 	if err != nil {
 		return err
 	}
-	target, err := healthTarget(effective, kind, targetName)
+	_, err = healthTarget(effective, kind, targetName)
 	if err != nil {
 		return err
 	}
@@ -178,12 +284,33 @@ func (s *Store) SetHealthcheck(ctx context.Context, name, kind, targetName strin
 	}
 	var local map[string]any
 	if kind == "group" {
-		groups, _, err := namedList(effective["proxy-groups"])
-		if err != nil {
-			return err
+		intervals, _ := overlay[groupHealthcheckIntervalsKey].(map[string]any)
+		if intervals == nil {
+			intervals = map[string]any{}
 		}
-		overlay["proxy-groups"] = groups
-		local = target
+		if seconds != nil {
+			intervals[targetName] = *seconds
+		} else {
+			delete(intervals, targetName)
+		}
+		if len(intervals) > 0 {
+			overlay[groupHealthcheckIntervalsKey] = intervals
+		} else {
+			delete(overlay, groupHealthcheckIntervalsKey)
+		}
+		// Legacy/manual group snapshots may independently hold an interval.
+		// Reset only this target's leaf while retaining the rest of that snapshot.
+		if seconds == nil {
+			local, _ = healthTarget(overlay, kind, targetName)
+		}
+		if local == nil {
+			data, e := yaml.Marshal(overlay)
+			if e != nil {
+				return e
+			}
+			return s.SetOverride(ctx, name, data)
+		}
+
 	} else {
 		providers, _ := overlay["proxy-providers"].(map[string]any)
 		if providers == nil {

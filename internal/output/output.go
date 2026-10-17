@@ -42,7 +42,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 	}
 	switch v := data.(type) {
 	case profile.Healthcheck:
-		enabled := "unknown (attached provider scheduling)"
+		enabled := "unknown"
 		if v.Enabled != nil {
 			enabled = fmt.Sprint(*v.Enabled)
 		}
