@@ -170,32 +170,64 @@ import AppKit
         }
     }
 
+    static func makeStatusMenuItem(state: EngineState, errors: [String], notice: String?,
+                                   tunEnabled: Bool, tunAdapter: String?) -> NSMenuItem {
+        let engineState: String
+        switch state {
+        case .starting: engineState = "Starting…"
+        case .running: engineState = "Running"
+        case .stopped: engineState = "Stopped"
+        case .unavailable: engineState = "Status unavailable"
+        }
+        var errors = errors
+        if tunEnabled && tunAdapter != "up" {
+            errors.append("TUN adapter: \(tunAdapter ?? "unknown") · Check logs in CLI")
+        }
+        let title = !errors.isEmpty ? "Nagi · Error ⚠"
+            : (notice != nil ? "Nagi · Info ⓘ" : "Nagi · \(engineState)")
+        let status = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        guard !errors.isEmpty || notice != nil else {
+            status.isEnabled = false
+            return status
+        }
+        let details = NSMenu()
+        let engine = NSMenuItem(title: "Engine: \(engineState)", action: nil, keyEquivalent: "")
+        engine.isEnabled = false
+        details.addItem(engine)
+        details.addItem(.separator())
+        for error in errors { details.addItem(wrappedStatusDetail("⚠ \(error)")) }
+        if let notice { details.addItem(wrappedStatusDetail("ⓘ \(notice)")) }
+        status.submenu = details
+        return status
+    }
+
+    private static func wrappedStatusDetail(_ text: String) -> NSMenuItem {
+        let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        item.toolTip = text
+        let padding: CGFloat = 12
+        let width: CGFloat = 320
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = .menuFont(ofSize: 0)
+        label.textColor = .labelColor
+        label.maximumNumberOfLines = 0
+        label.lineBreakMode = .byWordWrapping
+        label.preferredMaxLayoutWidth = width - padding * 2
+        let size = label.cell!.cellSize(forBounds: NSRect(
+            x: 0, y: 0, width: width - padding * 2, height: .greatestFiniteMagnitude))
+        label.frame = NSRect(x: padding, y: 8, width: width - padding * 2, height: ceil(size.height))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: width, height: label.frame.height + 16))
+        view.addSubview(label)
+        item.view = view
+        return item
+    }
+
     private func rebuildMenu() {
         menu.removeAllItems()
-        let errors = [model.quitErrorMessage, model.errorMessage].compactMap { $0 }
-        let stateTitle: String
-        switch model.state {
-        case .starting: stateTitle = "Nagi · Starting…"
-        case .running: stateTitle = errors.isEmpty ? "Nagi · Running" : "Nagi · Running ⚠"
-        case .stopped: stateTitle = "Nagi · Stopped"
-        case .unavailable: stateTitle = "Nagi · Status unavailable"
-        }
-        let status = NSMenuItem(title: stateTitle, action: nil, keyEquivalent: "")
-        if !errors.isEmpty {
-            let details = NSMenu()
-            for error in errors {
-                let item = NSMenuItem(title: "⚠ \(error)", action: nil, keyEquivalent: "")
-                item.isEnabled = false; item.toolTip = error; details.addItem(item)
-            }
-            status.submenu = details
-        } else {
-            status.isEnabled = false
-        }
-        menu.addItem(status)
-        if let notice = model.notice {
-            let item = NSMenuItem(title: notice, action: nil, keyEquivalent: "")
-            item.isEnabled = false; menu.addItem(item)
-        }
+        menu.addItem(Self.makeStatusMenuItem(
+            state: model.state,
+            errors: [model.quitErrorMessage, model.errorMessage].compactMap { $0 },
+            notice: model.notice, tunEnabled: model.tun == true, tunAdapter: model.tunAdapter))
         if model.state != .running {
             add("Retry Start", action: #selector(retryStart), enabled: !model.busy)
         }
@@ -204,10 +236,6 @@ import AppKit
             checked: model.systemProxy == true, enabled: model.state == .running && model.systemProxy != nil && !model.busy)
         add("TUN", command: ["tun", model.tun == true ? "disable" : "enable"],
             checked: model.tun == true, enabled: model.state == .running && model.tun != nil && !model.busy)
-        if model.tun == true && model.tunAdapter != "up" {
-            let warning = NSMenuItem(title: "TUN adapter: \(model.tunAdapter ?? "unknown") · Check logs in CLI", action: nil, keyEquivalent: "")
-            warning.isEnabled = false; menu.addItem(warning)
-        }
         let modeMenu = NSMenu()
         for value in ["rule", "global", "direct"] {
             add(value.capitalized, command: ["mode", value], checked: model.mode == value,
