@@ -178,7 +178,9 @@ func (s *Service) delayResolved(ctx context.Context, name, provider string, c ch
 	}
 	started := time.Now()
 	err := s.Client.Get(ctx, path, &response)
-	if err != nil || c.Expected != "" {
+	// The pinned engine validates expected status before returning success;
+	// shared results retain their original history timestamp.
+	if err != nil {
 		after, readErr := s.scopedHistory(ctx, name, provider)
 		state, exists := after.Extra[c.URL]
 		fresh := latestURLTime(after, c.URL).After(latestURLTime(before, c.URL)) && !latestURLTime(after, c.URL).Before(started.Add(-time.Second))

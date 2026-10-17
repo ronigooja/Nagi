@@ -10,11 +10,12 @@ import (
 )
 
 type contextClient struct {
-	paths    []string
-	measured bool
-	fail     bool
-	alive    bool
-	zero     bool
+	paths      []string
+	measured   bool
+	fail       bool
+	alive      bool
+	zero       bool
+	measuredAt time.Time
 }
 
 func (c *contextClient) Put(context.Context, string, any, any) error { return nil }
@@ -26,13 +27,17 @@ func (c *contextClient) Get(_ context.Context, path string, dst any) error {
 		if c.zero || !c.alive {
 			delay = 0
 		}
-		history = fmt.Sprintf(`"extra":{"https://checks.example/test":{"alive":%t,"history":[{"time":%q,"delay":%d}]}}`, c.alive, time.Now().UTC().Format(time.RFC3339Nano), delay)
+		measuredAt := c.measuredAt
+		if measuredAt.IsZero() {
+			measuredAt = time.Now()
+		}
+		history = fmt.Sprintf(`"extra":{"https://checks.example/test":{"alive":%t,"history":[{"time":%q,"delay":%d}]}}`, c.alive, measuredAt.UTC().Format(time.RFC3339Nano), delay)
 	}
 	var data string
 	switch {
 	case strings.Contains(path, "/healthcheck?") || strings.Contains(path, "/delay?"):
 		c.measured = true
-		if c.fail {
+		if c.fail || !c.alive {
 			return fmt.Errorf("native handler failure")
 		}
 		data = `{"delay":11}`
@@ -204,6 +209,45 @@ func TestContextManualConditionsZeroAndExpectedFailure(t *testing.T) {
 				t.Fatal(c.paths)
 			}
 		}
+	}
+}
+
+func TestContextManualTestAcceptsReusedSuccessWithoutNewHistory(t *testing.T) {
+	for _, kind := range []string{"group", "provider"} {
+		c := &contextClient{alive: true, measured: true, measuredAt: time.Now().Add(-3 * time.Second)}
+		s := configuredContext(t, c)
+		owner := "G"
+		if kind == "provider" {
+			owner = "A"
+		}
+		got, err := s.TestNode(context.Background(), kind, owner, "Twin")
+		if err != nil || got.DelayMS != 11 {
+			t.Fatalf("reused %s measurement rejected: %+v %v", kind, got, err)
+		}
+	}
+}
+
+type reusedBatchClient struct{ contextClient }
+
+func (c *reusedBatchClient) Get(ctx context.Context, path string, dst any) error {
+	if strings.HasPrefix(path, "/group/G/delay?") {
+		if !strings.Contains(path, "expected=204") {
+			return fmt.Errorf("missing expected status")
+		}
+		return json.Unmarshal([]byte(`{"Twin":11}`), dst)
+	}
+	return c.contextClient.Get(ctx, path, dst)
+}
+
+func TestGroupManualTestAcceptsReusedSuccessWithoutNewHistory(t *testing.T) {
+	c := &reusedBatchClient{contextClient{alive: true, measured: true, measuredAt: time.Now().Add(-3 * time.Second)}}
+	s := NewService(c)
+	if err := s.Configure([]byte("proxy-groups:\n- name: G\n  use: [A]\n  expected-status: 204\nproxy-providers:\n  A: {}\n")); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := s.DelaysKnown(context.Background(), Group{Name: "G", All: []string{"Twin"}}, "https://checks.example/test", 8000)
+	if err != nil || len(got.Results) != 1 || got.Results[0].DelayMS == nil || *got.Results[0].DelayMS != 11 {
+		t.Fatalf("reused group result rejected: %+v %v", got, err)
 	}
 }
 func TestContextAmbiguityStopsDispatch(t *testing.T) {

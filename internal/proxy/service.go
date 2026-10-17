@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
 )
@@ -141,7 +140,6 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 			}
 		}
 	}
-	started := time.Now()
 	u := delayQuery(target, timeoutMS)
 	if c, e := s.conditions("group", g.Name); e == nil && c.Expected != "" {
 		u.Set("expected", c.Expected)
@@ -160,29 +158,9 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 		}
 		return result, DelayResetUnknown, err
 	}
-	if c, e := s.conditions("group", g.Name); e == nil && c.Expected != "" {
-		reader, readErr := s.historyReader(ctx)
-		if readErr != nil {
-			return result, DelayResetConfirmed, errors.New("group test completed but availability results could not be read")
-		}
-		actualURL := target
-		if g.Type == "URLTest" {
-			actualURL = c.URL
-		}
-		for _, name := range g.All {
-			p, _, ok := reader.resolve(ctx, s, g.Name, name)
-			if !ok {
-				delete(measured, name)
-				continue
-			}
-			state, exists := p.Extra[actualURL]
-			if !exists || state.Alive == nil || !*state.Alive || len(state.History) == 0 || latestURLTime(p, actualURL).Before(started) {
-				delete(measured, name)
-				continue
-			}
-			measured[name] = state.History[len(state.History)-1].Delay
-		}
-	}
+
+	// Native successful results already passed expected-status validation and
+	// may reuse a recent measurement without appending a history entry.
 	for _, name := range g.All {
 		item := BatchDelayItem{Proxy: name}
 		if rejecting[name] {
