@@ -25,6 +25,21 @@ final class LifecycleTests: XCTestCase {
         }
     }
 
+    func testReusedTimestampFormatterFollowsTimeZoneChanges() async {
+        let timestamp = "2026-10-06T21:19:43.535439224Z"
+        await withTaskGroup(of: String.self) { group in
+            for offset in [-7, 0, 8, -7, 8, 0] {
+                group.addTask {
+                    let zone = TimeZone(secondsFromGMT: offset * 3600)!
+                    let expected = offset == -7 ? "2026-10-06 14:19" : (offset == 8 ? "2026-10-07 05:19" : "2026-10-06 21:19")
+                    let actual = MenuAppDelegate.subscriptionTime(timestamp, timeZone: zone)
+                    return actual == expected ? "" : "\(actual) != \(expected)"
+                }
+            }
+            for await failure in group { XCTAssertEqual(failure, "") }
+        }
+    }
+
     @MainActor func testSubscriptionBytesUseTrimmedBinaryUnits() {
         let cases: [(Int64, String)] = [(-1, "unknown"), (0, "0 B"), (1023, "1023 B"), (1024, "1 KiB"), (1536, "1.5 KiB"), (1264, "1.23 KiB"), (1572864, "1.5 MiB"), (1073741824, "1 GiB"), (1099511627776, "1 TiB"), (1125899906842624, "1 PiB"), (1152921504606846976, "1 EiB"), (Int64.max, "8 EiB")]
         for (bytes, expected) in cases {

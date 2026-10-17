@@ -69,6 +69,7 @@ import AppKit
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.menu = menu
         menu.delegate = self
+        model.onTrafficChange = { [weak self] in self?.renderStatus() }
         model.onChange = { [weak self] in
             guard let self else { return }
             self.renderStatus()
@@ -426,26 +427,7 @@ import AppKit
         return "\(number) \(units[unit])"
     }
     nonisolated static func subscriptionTime(_ raw: String, timeZone: TimeZone = .current) -> String {
-        // Fractions do not affect minute precision. Removing them before parsing
-        // also supports Go's nanoseconds and feeds with higher fractional precision.
-        let pattern = #"^(\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)(?:\.[0-9]+)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)\z"#
-        guard let expression = try? NSRegularExpression(pattern: pattern),
-              let match = expression.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
-              let seconds = Range(match.range(at: 1), in: raw),
-              let zone = Range(match.range(at: 2), in: raw) else { return "unknown" }
-        let parser = DateFormatter()
-        parser.locale = Locale(identifier: "en_US_POSIX")
-        parser.calendar = Calendar(identifier: .gregorian)
-        parser.timeZone = TimeZone(secondsFromGMT: 0)
-        parser.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
-        parser.isLenient = false
-        guard let date = parser.date(from: String(raw[seconds]) + String(raw[zone])) else { return "unknown" }
-        let display = DateFormatter()
-        display.locale = Locale(identifier: "en_US_POSIX")
-        display.calendar = Calendar(identifier: .gregorian)
-        display.timeZone = timeZone
-        display.dateFormat = "yyyy-MM-dd HH:mm"
-        return display.string(from: date)
+        MenuTimestampFormatter.shared.string(raw, timeZone: timeZone)
     }
     func makeGroupMenu(_ group: ProxyGroup) -> NSMenu {
         let choices = NSMenu()
@@ -831,4 +813,36 @@ import AppKit
     }
     @objc private func willSleep(_ notification: Notification) { model.pauseForSleep() }
     @objc private func didWake(_ notification: Notification) { model.resumeAfterWake() }
+}
+
+/// Shared by menu timestamps, including callers outside the main actor.
+private final class MenuTimestampFormatter: @unchecked Sendable {
+    static let shared = MenuTimestampFormatter()
+    private let lock = NSLock()
+    private let expression = try! NSRegularExpression(pattern: #"^(\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)(?:\.[0-9]+)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)\z"#)
+    private let parser = DateFormatter()
+    private let display = DateFormatter()
+
+    private init() {
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.calendar = Calendar(identifier: .gregorian)
+        parser.timeZone = TimeZone(secondsFromGMT: 0)
+        parser.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+        parser.isLenient = false
+        display.locale = Locale(identifier: "en_US_POSIX")
+        display.calendar = Calendar(identifier: .gregorian)
+        display.dateFormat = "yyyy-MM-dd HH:mm"
+    }
+
+    func string(_ raw: String, timeZone: TimeZone) -> String {
+        // Fractions do not affect minute precision; accept Go's nanoseconds too.
+        guard let match = expression.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
+              let seconds = Range(match.range(at: 1), in: raw),
+              let zone = Range(match.range(at: 2), in: raw) else { return "unknown" }
+        lock.lock()
+        defer { lock.unlock() }
+        guard let date = parser.date(from: String(raw[seconds]) + String(raw[zone])) else { return "unknown" }
+        if display.timeZone != timeZone { display.timeZone = timeZone }
+        return display.string(from: date)
+    }
 }

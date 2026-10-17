@@ -141,6 +141,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
 
     var onChange: (() -> Void)?
+    var onTrafficChange: (() -> Void)?
     private let cli: NagiCLIClient
     let connections: ConnectionsModel
     private let watchDelay: (Int, Bool) -> UInt64
@@ -897,7 +898,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                             guard let self, self.state == .running, generation == self.trafficGeneration else { return }
                             self.uploadBPS = value["upload_bps"]?.int64
                             self.downloadBPS = value["download_bps"]?.int64
-                            self.lastSample = Date(); self.notify()
+                            self.lastSample = Date(); self.onTrafficChange?()
                             if self.errorMessage?.hasPrefix("Traffic unavailable:") == true { self.errorMessage = nil }
                         }
                     }
@@ -908,7 +909,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                     if !Task.isCancelled && state == .running { errorMessage = "Traffic unavailable: \(error.localizedDescription)" }
                 }
                 if generation == trafficGeneration {
-                    trafficStream = nil; uploadBPS = nil; downloadBPS = nil; notify()
+                    trafficStream = nil; uploadBPS = nil; downloadBPS = nil; onTrafficChange?()
                 }
                 if !Task.isCancelled { try? await Task.sleep(nanoseconds: 2_000_000_000) }
             }
@@ -919,7 +920,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         trafficGeneration += 1
         trafficTask?.cancel(); trafficTask = nil
         trafficStream?.stop(); trafficStream = nil
-        uploadBPS = nil; downloadBPS = nil; notify()
+        uploadBPS = nil; downloadBPS = nil; onTrafficChange?()
     }
     private func startSubscriptionWatch() {
         guard !sleeping, !quitting, subscriptionWatchTask == nil else { return }

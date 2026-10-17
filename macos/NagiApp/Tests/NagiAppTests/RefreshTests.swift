@@ -49,6 +49,49 @@ import XCTest
         XCTFail("Condition did not become true")
     }
 
+    func testTrafficSamplesAndResetDoNotNotifyMenuChanges() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("nagi-traffic-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("nagi")
+        let ready = directory.appendingPathComponent("ready")
+        let send = directory.appendingPathComponent("send")
+        try """
+        #!/usr/bin/python3
+        import json, pathlib, signal, time
+        root = pathlib.Path(__file__).parent
+        (root / 'ready').touch()
+        while not (root / 'send').exists():
+            time.sleep(0.01)
+        print(json.dumps({'ok':True,'data':{'upload_bps':1234,'download_bps':5678}}), flush=True)
+        signal.pause()
+        """.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        let commands = Commands()
+        commands.running = true
+        let model = AppModel(cli: NagiCLIClient(executable: executable), runCommand: { try await commands.run($0) })
+        defer { model.pauseForSleep() }
+        var menuChanges = 0, trafficChanges = 0
+        model.onChange = { menuChanges += 1 }
+        model.onTrafficChange = { trafficChanges += 1 }
+        await model.refresh()
+        await waitUntil { FileManager.default.fileExists(atPath: ready.path) }
+        let beforeSample = menuChanges
+        try Data().write(to: send)
+        await waitUntil { model.uploadBPS == 1234 }
+        XCTAssertEqual(model.downloadBPS, 5678)
+        XCTAssertEqual(trafficChanges, 1)
+        XCTAssertEqual(menuChanges, beforeSample)
+        model.pauseForSleep()
+        XCTAssertNil(model.uploadBPS)
+        XCTAssertNil(model.downloadBPS)
+        XCTAssertEqual(trafficChanges, 2)
+        XCTAssertEqual(menuChanges, beforeSample)
+        let display = model.display
+        model.display = display
+        XCTAssertGreaterThan(menuChanges, beforeSample)
+    }
+
     func testProfileDeletionRefreshesListsAndProtectsCurrentAndDefault() async {
         let commands = Commands(), model = commands.model()
         await model.refresh()
@@ -123,7 +166,7 @@ import XCTest
         commands.blocked = "subscription list"
         let stale = Task { await model.refreshMenuData() }
         await waitUntil { commands.continuation != nil }
-        model.scheduleSubscription("feed", seconds: nil)
+        model.perform(["subscription", "schedule", "feed", "off"])
         await waitUntil { commands.count("subscription schedule feed off") == 1 }
         XCTAssertTrue(model.busy)
         commands.release()
@@ -197,7 +240,7 @@ import XCTest
         let commands = Commands(), model: AppModel
         model = commands.model()
         commands.blocked = "subscription schedule feed off"
-        model.scheduleSubscription("feed", seconds: nil)
+        model.perform(["subscription", "schedule", "feed", "off"])
         await waitUntil { commands.continuation != nil }
         let refreshed = await model.refreshMenuData()
         XCTAssertFalse(refreshed)
