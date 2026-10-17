@@ -80,9 +80,10 @@ type DelayResult struct {
 }
 
 type BatchDelayItem struct {
-	Proxy   string `json:"proxy"`
-	DelayMS *int   `json:"delay_ms,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Proxy        string `json:"proxy"`
+	DelayMS      *int   `json:"delay_ms,omitempty"`
+	Error        string `json:"error,omitempty"`
+	Unmeasurable string `json:"unmeasurable,omitempty"`
 }
 type BatchDelayResult struct {
 	Group                 string           `json:"group"`
@@ -118,14 +119,25 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 	if err := validateDelay(target, timeoutMS); err != nil {
 		return result, DelayNotSent, err
 	}
+	rejecting := map[string]bool{}
 	if s.config != nil {
 		reader, e := s.historyReader(ctx)
 		if e != nil {
 			return result, DelayNotSent, e
 		}
 		for _, name := range g.All {
-			if _, _, ok := reader.resolve(ctx, s, g.Name, name); !ok {
+			p, provider, ok := reader.resolve(ctx, s, g.Name, name)
+			if !ok {
 				return result, DelayNotSent, errors.New("group contains a node with ambiguous ownership; test a specific provider node instead")
+			}
+			kind := scopedNodeKind(name, p, provider)
+			if kind == "builtin" && (name == "REJECT" || name == "REJECT-DROP") {
+				rejecting[name] = true
+			} else if kind == "group" {
+				_, builtin := reader.selectedLeaf(ctx, s, name, map[string]bool{})
+				if builtin == "REJECT" || builtin == "REJECT-DROP" {
+					rejecting[name] = true
+				}
 			}
 		}
 	}
@@ -138,6 +150,12 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 	if err := s.Client.Get(ctx, "/group/"+url.PathEscape(g.Name)+"/delay?"+u.Encode(), &measured); err != nil {
 		var apiErr *control.APIError
 		if errors.As(err, &apiErr) && apiErr.Status == 504 {
+			if len(g.All) > 0 && len(rejecting) == len(g.All) {
+				for _, name := range g.All {
+					result.Results = append(result.Results, BatchDelayItem{Proxy: name, Unmeasurable: "reject action has no latency"})
+				}
+				return result, DelayResetConfirmed, nil
+			}
 			return result, DelayResetConfirmed, err
 		}
 		return result, DelayResetUnknown, err
@@ -167,7 +185,9 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 	}
 	for _, name := range g.All {
 		item := BatchDelayItem{Proxy: name}
-		if delay, ok := measured[name]; ok {
+		if rejecting[name] {
+			item.Unmeasurable = "reject action has no latency"
+		} else if delay, ok := measured[name]; ok {
 			item.DelayMS = &delay
 		} else {
 			item.Error = "latency test failed"
@@ -176,6 +196,9 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 	}
 	sort.SliceStable(result.Results, func(i, j int) bool {
 		a, b := result.Results[i], result.Results[j]
+		if a.Unmeasurable != "" || b.Unmeasurable != "" {
+			return a.Unmeasurable == "" && b.Unmeasurable != ""
+		}
 		if a.Error != "" {
 			return false
 		}

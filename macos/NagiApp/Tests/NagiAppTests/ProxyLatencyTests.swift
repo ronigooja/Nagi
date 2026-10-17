@@ -132,22 +132,68 @@ import AppKit
         let delegate = MenuAppDelegate(model: AppModel())
         let failed = NodeDelay(try decode("{\"status\":\"failed\"}"))
         let nodes = ["Child", "Balance", "DIRECT", "REJECT", "Fast", "Unknown"]
-        let info = ["Child": NodeInfo(kind: "group", status: "unavailable"),
+        let info = ["Child": NodeInfo(kind: "group", status: "unavailable", selectedDelay: failed),
                     "Balance": NodeInfo(kind: "group", status: nil), "Fast": NodeInfo(kind: "node", status: nil)]
         let group = ProxyGroup(name: "Parent", kind: "Selector", selected: "DIRECT", fixed: nil, selectedStatus: nil,
                                nodes: nodes, hidden: false, icon: nil,
                                nodeDelays: Dictionary(uniqueKeysWithValues: nodes.map { ($0, failed) }), nodeInfo: info)
         let menu = delegate.makeGroupMenu(group)
-        for name in ["Balance", "DIRECT", "REJECT", "Unknown"] {
+        for name in ["DIRECT", "REJECT", "Unknown"] {
             let item = try XCTUnwrap(menu.item(withTitle: name))
             XCTAssertNil(item.toolTip)
             XCTAssertEqual(item.state, name == "DIRECT" ? .on : .off)
         }
-        XCTAssertNotNil(menu.item(withTitle: "Child · Unavailable"))
+        XCTAssertNotNil(menu.item(withTitle: "Child · Failed"))
+        XCTAssertNotNil(menu.item(withTitle: "Balance · Unknown"))
         let tests = try XCTUnwrap(menu.item(withTitle: "Test Single Node")?.submenu)
         XCTAssertEqual(tests.items.count, 1)
         XCTAssertEqual(tests.items[0].representedObject as? [String], ["proxy", "test", "group", "Parent", "Fast"])
         XCTAssertNil(menu.item(withTitle: "Automatic Latency Settings…"))
+    }
+
+    func testNestedGroupShowsSelectedLeafDelayWithoutNodeName() throws {
+        let info = NodeInfo.parse(try decode("""
+        {"Child":{"kind":"group","status":"available","selected_delay":{"status":"ok","delay_ms":42}},
+         "Idle":{"kind":"group","selected_delay":{"status":"untested"}},
+         "DirectGroup":{"kind":"group","selected_builtin":"DIRECT"},
+         "RejectGroup":{"kind":"group","selected_builtin":"REJECT"}}
+        """))
+        let group = ProxyGroup(name: "Parent", kind: "Selector", selected: "Child", fixed: nil, selectedStatus: nil,
+                               nodes: ["Child", "Idle", "DirectGroup", "RejectGroup"], hidden: false, icon: nil, nodeInfo: info)
+        XCTAssertEqual(group.nodeTitle("Child"), "Child · 42 ms")
+        XCTAssertEqual(group.nodeTitle("Idle"), "Idle · Untested")
+        XCTAssertEqual(group.nodeTitle("DirectGroup"), "DirectGroup · DIRECT")
+        XCTAssertEqual(group.nodeTitle("RejectGroup"), "RejectGroup · REJECT")
+    }
+
+    func testRejectOnlyGroupCannotStartLatencyTest() throws {
+        _ = NSApplication.shared
+        let delegate = MenuAppDelegate(model: AppModel())
+        let rejected = ProxyGroup(name: "Only", kind: "Selector", selected: "REJECT", fixed: nil, selectedStatus: nil,
+                                  nodes: ["REJECT"], hidden: false, icon: nil,
+                                  nodeInfo: ["REJECT": NodeInfo(kind: "builtin", status: nil)])
+        let test = try XCTUnwrap(delegate.makeGroupMenu(rejected).item(withTitle: rejected.testTitle))
+        XCTAssertFalse(rejected.hasLatencyCandidates)
+        XCTAssertFalse(test.isEnabled)
+        XCTAssertEqual(test.toolTip, "Reject actions have no latency to test.")
+
+        let nested = ProxyGroup(name: "Parent", kind: "Selector", selected: "Child", fixed: nil, selectedStatus: nil,
+                                nodes: ["Child"], hidden: false, icon: nil,
+                                nodeInfo: ["Child": NodeInfo(kind: "group", status: nil, selectedBuiltin: "REJECT")])
+        XCTAssertFalse(nested.hasLatencyCandidates)
+        XCTAssertFalse(try XCTUnwrap(delegate.makeGroupMenu(nested).item(withTitle: nested.testTitle)).isEnabled)
+
+        let mixed = ProxyGroup(name: "Mixed", kind: "Selector", selected: "REJECT", fixed: nil, selectedStatus: nil,
+                               nodes: ["REJECT", "Node"], hidden: false, icon: nil,
+                               nodeInfo: ["REJECT": NodeInfo(kind: "builtin", status: nil), "Node": NodeInfo(kind: "node", status: nil)])
+        XCTAssertTrue(mixed.hasLatencyCandidates)
+        XCTAssertTrue(try XCTUnwrap(delegate.makeGroupMenu(mixed).item(withTitle: mixed.testTitle)).isEnabled)
+
+        let providerNode = ProxyGroup(name: "Provider", kind: "Selector", selected: "REJECT", fixed: nil, selectedStatus: nil,
+                                      nodes: ["REJECT"], hidden: false, icon: nil,
+                                      nodeInfo: ["REJECT": NodeInfo(kind: "node", status: nil)])
+        XCTAssertTrue(providerNode.hasLatencyCandidates)
+        XCTAssertTrue(try XCTUnwrap(delegate.makeGroupMenu(providerNode).item(withTitle: providerNode.testTitle)).isEnabled)
     }
 
     func testSelectingRefreshesActualFixedChoiceAndNestedAvailability() async throws {
@@ -160,7 +206,7 @@ import AppKit
             case ["proxy", "groups"]:
                 json = """
                 {"groups":[{"name":"Parent","type":"URLTest","now":"Child","fixed":"Child","all":["Child"],
-                "node_info":{"Child":{"kind":"group","status":"unavailable"}}}]}
+                "node_info":{"Child":{"kind":"group","status":"unavailable","selected_delay":{"status":"failed"}}}}]}
                 """
             default: json = "{}"
             }
@@ -176,7 +222,7 @@ import AppKit
         XCTAssertFalse(model.busy)
         XCTAssertTrue(calls.contains(["proxy", "groups"]))
         XCTAssertEqual(model.groups.first?.fixed, "Child")
-        XCTAssertEqual(model.groups.first?.nodeTitle("Child"), "Child · Unavailable")
+        XCTAssertEqual(model.groups.first?.nodeTitle("Child"), "Child · Failed")
         model.pauseForSleep()
     }
 

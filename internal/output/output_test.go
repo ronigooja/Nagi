@@ -45,6 +45,7 @@ func TestHumanSuccessShapes(t *testing.T) {
 		{"proxy show", proxy.Group{Name: "Main", Now: "A", All: []string{"A", "B"}}, []string{"Main -> A", "* A", "  B"}, nil},
 		{"proxy show empty", proxy.Group{Name: "Main"}, []string{"No nodes available"}, nil},
 		{"proxy select", map[string]any{"group": "Main", "node": "A"}, []string{"Selected A in proxy group Main"}, nil},
+		{"proxy delays intentional reject", proxy.BatchDelayResult{Group: "Main", Results: []proxy.BatchDelayItem{{Proxy: "REJECT", Unmeasurable: "reject action has no latency"}}}, []string{"REJECT: no latency (reject action has no latency)"}, []string{"latency test failed"}},
 		{"connections", map[string]any{"connections": []proxy.Connection{{ID: "1", Metadata: map[string]any{"host": "example.org", "destinationPort": "443"}, Upload: 12, Download: 34}, {ID: "2", Metadata: map[string]any{"destinationIP": "203.0.113.1", "destinationPort": 80}}}}, []string{"example.org:443", "ID: 1", "Upload: 12 B", "Download: 34 B", "ID: 2", "203.0.113.1:80"}, nil},
 		{"connections empty", map[string]any{"connections": []proxy.Connection{}}, []string{"No active connections"}, nil},
 		{"imported rules", map[string]any{"entries": []rules.Entry{{Name: "personal", Enabled: true, Kind: "rules", Items: []string{"DOMAIN,local.example,DIRECT", "DOMAIN,ads.example,REJECT"}}}}, []string{"personal (enabled): 2 imported rules", "1. DOMAIN,local.example,DIRECT", "2. DOMAIN,ads.example,REJECT"}, nil},

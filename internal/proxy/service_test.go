@@ -4,10 +4,72 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/ronigooja/Nagi/internal/control"
 )
 
 type fakeClient struct{ path, selected, method, bodyPath string }
+
+type rejectDelayClient struct {
+	calls     []string
+	failMixed bool
+}
+
+func (c *rejectDelayClient) Get(_ context.Context, path string, out any) error {
+	c.calls = append(c.calls, path)
+	switch {
+	case path == "/proxies":
+		return json.Unmarshal([]byte(`{"proxies":{"REJECT":{"name":"REJECT","type":"Reject"},"Node":{"name":"Node","type":"Shadowsocks"},"Nested":{"name":"Nested","type":"Selector","all":["REJECT"],"now":"REJECT"}}}`), out)
+	case path == "/providers/proxies":
+		return json.Unmarshal([]byte(`{"providers":{"feed":{"vehicleType":"HTTP","proxies":[{"name":"REJECT","type":"Shadowsocks"}]}}}`), out)
+	case strings.HasPrefix(path, "/group/Only/delay?") || strings.HasPrefix(path, "/group/Parent/delay?"):
+		return &control.APIError{Status: 504, Message: "get delay: all proxies timeout"}
+	case strings.HasPrefix(path, "/group/Mixed/delay?"):
+		if c.failMixed {
+			return &control.APIError{Status: 504, Message: "get delay: all proxies timeout"}
+		}
+		return json.Unmarshal([]byte(`{"Node":42}`), out)
+	case strings.HasPrefix(path, "/group/Provider/delay?"):
+		return json.Unmarshal([]byte(`{"REJECT":23}`), out)
+	}
+	return errors.New("unexpected path")
+}
+func (*rejectDelayClient) Put(context.Context, string, any, any) error { return nil }
+
+func TestRejectOnlyNativeFailureIsUnmeasurable(t *testing.T) {
+	c := &rejectDelayClient{}
+	s := NewService(c)
+	if err := s.Configure([]byte("proxy-groups:\n- name: Only\n  type: select\n  proxies: [REJECT]\n- name: Mixed\n  type: select\n  proxies: [REJECT, Node]\n- name: Provider\n  type: select\n  use: [feed]\n- name: Nested\n  type: select\n  proxies: [REJECT]\n- name: Parent\n  type: select\n  proxies: [Nested]\n")); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ group, member string }{{"Only", "REJECT"}, {"Parent", "Nested"}} {
+		result, state, err := s.DelaysKnown(context.Background(), Group{Name: tc.group, All: []string{tc.member}}, "https://example.com", 1000)
+		if err != nil || state != DelayResetConfirmed || len(result.Results) != 1 || result.Results[0].Unmeasurable == "" || result.Results[0].Error != "" {
+			t.Fatalf("%s: result=%+v state=%v err=%v", tc.group, result, state, err)
+		}
+	}
+	mixed, state, err := s.DelaysKnown(context.Background(), Group{Name: "Mixed", All: []string{"REJECT", "Node"}}, "https://example.com", 1000)
+	if err != nil || state != DelayResetConfirmed || len(mixed.Results) != 2 || mixed.Results[0].Proxy != "Node" || mixed.Results[0].DelayMS == nil || *mixed.Results[0].DelayMS != 42 || mixed.Results[1].Unmeasurable == "" || mixed.Results[1].Error != "" {
+		t.Fatalf("mixed result=%+v state=%v err=%v", mixed, state, err)
+	}
+	provider, _, err := s.DelaysKnown(context.Background(), Group{Name: "Provider", All: []string{"REJECT"}}, "https://example.com", 1000)
+	if err != nil || len(provider.Results) != 1 || provider.Results[0].DelayMS == nil || *provider.Results[0].DelayMS != 23 || provider.Results[0].Unmeasurable != "" {
+		t.Fatalf("provider node named REJECT: %+v, %v", provider, err)
+	}
+	c.failMixed = true
+	_, _, err = s.DelaysKnown(context.Background(), Group{Name: "Mixed", All: []string{"REJECT", "Node"}}, "https://example.com", 1000)
+	if err == nil {
+		t.Fatal("real node failure was treated as an expected reject result")
+	}
+	for _, path := range c.calls {
+		if strings.HasPrefix(path, "/group/Only/delay?") || strings.HasPrefix(path, "/group/Parent/delay?") {
+			return
+		}
+	}
+	t.Fatal("native group test was not called")
+}
 
 func (f *fakeClient) Get(_ context.Context, path string, out any) error {
 	f.path = path

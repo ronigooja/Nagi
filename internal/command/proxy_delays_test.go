@@ -21,6 +21,21 @@ type delayScenarioClient struct {
 
 func (c *delayScenarioClient) Get(_ context.Context, path string, out any) error {
 	c.calls = append(c.calls, path)
+	if c.kind == "reject-only" {
+		switch {
+		case path == "/proxies/Auto":
+			b, _ := json.Marshal(proxy.Group{Name: "Auto", Type: "URLTest", All: []string{"REJECT"}, Fixed: c.fixed, Now: "REJECT"})
+			return json.Unmarshal(b, out)
+		case path == "/proxies":
+			return json.Unmarshal([]byte(`{"proxies":{"REJECT":{"name":"REJECT","type":"Reject"}}}`), out)
+		case path == "/providers/proxies":
+			return json.Unmarshal([]byte(`{"providers":{}}`), out)
+		case strings.HasPrefix(path, "/group/Auto/delay?"):
+			c.fixed = ""
+			return &control.APIError{Status: 504, Message: "get delay: all proxies timeout"}
+		}
+		return errors.New("unexpected request")
+	}
 	if strings.HasPrefix(path, "/group/") {
 		switch c.kind {
 		case "timeout":
@@ -46,6 +61,40 @@ func (c *delayScenarioClient) Get(_ context.Context, path string, out any) error
 	return errors.New("unexpected request")
 }
 func (*delayScenarioClient) Put(context.Context, string, any, any) error { return nil }
+
+func TestRejectOnlyGroupStillCallsNativeAndPersistsAutomaticReset(t *testing.T) {
+	dir := t.TempDir()
+	store := proxy.SelectionStore{Path: filepath.Join(dir, "choices.json")}
+	if err := store.Save("default", "Auto", "REJECT"); err != nil {
+		t.Fatal(err)
+	}
+	c := &delayScenarioClient{kind: "reject-only", fixed: "REJECT"}
+	service := proxy.NewService(c)
+	if err := service.Configure([]byte("proxy-groups:\n- name: Auto\n  type: url-test\n  proxies: [REJECT]\n  url: https://example.com\n")); err != nil {
+		t.Fatal(err)
+	}
+	value, err := proxyCommand(context.Background(), []string{"proxy", "delays", "Auto"}, service, store, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := value.(proxy.BatchDelayResult)
+	if len(r.Results) != 1 || r.Results[0].Unmeasurable == "" || !r.AutomaticReset || !r.SavedSelectionRemoved || c.fixed != "" {
+		t.Fatalf("result=%+v fixed=%q", r, c.fixed)
+	}
+	nativeCall := false
+	for _, path := range c.calls {
+		if strings.HasPrefix(path, "/group/Auto/delay?") {
+			nativeCall = true
+		}
+	}
+	if !nativeCall {
+		t.Fatalf("native group test was not called: %v", c.calls)
+	}
+	b, err := os.ReadFile(store.Path)
+	if err != nil || strings.Contains(string(b), `"Auto"`) {
+		t.Fatalf("saved fixed choice was not removed: %s, %v", b, err)
+	}
+}
 
 func TestGroupDelayFailureStates(t *testing.T) {
 	for _, tc := range []struct {

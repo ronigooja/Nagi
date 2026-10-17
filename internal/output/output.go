@@ -151,6 +151,9 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			if item.Error != "" {
 				value = item.Error
 			}
+			if item.Unmeasurable != "" {
+				value = "no latency (" + item.Unmeasurable + ")"
+			}
 			if err := line(w, item.Proxy+": "+value); err != nil {
 				return err
 			}

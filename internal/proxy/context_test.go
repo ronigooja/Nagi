@@ -90,6 +90,12 @@ func TestContextIdentityAndNestedKinds(t *testing.T) {
 			if g.NodeInfo["Nested"].Kind != "group" || g.NodeInfo["Nested"].Status != "available" || g.NodeInfo["LB"].Status != "" || g.NodeInfo["DIRECT"].Kind != "builtin" {
 				t.Fatalf("classification: %+v", g)
 			}
+			if d := g.NodeInfo["Nested"].SelectedDelay; d == nil || d.Status != "ok" || d.DelayMS == nil || *d.DelayMS != 4 {
+				t.Fatalf("nested selected delay: %+v", d)
+			}
+			if g.NodeInfo["LB"].SelectedDelay != nil || g.NodeInfo["DIRECT"].SelectedDelay != nil {
+				t.Fatalf("groups without selected leaves gained delays: %+v", g.NodeInfo)
+			}
 			if _, ok := g.NodeDelays["Nested"]; ok {
 				t.Fatal("group inherited latency")
 			}
@@ -99,6 +105,74 @@ func TestContextIdentityAndNestedKinds(t *testing.T) {
 		if strings.Contains(p, "healthcheck") || strings.Contains(p, "delay?") {
 			t.Fatal("read measured")
 		}
+	}
+}
+func TestNestedSelectedLeafMeasurementStates(t *testing.T) {
+	c := &contextClient{}
+	s := configuredContext(t, c)
+	r, e := s.historyReader(context.Background())
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, tc := range []struct {
+		name    string
+		history []historyRecord
+		want    string
+	}{
+		{name: "untested", want: "untested"},
+		{name: "failed", history: []historyRecord{{Time: time.Now(), Delay: 0}}, want: "failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r.providers = map[string][]proxyHistory{"A": {{Name: "Twin", History: tc.history}}}
+			r.loaded = true
+			d, builtin := r.selectedLeaf(context.Background(), s, "Outer", map[string]bool{})
+			if d == nil || d.Status != tc.want || d.DelayMS != nil || builtin != "" {
+				t.Fatalf("selected leaf: delay=%+v builtin=%q", d, builtin)
+			}
+		})
+	}
+}
+func TestNestedSelectedBuiltin(t *testing.T) {
+	c := &contextClient{}
+	s := configuredContext(t, c)
+	r, e := s.historyReader(context.Background())
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, name := range []string{"DIRECT", "REJECT"} {
+		t.Run(name, func(t *testing.T) {
+			r.top[name] = proxyHistory{Group: Group{Type: map[string]string{"DIRECT": "Direct", "REJECT": "Reject"}[name]}}
+			r.top["Nested"] = proxyHistory{Group: Group{Type: "Selector", All: []string{name}, Now: name}}
+			for i := range s.config.Groups {
+				if s.config.Groups[i].Name == "Nested" {
+					s.config.Groups[i].Use = nil
+					s.config.Groups[i].Proxies = []string{name}
+				}
+			}
+			var outer Group
+			outer.Name = "Outer"
+			outer.All = []string{"Nested"}
+			r.decorate(context.Background(), s, &outer, "")
+			info := outer.NodeInfo["Nested"]
+			if info.SelectedBuiltin != name || info.SelectedDelay != nil || info.Status != "" {
+				t.Fatalf("nested builtin: %+v", info)
+			}
+		})
+	}
+}
+func TestNestedProviderNodeNamedDirectIsMeasured(t *testing.T) {
+	c := &contextClient{}
+	s := configuredContext(t, c)
+	r, e := s.historyReader(context.Background())
+	if e != nil {
+		t.Fatal(e)
+	}
+	r.top["Nested"] = proxyHistory{Group: Group{Type: "Selector", All: []string{"DIRECT"}, Now: "DIRECT"}}
+	r.providers = map[string][]proxyHistory{"A": {{Name: "DIRECT", History: []historyRecord{{Time: time.Now(), Delay: 12}}}}}
+	r.loaded = true
+	d, builtin := r.selectedLeaf(context.Background(), s, "Nested", map[string]bool{})
+	if builtin != "" || d == nil || d.Status != "ok" || d.DelayMS == nil || *d.DelayMS != 12 {
+		t.Fatalf("provider node misclassified: delay=%+v builtin=%q", d, builtin)
 	}
 }
 func TestContextManualConditionsZeroAndExpectedFailure(t *testing.T) {
@@ -202,8 +276,8 @@ func TestNestedCycleAndAmbiguityHaveNoStatus(t *testing.T) {
 			s.config.Groups[i].Proxies = []string{"Outer"}
 		}
 	}
-	if status := r.leafStatus(context.Background(), s, "Outer", map[string]bool{}); status != "" {
-		t.Fatal(status)
+	if d, builtin := r.selectedLeaf(context.Background(), s, "Outer", map[string]bool{}); d != nil || builtin != "" {
+		t.Fatalf("cycle resolved: delay=%+v builtin=%q", d, builtin)
 	}
 }
 

@@ -83,8 +83,10 @@ func latestDelay(p proxyHistory, target string) NodeDelay {
 
 // NodeInfo identifies selectable entries independently of display names.
 type NodeInfo struct {
-	Kind   string `json:"kind"`
-	Status string `json:"status,omitempty"`
+	Kind            string     `json:"kind"`
+	Status          string     `json:"status,omitempty"`
+	SelectedDelay   *NodeDelay `json:"selected_delay,omitempty"`
+	SelectedBuiltin string     `json:"selected_builtin,omitempty"`
 }
 type groupHistoryReader struct {
 	top       map[string]proxyHistory
@@ -179,14 +181,14 @@ func delayStatus(d NodeDelay) string {
 	}
 	return ""
 }
-func (r *groupHistoryReader) leafStatus(ctx context.Context, s *Service, name string, seen map[string]bool) string {
+func (r *groupHistoryReader) selectedLeaf(ctx context.Context, s *Service, name string, seen map[string]bool) (*NodeDelay, string) {
 	if seen[name] {
-		return ""
+		return nil, ""
 	}
 	seen[name] = true
 	p, ok := r.top[name]
 	if !ok || p.Type == "LoadBalance" || p.Now == "" {
-		return ""
+		return nil, ""
 	}
 	member := false
 	for _, n := range p.All {
@@ -195,19 +197,22 @@ func (r *groupHistoryReader) leafStatus(ctx context.Context, s *Service, name st
 		}
 	}
 	if !member {
-		return ""
+		return nil, ""
 	}
 	child, provider, ok := r.resolve(ctx, s, name, p.Now)
 	if !ok {
-		return ""
+		return nil, ""
 	}
 	switch scopedNodeKind(p.Now, child, provider) {
 	case "node":
-		return delayStatus(latestDelay(child, p.TestURL))
+		d := latestDelay(child, p.TestURL)
+		return &d, ""
 	case "group":
-		return r.leafStatus(ctx, s, p.Now, seen)
+		return r.selectedLeaf(ctx, s, p.Now, seen)
+	case "builtin":
+		return nil, p.Now
 	}
-	return ""
+	return nil, ""
 }
 func (r *groupHistoryReader) decorate(ctx context.Context, s *Service, g *Group, target string) {
 	g.NodeDelays = map[string]NodeDelay{}
@@ -226,7 +231,10 @@ func (r *groupHistoryReader) decorate(ctx context.Context, s *Service, g *Group,
 			g.NodeDelays[name] = d
 			info.Status = delayStatus(d)
 		case "group":
-			info.Status = r.leafStatus(ctx, s, name, map[string]bool{})
+			info.SelectedDelay, info.SelectedBuiltin = r.selectedLeaf(ctx, s, name, map[string]bool{})
+			if info.SelectedDelay != nil {
+				info.Status = delayStatus(*info.SelectedDelay)
+			}
 		}
 		g.NodeInfo[name] = info
 	}

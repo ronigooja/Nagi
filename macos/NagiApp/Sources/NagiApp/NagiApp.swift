@@ -443,8 +443,12 @@ import AppKit
         if group.nodes.isEmpty { disabled("No nodes in this group", to: choices) }
         choices.addItem(.separator())
         let test = add(group.testTitle, command: group.testCommand,
-                       enabled: !model.busy && !group.nodes.isEmpty, to: choices)
-        test.toolTip = group.testExplanation
+                       enabled: !model.busy && group.hasLatencyCandidates, to: choices)
+        if group.nodes.isEmpty {
+            test.toolTip = "No nodes in this group."
+        } else {
+            test.toolTip = group.hasLatencyCandidates ? group.testExplanation : "Reject actions have no latency to test."
+        }
         let singleTests = NSMenu()
         for node in group.testableNodes {
             let item = add(group.nodeTitle(node), command: ["proxy", "test", "group", group.name, node], enabled: !model.busy, to: singleTests)

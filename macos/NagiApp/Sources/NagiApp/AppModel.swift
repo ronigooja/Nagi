@@ -34,9 +34,13 @@ struct NodeDelay {
 struct NodeInfo {
     let kind: String
     let status: String?
+    var selectedDelay: NodeDelay? = nil
+    var selectedBuiltin: String? = nil
     static func parse(_ value: JSONValue?) -> [String: NodeInfo] {
         guard case let .objectValue(entries)? = value else { return [:] }
-        return entries.mapValues { NodeInfo(kind: $0["kind"]?.string ?? "unknown", status: $0["status"]?.string) }
+        return entries.mapValues { NodeInfo(kind: $0["kind"]?.string ?? "unknown", status: $0["status"]?.string,
+                                            selectedDelay: $0["selected_delay"].map { NodeDelay($0) },
+                                            selectedBuiltin: $0["selected_builtin"]?.string) }
     }
     static func kind(_ name: String, in info: [String: NodeInfo]) -> String {
         if let node = info[name] { return node.kind }
@@ -57,11 +61,18 @@ struct ProxyGroup {
     var nodeDelays: [String: NodeDelay] = [:]
     var nodeInfo: [String: NodeInfo] = [:]
     var testableNodes: [String] { nodes.filter { NodeInfo.kind($0, in: nodeInfo) == "node" } }
+    var hasLatencyCandidates: Bool {
+        nodes.contains { node in
+            let kind = NodeInfo.kind(node, in: nodeInfo)
+            let rejecting = ["REJECT", "REJECT-DROP"]
+            return !(kind == "builtin" && rejecting.contains(node) ||
+                     kind == "group" && rejecting.contains(nodeInfo[node]?.selectedBuiltin ?? ""))
+        }
+    }
     func nodeTitle(_ node: String) -> String {
         switch NodeInfo.kind(node, in: nodeInfo) {
         case "node": return "\(node) · \(nodeDelays[node]?.label ?? "Untested")"
-        case "group":
-            if let status = nodeInfo[node]?.status, ["available", "unavailable"].contains(status) { return "\(node) · \(status.capitalized)" }
+        case "group": return "\(node) · \(nodeInfo[node]?.selectedBuiltin ?? nodeInfo[node]?.selectedDelay?.label ?? "Unknown")"
         default: break
         }
         return node
