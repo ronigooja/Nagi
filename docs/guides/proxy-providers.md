@@ -14,7 +14,7 @@ In the macOS app, open **Proxy Providers → Add Provider…** and complete the 
 
 Successful creation updates the current profile's local override and reloads a running engine. If it was stopped, start it separately with `nagi start`. Configuration validation or activation failures preserve the previous disk settings; the command reports any uncertainty about runtime recovery. Correct the error before explicitly retrying.
 
-Providers added to automatic groups use the group's healthcheck URL. After reloading a running engine and loading the provider nodes, Nagi immediately requests mihomo's native healthcheck without separate result output. This reduces fallback to entries such as `REJECT` while nodes lack measurements; unavailable nodes can still cause fallback.
+Providers added to automatic groups use the group's healthcheck URL. Mihomo automatically triggers an asynchronous initial healthcheck when it loads the provider nodes. Provider creation can finish before measurements are available; unavailable nodes can still cause fallback.
 
 ## Add from the CLI
 

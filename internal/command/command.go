@@ -1118,24 +1118,10 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if err != nil {
 				return nil, fail("proxy_provider_error", err)
 			}
-			backend, err := getLifecycle()
-			if err != nil {
-				return nil, fail("proxy_provider_error", err)
-			}
-			status, err := backend.Status(ctx)
-			if err != nil {
-				return nil, fail("proxy_provider_error", err)
-			}
 			interval, testURLs, _ := providerAddOptions(args)
 			created, err := store.AddProvider(ctx, profileName, args[3], args[4], args[5], interval, testURLs...)
 			if err != nil {
 				return nil, fail("proxy_provider_error", fmt.Errorf("provider addition failed; inspect `nagi profile list` and the selected profile override: %w", err))
-			}
-			if status.Running {
-				// Activation waits for mihomo's initial provider loading. Check
-				// those nodes now rather than waiting for the periodic check.
-				// A measurement failure must not roll back the saved provider.
-				_ = proxies.ProviderHealthcheck(ctx, args[3])
 			}
 			return map[string]any{"provider": args[3], "group": args[5], "profile": profileName, "interval_seconds": interval, "added": true, "group_created": created}, nil
 		}

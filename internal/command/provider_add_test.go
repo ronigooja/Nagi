@@ -141,105 +141,100 @@ func TestProviderAddTransactionClassificationAndHumanResult(t *testing.T) {
 	}
 }
 
-func TestProviderAddRunningChecksLoadedNodesWithoutCheckOutput(t *testing.T) {
-	for _, checkFails := range []bool{false, true} {
-		t.Run(fmt.Sprint(checkFails), func(t *testing.T) {
-			oldOS := tunDNSOS
-			tunDNSOS = "linux"
-			defer func() { tunDNSOS = oldOS }()
-			root, err := os.MkdirTemp("/tmp", "ngp-")
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _ = os.RemoveAll(root) })
-			paths := isolatedTestPaths(t, root)
-			if err := paths.EnsureRuntime(); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.MkdirAll(filepath.Join(paths.ConfigDir, "profiles"), 0700); err != nil {
-				t.Fatal(err)
-			}
-			source := "mixed-port: 17890\nproxy-groups:\n  - name: Japan\n    type: url-test\n    proxies: [REJECT]\n    url: http://example.com/generate_204\nrules: [MATCH,DIRECT]\n"
-			if err := os.WriteFile(filepath.Join(paths.ConfigDir, "profiles", "default.yaml"), []byte(source), 0600); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(paths.PIDPath, []byte(fmt.Sprint(os.Getpid())), 0600); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\nexit 0\n"))
-			listener, err := net.Listen("unix", paths.SocketPath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var mu sync.Mutex
-			activeID, loaded, checked := "old", false, 0
-			server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				mu.Lock()
-				defer mu.Unlock()
-				switch r.URL.Path {
-				case "/configs":
-					if r.Method == "PUT" {
-						var request struct {
-							ActivationID string `json:"activation_id"`
-						}
-						if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-							t.Error(err)
-						}
-						activeID, loaded = request.ActivationID, true
-						w.WriteHeader(http.StatusNoContent)
-						return
-					}
-					json.NewEncoder(w).Encode(map[string]any{"activation_id": activeID, "mixed-port": 17890, "tun": map[string]any{"enable": false}})
-				case "/proxies":
-					fmt.Fprint(w, `{"proxies":{}}`)
-				case "/providers/proxies":
-					if !loaded {
-						t.Error("provider queried before activation")
-					}
-					fmt.Fprint(w, `{"providers":{"dev":{"name":"dev","vehicleType":"HTTP","proxies":[{"name":"Japan node"}]}}}`)
-				case "/providers/proxies/dev/healthcheck":
-					if !loaded {
-						t.Error("healthcheck before nodes loaded")
-					}
-					checked++
-					if checkFails {
-						http.Error(w, "PRIVATE check failure", http.StatusServiceUnavailable)
-						return
-					}
-					w.WriteHeader(http.StatusNoContent)
-				default:
-					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
-					w.WriteHeader(http.StatusNotFound)
+func TestProviderAddRunningReliesOnNativeHealthcheck(t *testing.T) {
+	oldOS := tunDNSOS
+	tunDNSOS = "linux"
+	defer func() { tunDNSOS = oldOS }()
+	root, err := os.MkdirTemp("/tmp", "ngp-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	paths := isolatedTestPaths(t, root)
+	if err := paths.EnsureRuntime(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(paths.ConfigDir, "profiles"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	source := "mixed-port: 17890\nproxy-groups:\n  - name: Japan\n    type: url-test\n    proxies: [REJECT]\n    url: http://example.com/generate_204\nrules: [MATCH,DIRECT]\n"
+	if err := os.WriteFile(filepath.Join(paths.ConfigDir, "profiles", "default.yaml"), []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.PIDPath, []byte(fmt.Sprint(os.Getpid())), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\nexit 0\n"))
+	listener, err := net.Listen("unix", paths.SocketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	activeID, loaded, checked := "old", false, 0
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch r.URL.Path {
+		case "/configs":
+			if r.Method == "PUT" {
+				var request struct {
+					ActivationID string `json:"activation_id"`
 				}
-			})}
-			go server.Serve(listener)
-			defer server.Close()
-			var out, errs bytes.Buffer
-			code := Run([]string{"--json", "proxy", "provider", "add", "dev", "https://example.com/feed", "Japan"}, &out, &errs, "test", "commit")
-			if code != 0 || errs.Len() != 0 {
-				t.Fatalf("code=%d error=%s", code, errs.String())
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Error(err)
+				}
+				activeID, loaded = request.ActivationID, true
+				w.WriteHeader(http.StatusNoContent)
+				return
 			}
-			mu.Lock()
-			count := checked
-			mu.Unlock()
-			if count != 1 {
-				t.Fatalf("healthcheck requests=%d", count)
+			json.NewEncoder(w).Encode(map[string]any{"activation_id": activeID, "mixed-port": 17890, "tun": map[string]any{"enable": false}})
+		case "/proxies":
+			fmt.Fprint(w, `{"proxies":{}}`)
+		case "/providers/proxies":
+			if !loaded {
+				t.Error("provider queried before activation")
 			}
-			var envelope struct {
-				OK   bool           `json:"ok"`
-				Data map[string]any `json:"data"`
+			fmt.Fprint(w, `{"providers":{"dev":{"name":"dev","vehicleType":"HTTP","proxies":[{"name":"Japan node"}]}}}`)
+		case "/providers/proxies/dev/healthcheck":
+			if !loaded {
+				t.Error("healthcheck before nodes loaded")
 			}
-			if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
-				t.Fatal(err)
-			}
-			if !envelope.OK || envelope.Data["added"] != true || len(envelope.Data) != 6 {
-				t.Fatalf("unexpected output: %s", out.String())
-			}
-			data, err := os.ReadFile(filepath.Join(paths.ConfigDir, "overrides", "default.yaml"))
-			if err != nil || !strings.Contains(string(data), "dev:") || !strings.Contains(string(data), "http://example.com/generate_204") {
-				t.Fatalf("saved provider missing: %s %v", data, err)
-			}
-		})
+			checked++
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	var out, errs bytes.Buffer
+	code := Run([]string{"--json", "proxy", "provider", "add", "dev", "https://example.com/feed", "Japan"}, &out, &errs, "test", "commit")
+	if code != 0 || errs.Len() != 0 {
+		t.Fatalf("code=%d error=%s", code, errs.String())
+	}
+	mu.Lock()
+	count, reloaded := checked, loaded
+	mu.Unlock()
+	if count != 0 {
+		t.Fatalf("healthcheck requests=%d", count)
+	}
+	var envelope struct {
+		OK   bool           `json:"ok"`
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded {
+		t.Fatal("provider addition did not reload the engine")
+	}
+	if !envelope.OK || envelope.Data["added"] != true || len(envelope.Data) != 6 {
+		t.Fatalf("unexpected output: %s", out.String())
+	}
+	data, err := os.ReadFile(filepath.Join(paths.ConfigDir, "overrides", "default.yaml"))
+	if err != nil || !strings.Contains(string(data), "dev:") || !strings.Contains(string(data), "http://example.com/generate_204") {
+		t.Fatalf("saved provider missing: %s %v", data, err)
 	}
 }
 
