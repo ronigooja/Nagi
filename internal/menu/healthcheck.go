@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 type menuNodeDelay struct {
@@ -70,6 +71,9 @@ type menuHealthcheck struct {
 	Source            string `json:"source"`
 	Profile           string `json:"profile"`
 	TestURL           string `json:"test_url"`
+	TestURLSource     string `json:"test_url_source"`
+	URLSource         string `json:"url_source"`
+	CanResetURL       *bool  `json:"can_reset_url"`
 	Reason            string `json:"reason"`
 }
 
@@ -103,8 +107,20 @@ func healthcheckPage(kind, name string) *Page {
 			}},
 			{Label: healthcheckResetLabel(kind), Impact: resetImpact, Args: []string{"proxy", "healthcheck", "reset", kind, name}},
 		}
+		view.Actions = append(view.Actions,
+			Item{Label: "Set test URL", Impact: saveImpact, Action: func(ctx context.Context, s *Session) error {
+				_, err := s.Form(ctx, []Field{testURLField(true)}, map[string]string{}, func(v map[string]string) Result {
+					return s.Run(ctx, "proxy", "healthcheck", "url", "set", kind, name, v["test_url"])
+				})
+				return err
+			}},
+			Item{Label: "Inherit test URL", Impact: resetImpact, Args: []string{"proxy", "healthcheck", "url", "reset", kind, name}},
+		)
 		if err != nil {
 			return view, err
+		}
+		if kind == "provider" && config.CanResetURL != nil && !*config.CanResetURL {
+			view.Actions = view.Actions[:len(view.Actions)-1]
 		}
 		interval := "unknown"
 		if config.IntervalDefaulted && (config.IntervalSeconds == nil || *config.IntervalSeconds == 0) {
@@ -143,6 +159,13 @@ func healthcheckPage(kind, name string) *Page {
 		if config.TestURL != "" {
 			view.Context += "\nTest endpoint: " + menuTestEndpoint(config.TestURL)
 		}
+		urlSource := config.TestURLSource
+		if urlSource == "" {
+			urlSource = config.URLSource
+		}
+		if urlSource != "" {
+			view.Context += "\nTest URL source: " + urlSource
+		}
 		view.Context += "\nMihomo schedules these checks. Lazy checks may skip unused groups or providers.\nAutomatic latency tests and subscription download intervals are separate."
 		view.Context += "\nProvider local settings take precedence over subscription settings, then the original configuration."
 		return view, nil
@@ -163,4 +186,35 @@ func healthcheckResetLabel(kind string) string {
 		return "Inherit subscription or original interval"
 	}
 	return "Use original configuration interval"
+}
+
+// The CLI validates and persists URLs; the form checks input without echoing it.
+func testURLField(required bool) Field {
+	label := "Test HTTP(S) URL"
+	if !required {
+		label += " (blank inherits configuration)"
+	}
+	return Field{Key: "test_url", Label: label, Required: required, Validate: func(raw string) error {
+		if strings.TrimSpace(raw) == "" && !required {
+			return nil
+		}
+		u, err := url.Parse(raw)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || strings.Contains(raw, "#") {
+			return fmt.Errorf("enter an HTTP(S) URL with a hostname and without user credentials or a fragment")
+		}
+		return nil
+	}}
+}
+
+func secondsField(label string, allowOff bool) Field {
+	return Field{Key: "seconds", Label: label, Required: true, Validate: func(raw string) error {
+		if allowOff && raw == "off" {
+			return nil
+		}
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || n < 1 || n > 31536000 {
+			return fmt.Errorf("enter an integer from 1 to 31536000 seconds")
+		}
+		return nil
+	}}
 }

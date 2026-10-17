@@ -51,7 +51,7 @@ func configMutation(args []string) bool {
 			return !tailscaleRead(args)
 		}
 		if args[1] == "provider" {
-			return len(args) > 2 && (args[2] == "add" || args[2] == "remove" || args[2] == "update" || args[2] == "healthcheck")
+			return len(args) > 2 && (args[2] == "add" || args[2] == "remove" || args[2] == "update" || args[2] == "healthcheck" || args[2] == "interval" && len(args) > 3 && args[3] != "show")
 		}
 		return args[1] == "select" || args[1] == "auto" || args[1] == "delays" || args[1] == "restore"
 	case "privileged-helper":
@@ -70,7 +70,7 @@ func transactionalMutation(args []string) bool {
 	}
 	switch args[0] {
 	case "proxy":
-		return args[1] == "healthcheck" && len(args) > 2 && args[2] != "show" || tailscaleInvocation(args) && !tailscaleRead(args) || len(args) > 2 && args[1] == "provider" && (args[2] == "add" || args[2] == "remove")
+		return args[1] == "healthcheck" && len(args) > 2 && args[2] != "show" || tailscaleInvocation(args) && !tailscaleRead(args) || len(args) > 2 && args[1] == "provider" && (args[2] == "add" || args[2] == "remove" || args[2] == "interval" && len(args) > 3 && args[3] != "show")
 	case "profile":
 		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override" && (len(args) < 3 || args[2] != "default-status")
 	case "subscription":

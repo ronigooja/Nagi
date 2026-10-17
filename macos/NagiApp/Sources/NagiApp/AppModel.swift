@@ -610,10 +610,39 @@ enum EngineState { case starting, running, stopped, unavailable }
         }
     }
 
+    func providerUpdateSettings(_ name: String) async throws -> JSONValue {
+        guard !busy && !quitting else { throw CLIError.command("busy", "Another operation is in progress.") }
+        busy = true
+        defer { busy = false }
+        await waitForConnectionsOperation()
+        return try await runCommand(["proxy", "provider", "interval", "show", name])
+    }
+
+    func saveSourceSetting(_ arguments: [String]) async -> String? {
+        guard !busy && !quitting else { return "Another operation is in progress." }
+        settingsGeneration += 1
+        busy = true
+        applyingSetting = true
+        defer { applyingSetting = false; busy = false }
+        await waitForConnectionsOperation()
+        do {
+            _ = try await runCommand(arguments)
+            settingsGeneration += 1
+            await requestRefresh([.groups, .providers, .subscriptions], force: true)
+            errorMessage = nil
+            return nil
+        } catch {
+            settingsGeneration += 1
+            await requestRefresh([.groups, .providers, .subscriptions], force: true)
+            errorMessage = error.localizedDescription
+            return error.localizedDescription
+        }
+    }
+
     // Configuration, validation, persistence, and activation remain CLI operations.
-    func addProvider(_ name: String, url: String, group: String, intervalSeconds: Int64 = 3600) async -> String? {
+    func addProvider(_ name: String, url: String, group: String, intervalSeconds: Int64 = 3600, updateOff: Bool = false, testURL: String = "") async -> String? {
         guard !busy && !quitting else { return "Another operation is in progress. Try again when it finishes." }
-        guard (1...31_536_000).contains(intervalSeconds) else {
+        guard updateOff || (1...31_536_000).contains(intervalSeconds) else {
             return "Update interval must be 1–31536000 seconds."
         }
         settingsGeneration += 1
@@ -623,7 +652,8 @@ enum EngineState { case starting, running, stopped, unavailable }
         defer { applyingSetting = false; busy = false }
         await waitForConnectionsOperation()
         do {
-            let result = try await runCommand(["proxy", "provider", "add", name, url, group, String(intervalSeconds)])
+            let arguments = ["proxy", "provider", "add", name, url, group, updateOff ? "off" : String(intervalSeconds)] + (testURL.isEmpty ? [] : ["--test-url", testURL])
+            let result = try await runCommand(arguments)
             settingsGeneration += 1
             errorMessage = nil
             profile = result["profile"]?.string ?? profile
@@ -703,10 +733,10 @@ enum EngineState { case starting, running, stopped, unavailable }
     func updateAndApplySubscription(_ name: String) {
         saveDownloadAndApplySubscription(name, url: nil)
     }
-    func addAndApplySubscription(_ name: String, url: String) {
-        saveDownloadAndApplySubscription(name, url: url)
+    func addAndApplySubscription(_ name: String, url: String, schedule: String = "3600", testURL: String = "") {
+        saveDownloadAndApplySubscription(name, url: url, schedule: schedule, testURL: testURL)
     }
-    private func saveDownloadAndApplySubscription(_ name: String, url: String?) {
+    private func saveDownloadAndApplySubscription(_ name: String, url: String?, schedule: String = "3600", testURL: String = "") {
         guard !busy && !quitting else { return }
         settingsGeneration += 1
         busy = true
@@ -717,9 +747,12 @@ enum EngineState { case starting, running, stopped, unavailable }
             await waitForConnectionsOperation()
             if let url {
                 do {
-                    _ = try await runCommand(["subscription", "add", name, url])
+                    var arguments = ["subscription", "add", name, url]
+                    if schedule != "3600" { arguments += ["--schedule", schedule] }
+                    if !testURL.isEmpty { arguments += ["--test-url", testURL] }
+                    _ = try await runCommand(arguments)
                     settingsGeneration += 1
-                    subscriptions.append(Subscription(name: name, keyConfigured: false, scheduleSeconds: 3600, schedulerRunning: false, nextDue: nil, pauseReason: nil, lastFailureStage: nil, lastFailureReason: nil, expiresAt: nil, upload: 0, download: 0, total: 0))
+                    subscriptions.append(Subscription(name: name, keyConfigured: false, scheduleSeconds: Int64(schedule) ?? 0, schedulerRunning: false, nextDue: nil, pauseReason: nil, lastFailureStage: nil, lastFailureReason: nil, expiresAt: nil, upload: 0, download: 0, total: 0))
                     subscriptions.sort { $0.name < $1.name }
                 } catch {
                     settingsGeneration += 1

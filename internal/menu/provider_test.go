@@ -82,7 +82,7 @@ func TestProviderAddAccessibleWithEmptyOrUnavailableRead(t *testing.T) {
 				"proxy provider add work https://example.invalid/feed Work Group 3600": {Data: map[string]any{"added": true, "group_created": true}},
 			}}
 			var out bytes.Buffer
-			code := RunPage(context.Background(), NewSession(r, strings.NewReader("1\nwork\nhttps://example.invalid/feed\nWork Group\n\n0\n"), &out), providerListPage())
+			code := RunPage(context.Background(), NewSession(r, strings.NewReader("1\nwork\nhttps://example.invalid/feed\nWork Group\n\n\n0\n"), &out), providerListPage())
 			want := [][]string{
 				{"proxy", "providers"},
 				{"proxy", "provider", "add", "work", "https://example.invalid/feed", "Work Group", "3600"},
@@ -111,7 +111,7 @@ func TestProviderAddRetainsFieldsAndRequiresExplicitResubmit(t *testing.T) {
 	}}
 	var out bytes.Buffer
 	// Editing the interval does not submit; only the numbered Submit action does.
-	RunPage(context.Background(), NewSession(r, strings.NewReader("1\nwork\nhttps://example.invalid/feed\nWork Group\n\n4\n7200\n5\n0\n"), &out), providerListPage())
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\nwork\nhttps://example.invalid/feed\nWork Group\n\n\n4\n7200\n6\n0\n"), &out), providerListPage())
 	want := [][]string{
 		{"proxy", "providers"},
 		{"proxy", "provider", "add", "work", "https://example.invalid/feed", "Work Group", "3600"},
@@ -132,7 +132,7 @@ func TestProviderAddCancelAfterFailureNeverRetries(t *testing.T) {
 		"proxy provider add work https://example.invalid/feed 0 3600": {Code: 1, Error: &CLIError{Message: "provider already exists"}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(r, strings.NewReader("1\nwork\nhttps://example.invalid/feed\n0\n\n0\n0\n"), &out), providerListPage())
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\nwork\nhttps://example.invalid/feed\n0\n\n\n0\n0\n"), &out), providerListPage())
 	want := [][]string{
 		{"proxy", "providers"},
 		{"proxy", "provider", "add", "work", "https://example.invalid/feed", "0", "3600"},
@@ -146,7 +146,7 @@ func TestProviderAddCancelAfterFailureNeverRetries(t *testing.T) {
 func TestProviderAddValidatesInPlaceBeforeDispatch(t *testing.T) {
 	r := &fakeRunner{}
 	var out bytes.Buffer
-	s := NewSession(r, strings.NewReader("bad name\nwork\nftp://example.invalid/feed\nhttps://user:secret@example.invalid/feed\nhttps://example.invalid/feed\n\nExisting Group\n0\n31536001\nnot-a-number\n31536000\n"), &out)
+	s := NewSession(r, strings.NewReader("bad name\nwork\nftp://example.invalid/feed\nhttps://user:secret@example.invalid/feed\nhttps://example.invalid/feed\n\nExisting Group\n0\n31536001\nnot-a-number\n31536000\n\n"), &out)
 	if err := addProvider(context.Background(), s); err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestProviderAddEOFBeforeSubmissionDoesNotDispatch(t *testing.T) {
 func TestProviderAddRejectsInvalidURLAndGroupWhileRetainingName(t *testing.T) {
 	r := &fakeRunner{}
 	var out bytes.Buffer
-	input := "work\nhttps://:443/feed\nhttps://example.invalid/feed#section\nhttps://example.invalid/feed#\nhttps://example.invalid/feed\nWork\tGroup\n" + strings.Repeat("界", 43) + "\n  Work Group  \n\n"
+	input := "work\nhttps://:443/feed\nhttps://example.invalid/feed#section\nhttps://example.invalid/feed#\nhttps://example.invalid/feed\nWork\tGroup\n" + strings.Repeat("界", 43) + "\n  Work Group  \n\n\n"
 	if err := addProvider(context.Background(), NewSession(r, strings.NewReader(input), &out)); err != nil {
 		t.Fatal(err)
 	}

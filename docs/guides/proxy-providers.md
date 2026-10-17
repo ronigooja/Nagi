@@ -10,7 +10,7 @@ Prepare an HTTP(S) subscription URL that mihomo can decode and select an existin
 
 In the terminal, run `nagi menu`, open **Select Node → Proxy Providers → Add provider**, and enter a name, subscription URL, target proxy group, and update interval. The default interval is one hour. The Add action remains available when the provider list is empty or cannot be read.
 
-In the macOS app, open **Proxy Providers → Add Provider…** and complete the same fields. Choose an existing supported group or enter a new group name. The app calls the CLI to save and activate the change; it does not edit configuration itself.
+In the macOS app, open **Proxy Providers → Add Provider…** and complete the same fields, optionally adding a latency test URL. The update interval accepts `off` to stop automatic downloads. Choose an existing supported group or enter a new group name. The app calls the CLI to save and activate the change; it does not edit configuration itself.
 
 Successful creation updates the current profile's local override and reloads a running engine. If it was stopped, start it separately with `nagi start`. Configuration validation or activation failures preserve the previous disk settings; the command reports any uncertainty about runtime recovery. Correct the error before explicitly retrying.
 
@@ -47,15 +47,19 @@ nagi proxy test provider airport 'NODE_NAME'
 
 Provider node lists in the terminal menu show the latest measured latency, failure, untested, or unknown state. Group node lists in both interfaces show the same engine observations; opening a menu does not measure nodes. In the App, use **Proxy Groups → GROUP → Test Single Node** for an individual check, or the group's batch-test action. Automatic-group batch tests disclose that they restore automatic selection.
 
-To inspect or change the automatic check interval, open **Automatic latency checks** in the terminal provider details, or **Automatic Latency Settings…** in the App provider submenu. The CLI equivalents are:
+To inspect or change automatic check timing and the test URL, open **Automatic latency checks** in the terminal provider details, or **Automatic Latency Settings…** and **Latency Test URL…** in the App provider submenu. Existing Providers also expose a separate **Update interval** control for source downloads. The CLI equivalents are:
 
 ```sh
 nagi proxy healthcheck show provider airport
 nagi proxy healthcheck set provider airport 600
 nagi proxy healthcheck reset provider airport
+nagi proxy healthcheck url set provider airport https://example.com/generate_204
+nagi proxy healthcheck url reset provider airport
+nagi proxy provider interval set airport 7200
+nagi proxy provider interval set airport off
 ```
 
-These settings affect latency checks separately from provider downloads. Provider local intervals override an associated subscription setting; resetting inherits that subscription policy or the original configuration. Subscription details expose their own automatic-latency setting, while per-group interval controls remain in the CLI. Saving an interval retains the provider's enable setting; lazy scheduling can skip unused nodes. The [interval reference](../reference/cli.md#automatic-latency-check-intervals) defines constraints, scheduling caveats, and restore behavior.
+Healthcheck settings affect latency checks separately from Provider downloads; `proxy provider interval` controls those downloads. Provider local intervals override an associated subscription setting; resetting inherits that subscription policy or the original configuration. Subscription details expose their own automatic-latency setting, while per-group interval controls remain in the CLI. Saving an interval retains the provider's enable setting; lazy scheduling can skip unused nodes. The [interval reference](../reference/cli.md#automatic-latency-check-intervals) defines constraints, scheduling caveats, and restore behavior.
 
 Provider updates refresh nodes within the current configuration. Nagi's subscription download and apply operations manage whole profile configurations instead. Explicit and automatic subscription applications retain locally added providers and group attachments while rebasing node/group changes against the new feed. Clearing or replacing the profile's override can remove these additions. See the [persistence contract](../reference/cli.md#adding-proxy-providers) before combining the two workflows.
 

@@ -139,7 +139,7 @@ func TestSubscriptionUpdateAndApplyStages(t *testing.T) {
 					runner.results["subscription\x00"+stage+"\x00feed"] = Result{Code: 1, Error: &CLIError{Message: "failed https://secret.example/token"}}
 				}
 				var out bytes.Buffer
-				s := NewSession(runner, strings.NewReader("feed\nhttps://example.invalid/feed\n"), &out)
+				s := NewSession(runner, strings.NewReader("feed\nhttps://example.invalid/feed\n\n\n"), &out)
 				if added {
 					nav, err := addSubscription(context.Background(), s)
 					if err != nil || nav.Next == nil || nav.Next.Title != "Subscription: feed" {
@@ -190,7 +190,7 @@ func TestSubscriptionAddNavigatesAndRetriesRetainedFields(t *testing.T) {
 		"subscription\x00add\x00q\x00" + url: {}, "subscription\x00update\x00q": {}, "subscription\x00apply\x00q": {}, "subscription\x00add\x00b\x00" + url: {Code: 1, Error: &CLIError{Message: "already exists"}},
 	}}
 	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader("\nbad name\nb\ninvalid\n"+url+"\n1\nq\n3\n"), &out)
+	s := NewSession(runner, strings.NewReader("\nbad name\nb\ninvalid\n"+url+"\n\n\n1\nq\n5\n"), &out)
 	nav, err := addSubscription(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
@@ -252,7 +252,7 @@ func TestSubscriptionMenuAddAndRemoveJourney(t *testing.T) {
 		"subscription\x00remove\x00feed": {},
 	}}
 	var out bytes.Buffer
-	s := NewSession(runner, strings.NewReader("1\nfeed\nhttps://example.invalid/feed\n5\n0\n"), &out)
+	s := NewSession(runner, strings.NewReader("1\nfeed\nhttps://example.invalid/feed\n\n\n5\n0\n"), &out)
 	if code := RunPage(context.Background(), s, subscriptionListPage()); code != 0 {
 		t.Fatal(code)
 	}

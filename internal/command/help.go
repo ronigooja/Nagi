@@ -60,9 +60,9 @@ var commandSpecs = []commandSpec{
 	{"profile override default-status", "profile override default-status NAME", "Show default runtime settings state", "Reports whether the saved default overlay still matches the profile override.", "nagi profile override default-status work", "", 1, 1},
 	{"profile override restore-default", "profile override restore-default NAME", "Restore previous local override", "Restores the local override saved by apply-default; refuses if the override changed since applying.", "nagi profile override restore-default work", "", 1, 1},
 	{"profile remove", "profile remove NAME", "Remove a profile", "Removes an unselected local profile, its backup, local overrides, custom rules, and saved proxy choices; keeps subscriptions and their caches.", "nagi profile remove old", "Run `nagi profile list` to see profile names.", 1, 1},
-	{"subscription", "subscription <list|add NAME URL|key NAME FILE|clear|schedule NAME SECONDS|off|update NAME|preview NAME|apply NAME|remove NAME|watch>", "Manage subscriptions", "Stores URLs and private age identities separately from cached downloads and active profiles.", "nagi subscription list", "", 0, -1},
+	{"subscription", "subscription <list|add NAME URL [--schedule SECONDS|off] [--test-url URL]|key NAME FILE|clear|schedule NAME SECONDS|off|update NAME|preview NAME|apply NAME|remove NAME|watch>", "Manage subscriptions", "Stores URLs and private age identities separately from cached downloads and active profiles.", "nagi subscription list", "", 0, -1},
 	{"subscription list", "subscription list", "List subscriptions", "Lists names, refresh/schedule state, cache and applied versions, and profile association without URLs. scheduler_running reports a live scheduler host.", "nagi subscription list", "", 0, 0},
-	{"subscription add", "subscription add NAME URL", "Save a subscription URL", "Saves an HTTP or HTTPS URL; does not download or activate it. Names use letters, digits, _ or -, up to 128 characters.", "nagi subscription add work https://example.com/subscription", "", 2, 2},
+	{"subscription add", "subscription add NAME URL [--schedule SECONDS|off] [--test-url URL]", "Save a subscription URL", "Saves an HTTP or HTTPS URL and optional settings before downloading or activating. Schedule defaults to 3600 seconds; accepts 1..31536000 or off. Test URL must be HTTP(S) without user information or fragment. Names use letters, digits, _ or -, up to 128 characters.", "nagi subscription add work https://example.com/subscription --schedule 3600 --test-url https://example.com/check", "", 2, 6},
 	{"subscription key", "subscription key NAME FILE|clear", "Set or clear an age identity", "Copies a bounded regular identity file into private storage, or clears it. The next encrypted update uses mihomo to decrypt; plaintext feeds are unaffected.", "nagi subscription key work ./identity.txt", "Run `nagi subscription list` to find a subscription name.", 2, 2},
 	{"subscription schedule", "subscription schedule NAME SECONDS|off", "Set a subscription interval", "Saves 1..31536000 seconds, or off. New subscriptions default to 3600 seconds; legacy entries default to off. A running scheduler downloads when due and may apply the current associated profile.", "nagi subscription schedule work 3600", "Run `nagi subscription list` to find a subscription name.", 2, 2},
 	{"subscription watch", "subscription watch", "Run subscription scheduler", "Runs foreground updates until interrupted. A second scheduler for this user exits with subscription_error; the login service also hosts this task.", "nagi subscription watch", "Run `nagi subscription list` to inspect due times and failures.", 0, 0},
@@ -83,8 +83,8 @@ var commandSpecs = []commandSpec{
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
 	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|tailscale SUBCOMMAND|test SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
-	{"proxy healthcheck", "proxy healthcheck <show|set|reset> group|provider|subscription NAME [SECONDS]", "Manage configured healthcheck intervals", "Reads or changes local configuration while offline. Subscription settings can be saved before first apply; associated profiles validate and reload only when selected and running. Provider and group schedulers may differ.", "nagi proxy healthcheck show group Auto", "", 0, -1},
-	{"proxy healthcheck show", "proxy healthcheck show group|provider|subscription NAME", "Show a healthcheck interval", "Reports interval, source, lazy setting, and scheduling caveats without probing nodes.", "nagi proxy healthcheck show provider work", "", 2, 2},
+	{"proxy healthcheck", "proxy healthcheck <show|set|reset|url> group|provider|subscription NAME [SECONDS]", "Manage configured healthcheck intervals and test URLs", "Reads or changes local configuration while offline. Subscription settings can be saved before first apply; associated profiles validate and reload only when selected and running. Provider and group schedulers may differ.", "nagi proxy healthcheck show group Auto", "", 0, -1},
+	{"proxy healthcheck show", "proxy healthcheck show group|provider|subscription NAME", "Show automatic-check settings", "Reports interval, sanitized test URL, their sources, lazy setting, and scheduling caveats without probing nodes.", "nagi proxy healthcheck show provider work", "", 2, 2},
 	{"proxy healthcheck set", "proxy healthcheck set group|provider|subscription NAME SECONDS", "Save a healthcheck interval", "SECONDS must be 1..31536000. Changes interval only; provider enable and URL remain unchanged.", "nagi proxy healthcheck set group Auto 300", "", 3, 3},
 	{"proxy healthcheck reset", "proxy healthcheck reset group|provider|subscription NAME", "Restore the source healthcheck interval", "Removes only the local interval setting while retaining unrelated overrides.", "nagi proxy healthcheck reset group Auto", "", 2, 2},
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups in the current profile's order with their live selections.", "nagi proxy groups", "", 0, 0},
@@ -92,6 +92,14 @@ var commandSpecs = []commandSpec{
 	{"proxy search", "proxy search QUERY", "Search nodes", "Lists case-insensitive node-name matches by group.", "nagi proxy search Hong", "Run `nagi proxy groups` to inspect all nodes.", 1, 1},
 	{"proxy select", "proxy select GROUP NODE", "Select a proxy node", "Selects a node in a group and saves the choice for the selected profile.", "nagi proxy select 'Proxy Group' 'Node A'", "Run `nagi proxy groups` and `nagi proxy show GROUP` to find names.", 2, 2},
 	{"proxy auto", "proxy auto GROUP", "Resume automatic selection", "Clears the fixed node of a URLTest or Fallback group and removes its saved choice.", "nagi proxy auto 'Auto Group'", "Run `nagi proxy groups` to find an automatic group.", 1, 1},
+	{"proxy healthcheck url", "proxy healthcheck url <set|reset> group|provider|subscription NAME [URL]", "Manage persistent test URLs", "Changes only native healthcheck URLs, independently of intervals.", "nagi proxy healthcheck url set provider work https://example.com/check", "", 0, -1},
+	{"proxy healthcheck url set", "proxy healthcheck url set group|provider|subscription NAME URL", "Save a test URL", "URL must be absolute HTTP(S), without userinfo or fragment. Saved URLs remain private; inspection shows only their origin.", "nagi proxy healthcheck url set group Auto https://example.com/check", "", 3, 3},
+	{"proxy healthcheck url reset", "proxy healthcheck url reset group|provider|subscription NAME", "Restore the inherited test URL", "Removes only the local URL setting.", "nagi proxy healthcheck url reset provider work", "", 2, 2},
+	{"proxy provider interval", "proxy provider interval <show|set|reset> NAME [SECONDS|off]", "Manage provider download intervals", "Changes downloads independently of latency checks. Off disables automatic downloads.", "nagi proxy provider interval show work", "", 0, -1},
+	{"proxy provider interval show", "proxy provider interval show NAME", "Show provider download interval", "Reads local configuration while stopped.", "nagi proxy provider interval show work", "", 1, 1},
+	{"proxy provider interval set", "proxy provider interval set NAME SECONDS|off", "Save provider download interval", "SECONDS must be 1..31536000, or off. Validates and reloads only when running.", "nagi proxy provider interval set work 3600", "", 2, 2},
+	{"proxy provider interval reset", "proxy provider interval reset NAME", "Restore source download interval", "Retains the provider URL and healthcheck settings.", "nagi proxy provider interval reset work", "", 1, 1},
+
 	{"proxy tailscale", "proxy tailscale <list|show NAME|targets|add NAME EXIT_NODE [KEY_FILE] [OPTIONS]|edit NAME OPTIONS|bind NAME node|provider|subscription TARGET [TARGET...]|unbind node|provider|subscription TARGET [TARGET...]|remove NAME>", "Manage Tailscale exit-node chaining", "Offline inspection reads the selected effective profile. Mutations validate and save ordinary overrides or a persistent entire-subscription policy, reloading only when running. Control URL defaults to https://controlplane.tailscale.com; key files are regular, nonempty, and at most 16384 bytes. Tailscale identities are retained after removal.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 0, -1},
 	{"proxy tailscale list", "proxy tailscale list", "List configured Tailscale nodes", "Reads top-level Tailscale nodes from the selected effective profile without a running engine; reports key presence only.", "nagi proxy tailscale list", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 0, 0},
 	{"proxy tailscale show", "proxy tailscale show NAME", "Show a Tailscale node and its bindings", "Reads one top-level Tailscale node and its node/provider/subscription bindings while offline. Auth keys and their input file paths are omitted.", "nagi proxy tailscale show \"TS Exit\"", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 1, 1},
@@ -102,8 +110,8 @@ var commandSpecs = []commandSpec{
 	{"proxy tailscale unbind", "proxy tailscale unbind node|provider|subscription TARGET [TARGET...]", "Clear a Tailscale binding", "Writes an explicit empty front proxy on a node or provider so a source binding cannot reappear. Provider changes affect ALL nodes, including future refreshes. Multiple targets of the same kind are saved together with one validation and reload; any failure rolls back the batch. Subscription unbind removes its persistent policy while retaining the Tailscale node in the selected profile.", "nagi proxy tailscale unbind node \"Node A\"", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 2, -2},
 	{"proxy tailscale remove", "proxy tailscale remove NAME", "Remove an unbound Tailscale proxy", "Removes a top-level Tailscale node only after subscription, node, provider, and DNS references are removed. Mihomo validation protects rules and groups. Saves the full node snapshot and reloads only when running; persistent identity state is retained.", "nagi proxy tailscale remove \"TS Exit\"", "Run `nagi proxy tailscale list` or `nagi proxy tailscale targets` to discover names.", 1, 1},
 	{"proxy providers", "proxy providers", "List proxy providers", "Lists provider names, types, update time, and node names without revealing URLs or credentials.", "nagi proxy providers", "", 0, 0},
-	{"proxy provider", "proxy provider <add NAME URL GROUP [SECONDS]|remove NAME|show NAME|update NAME|healthcheck NAME>", "Manage one proxy provider", "Adds provider configuration through the selected profile override; inspections, updates, and healthchecks use mihomo APIs.", "nagi proxy provider show work", "", 0, -1},
-	{"proxy provider add", "proxy provider add NAME URL GROUP [SECONDS]", "Add an HTTP proxy provider", "Adds a provider to the selected profile local override and attaches it to GROUP. Creates a select group with DIRECT fallback if absent. NAME uses 1..128 ASCII letters, digits, _ or -; GROUP permits internal spaces. URL must be absolute HTTP(S) without userinfo or fragment. SECONDS defaults to 3600 (1..31536000). Uses the target automatic group's healthcheck URL and requests an immediate native healthcheck after a running reload, without separate check output. mihomo downloads and healthchecks nodes; routing rules remain unchanged. Reloads only when running.", "nagi proxy provider add work https://example.com/nodes.yaml \"My Proxy\"", "Run `nagi proxy groups` to find a running group, or choose a new GROUP name.", 3, 4},
+	{"proxy provider", "proxy provider <add NAME URL GROUP [SECONDS|off] [--test-url URL]|interval SUBCOMMAND|remove NAME|show NAME|update NAME|healthcheck NAME>", "Manage one proxy provider", "Adds provider configuration through the selected profile override; inspections, updates, and healthchecks use mihomo APIs.", "nagi proxy provider show work", "", 0, -1},
+	{"proxy provider add", "proxy provider add NAME URL GROUP [SECONDS|off] [--test-url URL]", "Add an HTTP proxy provider", "Adds a provider to the selected profile local override and attaches it to GROUP. Creates a select group with DIRECT fallback if absent. NAME uses 1..128 ASCII letters, digits, _ or -; GROUP permits internal spaces. URL must be absolute HTTP(S) without userinfo or fragment. SECONDS defaults to 3600 (1..31536000), or off to disable automatic downloads. Optional --test-url URL sets only the provider healthcheck URL; otherwise uses the target automatic group's healthcheck URL and requests an immediate native healthcheck after a running reload, without separate check output. mihomo downloads and healthchecks nodes; routing rules remain unchanged. Reloads only when running.", "nagi proxy provider add work https://example.com/nodes.yaml \"My Proxy\"", "Run `nagi proxy groups` to find a running group, or choose a new GROUP name.", 3, -2},
 	{"proxy provider remove", "proxy provider remove NAME", "Remove a proxy provider", "Removes the provider definition and all group use references from the selected profile and local override. Retains groups and routing rules. Validates and reloads if running; failure restores prior settings. NAME is printable, 1..128 bytes, without surrounding whitespace; COMPATIBLE is reserved.", "nagi proxy provider remove work", "Inspect the selected profile and override for provider names while stopped.", 1, 1},
 	{"proxy provider show", "proxy provider show NAME", "Show a proxy provider", "Reports redacted provider metadata and node names.", "nagi proxy provider show work", "", 1, 1},
 	{"proxy provider update", "proxy provider update NAME", "Update a proxy provider", "Asks mihomo to download the provider again.", "nagi proxy provider update work", "", 1, 1},
@@ -231,27 +239,19 @@ func validateInvocation(args []string) error {
 	}
 	spec := root
 	consumed := 1
-	if root.maxArgs == -1 {
-		if len(args) == 1 {
-			return syntaxError("missing subcommand", root)
-		}
-		spec = findSpec(args[0] + " " + args[1])
-		if spec == nil {
-			return syntaxError("unknown subcommand", root)
-		}
-		consumed = 2
-	}
-	if spec.maxArgs == -1 && consumed == 2 {
-		if len(args) == 2 {
+
+	for spec.maxArgs == -1 {
+		if len(args) == consumed {
 			return syntaxError("missing subcommand", spec)
 		}
 		parent := spec
-		spec = findSpec(args[0] + " " + args[1] + " " + args[2])
+		spec = findSpec(strings.Join(args[:consumed+1], " "))
 		if spec == nil {
 			return syntaxError("unknown subcommand", parent)
 		}
-		consumed = 3
+		consumed++
 	}
+
 	n := len(args) - consumed
 	if n < spec.minArgs {
 		return syntaxError("missing argument", spec)
@@ -277,7 +277,7 @@ func validateInvocation(args []string) error {
 		}
 	}
 
-	if strings.HasPrefix(spec.path, "proxy healthcheck ") {
+	if strings.HasPrefix(spec.path, "proxy healthcheck ") && !strings.HasPrefix(spec.path, "proxy healthcheck url") {
 		if args[3] != "group" && args[3] != "provider" && args[3] != "subscription" {
 			return syntaxError("KIND must be group, provider, or subscription", spec)
 		}
@@ -292,21 +292,46 @@ func validateInvocation(args []string) error {
 		}
 	}
 
+	if strings.HasPrefix(spec.path, "proxy healthcheck url ") {
+		if args[4] != "group" && args[4] != "provider" && args[4] != "subscription" {
+			return syntaxError("KIND must be group, provider, or subscription", spec)
+		}
+		if strings.TrimSpace(args[5]) == "" {
+			return syntaxError("NAME is required", spec)
+		}
+		if args[3] == "set" {
+			if err := profile.ValidateHealthcheckURL(args[6]); err != nil {
+				return syntaxError(err.Error(), spec)
+			}
+		}
+	}
+	if strings.HasPrefix(spec.path, "proxy provider interval ") {
+		if err := profile.ValidateProviderRemoval(args[4]); err != nil {
+			return syntaxError(err.Error(), spec)
+		}
+		if args[3] == "set" {
+			if _, err := providerSeconds(args[5]); err != nil {
+				return syntaxError(err.Error(), spec)
+			}
+		}
+	}
+
 	if spec.path == "proxy provider remove" {
 		if err := profile.ValidateProviderRemoval(args[3]); err != nil {
 			return syntaxError(err.Error(), spec)
 		}
 	}
 	if spec.path == "proxy provider add" {
-		interval := profile.DefaultProviderInterval
-		if n == 4 {
-			var err error
-			interval, err = strconv.Atoi(args[6])
-			if err != nil {
-				return syntaxError("SECONDS must be an integer from 1 to 31536000", spec)
-			}
+		interval, _, err := providerAddOptions(args)
+		if err != nil {
+			return syntaxError(err.Error(), spec)
 		}
 		if err := profile.ValidateProviderInput(args[3], args[4], args[5], interval); err != nil {
+			return syntaxError(err.Error(), spec)
+		}
+	}
+	if spec.path == "subscription add" {
+		if _, err := subscriptionAddOptions(args); err != nil {
 			return syntaxError(err.Error(), spec)
 		}
 	}

@@ -35,8 +35,8 @@ func ValidateProviderInput(name, rawURL, group string, interval int) error {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || strings.Contains(rawURL, "#") {
 		return errors.New("URL must be an absolute HTTP(S) URL without userinfo or fragment")
 	}
-	if interval < 1 || interval > 31536000 {
-		return errors.New("SECONDS must be an integer from 1 to 31536000")
+	if interval < 0 || interval > 31536000 {
+		return errors.New("SECONDS must be off or an integer from 1 to 31536000")
 	}
 	return nil
 }
@@ -44,9 +44,14 @@ func ValidateProviderInput(name, rawURL, group string, interval int) error {
 // AddProvider persists an HTTP provider and group attachment in the local
 // override. Downloading and healthchecking remain mihomo responsibilities.
 // Callers serialize mutations and wrap activation in their configuration transaction.
-func (s *Store) AddProvider(ctx context.Context, profileName, name, rawURL, group string, interval int) (bool, error) {
+func (s *Store) AddProvider(ctx context.Context, profileName, name, rawURL, group string, interval int, testURLs ...string) (bool, error) {
 	if err := ValidateProviderInput(name, rawURL, group, interval); err != nil {
 		return false, err
+	}
+	if len(testURLs) > 0 {
+		if err := ValidateHealthcheckURL(testURLs[0]); err != nil {
+			return false, err
+		}
 	}
 	data, err := s.Effective(profileName)
 	if err != nil {
@@ -180,6 +185,9 @@ func (s *Store) AddProvider(ctx context.Context, profileName, name, rawURL, grou
 		if expected, exists := target["expected-status"]; exists {
 			healthcheck["expected-status"] = expected
 		}
+	}
+	if len(testURLs) > 0 {
+		healthcheck["url"] = testURLs[0]
 	}
 	localProviders[name] = map[string]any{
 		"type": "http", "url": rawURL, "interval": interval,

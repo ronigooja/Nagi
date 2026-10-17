@@ -31,6 +31,7 @@ type Entry struct {
 	KeyConfigured              bool      `json:"key_configured"`
 	URL                        string    `json:"url"`
 	Generation                 string    `json:"generation,omitempty"`
+	HealthcheckURL             *string   `json:"healthcheck_url,omitempty"`
 	HealthcheckIntervalSeconds *int      `json:"healthcheck_interval_seconds,omitempty"`
 	ScheduleSeconds            int64     `json:"schedule_seconds"`
 	NextDue                    time.Time `json:"next_due,omitempty"`
@@ -52,6 +53,7 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 	view := struct {
 		Name                       string     `json:"name"`
 		KeyConfigured              bool       `json:"key_configured"`
+		HealthcheckURL             *string    `json:"healthcheck_url,omitempty"`
 		HealthcheckIntervalSeconds *int       `json:"healthcheck_interval_seconds,omitempty"`
 		ScheduleSeconds            int64      `json:"schedule_seconds"`
 		NextDue                    *time.Time `json:"next_due,omitempty"`
@@ -67,7 +69,7 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 		Upload                     int64      `json:"upload,omitempty"`
 		Download                   int64      `json:"download,omitempty"`
 		Total                      int64      `json:"total,omitempty"`
-	}{Name: e.Name, KeyConfigured: e.KeyConfigured, HealthcheckIntervalSeconds: e.HealthcheckIntervalSeconds, ScheduleSeconds: e.ScheduleSeconds, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile}
+	}{Name: e.Name, KeyConfigured: e.KeyConfigured, HealthcheckURL: publicHealthcheckURL(e.HealthcheckURL), HealthcheckIntervalSeconds: e.HealthcheckIntervalSeconds, ScheduleSeconds: e.ScheduleSeconds, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile}
 	if !e.NextDue.IsZero() {
 		view.NextDue = &e.NextDue
 	}
@@ -137,6 +139,7 @@ type storedEntry struct {
 	Name                       string    `json:"name"`
 	URL                        string    `json:"url"`
 	Generation                 string    `json:"generation,omitempty"`
+	HealthcheckURL             *string   `json:"healthcheck_url,omitempty"`
 	HealthcheckIntervalSeconds *int      `json:"healthcheck_interval_seconds,omitempty"`
 	ScheduleSeconds            int64     `json:"schedule_seconds,omitempty"`
 	NextDue                    time.Time `json:"next_due,omitempty"`
@@ -171,11 +174,11 @@ func (s *Store) read() ([]Entry, error) {
 	seen := map[string]bool{}
 	result := make([]Entry, 0, len(file.Subscriptions))
 	for _, stored := range file.Subscriptions {
-		e := Entry{Name: stored.Name, URL: stored.URL, Generation: stored.Generation, HealthcheckIntervalSeconds: stored.HealthcheckIntervalSeconds, ScheduleSeconds: stored.ScheduleSeconds, NextDue: stored.NextDue, LastFailureStage: stored.LastFailureStage, LastFailureReason: stored.LastFailureReason, PauseReason: stored.PauseReason, CacheVersion: stored.CacheVersion, AppliedCacheVersion: stored.AppliedCacheVersion, SourceHash: stored.SourceHash, Profile: stored.Profile, UpdatedAt: stored.UpdatedAt, ExpiresAt: stored.ExpiresAt, Upload: stored.Upload, Download: stored.Download, Total: stored.Total}
+		e := Entry{Name: stored.Name, URL: stored.URL, Generation: stored.Generation, HealthcheckURL: stored.HealthcheckURL, HealthcheckIntervalSeconds: stored.HealthcheckIntervalSeconds, ScheduleSeconds: stored.ScheduleSeconds, NextDue: stored.NextDue, LastFailureStage: stored.LastFailureStage, LastFailureReason: stored.LastFailureReason, PauseReason: stored.PauseReason, CacheVersion: stored.CacheVersion, AppliedCacheVersion: stored.AppliedCacheVersion, SourceHash: stored.SourceHash, Profile: stored.Profile, UpdatedAt: stored.UpdatedAt, ExpiresAt: stored.ExpiresAt, Upload: stored.Upload, Download: stored.Download, Total: stored.Total}
 		if e.PauseReason == "" && e.LastFailureStage == "paused" {
 			e.PauseReason = e.LastFailureReason // Migrate indices written before pause_reason existed.
 		}
-		if !validName(e.Name) || !validURL(e.URL) || seen[e.Name] || (e.HealthcheckIntervalSeconds != nil && (*e.HealthcheckIntervalSeconds < 1 || *e.HealthcheckIntervalSeconds > 31536000)) || e.ScheduleSeconds < 0 || e.ScheduleSeconds > MaxScheduleSeconds || (e.Profile != "" && !validName(e.Profile)) {
+		if !validName(e.Name) || !validURL(e.URL) || seen[e.Name] || (e.HealthcheckURL != nil && !ValidHealthcheckURL(*e.HealthcheckURL)) || (e.HealthcheckIntervalSeconds != nil && (*e.HealthcheckIntervalSeconds < 1 || *e.HealthcheckIntervalSeconds > 31536000)) || e.ScheduleSeconds < 0 || e.ScheduleSeconds > MaxScheduleSeconds || (e.Profile != "" && !validName(e.Profile)) {
 			return nil, errors.New("invalid subscriptions index")
 		}
 		seen[e.Name] = true
@@ -265,6 +268,26 @@ func (s *Store) List() ([]Entry, error) {
 }
 
 func (s *Store) Add(name, rawURL string) error {
+	return s.AddWithOptions(name, rawURL, AddOptions{})
+}
+
+// AddOptions are saved atomically before any subscription download or apply.
+type AddOptions struct {
+	ScheduleSeconds *int64
+	HealthcheckURL  *string
+}
+
+func (s *Store) AddWithOptions(name, rawURL string, options AddOptions) error {
+	seconds := DefaultScheduleSeconds
+	if options.ScheduleSeconds != nil {
+		seconds = *options.ScheduleSeconds
+	}
+	if seconds < 0 || seconds > MaxScheduleSeconds {
+		return errors.New("schedule seconds must be 0 (off) or 1..31536000")
+	}
+	if options.HealthcheckURL != nil && !ValidHealthcheckURL(*options.HealthcheckURL) {
+		return errors.New("test URL must be absolute HTTP(S) without user information or fragment")
+	}
 	if !validName(name) || !validURL(rawURL) {
 		return errors.New("invalid subscription name or URL")
 	}
@@ -278,8 +301,11 @@ func (s *Store) Add(name, rawURL string) error {
 				return nil, errors.New("subscription already exists")
 			}
 		}
-		now := time.Now().UTC()
-		return append(entries, Entry{Name: name, URL: rawURL, Generation: hex.EncodeToString(generation[:]), ScheduleSeconds: DefaultScheduleSeconds, NextDue: now.Add(time.Duration(DefaultScheduleSeconds) * time.Second)}), nil
+		var nextDue time.Time
+		if seconds > 0 {
+			nextDue = time.Now().UTC().Add(time.Duration(seconds) * time.Second)
+		}
+		return append(entries, Entry{Name: name, URL: rawURL, Generation: hex.EncodeToString(generation[:]), HealthcheckURL: options.HealthcheckURL, ScheduleSeconds: seconds, NextDue: nextDue}), nil
 	})
 }
 
@@ -673,7 +699,7 @@ func (s *Store) write(entries []Entry) error {
 		Subscriptions []storedEntry `json:"subscriptions"`
 	}{Subscriptions: make([]storedEntry, 0, len(entries))}
 	for _, e := range entries {
-		file.Subscriptions = append(file.Subscriptions, storedEntry{Name: e.Name, URL: e.URL, Generation: e.Generation, HealthcheckIntervalSeconds: e.HealthcheckIntervalSeconds, ScheduleSeconds: e.ScheduleSeconds, NextDue: e.NextDue, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile, UpdatedAt: e.UpdatedAt, ExpiresAt: e.ExpiresAt, Upload: e.Upload, Download: e.Download, Total: e.Total})
+		file.Subscriptions = append(file.Subscriptions, storedEntry{Name: e.Name, URL: e.URL, Generation: e.Generation, HealthcheckURL: e.HealthcheckURL, HealthcheckIntervalSeconds: e.HealthcheckIntervalSeconds, ScheduleSeconds: e.ScheduleSeconds, NextDue: e.NextDue, LastFailureStage: e.LastFailureStage, LastFailureReason: e.LastFailureReason, PauseReason: e.PauseReason, CacheVersion: e.CacheVersion, AppliedCacheVersion: e.AppliedCacheVersion, SourceHash: e.SourceHash, Profile: e.Profile, UpdatedAt: e.UpdatedAt, ExpiresAt: e.ExpiresAt, Upload: e.Upload, Download: e.Download, Total: e.Total})
 	}
 	data, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
@@ -766,5 +792,40 @@ func (s *Store) StageProfileAssociation(name, profileName string) error {
 		}
 		entries[found].Profile = profileName
 		return entries, nil
+	})
+}
+
+// ValidHealthcheckURL validates a native mihomo test URL without revealing it.
+func ValidHealthcheckURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil && u.Fragment == "" && !strings.ContainsAny(raw, "\r\n\t ")
+}
+
+func publicHealthcheckURL(raw *string) *string {
+	if raw == nil {
+		return nil
+	}
+	u, err := url.Parse(*raw)
+	if err != nil {
+		return nil
+	}
+	origin := u.Scheme + "://" + u.Host
+	return &origin
+}
+
+// SetHealthcheckURL saves persistent URL intent; nil follows source settings.
+// The caller owns config.lock and the enclosing configuration transaction.
+func (s *Store) SetHealthcheckURL(name string, value *string) error {
+	if value != nil && !ValidHealthcheckURL(*value) {
+		return errors.New("test URL must be absolute HTTP(S) without user information or fragment")
+	}
+	return s.mutate(func(entries []Entry) ([]Entry, error) {
+		for i := range entries {
+			if entries[i].Name == name {
+				entries[i].HealthcheckURL = value
+				return entries, nil
+			}
+		}
+		return nil, errors.New("subscription not found")
 	})
 }

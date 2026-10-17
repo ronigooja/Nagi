@@ -69,8 +69,13 @@ func addProvider(ctx context.Context, s *Session) error {
 			}
 			return nil
 		}},
+		testURLField(false),
 	}, values, func(v map[string]string) Result {
-		return s.Run(ctx, "proxy", "provider", "add", v["name"], v["url"], v["group"], v["seconds"])
+		args := []string{"proxy", "provider", "add", v["name"], v["url"], v["group"], v["seconds"]}
+		if v["test_url"] != "" {
+			args = append(args, "--test-url", v["test_url"])
+		}
+		return s.Run(ctx, args...)
 	})
 	if err != nil {
 		return err
@@ -90,6 +95,7 @@ func providerDetailPage(name string) *Page {
 			{Label: "Update provider", Args: []string{"proxy", "provider", "update", name}},
 			{Label: "Start healthcheck", Args: []string{"proxy", "provider", "healthcheck", name}},
 			{Label: "Automatic latency checks", Next: func() *Page { return healthcheckPage("provider", name) }},
+			{Label: "Update interval", Next: func() *Page { return providerIntervalPage(name) }},
 			{Label: "Show measurement details", Args: []string{"proxy", "provider", "show", name}},
 			{Label: "Delete provider", Impact: "Removes provider and group references; reloads running mihomo", Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
 				result := s.Run(ctx, "proxy", "provider", "remove", name)
@@ -110,5 +116,36 @@ func providerDetailPage(name string) *Page {
 			view.Items = append(view.Items, item)
 		}
 		return view, nil
+	}}
+}
+
+func providerIntervalPage(name string) *Page {
+	return &Page{Title: "Provider update interval: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		var config struct {
+			IntervalSeconds int    `json:"interval_seconds"`
+			Source          string `json:"source"`
+			CanReset        bool   `json:"can_reset"`
+		}
+		view := PageView{Context: "Update interval: unknown", Actions: []Item{
+			{Label: "Set update interval", Impact: "Saves a profile override; reloads running mihomo", Action: func(ctx context.Context, s *Session) error {
+				_, err := s.Form(ctx, []Field{secondsField("Update interval seconds (off disables)", true)}, map[string]string{}, func(v map[string]string) Result {
+					return s.Run(ctx, "proxy", "provider", "interval", "set", name, v["seconds"])
+				})
+				return err
+			}},
+			{Label: "Use original update interval", Args: []string{"proxy", "provider", "interval", "reset", name}},
+		}}
+		err := decodeMenuResult(s.Fetch(ctx, "proxy", "provider", "interval", "show", name), &config)
+		if err == nil {
+			if !config.CanReset {
+				view.Actions = view.Actions[:1]
+			}
+			interval := fmt.Sprintf("%d seconds", config.IntervalSeconds)
+			if config.IntervalSeconds == 0 {
+				interval = "off"
+			}
+			view.Context = fmt.Sprintf("Update interval: %s; source: %s", interval, config.Source)
+		}
+		return view, err
 	}}
 }

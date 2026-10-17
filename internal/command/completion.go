@@ -85,8 +85,23 @@ func bashCompletion(roots []string, children map[string][]string) string {
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates "$source" "${semantic[3]}" 2>/dev/null); return 0
     fi
   fi
+  if [[ ${semantic[0]} == proxy && ${semantic[1]} == provider && ${semantic[2]} == interval ]]; then
+    if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'show set reset' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 4 ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates healthcheck-targets provider 2>/dev/null); return 0
+    fi
+    if [[ ${#semantic[@]} -eq 5 && ${semantic[3]} == set ]]; then COMPREPLY=( $(compgen -W 'off' -- "$cur") ); return 0; fi
+  fi
   if [[ ${semantic[0]} == proxy && ${semantic[1]} == healthcheck ]]; then
-    if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'show set reset' -- "$cur") ); return 0; fi
+    if [[ ${semantic[2]} == url ]]; then
+      if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'set reset' -- "$cur") ); return 0; fi
+      if [[ ${#semantic[@]} -eq 4 ]]; then COMPREPLY=( $(compgen -W 'group provider subscription' -- "$cur") ); return 0; fi
+      if [[ ${#semantic[@]} -eq 5 ]]; then
+        while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates healthcheck-targets "${semantic[4]}" 2>/dev/null); return 0
+      fi
+      return 0
+    fi
+    if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'show set reset url' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'group provider subscription' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -eq 4 ]]; then
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates healthcheck-targets "${semantic[3]}" 2>/dev/null); return 0
@@ -150,7 +165,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
   fi
   if [[ "$root" == proxy ]]; then
     if [[ ${#semantic[@]} -eq 2 && "${semantic[1]}" == provider ]]; then
-      COMPREPLY=( $(compgen -W 'add show update healthcheck remove' -- "$cur") ); return 0
+      COMPREPLY=( $(compgen -W 'add show update healthcheck remove interval' -- "$cur") ); return 0
     fi
     if [[ ${#semantic[@]} -eq 3 && "${semantic[1]}" == provider && "${semantic[2]}" != add ]]; then
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates providers 2>/dev/null); return 0
@@ -215,8 +230,19 @@ _nagi() {
       compadd -- ${(f)"$(nagi completion candidates "$source" "${semantic[4]}" 2>/dev/null)"}; return
     fi
   fi
+  if [[ ${semantic[1]} == proxy && ${semantic[2]} == provider && ${semantic[3]} == interval ]]; then
+    if (( ${#semantic} == 3 )); then compadd -- show set reset; return; fi
+    if (( ${#semantic} == 4 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets provider 2>/dev/null)"}; return; fi
+    if (( ${#semantic} == 5 )) && [[ ${semantic[4]} == set ]]; then compadd -- off; return; fi
+  fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == healthcheck ]]; then
-    if (( ${#semantic} == 2 )); then compadd -- show set reset; return; fi
+    if [[ ${semantic[3]} == url ]]; then
+      if (( ${#semantic} == 3 )); then compadd -- set reset; return; fi
+      if (( ${#semantic} == 4 )); then compadd -- group provider subscription; return; fi
+      if (( ${#semantic} == 5 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets "${semantic[5]}" 2>/dev/null)"}; return; fi
+      return
+    fi
+    if (( ${#semantic} == 2 )); then compadd -- show set reset url; return; fi
     if (( ${#semantic} == 3 )); then compadd -- group provider subscription; return; fi
     if (( ${#semantic} == 4 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
@@ -244,7 +270,7 @@ _nagi() {
   if [[ ${semantic[1]} == dns && ${#semantic} == 2 ]]; then case ${semantic[2]} in exception) compadd -- add remove; return ;; tun) compadd -- on off; return ;; set) compadd -- direct proxy; return ;; esac; fi
   if [[ ${semantic[1]} == dns && ${semantic[2]} == query && ${#semantic} == 3 ]]; then compadd -- A AAAA; return; fi
   if [[ ${semantic[1]} == proxy ]]; then
-    if (( ${#semantic} == 2 )) && [[ ${semantic[2]} == provider ]]; then compadd -- add show update healthcheck remove; return; fi
+    if (( ${#semantic} == 2 )) && [[ ${semantic[2]} == provider ]]; then compadd -- add show update healthcheck remove interval; return; fi
     if (( ${#semantic} == 3 )) && [[ ${semantic[2]} == provider && ${semantic[3]} != add ]]; then compadd -- ${(f)"$(nagi completion candidates providers 2>/dev/null)"}; return; fi
     if (( ${#semantic} == 5 )) && [[ ${semantic[2]} == provider && ${semantic[3]} == add ]]; then compadd -- ${(f)"$(nagi completion candidates groups 2>/dev/null)"}; return; fi
     local kind="" group=""
@@ -292,9 +318,16 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and t
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]" = group' -a '(set -l s (__nagi_semantic); nagi completion candidates nodes "$s[4]" 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]"  = provider' -a '(set -l s (__nagi_semantic); nagi completion candidates provider-nodes "$s[4]" 2>/dev/null)'
 `)
-	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a 'show set reset'
-complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a 'group provider subscription'
-complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a '(set -l s (__nagi_semantic); nagi completion candidates healthcheck-targets "$s[4]" 2>/dev/null)'
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck' -a 'show set reset url'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" != url' -a 'group provider subscription'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" != url' -a '(set -l s (__nagi_semantic); nagi completion candidates healthcheck-targets "$s[4]" 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" = url' -a 'set reset'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" = url' -a 'group provider subscription'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and test "$s[1]" = proxy; and test "$s[2]" = healthcheck; and test "$s[3]" = url' -a '(set -l s (__nagi_semantic); nagi completion candidates healthcheck-targets "$s[5]" 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = provider; and test "$s[3]" = interval' -a 'show set reset'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = provider; and test "$s[3]" = interval' -a '(nagi completion candidates healthcheck-targets provider 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and test "$s[1]" = proxy; and test "$s[2]" = provider; and test "$s[3]" = interval; and test "$s[4]" = set' -a 'off'
+
 `)
 	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = rules; and contains -- "$s[2]" remove enable disable' -a '(nagi completion candidates rules 2>/dev/null)'
 `)
@@ -329,9 +362,9 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and t
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and contains -- \"$s[2]\" show select auto delays' -a '(nagi completion candidates groups 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = delay' -a '(nagi completion candidates nodes 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = select' -a '(set -l s (__nagi_semantic); nagi completion candidates nodes \"$s[3]\" 2>/dev/null)'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider' -a 'add show update healthcheck remove'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider' -a 'add show update healthcheck remove interval'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider; and test \"$s[3]\" = add' -a '(nagi completion candidates groups 2>/dev/null)'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider; and test \"$s[3]\" != add' -a '(nagi completion candidates providers 2>/dev/null)'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider; and test \"$s[3]\" != add; and test \"$s[3]\" != interval' -a '(nagi completion candidates providers 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
 	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = tailscale' -a 'list show targets add edit bind unbind remove'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] show edit bind remove' -a '(nagi completion candidates tailscale-nodes 2>/dev/null)'

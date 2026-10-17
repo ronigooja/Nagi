@@ -257,6 +257,7 @@ import AppKit
             }
             addSubmenu("Test Single Node", tests, enabled: !provider.testableNodes.isEmpty && model.state == .running, to: actions)
             addHealthcheckSettings(kind: "provider", name: provider.name, to: actions)
+            add("Update Interval…", action: #selector(updateIntervalSettings(_:)), enabled: !model.busy, to: actions).representedObject = ["provider", provider.name]
             add("Delete Provider", command: provider.removeCommand, enabled: !model.busy, to: actions)
             let metadata = NSMenuItem(title: "\(provider.type) · \(provider.nodes.count) nodes", action: nil, keyEquivalent: "")
             metadata.isEnabled = false; actions.addItem(metadata)
@@ -283,9 +284,8 @@ import AppKit
             actions.addItem(.separator())
             let autoUpdate = subscription.scheduleSeconds > 0 ? "Auto Update: On" : "Auto Update: Off"
             add(autoUpdate, action: #selector(scheduleSubscription(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
-            add("Schedule: every hour", action: #selector(scheduleHour(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
+            add("Update Interval…", action: #selector(updateIntervalSettings(_:)), enabled: !model.busy, to: actions).representedObject = ["subscription", subscription.name]
             addHealthcheckSettings(kind: "subscription", name: subscription.name, to: actions)
-            add(subscription.keyConfigured ? "Clear Encryption Key" : "Set Encryption Key…", action: #selector(subscriptionKey(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
             if let pause = subscription.pauseReason { disabled("Auto-apply paused: \(pause)", to: actions) }
             if let stage = subscription.lastFailureStage { disabled("Last failure: \(stage)/\(subscription.lastFailureReason ?? "unknown")", to: actions) }
             actions.addItem(.separator())
@@ -462,6 +462,7 @@ import AppKit
         let item = add("Automatic Latency Settings…", action: #selector(healthcheckSettings(_:)), enabled: !model.busy, to: target)
         item.representedObject = [kind, name]
         item.toolTip = "View and change this \(kind)'s automatic latency test interval."
+        add("Latency Test URL…", action: #selector(testURLSettings(_:)), enabled: !model.busy, to: target).representedObject = [kind, name]
     }
 
     @objc private func healthcheckSettings(_ sender: NSMenuItem) {
@@ -519,6 +520,102 @@ import AppKit
         }
     }
 
+    @objc private func testURLSettings(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? [String], target.count == 2, !model.busy else { return }
+        Task {
+            do {
+                let value = try await model.healthcheckSettings(kind: target[0], name: target[1])
+                let alert = NSAlert()
+                alert.messageText = "Latency Test URL · \(target[1])"
+                let origin = value["test_url"]?.string ?? "original configuration"
+                let source = value["test_url_source"]?.string ?? value["url_source"]?.string ?? "original configuration"
+                alert.informativeText = "Current origin: \(origin)\nSource: \(source)\nEnter a complete HTTP(S) URL to replace it. Check enablement is unchanged."
+                let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 400, height: 24))
+                input.placeholderString = "https://example.com/generate_204"
+                alert.accessoryView = input
+                alert.addButton(withTitle: "Save URL")
+                alert.addButton(withTitle: "Cancel")
+                if value["can_reset_url"]?.bool != false { alert.addButton(withTitle: "Inherit Test URL") }
+                while true {
+                    let response = alert.runModal()
+                    if response == .alertSecondButtonReturn { return }
+                    let url = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if response == .alertFirstButtonReturn && !Self.validTestURL(url) {
+                        alert.informativeText = "Enter an HTTP(S) URL without credentials or a fragment."
+                        continue
+                    }
+                    guard response == .alertFirstButtonReturn || response == .alertThirdButtonReturn else { return }
+                    let arguments = ["proxy", "healthcheck", "url", response == .alertThirdButtonReturn ? "reset" : "set", target[0], target[1]] + (response == .alertThirdButtonReturn ? [] : [url])
+                    if let failure = await model.saveSourceSetting(arguments) {
+                        alert.informativeText = failure + "\nYour value is retained. Retry or cancel."
+                        continue
+                    }
+                    return
+                }
+            } catch {
+                let alert = NSAlert(); alert.messageText = "Test URL unavailable"
+                alert.informativeText = error.localizedDescription; alert.runModal()
+            }
+        }
+    }
+
+    @objc private func updateIntervalSettings(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? [String], target.count == 2, !model.busy else { return }
+        Task {
+            do {
+                let current: String
+                let canReset: Bool
+                if target[0] == "provider" {
+                    let value = try await model.providerUpdateSettings(target[1])
+                    canReset = value["can_reset"]?.bool == true
+                    current = (value["interval_seconds"]?.int64).map { $0 == 0 ? "off" : String($0) } ?? ""
+                } else {
+                    canReset = false
+                    current = model.subscriptions.first(where: { $0.name == target[1] }).map { $0.scheduleSeconds == 0 ? "off" : String($0.scheduleSeconds) } ?? ""
+                }
+                let alert = NSAlert(); alert.messageText = "Update Interval · \(target[1])"
+                alert.informativeText = "Download interval in seconds (1–31536000), or off. Automatic latency checks have a separate interval."
+                let input = NSComboBox(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+                input.isEditable = true
+                input.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
+                input.stringValue = current
+                alert.accessoryView = input
+                alert.addButton(withTitle: "Save Interval"); alert.addButton(withTitle: "Cancel")
+                if canReset { alert.addButton(withTitle: "Use Original Update Interval") }
+                while true {
+                    let response = alert.runModal()
+                    guard response == .alertFirstButtonReturn || response == .alertThirdButtonReturn else { return }
+                    let seconds = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    var arguments: [String]
+                    if response == .alertThirdButtonReturn {
+                        arguments = ["proxy", "provider", "interval", "reset", target[1]]
+                    } else {
+                        guard Self.validUpdateInterval(seconds) else {
+                            alert.informativeText = "Enter 1–31536000 seconds, or off."; continue
+                        }
+                        arguments = target[0] == "provider" ? ["proxy", "provider", "interval", "set", target[1], seconds] : ["subscription", "schedule", target[1], seconds]
+                    }
+                    if let failure = await model.saveSourceSetting(arguments) {
+                        alert.informativeText = failure + "\nYour value is retained. Retry or cancel."; continue
+                    }
+                    return
+                }
+            } catch {
+                let alert = NSAlert(); alert.messageText = "Update interval unavailable"
+                alert.informativeText = error.localizedDescription; alert.runModal()
+            }
+        }
+    }
+
+    static func validTestURL(_ raw: String) -> Bool {
+        guard let url = URLComponents(string: raw), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host?.isEmpty == false, url.user == nil, url.password == nil, url.fragment == nil else { return false }
+        return true
+    }
+    static func validUpdateInterval(_ raw: String) -> Bool {
+        raw == "off" || Int64(raw).map { (1...31_536_000).contains($0) } == true
+    }
+
     private func disabled(_ title: String, to target: NSMenu) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false; target.addItem(item)
@@ -564,18 +661,6 @@ import AppKit
               let sub = model.subscriptions.first(where: { $0.name == name }) else { return }
         model.scheduleSubscription(name, seconds: sub.scheduleSeconds > 0 ? nil : 3600)
     }
-    @objc private func scheduleHour(_ sender: NSMenuItem) {
-        guard let name = sender.representedObject as? String else { return }
-        model.scheduleSubscription(name, seconds: 3600)
-    }
-    @objc private func subscriptionKey(_ sender: NSMenuItem) {
-        guard let name = sender.representedObject as? String,
-              let sub = model.subscriptions.first(where: { $0.name == name }) else { return }
-        if sub.keyConfigured { model.clearSubscriptionKey(name); return }
-        let panel = NSOpenPanel(); panel.canChooseFiles = true; panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
-        NSApp.activate(ignoringOtherApps: true)
-        if panel.runModal() == .OK, let url = panel.url { model.setSubscriptionKey(name, file: url.path) }
-    }
     @objc private func addProvider() {
         guard !model.busy else { return }
         let alert = NSAlert()
@@ -584,32 +669,38 @@ import AppKit
         alert.informativeText = instructions
         alert.addButton(withTitle: "Add Provider")
         alert.addButton(withTitle: "Cancel")
-        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 140))
+        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 174))
         func label(_ title: String, y: CGFloat) {
             let field = NSTextField(labelWithString: title)
             field.frame = NSRect(x: 0, y: y, width: 85, height: 24)
             accessory.addSubview(field)
         }
-        label("Name", y: 108)
-        let nameField = NSTextField(frame: NSRect(x: 90, y: 108, width: 310, height: 24))
+        label("Name", y: 142)
+        let nameField = NSTextField(frame: NSRect(x: 90, y: 142, width: 310, height: 24))
         nameField.placeholderString = "Provider name"
         accessory.addSubview(nameField)
-        label("URL", y: 74)
-        let urlField = NSTextField(frame: NSRect(x: 90, y: 74, width: 310, height: 24))
+        label("URL", y: 108)
+        let urlField = NSTextField(frame: NSRect(x: 90, y: 108, width: 310, height: 24))
         urlField.placeholderString = "https://example.com/provider.yaml"
         accessory.addSubview(urlField)
-        label("Group", y: 40)
-        let groupField = NSComboBox(frame: NSRect(x: 90, y: 40, width: 310, height: 24))
+        label("Group", y: 74)
+        let groupField = NSComboBox(frame: NSRect(x: 90, y: 74, width: 310, height: 24))
         groupField.isEditable = true
         groupField.placeholderString = "Existing or new group name"
         groupField.addItems(withObjectValues: model.groups.filter {
             ["selector", "urltest", "fallback", "loadbalance"].contains($0.kind.lowercased())
         }.map(\.name))
         accessory.addSubview(groupField)
-        label("Update (s)", y: 6)
-        let intervalField = NSTextField(frame: NSRect(x: 90, y: 6, width: 310, height: 24))
+        label("Update (s)", y: 40)
+        let intervalField = NSComboBox(frame: NSRect(x: 90, y: 40, width: 310, height: 24))
+        intervalField.isEditable = true
+        intervalField.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
         intervalField.stringValue = "3600"
         accessory.addSubview(intervalField)
+        label("Test URL", y: 6)
+        let testURLField = NSTextField(frame: NSRect(x: 90, y: 6, width: 310, height: 24))
+        testURLField.placeholderString = "Optional; blank inherits configuration"
+        accessory.addSubview(testURLField)
         alert.accessoryView = accessory
         alert.window.initialFirstResponder = nameField
         NSApp.activate(ignoringOtherApps: true)
@@ -644,13 +735,20 @@ import AppKit
                     alert.window.initialFirstResponder = groupField
                     continue
                 }
-                guard let interval = Int64(intervalField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
-                      (1...31_536_000).contains(interval) else {
-                    alert.informativeText = "Update interval must be 1–31536000 seconds."
+                let updateInterval = intervalField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard Self.validUpdateInterval(updateInterval) else {
+                    alert.informativeText = "Update interval must be 1–31536000 seconds, or off."
                     alert.window.initialFirstResponder = intervalField
                     continue
                 }
-                if let error = await model.addProvider(name, url: url, group: group, intervalSeconds: interval) {
+                let testURL = testURLField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard testURL.isEmpty || Self.validTestURL(testURL) else {
+                    alert.informativeText = "Test URL must be HTTP(S), without credentials or a fragment."
+                    alert.window.initialFirstResponder = testURLField; continue
+                }
+                if let error = await model.addProvider(name, url: url, group: group,
+                                                       intervalSeconds: Int64(updateInterval) ?? 3600,
+                                                       updateOff: updateInterval == "off", testURL: testURL) {
                     alert.informativeText = error
                     continue
                 }
@@ -665,19 +763,31 @@ import AppKit
         alert.addButton(withTitle: "Add and Apply")
         alert.addButton(withTitle: "Cancel")
 
-        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 70))
+        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 140))
         let nameLabel = NSTextField(labelWithString: "Name")
-        nameLabel.frame = NSRect(x: 0, y: 42, width: 55, height: 22)
+        nameLabel.frame = NSRect(x: 0, y: 110, width: 85, height: 22)
         accessory.addSubview(nameLabel)
-        let nameField = NSTextField(frame: NSRect(x: 60, y: 42, width: 300, height: 22))
+        let nameField = NSTextField(frame: NSRect(x: 90, y: 110, width: 310, height: 22))
         nameField.placeholderString = "Subscription name"
         accessory.addSubview(nameField)
         let urlLabel = NSTextField(labelWithString: "URL")
-        urlLabel.frame = NSRect(x: 0, y: 8, width: 55, height: 22)
+        urlLabel.frame = NSRect(x: 0, y: 76, width: 85, height: 22)
         accessory.addSubview(urlLabel)
-        let urlField = NSTextField(frame: NSRect(x: 60, y: 8, width: 300, height: 22))
+        let urlField = NSTextField(frame: NSRect(x: 90, y: 76, width: 310, height: 22))
         urlField.placeholderString = "https://example.com/subscription"
         accessory.addSubview(urlField)
+        let scheduleLabel = NSTextField(labelWithString: "Update (s)")
+        scheduleLabel.frame = NSRect(x: 0, y: 42, width: 85, height: 22); accessory.addSubview(scheduleLabel)
+        let scheduleField = NSComboBox(frame: NSRect(x: 90, y: 42, width: 310, height: 22))
+        scheduleField.isEditable = true
+        scheduleField.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
+        scheduleField.stringValue = "3600"; scheduleField.placeholderString = "Seconds, or off"
+        accessory.addSubview(scheduleField)
+        let testLabel = NSTextField(labelWithString: "Test URL")
+        testLabel.frame = NSRect(x: 0, y: 8, width: 85, height: 22); accessory.addSubview(testLabel)
+        let testURLField = NSTextField(frame: NSRect(x: 90, y: 8, width: 310, height: 22))
+        testURLField.placeholderString = "Optional; blank inherits configuration"
+        accessory.addSubview(testURLField)
         alert.accessoryView = accessory
         alert.window.initialFirstResponder = nameField
         NSApp.activate(ignoringOtherApps: true)
@@ -707,7 +817,17 @@ import AppKit
                 alert.window.initialFirstResponder = urlField
                 continue
             }
-            model.addAndApplySubscription(name, url: url)
+            let schedule = scheduleField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard Self.validUpdateInterval(schedule) else {
+                alert.informativeText = "Update interval must be 1–31536000 seconds, or off."
+                alert.window.initialFirstResponder = scheduleField; continue
+            }
+            let testURL = testURLField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard testURL.isEmpty || Self.validTestURL(testURL) else {
+                alert.informativeText = "Test URL must be HTTP(S), without credentials or a fragment."
+                alert.window.initialFirstResponder = testURLField; continue
+            }
+            model.addAndApplySubscription(name, url: url, schedule: schedule, testURL: testURL)
             return
         }
     }

@@ -44,25 +44,63 @@ func subscriptionGroupEligible(group map[string]any) bool {
 	return false
 }
 
-// applySubscriptionHealthcheck changes only native intervals, after ordinary
-// merging but before explicit group interval intent. Provider local interval
-// leaves always win, including leaves equal to the feed's current value.
+// subscriptionHealthcheckURL resolves persistent test URL intent independently
+// of interval policy, without creating profile or subscription state.
+func (s *Store) subscriptionHealthcheckURL(name string) (*string, error) {
+	entries, err := subscription.NewStore(s.Dir, "", nil).List()
+	if err != nil {
+		return nil, err
+	}
+	var value *string
+	associations := 0
+	for _, entry := range entries {
+		if entry.Profile != name {
+			continue
+		}
+		associations++
+		if entry.HealthcheckURL != nil {
+			value = entry.HealthcheckURL
+		}
+	}
+	if associations > 1 && value != nil {
+		return nil, errors.New("profile has multiple subscription associations; reapply the intended subscription")
+	}
+	return value, nil
+}
+
+// Subscription policies supply native fields while preserving explicit local
+// provider leaves and group differences. Explicit group metadata applies later.
 func (s *Store) applySubscriptionHealthcheck(name string, base, source, overlay map[string]any) error {
 	interval, err := s.subscriptionHealthcheck(name)
-	if err != nil || interval == nil {
+	if err != nil {
 		return err
+	}
+	testURL, err := s.subscriptionHealthcheckURL(name)
+	if err != nil {
+		return err
+	}
+	if interval == nil && testURL == nil {
+		return nil
+	}
+	policy := map[string]any{}
+	if interval != nil {
+		policy["interval"] = *interval
+	}
+	if testURL != nil {
+		policy["url"] = *testURL
 	}
 	providers, _ := base["proxy-providers"].(map[string]any)
 	for providerName, value := range providers {
 		provider, _ := value.(map[string]any)
 		check := healthFields(provider, "provider")
 		local, _ := healthTarget(overlay, "provider", providerName)
-		if _, explicit := healthFields(local, "provider")["interval"]; explicit {
+		if check == nil {
 			continue
 		}
-		// Preserve enable, URL and laziness. Disabled checks remain disabled.
-		if check != nil {
-			check["interval"] = *interval
+		for field, value := range policy {
+			if _, explicit := healthFields(local, "provider")[field]; !explicit {
+				check[field] = value
+			}
 		}
 	}
 	_, groups, err := namedList(base["proxy-groups"])
@@ -75,17 +113,19 @@ func (s *Store) applySubscriptionHealthcheck(name string, base, source, overlay 
 		}
 		local, _ := healthTarget(overlay, "group", groupName)
 		original, _ := healthTarget(source, "group", groupName)
-		if value, explicit := local["interval"]; explicit && !reflect.DeepEqual(value, original["interval"]) {
-			continue
+		for field, value := range policy {
+			if existing, explicit := local[field]; explicit && !reflect.DeepEqual(existing, original[field]) {
+				continue
+			}
+			group[field] = value
 		}
-		group["interval"] = *interval
 	}
 	return nil
 }
 
 func (s *Store) applySubscriptionHealthcheckSource(name string, data []byte) ([]byte, error) {
-	interval, err := s.subscriptionHealthcheck(name)
-	if err != nil || interval == nil {
+	hasPolicy, err := s.HasSubscriptionHealthcheck(name)
+	if err != nil || !hasPolicy {
 		return data, err
 	}
 	var base map[string]any
@@ -101,7 +141,11 @@ func (s *Store) applySubscriptionHealthcheckSource(name string, data []byte) ([]
 // HasSubscriptionHealthcheck reports whether effective composition adds a policy.
 func (s *Store) HasSubscriptionHealthcheck(name string) (bool, error) {
 	interval, err := s.subscriptionHealthcheck(name)
-	return interval != nil, err
+	if err != nil {
+		return false, err
+	}
+	testURL, err := s.subscriptionHealthcheckURL(name)
+	return interval != nil || testURL != nil, err
 }
 
 // ActivateHealthcheckPolicy validates changed metadata and reloads only its

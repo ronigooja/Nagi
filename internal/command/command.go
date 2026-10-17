@@ -620,8 +620,10 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	addingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "add"
 	removingProvider := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "remove"
 	healthcheck := command == "proxy" && len(args) > 1 && args[1] == "healthcheck"
-	subscriptionHealthcheck := healthcheck && len(args) > 3 && args[3] == "subscription"
-	needsProfile := healthcheck && !subscriptionHealthcheck || tailscaleInvocation(args) || addingProvider || removingProvider || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	healthcheckURL := healthcheck && len(args) > 2 && args[2] == "url"
+	subscriptionHealthcheck := healthcheck && (len(args) > 3 && args[3] == "subscription" || healthcheckURL && len(args) > 4 && args[4] == "subscription")
+	providerInterval := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "interval"
+	needsProfile := healthcheck && !subscriptionHealthcheck || tailscaleInvocation(args) || addingProvider || removingProvider || providerInterval || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -922,7 +924,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if e != nil {
 				return nil, fail("subscription_error", e)
 			}
-			if entry.Profile != "" && entry.HealthcheckIntervalSeconds != nil {
+			if entry.Profile != "" && (entry.HealthcheckIntervalSeconds != nil || entry.HealthcheckURL != nil) {
 				store, e := getProfiles()
 				if e != nil {
 					return nil, fail("subscription_error", e)
@@ -951,6 +953,66 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return dnsCommand(ctx, args, store, profileName, client)
 	case "proxy":
+		if healthcheckURL {
+			var raw *string
+			if args[3] == "set" {
+				raw = &args[6]
+			}
+			if subscriptionHealthcheck {
+				entry, e := subs.Find(args[5])
+				if e != nil {
+					return nil, fail("proxy_healthcheck_error", e)
+				}
+				var store *profile.Store
+				if entry.Profile != "" {
+					store, e = getProfiles()
+					if e != nil {
+						return nil, fail("proxy_healthcheck_error", e)
+					}
+				}
+				r, e := mutateSubscriptionHealthcheckURL(ctx, subs, store, args[5], raw)
+				if e != nil {
+					return nil, fail("proxy_healthcheck_error", e)
+				}
+				return r, nil
+			}
+			store, e := getProfiles()
+			if e != nil {
+				return nil, fail("proxy_healthcheck_error", e)
+			}
+			if e = store.SetHealthcheckURL(ctx, profileName, args[4], args[5], raw); e != nil {
+				return nil, fail("proxy_healthcheck_error", e)
+			}
+			r, e := store.Healthcheck(profileName, args[4], args[5])
+			if e != nil {
+				return nil, fail("proxy_healthcheck_error", e)
+			}
+			return r, nil
+		}
+		if providerInterval {
+			store := profile.NewStore(paths.ConfigDir, nil, nil)
+			if args[3] != "show" {
+				var e error
+				store, e = getProfiles()
+				if e != nil {
+					return nil, fail("proxy_provider_error", e)
+				}
+				var seconds *int
+				if args[3] == "set" {
+					n, _ := providerSeconds(args[5])
+					seconds = &n
+				}
+				if e = store.SetProviderInterval(ctx, profileName, args[4], seconds); e != nil {
+					return nil, fail("proxy_provider_error", e)
+				}
+			}
+			r, e := store.ProviderInterval(profileName, args[4])
+			if e != nil {
+				return nil, fail("proxy_provider_error", e)
+			}
+			return r, nil
+		}
+
 		if healthcheck {
 			if subscriptionHealthcheck {
 				entry, e := subs.Find(args[4])
@@ -1051,11 +1113,8 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if err != nil {
 				return nil, fail("proxy_provider_error", err)
 			}
-			interval := profile.DefaultProviderInterval
-			if len(args) == 7 {
-				interval, _ = strconv.Atoi(args[6])
-			}
-			created, err := store.AddProvider(ctx, profileName, args[3], args[4], args[5], interval)
+			interval, testURLs, _ := providerAddOptions(args)
+			created, err := store.AddProvider(ctx, profileName, args[3], args[4], args[5], interval, testURLs...)
 			if err != nil {
 				return nil, fail("proxy_provider_error", fmt.Errorf("provider addition failed; inspect `nagi profile list` and the selected profile override: %w", err))
 			}
@@ -1707,10 +1766,11 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		}
 		return map[string]any{"name": args[2], "schedule_seconds": seconds, "scheduler_running": schedulerRunningForCurrentUser()}, nil
 	case "add":
-		if err := arity(args, 4); err != nil {
-			return nil, err
+		options, err := subscriptionAddOptions(args)
+		if err != nil {
+			return nil, usage(err.Error())
 		}
-		if err := store.Add(args[2], args[3]); err != nil {
+		if err := store.AddWithOptions(args[2], args[3], options); err != nil {
 			return nil, fail("subscription_error", err)
 		}
 		return map[string]any{"name": args[2]}, nil
@@ -1740,10 +1800,13 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 				return nil, fail("subscription_error", errors.New("subscription has a persistent Tailscale binding; unbind the subscription before removing it"))
 			}
 		}
-		if entry.Profile != "" && entry.HealthcheckIntervalSeconds != nil && profiles != nil {
+		if entry.Profile != "" && (entry.HealthcheckIntervalSeconds != nil || entry.HealthcheckURL != nil) && profiles != nil {
 			// Validate and activate the inherited configuration before deleting
 			// cache/key files, which live outside the config snapshot.
 			if err := store.SetHealthcheckInterval(entry.Name, nil); err != nil {
+				return nil, fail("subscription_error", err)
+			}
+			if err := store.SetHealthcheckURL(entry.Name, nil); err != nil {
 				return nil, fail("subscription_error", err)
 			}
 			if err := profiles.ActivateHealthcheckPolicy(ctx, entry.Profile); err != nil {

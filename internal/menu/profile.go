@@ -252,14 +252,23 @@ func subscriptionListPage() *Page {
 }
 
 func addSubscription(ctx context.Context, s *Session) (Navigation, error) {
-	values := map[string]string{}
+	values := map[string]string{"seconds": "3600"}
 	_, err := s.Form(ctx, []Field{nameField("New subscription name"), {Key: "url", Label: "Subscription HTTP(S) URL", Required: true, Validate: func(raw string) error {
 		u, err := url.Parse(raw)
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil {
 			return fmt.Errorf("enter an HTTP(S) URL without user credentials")
 		}
 		return nil
-	}}}, values, func(v map[string]string) Result { return s.Run(ctx, "subscription", "add", v["name"], v["url"]) })
+	}}, secondsField("Update interval seconds (default 3600; off disables)", true), testURLField(false)}, values, func(v map[string]string) Result {
+		args := []string{"subscription", "add", v["name"], v["url"]}
+		if v["seconds"] != "3600" {
+			args = append(args, "--schedule", v["seconds"])
+		}
+		if v["test_url"] != "" {
+			args = append(args, "--test-url", v["test_url"])
+		}
+		return s.Run(ctx, args...)
+	})
 	if err != nil {
 		return Navigation{}, err
 	}

@@ -115,6 +115,8 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		}
 	}
 	delete(overlay, proxyAdditionsKey)
+	urls := overlay[groupHealthcheckURLsKey]
+	delete(overlay, groupHealthcheckURLsKey)
 	intervals := overlay[groupHealthcheckIntervalsKey]
 	delete(overlay, groupHealthcheckIntervalsKey)
 	var original map[string]any
@@ -126,6 +128,9 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		return nil, err
 	}
 	if err := applyGroupHealthcheckIntervals(base, intervals); err != nil {
+		return nil, err
+	}
+	if err := applyGroupHealthcheckURLs(base, urls); err != nil {
 		return nil, err
 	}
 	for _, value := range additions {
@@ -261,7 +266,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 		if err := yaml.Unmarshal(old, &previous); err != nil || previous == nil {
 			return errors.New("existing override must be a YAML mapping")
 		}
-		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", proxyAdditionsKey, groupHealthcheckIntervalsKey} {
+		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", proxyAdditionsKey, groupHealthcheckIntervalsKey, groupHealthcheckURLsKey} {
 			if value, ok := previous[key]; ok {
 				source[key] = value
 			}
@@ -383,7 +388,7 @@ func (s *Store) RestoreDefaultOverride(ctx context.Context, name string) error {
 }
 
 var defaultOverrideExcludedKeys = map[string]struct{}{
-	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {}, proxyAdditionsKey: {}, groupHealthcheckIntervalsKey: {},
+	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {}, proxyAdditionsKey: {}, groupHealthcheckIntervalsKey: {}, groupHealthcheckURLsKey: {},
 	"external-controller": {}, "external-controller-unix": {}, "external-controller-tls": {},
 	"external-controller-pipe": {}, "external-controller-cors": {}, "external-controller-routing-mark": {},
 	"external-ui": {}, "external-ui-url": {}, "secret": {}, "authentication": {},

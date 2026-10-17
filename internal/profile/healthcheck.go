@@ -72,6 +72,8 @@ type Healthcheck struct {
 	Enabled           *bool  `json:"enabled"`
 	Lazy              bool   `json:"lazy"`
 	Source            string `json:"source"`
+	URLSource         string `json:"url_source"`
+	CanResetURL       bool   `json:"can_reset_url"`
 	TestURL           string `json:"test_url,omitempty"`
 	Reason            string `json:"reason,omitempty"`
 	IntervalDefaulted bool   `json:"interval_defaulted"`
@@ -165,7 +167,7 @@ func groupHasExplicitNodes(group, effective map[string]any) *bool {
 }
 
 func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) {
-	r := Healthcheck{Kind: kind, Name: targetName, Profile: name, Source: "profile", Lazy: true}
+	r := Healthcheck{Kind: kind, Name: targetName, Profile: name, Source: "profile", URLSource: "profile", CanResetURL: kind == "group", Lazy: true}
 	effective, source, overlay, err := s.healthMaps(name)
 	if err != nil {
 		return r, err
@@ -238,6 +240,34 @@ func (s *Store) Healthcheck(name, kind, targetName string) (Healthcheck, error) 
 	}
 	if intervals, _ := overlay[groupHealthcheckIntervalsKey].(map[string]any); intervals[targetName] != nil && kind == "group" {
 		r.Source = "override"
+	}
+	if kind == "provider" {
+		original, _ := healthTarget(source, kind, targetName)
+		inherited, _ := healthFields(original, kind)["url"].(string)
+		r.CanResetURL = ValidateHealthcheckURL(inherited) == nil
+	}
+	if value, e := s.subscriptionHealthcheckURL(name); e != nil {
+		return r, e
+	} else if value != nil && (kind == "provider" && fields != nil || kind == "group" && subscriptionGroupEligible(target)) {
+		r.URLSource = "subscription"
+		if kind == "provider" {
+			r.CanResetURL = ValidateHealthcheckURL(*value) == nil
+		}
+	}
+	if value, ok := localFields["url"]; ok {
+		r.URLSource = "override"
+		if kind == "group" {
+			original, _ := healthTarget(source, kind, targetName)
+			if reflect.DeepEqual(value, original["url"]) {
+				r.URLSource = "profile"
+				if value, _ := s.subscriptionHealthcheckURL(name); value != nil && subscriptionGroupEligible(target) {
+					r.URLSource = "subscription"
+				}
+			}
+		}
+	}
+	if urls, _ := overlay[groupHealthcheckURLsKey].(map[string]any); kind == "group" && urls[targetName] != nil {
+		r.URLSource = "override"
 	}
 	raw, _ := fields["url"].(string)
 	if kind == "group" && raw == "" {

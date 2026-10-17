@@ -41,6 +41,8 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return json.NewEncoder(w).Encode(Envelope{OK: true, Data: data})
 	}
 	switch v := data.(type) {
+	case profile.ProviderInterval:
+		return line(w, fmt.Sprintf("provider %s: download interval %d seconds (%s); enabled %t", v.Name, v.IntervalSeconds, v.Source, v.Enabled))
 	case profile.Healthcheck:
 		enabled := "unknown"
 		if v.Enabled != nil {
@@ -56,7 +58,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			return err
 		}
 		if v.TestURL != "" {
-			if err := line(w, "Test URL origin: "+v.TestURL); err != nil {
+			if err := line(w, "Test URL origin: "+v.TestURL+" ("+v.URLSource+")"); err != nil {
 				return err
 			}
 		}
