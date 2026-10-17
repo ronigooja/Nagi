@@ -22,6 +22,14 @@ The app uses command results to update mode, proxy selection, TUN, system proxy,
 
 **Profiles → default → Apply Default Runtime Settings to Current Profile** applies runtime settings through the current profile's local override while retaining its nodes, providers, groups, and rules. Selecting the checked action restores the previous override. See the [default runtime settings contract](../../docs/reference/cli.md#local-profile-files-and-overrides).
 
+## Node latency and automatic checks
+
+Open **Proxy Groups → GROUP** to see each node's latest engine measurement beside its name: milliseconds, **Failed**, **Untested**, or **Unknown** when history cannot be resolved. Hover over a node for the measurement time and sanitized test origin. Opening the menu reads existing history without starting a test. Clicking a selectable node still switches to it.
+
+Use **Test Single Node → NODE** to measure one node while retaining the group's fixed selection. **Test Current Group** measures the group's members. For URLTest and Fallback groups, the action says **Restores Automatic Selection** because mihomo clears their fixed selection before measuring; Nagi also removes its saved choice when that reset is confirmed. This effect can occur even when the measurement fails. Measurements refresh after either success or failure. Provider **Healthcheck** remains available in **Proxy Providers**.
+
+Automatic groups (including LoadBalance) and providers offer **Healthcheck Settings…**. Opening it explicitly reads configuration through the CLI and shows the interval, profile/local source, enabled/lazy settings, and scheduling explanation. **Save Interval** writes a profile-local interval; **Restore Profile Interval** restores the source or default. Provider enable and URL settings are retained. Provider nodes can use a different scheduler from the group, and lazy checks can skip unused nodes. See the [CLI interval contract](../../docs/reference/cli.md#automatic-latency-check-intervals) for defaults, constraints, and failure behavior.
+
 ## Active connections
 
 Choose **Connections…** in the status menu, including while the engine is stopped. The native table shows destination, process, protocol, proxy chain, and cumulative uploaded/downloaded bytes. Click a column to sort; the initial order is destination, with connection ID breaking ties. Search domains, IPs, process names or paths, proxy chains, and IDs. The count shows matches / total. Select a row to see its source and destination, process path, inbound type, matched rule and payload, chain, and ID from the same snapshot. Missing fields display `unknown`. Selection and scrolling follow IDs as the list changes; a disappeared selection clears the details with a message.
