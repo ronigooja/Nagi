@@ -30,7 +30,7 @@ func NewService(client Client) *Service { return &Service{Client: client} }
 
 type Group struct {
 	Name           string               `json:"name"`
-	NodeInfo       map[string]NodeInfo  `json:"node_info"`
+	NodeInfo       map[string]NodeInfo  `json:"node_info,omitempty"`
 	NodeDelays     map[string]NodeDelay `json:"node_delays,omitempty"`
 	Type           string               `json:"type"`
 	Now            string               `json:"now,omitempty"`

@@ -31,3 +31,12 @@ func TestContextTestSyntaxAndHelpWithoutRuntime(t *testing.T) {
 		}
 	}
 }
+
+func TestContextTestValidInvocation(t *testing.T) {
+	for _, kind := range []string{"group", "provider"} {
+		args := []string{"proxy", "test", kind, "Owner", "Node"}
+		if err := validateInvocation(args); err != nil {
+			t.Fatalf("valid command %v rejected: %v", args, err)
+		}
+	}
+}
