@@ -14,7 +14,7 @@ final class LifecycleTests: XCTestCase {
         XCTAssertEqual(MenuAppDelegate.quotaLabel(subscription), "Quota: 0 B available / 8 EiB total (8 EiB uploaded, 1 B downloaded)")
     }
 
-    @MainActor func testSubscriptionTimeUsesLocalMinutePrecision() {
+    func testSubscriptionTimeUsesLocalMinutePrecision() {
         let zone = TimeZone(secondsFromGMT: -7 * 60 * 60)!
         for timestamp in ["2026-10-06T21:19:43Z", "2026-10-06T21:19:43.535439224Z", "2026-10-06T21:19:43.12345678901234567890Z", "2026-10-06T23:19:43.5+02:00", "2026-10-06T19:19:43-02:00"] {
             XCTAssertEqual(MenuAppDelegate.subscriptionTime(timestamp, timeZone: zone), "2026-10-06 14:19")

@@ -387,7 +387,7 @@ import AppKit
         if number.hasSuffix(".") { number.removeLast() }
         return "\(number) \(units[unit])"
     }
-    static func subscriptionTime(_ raw: String, timeZone: TimeZone = .current) -> String {
+    nonisolated static func subscriptionTime(_ raw: String, timeZone: TimeZone = .current) -> String {
         // Fractions do not affect minute precision. Removing them before parsing
         // also supports Go's nanoseconds and feeds with higher fractional precision.
         let pattern = #"^(\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)(?:\.[0-9]+)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)\z"#
