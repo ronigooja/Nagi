@@ -75,3 +75,7 @@ func (p Paths) EnsureRuntime() error {
 	}
 	return nil
 }
+
+// RequestRewriteDir contains profile-local documents and the independent user CA.
+func (p Paths) RequestRewriteDir() string   { return filepath.Join(p.ConfigDir, "request-rewrite") }
+func (p Paths) RequestRewriteCADir() string { return filepath.Join(p.RequestRewriteDir(), "ca") }

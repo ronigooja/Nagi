@@ -155,6 +155,15 @@ func snapshotConfig(dir string) (map[string]fileImage, error) {
 		if err != nil {
 			return err
 		}
+		// CA identity is independently generated, never source configuration.
+		// Exclude exactly this directory from both snapshot and restoration;
+		// never traverse a link offered in place of the CA directory.
+		if path == filepath.Join(dir, "request-rewrite", "ca") {
+			if !entry.IsDir() {
+				return errors.New("request rewrite CA path is not a directory")
+			}
+			return filepath.SkipDir
+		}
 		if path == filepath.Join(dir, ".tailscale-state") {
 			if entry.IsDir() {
 				return filepath.SkipDir

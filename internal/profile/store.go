@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ronigooja/Nagi/internal/requestrewrite"
 	"github.com/ronigooja/Nagi/internal/rules"
 )
 
@@ -178,6 +179,9 @@ func (s *Store) Remove(name string) error {
 		if !info.Mode().IsRegular() {
 			return fmt.Errorf("profile cleanup target is not a regular file: %s", target)
 		}
+	}
+	if err := requestrewrite.RemoveProfile(s.Dir, name); err != nil {
+		return err
 	}
 	for _, target := range paths {
 		if err := os.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {
