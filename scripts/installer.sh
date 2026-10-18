@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'USAGE'
-Usage: scripts/installer.sh install|update|uninstall|app-install|app-uninstall [--artifact-dir DIR] [--prefix DIR] [--app-dest DIR] [--purge-data]
+Usage: scripts/installer.sh install|update|uninstall|recover|app-install|app-uninstall [--artifact-dir DIR] [--prefix DIR] [--app-dest DIR] [--purge-data]
   install/update use bin/ beside this script by default, containing nagi and mihomo;
   on macOS it may also contain Nagi.app. The default prefix is /usr/local.
   App installation requires --prefix /usr/local; its default destination is
@@ -14,21 +14,25 @@ Usage: scripts/installer.sh install|update|uninstall|app-install|app-uninstall [
   removes it. No network access is performed.
   app-install/app-uninstall change only the App and its installation record.
   uninstall preserves user data unless --purge-data is specified.
+  recover restores an interrupted file transaction before reading its record;
+  --artifact-dir supplies a current CLI when the installed CLI is unavailable.
 USAGE
 }
 fail() { printf 'nagi installer: %s\n' "$*" >&2; exit 1; }
 purge_fail() { printf 'NAGI_PURGE_DATA_INCOMPLETE: %s\n' "$*" >&2; exit 3; }
 [[ $# -gt 0 ]] || { usage >&2; exit 2; }
+original_args=("$@")
 action=$1
 shift
 app_only=
 case "$action" in
-    install|update|uninstall) ;;
+    install|update|uninstall|recover) ;;
     app-install) app_only=install; action=update ;;
     app-uninstall) app_only=uninstall; action=uninstall ;;
     *) usage >&2; exit 2 ;;
 esac
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+script_path=$script_dir/$(basename "${BASH_SOURCE[0]}")
 artifact_dir=$script_dir/../bin
 artifact_dir_given=0
 prefix=/usr/local
@@ -38,9 +42,10 @@ verify_only=0
 purge_data=0
 while (( $# )); do
     case "$1" in
-        --artifact-dir|--prefix|--app-dest)
+        --artifact-dir|--prefix|--app-dest|--transaction-helper)
             [[ $# -ge 2 ]] || fail "missing value for $1"
             case "$1" in
+                --transaction-helper) transaction_helper_override=$2 ;;
                 --artifact-dir) artifact_dir=$2; artifact_dir_given=1 ;;
                 --prefix) prefix=$2 ;;
                 --app-dest) app_dest=$2; app_dest_given=1 ;;
@@ -104,7 +109,7 @@ fi
 user_data_targets+=("$user_cache")
 default_profile=$profile_dir/default.yaml
 source_app=
-if [[ "$action" != uninstall ]]; then
+if [[ "$action" != uninstall && "$action" != recover ]]; then
     [[ -d "$artifact_dir" ]] || fail "artifact directory does not exist: $artifact_dir"
     artifact_dir=$(cd "$artifact_dir" && pwd -P)
     for name in nagi mihomo; do
@@ -121,8 +126,59 @@ if [[ "$action" != uninstall ]]; then
         source_app=$artifact_dir/Nagi.app
     fi
     [[ $app_dest_given -eq 0 || -n "$source_app" ]] || fail "--app-dest requires Nagi.app in the artifact directory"
-elif (( artifact_dir_given )); then
+elif (( artifact_dir_given )) && [[ "$action" != recover ]]; then
     fail "--artifact-dir is only used for install or update"
+fi
+
+# The helper serializes direct installers as well as CLI maintenance. Recovery
+# precedes reading install-state, which may itself be an interrupted target.
+transaction_root=$prefix/.nagi-transaction
+nearest_parent() {
+    local path=$1
+    while [[ ! -e "$path" ]]; do path=$(dirname "$path"); done
+    printf '%s\n' "$path"
+}
+transaction_helper=${transaction_helper_override:-}
+if [[ -z "$transaction_helper" ]]; then
+    if [[ "$action" != uninstall && "$action" != recover ]] || (( artifact_dir_given )); then transaction_helper=$artifact_dir/nagi
+    elif [[ -x "$nagi" && ! -L "$nagi" ]]; then transaction_helper=$nagi
+    else transaction_helper=$script_dir/../bin/nagi
+    fi
+fi
+transaction_fs() {
+    if [[ -w "$(nearest_parent "$prefix")" && ( ! -e "$transaction_root" || -w "$transaction_root" ) ]]; then
+        "$transaction_helper" __install-transaction --locked "$@"
+    else
+        sudo "$transaction_helper" __install-transaction --locked "$@"
+    fi
+}
+if [[ "$action" == uninstall && -z "$app_only" && ! -e "$transaction_root" && ! -e "$state" && ! -e "$nagi" && ! -e "$mihomo" ]] && (( ! manage_helper )); then
+    printf 'Nagi is not installed at %s\n' "$prefix"
+    exit 0
+fi
+if (( ! verify_only )); then
+    [[ -f "$transaction_helper" && -x "$transaction_helper" && ! -L "$transaction_helper" ]] || fail 'a current artifact nagi is required for installation recovery'
+    if [[ "${NAGI_INSTALLTX_LOCK_ROOT:-}" != "$transaction_root" ]]; then
+        # Run from a stable copy: uninstall and update replace the installed inode.
+        helper_snapshot=$(mktemp -d "${TMPDIR:-/tmp}/nagi-transaction-helper.XXXXXXXX")
+        cp -p -- "$transaction_helper" "$helper_snapshot/nagi"
+        result=0
+        lock_command=("$helper_snapshot/nagi" __install-transaction lock "$transaction_root" -- bash "$script_path" "${original_args[@]}" --transaction-helper "$helper_snapshot/nagi")
+        if [[ -w "$(nearest_parent "$prefix")" ]]; then
+            "${lock_command[@]}" || result=$?
+        else
+            command -v sudo >/dev/null || fail 'sudo is required to lock the installation destination'
+            sudo "${lock_command[@]}" || result=$?
+        fi
+        rm -rf -- "$helper_snapshot"
+        exit "$result"
+    fi
+    transaction_fs recover "$transaction_root" || fail 'installation recovery failed; transaction backups were retained'
+fi
+if [[ "$action" == recover ]]; then
+    (( ! verify_only )) || fail '--verify is not valid for recovery'
+    printf 'Nagi installation file recovery complete at %s; check service and privileged-helper state before starting Nagi\n' "$prefix"
+    exit 0
 fi
 
 exists() { [[ -e "$1" || -L "$1" ]]; }
@@ -235,49 +291,31 @@ else
         app_write() {
             if (( app_needs_sudo && EUID != 0 )); then sudo "$@"; else "$@"; fi
         }
-        app_stage=$(app_write mktemp -d "$(dirname "$app_dest")/.nagi-app.XXXXXXXX")
-        app_write chmod 0755 "$app_stage"
-        state_stage=$(app_write mktemp -d "$state_dir/.nagi-app.XXXXXXXX")
-        app_changed=0
-        state_changed=0
+        app_stage=$(mktemp -d "${TMPDIR:-/tmp}/nagi-app.XXXXXXXX")
         app_committed=0
         app_cleanup() {
-            local result=$? rollback_failed=0
+            local result=$?
             trap - EXIT
             if (( ! app_committed )); then
-                if (( state_changed )); then app_write cp -- "$state_stage/old-state" "$state" || rollback_failed=1; fi
-                if (( app_changed )); then
-                    if [[ "$app_only" == install ]]; then
-                        app_write rm -R -- "$app_dest" || rollback_failed=1
-                    else
-                        app_write mv -- "$app_stage/old-app" "$app_dest" || rollback_failed=1
-                    fi
-                fi
+                transaction_fs recover "$transaction_root" || { printf 'nagi installer: App rollback incomplete; transaction backups retained at %s\n' "$transaction_root" >&2; exit 1; }
             fi
-            if (( rollback_failed )); then
-                printf 'nagi installer: App rollback incomplete; backups retained at %s %s\n' "$app_stage" "$state_stage" >&2
-                exit 1
-            fi
-            app_write rm -R -- "$app_stage" "$state_stage" || true
+            app_write rm -rf -- "$app_stage"
             exit "$result"
         }
         trap app_cleanup EXIT
         trap 'exit 130' INT TERM
-        app_write cp -- "$state" "$state_stage/old-state"
         new_app_path=
+        if [[ "$app_only" == install ]]; then new_app_path=$app_dest; fi
+        printf 'nagi-installer-v4\napp=%s\n' "$new_app_path" | app_write tee "$app_stage/new-state" >/dev/null
+        app_write chmod 0644 "$app_stage/new-state"
+        app_source=-
         if [[ "$app_only" == install ]]; then
             app_write cp -R -- "$source_app" "$app_stage/new-app"
-            new_app_path=$app_dest
+            app_source=$app_stage/new-app
         fi
-        printf 'nagi-installer-v4\napp=%s\n' "$new_app_path" \
-            | app_write tee "$state_stage/new-state" >/dev/null
-        app_write chmod 0644 "$state_stage/new-state"
-        if [[ "$app_only" == install ]]; then
-            app_write mv -- "$app_stage/new-app" "$app_dest"; app_changed=1
-        else
-            app_write mv -- "$app_dest" "$app_stage/old-app"; app_changed=1
-        fi
-        app_write mv -- "$state_stage/new-state" "$state"; state_changed=1
+        transaction_fs prepare "$transaction_root" "$app_dest" "$app_source" "$state" "$app_stage/new-state"
+        transaction_fs activate "$transaction_root"
+        transaction_fs commit "$transaction_root"
         app_committed=1
         printf 'Nagi App %s complete\n' "$app_only"
         exit 0
@@ -307,11 +345,6 @@ fi
 
 # Validate permissions before making any changes; only file operations are elevated.
 needs_sudo=0
-nearest_parent() {
-    local path=$1
-    while [[ ! -e "$path" ]]; do path=$(dirname "$path"); done
-    printf '%s\n' "$path"
-}
 [[ -w "$(nearest_parent "$bin_dir")" && -w "$(nearest_parent "$state_dir")" ]] || needs_sudo=1
 if [[ -n "$source_app" || ( "$action" != install && -n "${recorded_app:-}" ) ]]; then
     [[ -w "$(nearest_parent "$(dirname "$app_dest")")" ]] || needs_sudo=1
@@ -342,117 +375,72 @@ enable_helper_when_ready() {
     return 1
 }
 
-write_fs mkdir -p -- "$bin_dir" "$state_dir"
-stage=$(write_fs mktemp -d "$prefix/.nagi-install.XXXXXXXX")
-write_fs chmod 0755 "$stage"
-app_stage=
+stage=$(mktemp -d "${TMPDIR:-/tmp}/nagi-install.XXXXXXXX")
 committed=0
-changed=0
-old_nagi=0
-old_mihomo=0
-old_state=0
-old_app=0
-new_nagi=0
-new_mihomo=0
-new_state=0
-new_app=0
-old_profile=0
-new_profile=0
-profile_stage=
 helper_removed=0
 helper_added=0
 helper_switched=0
 cleanup() {
-    local result=$?
+    local result=$? rollback_failed=0
     trap - EXIT
-    local rollback_failed=0
-    if (( ! committed && changed )); then
+    if (( ! committed )); then
         printf 'nagi installer: operation failed; restoring previous files\n' >&2
         if (( helper_added )); then
             "$nagi" privileged-helper disable >/dev/null 2>&1 || true
             sudo "$nagi" privileged-helper uninstall >/dev/null 2>&1 || rollback_failed=1
         fi
-        if (( new_app )); then remove_fs "$app_dest" || rollback_failed=1; fi
-        if (( old_app )); then write_fs mv -- "$app_stage/old-app" "$app_dest" || rollback_failed=1; fi
-        if (( new_state )); then remove_fs "$state" || rollback_failed=1; fi
-        if (( old_state )); then write_fs mv -- "$stage/old-state" "$state" || rollback_failed=1; fi
-        if (( new_nagi )); then remove_fs "$nagi" || rollback_failed=1; fi
-        if (( old_nagi )); then write_fs mv -- "$stage/old-nagi" "$nagi" || rollback_failed=1; fi
-        if (( new_mihomo )); then remove_fs "$mihomo" || rollback_failed=1; fi
-        if (( old_mihomo )); then write_fs mv -- "$stage/old-mihomo" "$mihomo" || rollback_failed=1; fi
-        if (( new_profile )); then rm -- "$default_profile" || rollback_failed=1; fi
-        if (( old_profile )); then mv -- "$profile_stage/old-default.yaml" "$default_profile" || rollback_failed=1; fi
+        transaction_fs recover "$transaction_root" || rollback_failed=1
+        if (( helper_removed && helper_was_installed )); then
+            sudo "$nagi" privileged-helper install >/dev/null || rollback_failed=1
+            if (( helper_was_privileged )); then enable_helper_when_ready || rollback_failed=1; fi
+        elif (( helper_switched && ! helper_removed )); then
+            enable_helper_when_ready || rollback_failed=1
+        fi
     fi
-    if (( ! committed && helper_removed && helper_was_installed )); then
-        sudo "$nagi" privileged-helper install >/dev/null || rollback_failed=1
-        if (( helper_was_privileged )); then enable_helper_when_ready || rollback_failed=1; fi
-    elif (( ! committed && helper_switched && ! helper_removed )); then
-        enable_helper_when_ready || rollback_failed=1
-    fi
+    write_fs rm -rf -- "$stage"
     if (( rollback_failed )); then
-        printf 'nagi installer: rollback incomplete; staged backups retained at %s %s %s\n' "$stage" "$app_stage" "$profile_stage" >&2
+        printf 'nagi installer: rollback incomplete; transaction backups retained at %s; inspect privileged-helper status before starting Nagi\n' "$transaction_root" >&2
         exit 1
     fi
-    [[ -z "$app_stage" ]] || remove_fs "$app_stage" || true
-    [[ -z "$profile_stage" ]] || rm -rf -- "$profile_stage" || true
-    remove_fs "$stage" || true
     exit "$result"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
-if [[ -n "$source_app" || -n "${recorded_app:-}" ]]; then
-    write_fs mkdir -p -- "$(dirname "$app_dest")"
-    app_stage=$(write_fs mktemp -d "$(dirname "$app_dest")/.nagi-app.XXXXXXXX")
-    write_fs chmod 0755 "$app_stage"
-fi
 if [[ "$action" != uninstall ]]; then
     mkdir -p -m 0700 -- "$profile_dir"
-    profile_stage=$(mktemp -d "$profile_dir/.nagi-install.XXXXXXXX")
-    "$artifact_dir/nagi" __default-profile > "$profile_stage/new-default.yaml" || fail "artifact nagi cannot provide its default profile"
-    chmod 0600 "$profile_stage/new-default.yaml"
+    "$artifact_dir/nagi" __default-profile > "$stage/default.yaml" || fail "artifact nagi cannot provide its default profile"
+    chmod 0600 "$stage/default.yaml"
     write_fs install -m 0755 -- "$artifact_dir/nagi" "$stage/new-nagi"
     write_fs install -m 0755 -- "$artifact_dir/mihomo" "$stage/new-mihomo"
-    if [[ -n "$source_app" ]]; then write_fs cp -R -- "$source_app" "$app_stage/new-app"; fi
-    printf 'nagi-installer-v4\napp=%s\n' "${source_app:+$app_dest}" \
-        | write_fs tee "$stage/new-state" >/dev/null
-    write_fs chmod 0644 "$stage/new-state"
+    printf 'nagi-installer-v4\napp=%s\n' "${source_app:+$app_dest}" | write_fs tee "$stage/install-state" >/dev/null
+    write_fs chmod 0644 "$stage/install-state"
+    targets=("$mihomo" "$stage/new-mihomo" "$nagi" "$stage/new-nagi" "$default_profile" "$stage/default.yaml" "$state" "$stage/install-state")
+    if [[ -n "$source_app" ]]; then
+        write_fs cp -R -- "$source_app" "$stage/new-app"
+        targets+=("$app_dest" "$stage/new-app")
+    fi
+else
+    targets=("$nagi" - "$mihomo" - "$state" -)
+    if [[ -n "${recorded_app:-}" ]]; then targets+=("$app_dest" -); fi
 fi
+# No managed target changes until its originals, replacements, and independent
+# manifest have reached durable storage.
+transaction_fs prepare "$transaction_root" "${targets[@]}"
 if (( manage_helper && ${helper_was_installed:-0} )); then
     if (( helper_was_privileged )); then "$nagi" privileged-helper disable >/dev/null; helper_switched=1; fi
     sudo "$nagi" privileged-helper uninstall >/dev/null
     helper_removed=1
 fi
-if [[ "$action" != install ]]; then
-    if exists "$nagi"; then
-        if [[ "$action" == update ]]; then
-            # Keep a running CLI's executable path in bin/. Moving its inode
-            # changes /proc/self/exe on Linux and breaks companion lookup.
-            write_fs cp -p -- "$nagi" "$stage/old-nagi"
-        else
-            write_fs mv -- "$nagi" "$stage/old-nagi"
-        fi
-        old_nagi=1; changed=1
-    fi
-    if exists "$mihomo"; then write_fs mv -- "$mihomo" "$stage/old-mihomo"; old_mihomo=1; changed=1; fi
-    if [[ -n "${recorded_app:-}" ]] && exists "$app_dest"; then write_fs mv -- "$app_dest" "$app_stage/old-app"; old_app=1; changed=1; fi
-    write_fs mv -- "$state" "$stage/old-state"; old_state=1; changed=1
-fi
+transaction_fs activate "$transaction_root"
 if [[ "$action" != uninstall ]]; then
-    write_fs mv -- "$stage/new-mihomo" "$mihomo"; new_mihomo=1; changed=1
-    write_fs mv -- "$stage/new-nagi" "$nagi"; new_nagi=1; changed=1
-    if [[ -n "$source_app" ]]; then write_fs mv -- "$app_stage/new-app" "$app_dest"; new_app=1; changed=1; fi
     NAGI_MIHOMO_BIN="$mihomo" "$nagi" --json version >/dev/null || fail "installed nagi failed its version check"
-    if exists "$default_profile"; then mv -- "$default_profile" "$profile_stage/old-default.yaml"; old_profile=1; changed=1; fi
-    mv -- "$profile_stage/new-default.yaml" "$default_profile"; new_profile=1; changed=1
-    write_fs mv -- "$stage/new-state" "$state"; new_state=1; changed=1
     if (( manage_helper )); then
         sudo "$nagi" privileged-helper install >/dev/null
         helper_added=1
-        if [[ "$action" == install ]] || (( helper_was_privileged )); then
-            enable_helper_when_ready
-        fi
+        if [[ "$action" == install ]] || (( helper_was_privileged )); then enable_helper_when_ready; fi
     fi
 fi
+transaction_fs commit "$transaction_root"
 committed=1
 if (( purge_data )); then
     for data_path in "${user_data_targets[@]}"; do

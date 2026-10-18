@@ -36,8 +36,9 @@ func TestAppOnlyInstallerPreservesBinariesAndRollsBack(t *testing.T) {
 			}
 			os.WriteFile(filepath.Join(tools, "pgrep"), []byte(pgrep), 0755)
 			if mode == "state-write-failure" {
-				os.WriteFile(filepath.Join(tools, "mv"), []byte("#!/bin/sh\ncase \"$*\" in *new-state*) exit 1;; esac\nexec /bin/mv \"$@\"\n"), 0755)
+				t.Setenv("NAGI_TEST_FAIL_ACTIVATE", "1")
 			}
+
 			t.Setenv("PATH", tools+string(os.PathListSeparator)+os.Getenv("PATH"))
 			installer := filepath.Join(root, "installer.sh")
 			source := strings.ReplaceAll(scripts.Installer, "/usr/local", prefix)
@@ -83,7 +84,7 @@ func TestAppOnlyInstallerPreservesBinariesAndRollsBack(t *testing.T) {
 					t.Fatalf("state %s", state)
 				}
 				if mode == "uninstall-state-write-failure" {
-					os.WriteFile(filepath.Join(tools, "mv"), []byte("#!/bin/sh\ncase \"$*\" in *new-state*) exit 1;; esac\nexec /bin/mv \"$@\"\n"), 0755)
+					t.Setenv("NAGI_TEST_FAIL_ACTIVATE", "1")
 					if _, err := runProcess(context.Background(), "bash", installer, "app-uninstall", "--prefix", prefix); err == nil {
 						t.Fatal("expected uninstall state failure")
 					}
@@ -93,7 +94,7 @@ func TestAppOnlyInstallerPreservesBinariesAndRollsBack(t *testing.T) {
 					if _, err := os.Stat(filepath.Join(app, "Contents/MacOS/NagiApp")); err != nil {
 						t.Fatal("App removal did not restore the bundle")
 					}
-					os.Remove(filepath.Join(tools, "mv"))
+					t.Setenv("NAGI_TEST_FAIL_ACTIVATE", "")
 				}
 				if mode == "normal" {
 					if err := os.WriteFile(filepath.Join(app, "Contents/Info.plist"), []byte("modified plist"), 0755); err != nil {

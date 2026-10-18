@@ -85,12 +85,6 @@ if [[ "$app_mode" == app && "$platform" != Darwin ]]; then
 fi
 
 state="$prefix/share/nagi/install-state"
-if [[ -z "$action" ]]; then
-    if [[ -f "$state" ]]; then action=update; else action=install; fi
-fi
-if [[ "$action" == update && ! -f "$state" ]]; then
-    fail "Nagi is not installed at $prefix; use install"
-fi
 
 asset="nagi-$target.tar.gz"
 if [[ -n "$version" ]]; then
@@ -129,6 +123,16 @@ tar -xzf "$archive" -C "$artifact_dir"
 [[ -f "$artifact_dir/nagi" && -x "$artifact_dir/nagi" ]] || fail 'release archive has no executable nagi'
 [[ -f "$artifact_dir/mihomo" && -x "$artifact_dir/mihomo" ]] || fail 'release archive has no executable mihomo'
 [[ -f "$artifact_dir/installer.sh" && -x "$artifact_dir/installer.sh" ]] || fail 'release archive has no installer.sh'
+
+# Restore interrupted file changes before consulting the installation record.
+# The verified artifact provides a helper even when the installed CLI is absent.
+"$artifact_dir/installer.sh" recover --artifact-dir "$artifact_dir" --prefix "$prefix"
+if [[ -z "$action" ]]; then
+    if [[ -f "$state" ]]; then action=update; else action=install; fi
+fi
+if [[ "$action" == update && ! -f "$state" ]]; then
+    fail "Nagi is not installed at $prefix; use install"
+fi
 
 # Releases may contain the App for macOS. A fresh CLI install does not opt in
 # to it; an update of an App installation keeps it unless explicitly removed

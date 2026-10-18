@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,13 @@ import (
 
 func cliArtifact(version string) string {
 	return `#!/bin/sh
+if [ "${1:-}" = __install-transaction ]; then
+  if [ "${NAGI_TEST_FAIL_ACTIVATE:-}" = 1 ] && [ "${3:-}" = activate ]; then
+    "$NAGI_TEST_INSTALL_HELPER" "$@" || exit $?
+    exit 1
+  fi
+  exec "$NAGI_TEST_INSTALL_HELPER" "$@"
+fi
 case "$*" in
   '--json version') echo '{"ok":true,"data":{"nagi":"` + version + `","mihomo_commit":"test"}}' ;;
   __default-profile) echo 'mixed-port: 17890' ;;
@@ -83,8 +91,43 @@ func releaseServer(t *testing.T, archive []byte, corrupt bool, requests *[]strin
 	return s
 }
 
+var transactionHelperBuild struct {
+	sync.Once
+	path string
+	err  error
+}
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if transactionHelperBuild.path != "" {
+		os.RemoveAll(filepath.Dir(transactionHelperBuild.path))
+	}
+	os.Exit(code)
+}
+
+func useTransactionHelper(t *testing.T) {
+	t.Helper()
+	transactionHelperBuild.Do(func() {
+		dir, err := os.MkdirTemp("", "nagi-install-test-helper-")
+		if err != nil {
+			transactionHelperBuild.err = err
+			return
+		}
+		transactionHelperBuild.path = filepath.Join(dir, "nagi")
+		cmd := exec.Command("go", "build", "-o", transactionHelperBuild.path, "../../cmd/nagi")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			transactionHelperBuild.err = fmt.Errorf("build transaction helper: %s: %w", output, err)
+		}
+	})
+	if transactionHelperBuild.err != nil {
+		t.Fatal(transactionHelperBuild.err)
+	}
+	t.Setenv("NAGI_TEST_INSTALL_HELPER", transactionHelperBuild.path)
+}
+
 func fixture(t *testing.T) (*Manager, string) {
 	t.Helper()
+	useTransactionHelper(t)
 	root := t.TempDir()
 	t.Setenv("HOME", filepath.Join(root, "home"))
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
