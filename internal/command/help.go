@@ -175,7 +175,7 @@ var commandSpecs = []commandSpec{
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
-	{"completion candidates", "completion candidates profile|subscription|rules|profile-groups NAME|groups|nodes [GROUP]|provider-nodes PROVIDER|providers|tailscale-nodes|tailscale-targets [node|provider|subscription]|healthcheck-targets group|provider|subscription", "List completion candidates", "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
+	{"completion candidates", "completion candidates profile|subscription|rules|rewrite-domains [PROFILE]|rewrite-rules [PROFILE]|profile-groups NAME|groups|nodes [GROUP]|provider-nodes PROVIDER|providers|tailscale-nodes|tailscale-targets [node|provider|subscription]|healthcheck-targets group|provider|subscription", "List completion candidates", "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
 }
 
 func findSpec(path string) *commandSpec {
@@ -233,6 +233,17 @@ func requestedHelp(args []string) (string, bool, error) {
 }
 
 func validateInvocation(args []string) error {
+	if len(args) > 0 && args[0] == "request-rewrite" {
+		o, e := parseRewriteArguments(args)
+		if e != nil {
+			spec := findSpec(o.path)
+			if spec == nil {
+				spec = findSpec("request-rewrite")
+			}
+			return syntaxError(e.Error(), spec)
+		}
+		return nil
+	}
 	root := findSpec(args[0])
 	if root == nil {
 		return fmt.Errorf("unknown command\nUsage: nagi [--json] <command> [arguments]\nRun `nagi help` to list commands")
@@ -347,11 +358,14 @@ func validateInvocation(args []string) error {
 		}
 	}
 	if spec.path == "completion candidates" {
-		if args[2] != "profile" && args[2] != "rules" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" && args[2] != "provider-nodes" && args[2] != "tailscale-nodes" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
-			return syntaxError("RESOURCE must be profile, subscription, rules, profile-groups, groups, nodes, providers, tailscale-nodes, tailscale-targets, or healthcheck-targets", spec)
+		if n == 2 && (args[2] == "rewrite-domains" || args[2] == "rewrite-rules") && !rewriteID(args[3]) {
+			return syntaxError("invalid PROFILE", spec)
 		}
-		if n == 2 && args[2] != "nodes" && args[2] != "provider-nodes" && args[2] != "profile-groups" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
-			return syntaxError("second argument is only valid for nodes, provider-nodes, profile-groups, tailscale-targets, or healthcheck-targets", spec)
+		if args[2] != "rewrite-domains" && args[2] != "rewrite-rules" && args[2] != "profile" && args[2] != "rules" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" && args[2] != "provider-nodes" && args[2] != "tailscale-nodes" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
+			return syntaxError("RESOURCE must be profile, subscription, rules, rewrite-domains, rewrite-rules, profile-groups, groups, nodes, providers, tailscale-nodes, tailscale-targets, or healthcheck-targets", spec)
+		}
+		if n == 2 && args[2] != "rewrite-domains" && args[2] != "rewrite-rules" && args[2] != "nodes" && args[2] != "provider-nodes" && args[2] != "profile-groups" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
+			return syntaxError("second argument is only valid for rewrite-domains, rewrite-rules, nodes, provider-nodes, profile-groups, tailscale-targets, or healthcheck-targets", spec)
 		}
 		if args[2] == "healthcheck-targets" && (n != 2 || args[3] != "group" && args[3] != "provider" && args[3] != "subscription") {
 			return syntaxError("healthcheck-targets requires group, provider, or subscription", spec)

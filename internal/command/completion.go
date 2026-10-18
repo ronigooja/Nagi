@@ -9,11 +9,11 @@ func completion(shell string) (string, bool) {
 	roots, children := completionCommands()
 	switch shell {
 	case "bash":
-		return bashCompletion(roots, children), true
+		return rewriteCompletion(shell, bashCompletion(roots, children)), true
 	case "zsh":
-		return zshCompletion(roots, children), true
+		return rewriteCompletion(shell, zshCompletion(roots, children)), true
 	case "fish":
-		return fishCompletion(roots, children), true
+		return rewriteCompletion(shell, fishCompletion(roots, children)), true
 	default:
 		return "", false
 	}

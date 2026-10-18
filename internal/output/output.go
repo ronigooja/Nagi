@@ -41,6 +41,11 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return json.NewEncoder(w).Encode(Envelope{OK: true, Data: data})
 	}
 	switch v := data.(type) {
+	case Raw:
+		_, err := w.Write(v)
+		return err
+	case RewriteResult:
+		return writeRewrite(w, v)
 	case profile.ProviderInterval:
 		return line(w, fmt.Sprintf("provider %s: download interval %d seconds (%s); enabled %t", v.Name, v.IntervalSeconds, v.Source, v.Enabled))
 	case profile.Healthcheck:

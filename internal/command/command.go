@@ -163,6 +163,16 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 	}
 	ctx := context.Background()
 	var inputErr error
+	if len(filtered) > 0 && filtered[0] == "request-rewrite" {
+		o, _ := parseRewriteArguments(filtered)
+		if jsonMode && (o.path == "request-rewrite export" || o.path == "request-rewrite ca export") {
+			output.WriteError(stderr, jsonMode, "usage", "raw export does not accept --json; omit --json and use FILE or -")
+			return 2
+		}
+		var input []byte
+		input, inputErr = prepareRewriteInput(o, stdin)
+		ctx = context.WithValue(ctx, rewriteInputKey{}, input)
+	}
 	if tailscaleInvocation(filtered) {
 		options, _ := tailscaleArguments(filtered) // Invocation was validated above.
 		if options.AuthKey != nil {
@@ -261,6 +271,13 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		binary = filepath.Join(filepath.Dir(exe), "mihomo")
 	}
 	command := args[0]
+	if command == "request-rewrite" {
+		paths, e := nagiruntime.Resolve()
+		if e != nil {
+			return nil, e
+		}
+		return requestRewriteCommand(ctx, args, paths)
+	}
 	if command == "app" || command == "update" || command == "uninstall" {
 		manager, err := installation.New(version)
 		if err != nil {
@@ -302,6 +319,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		return result, nil
 	}
 	if command == "completion" {
+		if len(args) >= 3 && args[1] == "candidates" && (args[2] == "rewrite-domains" || args[2] == "rewrite-rules") {
+			return rewriteCandidates(args)
+		}
 		if len(args) >= 2 && args[1] == "candidates" {
 			if len(args) == 3 && args[2] == "rules" {
 				paths, err := nagiruntime.Resolve()

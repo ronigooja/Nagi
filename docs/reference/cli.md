@@ -1,6 +1,6 @@
 # CLI reference
 
-This document defines the implemented Nagi commands and their JSON interface. Except for the interactive `menu` command, `--json` may appear anywhere in the argument list. Without it, Nagi prints text intended for terminal reading. Scripts and applications should use ordinary commands with `--json` rather than parse the text presentation.
+This document defines the implemented Nagi commands and their JSON interface. Except for the interactive `menu` command and explicit raw request-rewrite exports, `--json` may appear anywhere in the argument list. Without it, Nagi prints text intended for terminal reading. Scripts and applications should use ordinary commands with `--json` rather than parse the text presentation.
 
 ## Help and syntax
 
@@ -12,6 +12,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 
 | Command | Result or effect |
 | --- | --- |
+| `request-rewrite <command>` | Manage TUN request rewrite consent, rules, activation, sensitive preview/export and local CA; see [TUN request rewrite](#tun-request-rewrite). |
 | `menu` | Open the interactive, line-oriented terminal menu for common CLI operations. Requires terminal input and output. |
 | `start`, `stop`, `restart` | Manage the mihomo process and its desired running state. `start` creates the default profile if absent. |
 | `quit` | Stop this session's login monitor and mihomo, restore Nagi-managed system proxy settings, and preserve login startup preference. |
@@ -366,7 +367,7 @@ nagi completion fish | source
 
 ## Sensitive content
 
-Commands that display or export raw configuration, overrides, profile comparisons, backups, or logs may expose credentials and private subscription URLs. This includes `config show`, `profile override show`, `profile diff`, `profile export`, `profile backup`, `logs`, and `logs follow`, including their menu equivalents. These outputs are not automatically redacted; keep them private and review them before sharing. For a report intended for troubleshooting, use the [redacted diagnostic export](#diagnostics-and-security).
+Commands that display or export raw configuration, overrides, profile comparisons, backups, or logs may expose credentials and private subscription URLs. This includes `config show`, `profile override show`, `profile diff`, `profile export`, `profile backup`, `logs`, and `logs follow`, including their menu equivalents. Explicit `request-rewrite export` and `request-rewrite preview` also contain sensitive rule/request values. These outputs are not automatically redacted; keep them private and review them before sharing. For a report intended for troubleshooting, use the [redacted diagnostic export](#diagnostics-and-security).
 
 The existing `subscription add NAME URL` and `proxy provider add NAME URL GROUP` interfaces require the subscription URL as a command argument; neither provides a URL stdin or file option. A private URL passed this way may be exposed through shell history and process arguments. This is a current limitation relative to the project's preference to avoid passing secrets through command arguments. Shell quoting preserves the argument but does not hide it. Tailscale Auth Keys support separate file and stdin input as described under [Tailscale management](#tailscale-management).
 
@@ -690,3 +691,67 @@ The diagnostic export is redacted by construction and written mode `0600`. It re
 Scheduler failures use fixed `last_failure_stage` and `last_failure_reason` values. `fetch/network_error` covers download failures; `decrypt/identity_unavailable` covers private identity or decryption failures; `validate/invalid_content` covers an unsupported or invalid feed. `apply/dns_target_missing`, `apply/custom_rule_conflict`, and `apply/selection_conflict` identify local settings that cannot be retained. Other activation or validation failures use `apply/activation_failed`. `pause_reason` persists as `profile_changed` or `source_unreadable` until explicit apply. During the pause, a failed download is visible through `last_failure_stage` and `last_failure_reason`; a later successful download returns those fields to `paused` and the pause reason. URLs, credentials, and feed contents are not stored in these fields.
 
 A successful refresh creates a cache version independently of the applied version. A failed refresh may still retry a previously validated pending cache when the selected profile and source remain eligible. Automatic apply preserves local overrides, persistent Tailscale subscription policy, enabled custom rules, and saved group choices that still exist; removed choices are pruned. Rule targets are checked against the candidate source plus that profile's local override and custom rules; rules owned by other profiles do not participate. Known inline-provider nodes are included; remote-provider node names cannot be determined statically. Live mihomo group options are authoritative for choice pruning. When the engine or control API is unavailable, pruning uses the effective profile; choices for a group using a remote provider remain until mihomo can verify them. Invalid DNS proxy targets, missing custom rule targets, failed validation, or failed activation leave the new cache pending and report a redacted failure reason. External source edits or an unreadable source pause automatic apply while scheduled downloads continue to refresh the cache and advance `next_due`. A download failure advances `next_due` to a retry time and remains visible alongside `pause_reason`. Restoring the old source bytes does not resume automatic apply; explicitly run `subscription apply NAME` after reviewing the source to resume. `schedule off` disables both downloading and automatic apply. Applying a cached subscription records the cache version, profile association, and a source hash only after activation and saved-choice replacement succeed. Failed activation leaves the new cache available for retry and records only a fixed failure stage and redacted reason. Manual profile import or profile removal clears a subscription association after the profile operation succeeds; `profile use` leaves associations unchanged.
+
+## TUN request rewrite
+
+`request-rewrite` manages explicit profile-local domain consent and ordered HTTP request transformations. It defaults to off. Enable targets the selected profile and requires a compatible mihomo request-rewrite capability, an actually running TUN, a generated local CA and confirmed platform trust. Generation does not install trust, and enable does not start TUN or install trust. The release-pinned engine does not provide this capability; activation requires the separately verified compatible engine until release integration updates the pin. Ordinary HTTP/SOCKS listeners are outside the interception path. Unknown domains and unsupported traffic are not evidence of interception; certificate pinning, client certificates, ECH and protocol limitations can prevent coverage. See the [request rewrite design](../design/request-rewrite.md#ownership-and-scope) for the engine/service boundary and coverage limits.
+
+| Command after `nagi request-rewrite` | Result or effect |
+| --- | --- |
+| `status` | Confirm saved intent, actual runtime state, versions, CA and recovery guidance. |
+| `enable`, `disable` | Coordinate runtime activation or teardown for the selected profile. Disable retains rules, CA and trust. |
+| `domains list [--profile NAME]` | List normalized consent IDs and patterns. |
+| `domains add FILE\|- [--profile NAME]` | Add one `{id,pattern}` JSON object. |
+| `domains update ID FILE\|- [--profile NAME]` | Replace the same-ID consent entry. Reject invalid dependent rules. |
+| `domains remove ID [--profile NAME]` | Remove consent only when no rule references it. |
+| `rules list [--profile NAME]` | List ordered redacted rule summaries. |
+| `rules show ID [--profile NAME]` | Show one redacted summary. |
+| `rules add FILE\|- [--profile NAME]` | Append one complete rule JSON object. |
+| `rules update ID FILE\|- [--profile NAME]` | Replace one complete rule; document ID must equal `ID`. |
+| `rules remove ID [--profile NAME]` | Remove one rule. |
+| `rules enable ID [--profile NAME]`, `rules disable ID [--profile NAME]` | Toggle a rule without enabling the feature. |
+| `rules reorder FILE\|- [--profile NAME]` | Read a JSON array containing every rule ID exactly once, including disabled rules. |
+| `import FILE\|- [--profile NAME]` | Validate and replace the complete document transactionally. Require imported `enabled:false`; retain the existing intent independently. |
+| `export FILE\|- [--profile NAME]` | Explicit sensitive raw JSON export, always with `enabled:false`; exclude CA and runtime secrets. |
+| `validate [FILE\|-] [--profile NAME]` | Validate a supplied complete document or the stored document, without activation, persistence, DNS or forwarding. |
+| `preview FILE\|- [--profile NAME]` | Explicit sensitive transformation of a local request fixture without network or persistence. |
+| `ca status` | Report public CA metadata and assessed OS trust. |
+| `ca generate` | Explicitly generate one per-user CA; refuse an existing CA. |
+| `ca export FILE\|-` | Export only the public PEM certificate. |
+| `ca trust install`, `ca trust remove` | Explicit platform trust operations, returning confirmed trust or an actionable unknown/unsupported error. |
+
+`--profile NAME` defaults to the selected profile and applies only to domains, rules, import, export, validate and preview. Place it after the complete command path, before or after positional arguments. Status, enable, disable and CA commands reject it. IDs and profile names contain 1–128 ASCII letters, digits, `_` or `-`. There are no `set`, `move`, CA rotation, replacement or deletion aliases.
+
+Input `FILE` is a regular local file owned by the invoking user with no group/other permissions; symbolic links are rejected. `-` reads stdin. URLs and secret values in command arguments are not accepted. Domain/rule/reorder/import/validation input is limited to 256 KiB. JSON rejects unknown fields, duplicate object keys, trailing values and invalid UTF-8. Missing/incomplete input fails before a save. Rule and domain mutations validate the complete candidate and use the configuration/document locks and coordinator to confirm activation or rollback. A disabled profile can be edited while the engine is stopped; editing never starts TUN or the rewrite child. An activation failure does not claim success or confirmed rollback when the resulting runtime state is uncertain.
+
+Complete document and rule field definitions, operation constraints and limits are authoritative in the [v1 document schema](../design/request-rewrite.md#rule-document-and-deterministic-transformations). All displayed top-level/rule fields in that schema are required; operation-specific fields are exact. Domain consent supports exact ASCII DNS names and explicit wildcard `*.service.example`, which matches subdomains but excludes the apex. No global wildcard or implicit suffix consent exists. Rules match the original authority/method/escaped path and run in stored order. Destination scheme/host/port changes require destination consent and independent domain authorization. Ordinary list/show output includes only ID, enabled state, match, operation kinds and `on_error`; operation values and redirect-consent values are omitted. Use explicit export to read complete values.
+
+For example, supply fictitious consent through stdin:
+
+```sh
+printf '%s\n' '{"id":"api","pattern":"api.service.example"}' | nagi request-rewrite domains add -
+```
+
+Supply a rule through stdin to keep secret-bearing values out of process arguments. Use a private input file when a shell would retain pasted here-document input in history (the example values below are fictitious):
+
+```sh
+nagi request-rewrite rules add - <<'JSON'
+{"id":"edit-api","enabled":true,"match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/v1/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"X-Demo","value":"example"}]}
+JSON
+nagi request-rewrite rules list
+nagi request-rewrite validate
+```
+
+Preview requires exactly `{scheme,host,port,method,path,query,headers,body_base64}`. `scheme` is `http` or `https`; normalized `host` must be authorized; `port` is an integer 1–65535; `headers` maps names to string arrays. `body_base64` is required, with an empty string for no body, and uses strict base64. Path/query obey the document's URL validation. The encoded fixture is limited to 12 MiB, decoded body to 8 MiB and headers to 64 KiB. Preview makes no DNS/network call and does not prove live interception coverage. Its result is `{sensitive:true,rule_version,rule_ids,outcome,request}`, where `request` uses the same fixture schema. JSON puts this sensitive result inside the normal `data` envelope; text begins with a sensitive-output label.
+
+```sh
+nagi --json request-rewrite preview - <<'JSON'
+{"scheme":"https","host":"api.service.example","port":443,"method":"GET","path":"/v1/demo","query":"","headers":{},"body_base64":""}
+JSON
+```
+
+Rule exports and previews may contain credentials, complete URLs and request bodies. They are explicit sensitive operations and are never included automatically in diagnostics. Both rule and public CA exports refuse existing destination paths and create `0600` files; `-` writes raw bytes to stdout. Raw exports reject `--json`, including file destinations. Public CA export excludes the private key. Disable retains CA/trust, and trust removal retains the key. CA generation/status/export do not imply trust. macOS uses its supported user trust mechanism; Linux distributions and applications use differing stores, so unsupported automatic trust assessment/installation reports unknown or an actionable error. Verify manual Linux trust in the actual application/store; no status field claims it was verified automatically.
+
+Status data includes `profile`, `enabled_intent`, `actual`, `configured_rule_version`, optional `active_rule_version`, `generation`, `engine_epoch`, nullable `tun_running`, `backend`, nullable `service_running`, nullable `protocol_version`, `ca`, nullable redacted `last_error`, and recovery guidance when available. `actual` is `disabled`, `starting`, `active`, `blocked`, `draining`, `unavailable` or `uncertain`. Missing runtime evidence is `unavailable`/null, even if saved intent is false; neither intent nor a PID proves activation. CA metadata uses `state`, `trust`, optional public fingerprint and RFC 3339 validity timestamps. Human timestamps omit seconds. Domain/rule mutation results include `{profile,saved,configured_rule_version,active_rule_version,actual}`. List/show include profile and configured version; validation returns `valid:true` and version, or fails with a redacted stable reason. Invalid supplied documents do not return success.
+
+JSON and exit behavior follow the [common interface](#json-and-exit-codes): success stdout, failure stderr, exit `0` success, `2` usage, `1` operation failure. Rewrite operation errors use `request_rewrite_error` with a stable sanitized reason, such as `rewrite_invalid`, `rewrite_limit`, `rewrite_tun_required`, `rewrite_ca_required`, `rewrite_capability_missing`, `rewrite_activation_failed` or `rewrite_state_uncertain`, plus a recovery command. Help and generated Bash/Zsh/Fish scripts require no valid profile or engine. Completion offers command paths, `--profile`, local files/`-`, profile names, and local rule/domain IDs through `completion candidates rewrite-rules [PROFILE]` and `completion candidates rewrite-domains [PROFILE]`; these ID sources contact no engine and expose no rule values.
