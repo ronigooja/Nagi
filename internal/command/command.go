@@ -23,6 +23,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/installation"
+	"github.com/ronigooja/Nagi/internal/installtx"
 	"github.com/ronigooja/Nagi/internal/menu"
 	"github.com/ronigooja/Nagi/internal/output"
 	privilegedserver "github.com/ronigooja/Nagi/internal/privileged/server"
@@ -52,6 +53,9 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 
 // RunWithInput keeps command input separate from argv, including pasted keys.
 func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, version, commit string) int {
+	if len(args) > 0 && args[0] == "__install-transaction" {
+		return installtx.Run(args[1:], stdout, stderr)
+	}
 	if stdin == nil {
 		stdin = strings.NewReader("")
 	}
