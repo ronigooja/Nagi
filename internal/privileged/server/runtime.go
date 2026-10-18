@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -27,25 +28,31 @@ import (
 // BinaryPath, SourceDir and PrivateDir are supplied by the root daemon, never
 // by a client request. SourceDir bounds user-controlled profile reads.
 type RuntimeHandler struct {
-	SessionUID int
-	BinaryPath string
-	SourceDir  string
-	PrivateDir string
-	mu         sync.Mutex
-	child      *exec.Cmd
-	done       chan error
-	snapshot   string
-	resources  []string
-	generation uint64
-	orphaned   bool
-	dnsError   error
+	SessionUID        int
+	BinaryPath        string
+	SourceDir         string
+	PrivateDir        string
+	mu                sync.Mutex
+	child             *exec.Cmd
+	done              chan error
+	snapshot          string
+	resources         []string
+	rewriteOwnerBound bool
+	generation        uint64
+	orphaned          bool
+	dnsError          error
 }
 
-func (h *RuntimeHandler) Handle(ctx context.Context, _ int, req privileged.Request) (privileged.Response, error) {
+func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged.Request) (privileged.Response, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return privileged.Response{}, err
+	}
+	if req.Operation == privileged.Control {
+		if err := h.validateRewriteOwner(peerUID, req); err != nil {
+			return privileged.Response{}, err
+		}
 	}
 	if req.Operation == privileged.Control && snapshotControl(req) {
 		if !h.status().Running {
@@ -245,6 +252,10 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	}
 	defer log.Close()
 	cmd := exec.Command(h.BinaryPath, "--config-policy", "restricted", "-f", snapshot, "-d", h.PrivateDir, "-ext-ctl-unix", controller)
+	h.rewriteOwnerBound = h.SessionUID > 0 && rewriteOwnerBootstrapSupported(ctx, h.BinaryPath, h.PrivateDir)
+	if h.rewriteOwnerBound {
+		cmd.Args = append(cmd.Args, "--request-rewrite-owner-uid="+strconv.Itoa(h.SessionUID))
+	}
 	cmd.Dir = h.PrivateDir
 	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + h.PrivateDir, "TMPDIR=" + h.PrivateDir}
 	cmd.Stdout, cmd.Stderr = log, log

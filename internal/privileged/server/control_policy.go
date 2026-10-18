@@ -29,7 +29,7 @@ func snapshotControl(req privileged.Request) bool {
 	}
 	u, _ := url.ParseRequestURI(req.Path)
 	switch u.Path {
-	case "/version", "/configs", "/proxies", "/providers/proxies", "/connections", "/rules", "/providers/rules", "/traffic":
+	case "/version", "/configs", "/proxies", "/providers/proxies", "/connections", "/rules", "/providers/rules", "/traffic", "/request-rewrite/capabilities", "/request-rewrite/status":
 		return true
 	}
 	parts := strings.Split(u.Path, "/")
@@ -92,10 +92,13 @@ func sendControl(ctx context.Context, socket string, req privileged.Request) (pr
 	if len(body) > control.MaxResponseBytes {
 		return privileged.Response{}, control.ErrResponseTooLarge
 	}
+	if u, parseErr := url.ParseRequestURI(req.Path); parseErr == nil && isRewritePath(u.Path) && response.StatusCode == http.StatusNotFound {
+		return privileged.Response{Status: http.StatusNotFound, Body: json.RawMessage(`{"error":{"code":"rewrite_capability_missing","message":"Install the matching mihomo engine with request rewrite support"}}`)}, nil
+	}
 	if len(bytes.TrimSpace(body)) != 0 && !json.Valid(body) {
 		return privileged.Response{}, errors.New("invalid controller JSON response")
 	}
-	return privileged.Response{OK: response.StatusCode >= 200 && response.StatusCode < 300, Status: response.StatusCode, Body: json.RawMessage(body)}, nil
+	return filterRewriteResponse(req, privileged.Response{OK: response.StatusCode >= 200 && response.StatusCode < 300, Status: response.StatusCode, Body: json.RawMessage(body)})
 }
 
 func readTrafficSample(r io.Reader) ([]byte, error) {
@@ -123,6 +126,9 @@ func validateControl(req privileged.Request) error {
 	u, err := url.ParseRequestURI(req.Path)
 	if err != nil || u.Scheme != "" || u.Host != "" || u.Fragment != "" || strings.Contains(req.Path, "\\") || strings.Contains(strings.ToLower(u.EscapedPath()), "%2f") || strings.Contains(strings.ToLower(u.EscapedPath()), "%5c") {
 		return errors.New("invalid controller path")
+	}
+	if isRewritePath(u.Path) {
+		return validateRewriteControl(req, u)
 	}
 	parts := strings.Split(u.Path, "/")
 	for _, part := range parts {
