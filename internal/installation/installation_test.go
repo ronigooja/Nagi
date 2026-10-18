@@ -29,6 +29,9 @@ if [ "${1:-}" = __install-transaction ]; then
   if [ -n "${NAGI_TEST_TX_LOG:-}" ] && [ "${2:-}" = --locked ]; then
     printf '%s\n' "${3:-}" >> "$NAGI_TEST_TX_LOG"
   fi
+  if [ "${NAGI_TEST_COMMIT_UNCERTAIN:-}" = 1 ] && [ "${3:-}" = commit ]; then
+    exit 5
+  fi
   if [ "${NAGI_TEST_FAIL_COMMIT_CLEANUP:-}" = 1 ] && [ "${3:-}" = commit ]; then
     "$NAGI_TEST_INSTALL_HELPER" "$@" || exit $?
     exit 4

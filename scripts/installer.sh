@@ -332,6 +332,10 @@ else
                 app_committed=1
                 fail 'NAGI_INSTALL_FILES_COMMITTED: App files committed, but transaction cleanup remains pending; run installer.sh recover before further maintenance'
             fi
+            if (( commit_result == 5 )); then
+                app_committed=1
+                fail 'NAGI_INSTALL_COMMIT_UNCERTAIN: App file commit state is unknown; journal retained; repair storage and run installer.sh recover before further maintenance'
+            fi
             exit "$commit_result"
         fi
         printf 'Nagi App %s complete\n' "$app_only"
@@ -471,6 +475,10 @@ else
     if (( commit_result == 4 )); then
         committed=1
         fail 'NAGI_INSTALL_FILES_COMMITTED: installation files committed, but transaction cleanup remains pending; run installer.sh recover before further maintenance'
+    fi
+    if (( commit_result == 5 )); then
+        committed=1
+        fail 'NAGI_INSTALL_COMMIT_UNCERTAIN: installation file commit state is unknown; journal retained; repair storage and run installer.sh recover before further maintenance'
     fi
     exit "$commit_result"
 fi
