@@ -227,6 +227,14 @@ checks additionally recover a transaction with a missing installation record and
 ensure `--verify` leaves its journal untouched. Process termination does not
 emulate loss of the kernel's or device's volatile write cache.
 
+Linux verification on 2026-10-18 passed the full Go suite, transaction and
+installation race checks, Go vet, and the installer checks with Bash and Bash
+3.2. An isolated installation using the real CLI and pinned engine passed
+installation, version inspection, update, and CLI removal while retaining user
+data; it did not start the engine. Darwin AMD64 and ARM64 CLI cross-builds also
+passed. Native macOS helper/service acceptance and VM power-cut acceptance were
+not run.
+
 VM power-cut acceptance is a separate, unrun requirement in the Linux development
 environment. On disposable Linux and macOS virtual machines, retain a snapshot
 with known old files and checksums, use the filesystem and storage-cache settings
