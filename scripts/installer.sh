@@ -225,6 +225,7 @@ if [[ "$action" == install ]]; then
 else
     if ! exists "$state"; then
         if [[ "$action" == uninstall && ! -e "$nagi" && ! -e "$mihomo" ]]; then
+            if (( verify_only )); then exit 0; fi
             if (( manage_helper )); then remove_orphan_helper "$script_dir/../bin/nagi"; fi
             if (( orphan_removed )); then
                 printf 'Nagi uninstall complete at %s\n' "$prefix"
@@ -342,6 +343,9 @@ else
         fi
     fi
 fi
+
+# Install preflight also remains read-only (update/removal return above).
+if (( verify_only )); then exit 0; fi
 
 # Validate permissions before making any changes; only file operations are elevated.
 needs_sudo=0
