@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	child "github.com/ronigooja/Nagi/internal/requestrewriteservice"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"golang.org/x/sys/unix"
 )
@@ -76,7 +75,7 @@ func readRewriteRun(paths nagiruntime.Paths) (rewriteRun, error) {
 	var run rewriteRun
 	dec := json.NewDecoder(strings.NewReader(string(data)))
 	dec.DisallowUnknownFields()
-	if dec.Decode(&run) != nil || run.Version != 1 || !rewriteGeneration(run.Generation) || (run.Backend != userBackend && run.Backend != privilegedBackend) || run.PID <= 0 {
+	if dec.Decode(&run) != nil || run.Version != 1 || !rewriteGeneration(run.Generation) || (run.Backend != userBackend && run.Backend != privilegedBackend) || run.PID <= 0 || run.OwnerUID <= 0 || run.StartIdentity == "" || run.Previous != nil && run.Previous.Previous != nil {
 		return run, rewriteFailure("rewrite_storage")
 	}
 	var extra any
@@ -206,7 +205,7 @@ func runRewriteSupervisor(generation string) int {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			client, e := controlClientForCurrentBackend(paths)
+			client, e := rewriteClient(paths)
 			if e != nil {
 				return nil, e
 			}
@@ -214,12 +213,13 @@ func runRewriteSupervisor(generation string) int {
 			if e = client.Get(ctx, "/request-rewrite/status", &state); e != nil {
 				// No authenticated heartbeat eventually blocks in a surviving engine.
 				// Close our child on proven controller disappearance only.
-				if backend == userBackend {
-					if _, stat := os.Lstat(paths.SocketPath); os.IsNotExist(stat) {
-						finished = true
-						_ = rewriteShutdownChild(paths, generation)
-						_ = removeRewriteRun(paths)
+				if rewriteEngineExited(ctx, paths, run) {
+					finished = true
+					_ = rewriteShutdownChild(paths, generation)
+					if run.Previous != nil {
+						_ = rewriteShutdownChild(paths, run.Previous.Generation)
 					}
+					_ = removeRewriteRun(paths)
 				}
 				return nil, e
 			}
@@ -250,10 +250,10 @@ func runRewriteSupervisor(generation string) int {
 				finished = true
 				return nil, rewriteTeardown(ctx, paths)
 			}
-			health, e := child.Control(ctx, rewriteSocket(paths, generation), "GET", "/status", generation)
+			health, e := rewriteChildControl(ctx, rewriteSocket(paths, generation), "GET", "/status", generation)
 			ca, caErr := requestRewriteCAStatus(paths)
 			if caErr != nil || ca.Trust != "trusted" {
-				_, _ = child.Control(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
+				_, _ = rewriteChildControl(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
 				return nil, nil
 			}
 			if state.State == "blocked" || e != nil || !health.Ready {

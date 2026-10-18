@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/platform"
@@ -106,10 +107,40 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 			if intent == "quit-pending" && args[0] != "startup" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
 				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes"))
 			}
-			if transactionalMutation(args) {
-				return applyTransaction(ctx, paths, args, func() (any, error) { return executeUnlocked(ctx, args, version, commit) })
+			switching := rewriteSwitch(args) && !transactionalMutation(args)
+			previousBackend, _ := readBackend(paths)
+			if switching {
+				if e := rewriteLifecycleStop(ctx, paths); e != nil {
+					return nil, e
+				}
 			}
-			return executeUnlocked(ctx, args, version, commit)
+			action := func() (any, error) {
+				result, e := executeUnlocked(ctx, args, version, commit)
+				if e == nil && switching {
+					e = rewriteReconcile(ctx, paths)
+				}
+				return result, e
+			}
+			var result any
+			var actionErr error
+			if transactionalMutation(args) {
+				result, actionErr = applyTransaction(ctx, paths, args, action)
+			} else {
+				result, actionErr = action()
+			}
+			if actionErr != nil && switching {
+				if args[0] == "privileged-helper" {
+					if e := writeBackend(paths, previousBackend); e != nil {
+						return nil, errors.Join(actionErr, rewriteFailure("rewrite_state_uncertain"))
+					}
+				}
+				recovery, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if e := rewriteReconcile(recovery, paths); e != nil {
+					return nil, errors.Join(actionErr, rewriteFailure("rewrite_state_uncertain"))
+				}
+			}
+			return result, actionErr
 		})
 	}
 	if args[0] == "start" || args[0] == "stop" || args[0] == "restart" || args[0] == "privileged-helper" {

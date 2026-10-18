@@ -27,6 +27,9 @@ func configMutation(args []string) bool {
 	if len(args) == 0 {
 		return false
 	}
+	if rewriteMutation(args) {
+		return true
+	}
 	switch args[0] {
 	case "start", "stop", "restart", "quit", "system-proxy":
 		return true
@@ -233,7 +236,16 @@ func configID(ctx context.Context, client *control.Client) (string, map[string]a
 	return id, cfg, nil
 }
 
-func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []string, fn func() (any, error)) (any, error) {
+func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []string, fn func() (any, error)) (resultOut any, errorOut error) {
+	defer func() {
+		if errorOut != nil && rewriteSwitch(args) {
+			recovery, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if e := rewriteReconcile(recovery, paths); e != nil {
+				errorOut = errors.Join(errorOut, rewriteFailure("rewrite_state_uncertain"))
+			}
+		}
+	}()
 	images, err := snapshotConfig(paths.ConfigDir)
 	if err != nil {
 		return nil, err
@@ -300,7 +312,15 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 			}
 		}
 	}
+	if rewriteSwitch(args) {
+		if e := rewriteLifecycleStop(ctx, paths); e != nil {
+			return nil, e
+		}
+	}
 	result, actionErr := fn()
+	if actionErr == nil && rewriteSwitch(args) {
+		actionErr = rewriteReconcile(ctx, paths)
+	}
 	if actionErr == nil && activeErr == nil {
 		if currentID, _, e := configID(ctx, client); e != nil {
 			actionErr = e

@@ -707,6 +707,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		result, err := startWithTUNDNS(ctx, paths, m, client, configPath, profileName)
 		if err == nil {
+			if e := rewriteReconcile(ctx, paths); e != nil {
+				return nil, e
+			}
+		}
+		if err == nil {
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			if _, restoreErr := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies); restoreErr != nil {
 				return nil, fail("proxy_selection_error", fmt.Errorf("mihomo started, but saved proxy selections were not fully restored: %w", restoreErr))
@@ -714,6 +719,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return result, err
 	case "stop":
+		if e := rewriteLifecycleStop(ctx, paths); e != nil {
+			return nil, e
+		}
 		m, err := getLifecycle()
 		if err != nil {
 			return nil, err
@@ -733,6 +741,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return m.Stop(ctx)
 	case "restart":
+		if e := rewriteLifecycleStop(ctx, paths); e != nil {
+			return nil, e
+		}
 		if err := arity(args, 1); err != nil {
 			return nil, err
 		}
@@ -757,6 +768,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return nil, err
 		}
 		result, err := startWithTUNDNS(ctx, paths, m, client, configPath, profileName)
+		if err == nil {
+			if e := rewriteReconcile(ctx, paths); e != nil {
+				return nil, e
+			}
+		}
 		if err == nil {
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			if _, restoreErr := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies); restoreErr != nil {
@@ -1243,6 +1259,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return result, nil
 		}
 		requested := args[1] == "enable"
+		if !requested {
+			if e := rewriteLifecycleStop(ctx, paths); e != nil {
+				return nil, e
+			}
+		}
 		payload := map[string]any{"enable": requested}
 		if requested {
 			payload["auto-route"] = true
@@ -1256,6 +1277,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		if e := writeTUNIntent(paths, requested); e != nil {
 			return nil, fail("tun_error", fmt.Errorf("TUN state changed but could not save startup preference: %w", e))
+		}
+		if requested {
+			if e := rewriteReconcile(ctx, paths); e != nil {
+				return nil, e
+			}
 		}
 		tun, _ = cfg["tun"].(map[string]any)
 		enabled, _ = tun["enable"].(bool)
