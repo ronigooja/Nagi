@@ -48,11 +48,11 @@ func TestNewDefaultProfileDNSAndTUNDisabled(t *testing.T) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		t.Fatal(err)
 	}
-	ali := []string{"https://223.5.5.5/dns-query#DIRECT", "https://223.6.6.6/dns-query#DIRECT"}
+	dnspod := []string{"https://1.12.12.12/dns-query#DIRECT", "https://120.53.53.53/dns-query#DIRECT"}
 	if !cfg.DNS.Enable || !cfg.DNS.ResolveProxyDestinations || cfg.DNS.EnhancedMode != "fake-ip" || !slices.Equal(cfg.Rules, []string{"MATCH,DIRECT"}) {
 		t.Fatalf("unexpected default DNS or rules: %+v", cfg)
 	}
-	if !slices.Equal(cfg.DNS.DefaultNameserver, ali) || !slices.Equal(cfg.DNS.DirectNameserver, ali) || !slices.Equal(cfg.DNS.ProxyServerNameserver, ali) || !slices.Equal(cfg.DNS.Nameserver, ali) || len(cfg.DNS.Fallback) != 0 {
+	if !slices.Equal(cfg.DNS.DefaultNameserver, dnspod) || !slices.Equal(cfg.DNS.DirectNameserver, dnspod) || !slices.Equal(cfg.DNS.ProxyServerNameserver, dnspod) || !slices.Equal(cfg.DNS.Nameserver, dnspod) || len(cfg.DNS.Fallback) != 0 {
 		t.Fatalf("unexpected DoH roles: %+v", cfg.DNS)
 	}
 	if cfg.TUN.Enable || !cfg.TUN.AutoRoute || !cfg.TUN.StrictRoute || !cfg.TUN.AutoDetectInterface || !slices.Equal(cfg.TUN.DNSHijack, []string{"any:53", "tcp://any:53"}) {
@@ -112,7 +112,7 @@ func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 			t.Fatalf("unexpected managed DNS roles: %+v", cfg.DNS)
 		}
 	}
-	assertDNSRoles([]string{"https://223.5.5.5/dns-query#DIRECT", "https://223.6.6.6/dns-query#DIRECT"}, []string{"https://1.1.1.1/dns-query#NodeA", "https://8.8.8.8/dns-query#NodeA"})
+	assertDNSRoles([]string{"https://1.12.12.12/dns-query#DIRECT", "https://120.53.53.53/dns-query#DIRECT"}, []string{"https://1.1.1.1/dns-query#NodeA", "https://8.8.8.8/dns-query#NodeA"})
 	if _, code := run("dns", "set", "proxy", "NodeA", "https://1.1.1.1/dns-query", "--bootstrap", "https://9.9.9.9/dns-query"); code != 0 {
 		t.Fatal("custom bootstrap failed")
 	}
@@ -177,7 +177,7 @@ func TestDNSLocalPolicySurvivesSourceReplacement(t *testing.T) {
 	if err := yaml.Unmarshal(directOverride, &directDNS); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(directDNS.DNS.Primary, []string{"https://1.1.1.1/dns-query#DIRECT"}) || !slices.Equal(directDNS.DNS.Direct, directDNS.DNS.Primary) || !slices.Equal(directDNS.DNS.Proxy, []string{"https://223.5.5.5/dns-query#DIRECT", "https://223.6.6.6/dns-query#DIRECT"}) {
+	if !slices.Equal(directDNS.DNS.Primary, []string{"https://1.1.1.1/dns-query#DIRECT"}) || !slices.Equal(directDNS.DNS.Direct, directDNS.DNS.Primary) || !slices.Equal(directDNS.DNS.Proxy, []string{"https://1.12.12.12/dns-query#DIRECT", "https://120.53.53.53/dns-query#DIRECT"}) {
 		t.Fatalf("unexpected direct DNS roles: %+v", directDNS.DNS)
 	}
 	data, code = run("dns", "status")

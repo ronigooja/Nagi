@@ -17,7 +17,7 @@ const (
 	DNSProxyGroupKey = "nagi-dns-proxy-group"
 )
 
-var defaultDNSUpstreams = []string{"https://223.5.5.5/dns-query", "https://223.6.6.6/dns-query"}
+var defaultDNSUpstreams = []string{"https://1.12.12.12/dns-query", "https://120.53.53.53/dns-query"}
 var proxyDNSUpstreams = []string{"https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"}
 
 // DNSSettings generates Nagi's complete DNS policy. An empty group binds

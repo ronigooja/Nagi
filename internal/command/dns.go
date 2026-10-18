@@ -15,7 +15,7 @@ import (
 )
 
 var dnsDomain = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$`)
-var dnsBootstrap = []string{"https://223.5.5.5/dns-query", "https://223.6.6.6/dns-query"}
+var dnsBootstrap = []string{"https://1.12.12.12/dns-query", "https://120.53.53.53/dns-query"}
 
 func dnsBootstrapURL(raw string) error {
 	if err := dnsURL(raw, false); err != nil {
