@@ -374,6 +374,9 @@ func replace(src, target string) error {
 	if e = os.Rename(p, target); e != nil {
 		return e
 	}
+	if e = syncDir(tmp); e != nil {
+		return e
+	}
 	return syncDir(filepath.Dir(target))
 }
 func treeHash(path string) (string, error) {
