@@ -137,10 +137,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 				}
 				if json.Unmarshal(out, &result) == nil && len(result.Errors) > 0 {
 					first := result.Errors[0]
-					if strings.HasPrefix(first.Path, "rules[") {
-						return fmt.Errorf("profile %q validation failed at %s: the selected profile rejected this rule; check that its target exists in the selected profile, then retry", current, first.Path)
-					}
-					return fmt.Errorf("profile validation failed at %s (%s): %s", first.Path, first.Code, first.Message)
+					return &profile.ValidationError{Path: first.Path, Code: first.Code, Message: first.Message}
 				}
 				return errors.New("profile validation failed; validate a local copy with mihomo -t --check-json -f FILE -d DIRECTORY")
 			}

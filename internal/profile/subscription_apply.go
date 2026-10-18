@@ -203,7 +203,7 @@ func (s *Store) ApplySubscription(ctx context.Context, name string, data []byte)
 	if err != nil {
 		return err
 	}
-	if err := s.validate(effective); err != nil {
+	if err := s.validate(name, effective); err != nil {
 		return err
 	}
 	var undo []func() error

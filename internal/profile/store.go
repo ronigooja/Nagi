@@ -192,7 +192,7 @@ func (s *Store) Use(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	if err = s.validate(data); err != nil {
+	if err = s.validate(name, data); err != nil {
 		return err
 	}
 	settings := filepath.Join(s.Dir, "settings.yaml")
@@ -220,7 +220,7 @@ func (s *Store) Write(ctx context.Context, name string, data []byte) error {
 	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
 		return oldErr
 	}
-	if err := s.validate(data); err != nil {
+	if err := s.validate(name, data); err != nil {
 		return err
 	}
 	current, err := s.Current()
@@ -256,7 +256,7 @@ func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
 	if profileErr != nil && !errors.Is(profileErr, fs.ErrNotExist) {
 		return profileErr
 	}
-	if err := s.validate(data); err != nil {
+	if err := s.validate(name, data); err != nil {
 		return err
 	}
 	policy, err := s.SubscriptionTailscale(name)
@@ -268,7 +268,7 @@ func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
 		if err != nil {
 			return err
 		}
-		if err = s.validate(effective); err != nil {
+		if err = s.validate(name, effective); err != nil {
 			return err
 		}
 	}
@@ -308,14 +308,45 @@ func restore(path string, old []byte, absent bool) error {
 	return writeReplace(path, old)
 }
 
-func (s *Store) validate(data []byte) error {
+// ValidationError carries the engine's redacted diagnostic. The store adds the
+// candidate profile name before persistence or selection changes.
+type ValidationError struct {
+	Profile string
+	Path    string
+	Code    string
+	Message string
+}
+
+func (e *ValidationError) Error() string {
+	prefix := "profile"
+	if e.Profile != "" {
+		prefix = fmt.Sprintf("profile %q", e.Profile)
+	}
+	message := fmt.Sprintf("%s validation failed at %s (%s): %s", prefix, e.Path, e.Code, e.Message)
+	if strings.HasPrefix(e.Path, "rules[") {
+		if e.Message == "configuration validation failed" {
+			message += "; mihomo did not provide a specific cause"
+		}
+		message += "; inspect rule syntax, proxy targets, and referenced rule providers or sub-rules in the candidate configuration; validate a local copy with `mihomo -t -f FILE -d DIRECTORY` for detailed diagnostics (may contain private configuration values)"
+	}
+	return message
+}
+
+func (s *Store) validate(name string, data []byte) error {
 	if len(strings.TrimSpace(string(data))) == 0 {
 		return errors.New("empty profile")
 	}
 	if s.Validate == nil {
 		return errors.New("profile validator is required")
 	}
-	return s.Validate(data)
+	err := s.Validate(data)
+	var diagnostic *ValidationError
+	if errors.As(err, &diagnostic) {
+		named := *diagnostic
+		named.Profile = name
+		return &named
+	}
+	return err
 }
 
 // atomicWrite keeps one backup of the previous regular file.

@@ -436,7 +436,7 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 	if err != nil {
 		return rollback(err)
 	}
-	if err := s.validate(effective); err != nil {
+	if err := s.validate(name, effective); err != nil {
 		return rollback(err)
 	}
 	current, err := s.Current()
@@ -468,7 +468,7 @@ func (s *Store) ClearOverride(ctx context.Context, name string) error {
 	if err != nil {
 		return rollback(err)
 	}
-	if err := s.validate(base); err != nil {
+	if err := s.validate(name, base); err != nil {
 		return rollback(err)
 	}
 	current, err := s.Current()

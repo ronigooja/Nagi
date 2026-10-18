@@ -159,7 +159,7 @@ func (s *Store) ActivateHealthcheckPolicy(ctx context.Context, name string) erro
 	if err != nil {
 		return err
 	}
-	if err = s.validate(effective); err != nil {
+	if err = s.validate(name, effective); err != nil {
 		return err
 	}
 	current, err := s.Current()

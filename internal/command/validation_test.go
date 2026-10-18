@@ -73,15 +73,63 @@ func TestProfileValidatorUsesRedactedFieldPath(t *testing.T) {
 	}
 }
 
-func TestProfileValidatorExplainsRuleTargetFailure(t *testing.T) {
-	binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[0]\",\"code\":\"invalid_config\",\"message\":\"configuration validation failed\"}]}'\nexit 1\n")
-	store, _ := validationStore(t, binary)
-	err := store.Write(context.Background(), "work", []byte("rules:\n  - DOMAIN-SUFFIX,example.com,missing-target\n"))
-	if err == nil || !strings.Contains(err.Error(), `profile "default" validation failed at rules[0]`) || !strings.Contains(err.Error(), "check that its target exists in the selected profile") {
-		t.Fatalf("rule target guidance: %v", err)
+func TestProfileValidatorReportsCandidateRuleFailure(t *testing.T) {
+	candidate := []byte("rules:\n  - DOMAIN-SUFFIX,example.com,missing-target\n")
+	operations := []struct {
+		name string
+		run  func(*profile.Store) error
+	}{
+		{"write", func(s *profile.Store) error { return s.Write(context.Background(), "work", candidate) }},
+		{"apply", func(s *profile.Store) error { return s.Apply(context.Background(), "work", candidate) }},
+		{"subscription", func(s *profile.Store) error { return s.ApplySubscription(context.Background(), "work", candidate) }},
+		{"use", func(s *profile.Store) error { return s.Use(context.Background(), "work") }},
 	}
-	if strings.Contains(err.Error(), "configuration validation failed") {
-		t.Fatalf("generic mihomo message was not replaced: %v", err)
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[10446]\",\"code\":\"invalid_config\",\"message\":\"configuration validation failed\"}]}'\necho 'PRIVATE raw diagnostic' >&2\nexit 1\n")
+			store, root := validationStore(t, binary)
+			source := filepath.Join(root, "profiles", "work.yaml")
+			if err := os.MkdirAll(filepath.Dir(source), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(source, candidate, 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := operation.run(store)
+			if err == nil {
+				t.Fatal("expected validation failure")
+			}
+			for _, want := range []string{`profile "work" validation failed at rules[10446] (invalid_config): configuration validation failed`, "mihomo did not provide a specific cause", "rule syntax", "referenced rule providers or sub-rules", "mihomo -t -f FILE -d DIRECTORY"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("missing %q: %v", want, err)
+				}
+			}
+			for _, excluded := range []string{`profile "default"`, "selected profile rejected", "PRIVATE", "missing-target", root} {
+				if strings.Contains(err.Error(), excluded) {
+					t.Errorf("unexpected %q: %v", excluded, err)
+				}
+			}
+			current, currentErr := store.Current()
+			if currentErr != nil || current != "default" {
+				t.Fatalf("selection changed: %q, %v", current, currentErr)
+			}
+			saved, readErr := os.ReadFile(source)
+			if readErr != nil || string(saved) != string(candidate) {
+				t.Fatalf("source changed: %q, %v", saved, readErr)
+			}
+		})
+	}
+}
+
+func TestProfileValidatorPreservesSpecificRuleDiagnostic(t *testing.T) {
+	binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[0]\",\"code\":\"unsupported_type\",\"message\":\"unsupported rule type\"}]}'\nexit 1\n")
+	store, _ := validationStore(t, binary)
+	err := store.Write(context.Background(), "work", []byte("rules: [UNKNOWN,example.com,DIRECT]\n"))
+	if err == nil || !strings.Contains(err.Error(), "(unsupported_type): unsupported rule type") {
+		t.Fatalf("specific rule diagnostic lost: %v", err)
+	}
+	if strings.Contains(err.Error(), "did not provide a specific cause") || strings.Contains(err.Error(), "selected profile rejected") {
+		t.Fatalf("specific rule diagnostic replaced: %v", err)
 	}
 }
 
