@@ -53,6 +53,10 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 
 // RunWithInput keeps command input separate from argv, including pasted keys.
 func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, version, commit string) int {
+	if len(args) == 2 && args[0] == "__nagi-request-rewrite-supervisor" {
+		return runRewriteSupervisor(args[1])
+	}
+
 	if len(args) > 0 && args[0] == "__install-transaction" {
 		return installtx.Run(args[1:], stdout, stderr)
 	}
