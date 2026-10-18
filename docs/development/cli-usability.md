@@ -23,7 +23,7 @@ This document defines development and review rules for Nagi's command-line inter
 - State what an operation actually completed. Distinguish saving a subscription, downloading its cache, importing a profile, selecting it, and running the engine.
 - Give a concrete next command when another step is necessary. Do not equate a running process with usable proxy nodes or configured system proxy settings.
 - Explain failures with enough context to act: what failed, the known resulting state, and a relevant check or recovery step. Do not assert rollback or successful activation without evidence.
-- Keep credentials and subscription URLs out of ordinary diagnostics. If engine diagnostics cannot be safely exposed, explain how to inspect the relevant configuration or run validation locally; do not direct users to a deleted temporary file.
+- Preserve useful field paths, error codes, and messages from redacted engine validation diagnostics; never pass through raw validation stdout or stderr. If safe details are unavailable, explain how to inspect the relevant configuration or run validation locally; do not direct users to a deleted temporary file.
 - Keep ordinary commands usable by scripts. The terminal menu requires terminal input and output, rejects `--json`, and directs redirected or automated use to ordinary commands and their JSON results.
 
 ## Terminal menu interactions
@@ -48,4 +48,4 @@ Update the CLI reference and affected guides in the same change. Test representa
 
 ## Integration maintenance
 
-When adding a CLI command, update its `commandSpec` for help, argument count, and completion discovery; add value checks before runtime resolution. Preserve the `ok` envelope and existing JSON field names. Add human formatting separately from JSON. If the command accepts a local profile or subscription name, extend the generated shell completion only after a read-only local candidate source exists. Do not put credentials, subscription URLs, or engine validation output in errors; the output layer also redacts URL-shaped text as a final boundary. Verify help with invalid runtime configuration, text and JSON success, JSON error code and exit status, and generated Bash/Zsh/Fish scripts.
+When adding a CLI command, update its `commandSpec` for help, argument count, and completion discovery; add value checks before runtime resolution. Preserve the `ok` envelope and existing JSON field names. Add human formatting separately from JSON. If the command accepts a local profile or subscription name, extend the generated shell completion only after a read-only local candidate source exists. Verify help with invalid runtime configuration, text and JSON success, JSON error code and exit status, and generated Bash/Zsh/Fish scripts.

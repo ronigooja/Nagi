@@ -18,7 +18,7 @@ Providers added to automatic groups use the group's healthcheck URL. Mihomo auto
 
 ## Add from the CLI
 
-Replace the example URL with your own subscription URL and use the desired target group:
+Replace the example URL with your own subscription URL and use the desired target group. The URL argument may be exposed through shell history and process arguments; see [Sensitive content](../reference/cli.md#sensitive-content).
 
 ```sh
 nagi proxy provider add airport 'https://example.com/subscription' 'My Proxy' 3600

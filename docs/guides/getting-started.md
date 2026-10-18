@@ -18,7 +18,7 @@ To set local ports, DNS settings, or rules after applying a subscription, put th
 
 Use `nagi --json COMMAND` for scripts and the macOS app. Subscription URLs are stored locally and omitted from list output. `subscription update NAME` validates supported mihomo YAML or mihomo-compatible V2Ray-style link content, caches it, and shows added, removed, and changed nodes. Run `subscription preview NAME` to compare the cache with the named profile before applying. `subscription apply NAME` validates and replaces the named source profile with the downloaded configuration (including converted V2Ray-style links), then activates it. Local runtime settings and node/group changes are rebased against the previous subscription source and retained; saved node choices are cleared. Custom rules stored separately still apply. A refresh alone does not change the active profile. The [CLI reference](../reference/cli.md) defines the merge and conflict behavior.
 
-For example, replace `work` with your chosen name and the example URL with your subscription URL:
+For example, replace `work` with your chosen name and the example URL with your subscription URL. The URL argument may be exposed through shell history and process arguments; see [Sensitive content](../reference/cli.md#sensitive-content).
 
 ```sh
 nagi subscription add work 'https://example.com/subscription.yaml'

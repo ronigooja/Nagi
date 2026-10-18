@@ -362,6 +362,12 @@ source <(nagi completion zsh)
 nagi completion fish | source
 ```
 
+## Sensitive content
+
+Commands that display or export raw configuration, overrides, profile comparisons, backups, or logs may expose credentials and private subscription URLs. This includes `config show`, `profile override show`, `profile diff`, `profile export`, `profile backup`, `logs`, and `logs follow`, including their menu equivalents. These outputs are not automatically redacted; keep them private and review them before sharing. For a report intended for troubleshooting, use the [redacted diagnostic export](#diagnostics-and-security).
+
+The existing `subscription add NAME URL` and `proxy provider add NAME URL GROUP` interfaces require the subscription URL as a command argument; neither provides a URL stdin or file option. A private URL passed this way may be exposed through shell history and process arguments. This is a current limitation relative to the project's preference to avoid passing secrets through command arguments. Shell quoting preserves the argument but does not hide it. Tailscale Auth Keys support separate file and stdin input as described under [Tailscale management](#tailscale-management).
+
 ## Text output
 
 Status output labels the running state, selected profile, and available process details. Profile lists mark the current selection; proxy output identifies the current node. Empty lists have an explanatory message. `logs` prints individual log lines, and `config show` prints YAML directly.
@@ -378,7 +384,7 @@ If service installation fails after writing its definition, Nagi attempts to res
 
 ## Configuration validation failures
 
-Nagi omits mihomo validation stdout and stderr because they may contain configuration values. Errors provide a next step instead: inspect the selected configuration for `config validate` or startup failures, and inspect the source YAML being imported/applied or the profile being selected for profile operations. Missing executable errors suggest checking `NAGI_MIHOMO_BIN`.
+Nagi does not pass through raw mihomo validation stdout or stderr because they may contain configuration values. When the engine supplies structured redacted diagnostics, errors preserve the field path, code, and message; otherwise they report a generic validation failure. Profile validation of configurations containing Tailscale returns a generic error instead. Errors also provide a next step: inspect the selected configuration for `config validate` or startup failures, and inspect the source YAML being imported/applied or the profile being selected for profile operations. Missing executable errors suggest checking `NAGI_MIHOMO_BIN`.
 
 To inspect mihomo's own diagnostics locally, use `mihomo -t -f FILE -d DIRECTORY`, replacing `FILE` with the configuration file and `DIRECTORY` with its configuration directory. Use the executable selected by `NAGI_MIHOMO_BIN` when applicable. Those diagnostics may contain private configuration values. Nagi does not expose its temporary validation files as a recovery path.
 

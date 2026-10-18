@@ -19,6 +19,12 @@ These rules apply to every feature:
 - Verify configuration generation, API calls, persistence, and activation behavior with relevant checks. Broader network detection or verification requires a separate requirement and must not become an implicit prerequisite for a configuration feature.
 - For example, DNS leak prevention through mihomo means configuring the relevant TUN, DNS interception, and DNS upstream settings. It does not require Nagi to build a system-wide DNS leak verification mechanism.
 
+## Sensitive Information
+
+- Use clearly marked placeholders or fictitious addresses in examples; never include real credentials or usable private subscription URLs.
+- Redact sensitive information from ordinary output, errors, and diagnostics while preserving necessary troubleshooting details. Document that raw configuration and logs explicitly viewed or exported by the user may contain sensitive information.
+- Restrict sensitive files to owner-only access, avoid passing secrets through command arguments, and promptly remove sensitive temporary files that are no longer needed.
+
 ## Documentation Locations and Responsibilities
 
 ```text
@@ -70,7 +76,7 @@ Use each location as follows:
 - Design documents must explain responsibilities, interfaces, key flows, and the state after failures. Diagrams must agree with the surrounding text.
 - Mark planned architecture and unimplemented designs with their status and scope at the beginning. Update the description to current behavior only after implementation is complete.
 - Name architecture decisions `NNNN-topic.md`, using four-digit decimal numbers starting at `0001` in creation order. Never reuse a number. Each decision must record its status, context, alternatives, decision, and consequences. Status must be `proposed`, `accepted`, `superseded`, or `deprecated`. When superseded, keep the original record and link to the replacement.
-- Keep examples accurate and self-consistent. Mark placeholder parameters clearly, and never include real credentials or subscription URLs.
+- Keep examples accurate and self-consistent.
 - Prefer relative paths, environment variables, or generic examples. Local checkout and source paths may appear only as explicitly labeled development examples, never as architecture constraints.
 - Use short, clear, lowercase English filenames with hyphens under `docs/`, and repository-relative links. When a category becomes difficult to navigate, add a `README.md` index containing only navigation and brief descriptions.
 
