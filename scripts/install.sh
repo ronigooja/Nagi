@@ -102,6 +102,7 @@ download() {
 }
 
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/nagi-online.XXXXXXXX")
+temp_dir=$(cd "$temp_dir" && pwd -P)
 cleanup() { rm -rf -- "$temp_dir"; }
 trap cleanup EXIT
 archive="$temp_dir/$asset"

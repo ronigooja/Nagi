@@ -161,6 +161,7 @@ if (( ! verify_only )); then
     if [[ "${NAGI_INSTALLTX_LOCK_ROOT:-}" != "$transaction_root" ]]; then
         # Run from a stable copy: uninstall and update replace the installed inode.
         helper_snapshot=$(mktemp -d "${TMPDIR:-/tmp}/nagi-transaction-helper.XXXXXXXX")
+        helper_snapshot=$(cd "$helper_snapshot" && pwd -P)
         cp -p -- "$transaction_helper" "$helper_snapshot/nagi"
         result=0
         lock_command=("$helper_snapshot/nagi" __install-transaction lock "$transaction_root" -- bash "$script_path" "${original_args[@]}" --transaction-helper "$helper_snapshot/nagi")
@@ -168,7 +169,11 @@ if (( ! verify_only )); then
             "${lock_command[@]}" || result=$?
         else
             command -v sudo >/dev/null || fail 'sudo is required to lock the installation destination'
-            sudo "${lock_command[@]}" || result=$?
+            # sudo filters XDG variables by default; keep the invoking user's
+            # selected data locations when the broker reexecutes this script.
+            sudo /usr/bin/env "XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-}" "XDG_DATA_HOME=${XDG_DATA_HOME:-}" \
+                "XDG_STATE_HOME=${XDG_STATE_HOME:-}" "XDG_CACHE_HOME=${XDG_CACHE_HOME:-}" \
+                "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-}" "${lock_command[@]}" || result=$?
         fi
         rm -rf -- "$helper_snapshot"
         exit "$result"
@@ -292,7 +297,9 @@ else
         app_write() {
             if (( app_needs_sudo && EUID != 0 )); then sudo "$@"; else "$@"; fi
         }
+        app_write mkdir -p -- "$(dirname "$app_dest")"
         app_stage=$(mktemp -d "${TMPDIR:-/tmp}/nagi-app.XXXXXXXX")
+        app_stage=$(cd "$app_stage" && pwd -P)
         app_committed=0
         app_cleanup() {
             local result=$?
@@ -379,7 +386,10 @@ enable_helper_when_ready() {
     return 1
 }
 
+write_fs mkdir -p -- "$bin_dir" "$state_dir"
+if [[ -n "$source_app" ]]; then write_fs mkdir -p -- "$(dirname "$app_dest")"; fi
 stage=$(mktemp -d "${TMPDIR:-/tmp}/nagi-install.XXXXXXXX")
+stage=$(cd "$stage" && pwd -P)
 committed=0
 helper_removed=0
 helper_added=0
