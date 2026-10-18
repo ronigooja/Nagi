@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 )
@@ -80,10 +81,16 @@ func install(result Result, executable string, uid int, command runner) (Result,
 		} else if err := command("systemctl", "--user", "enable", "--now", "nagi.service"); err != nil {
 			managerErr = fmt.Errorf("systemctl --user enable --now nagi.service: %w", err)
 		}
-	} else if err := command("launchctl", "bootstrap", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
-		managerErr = fmt.Errorf("launchctl bootstrap: %w", err)
+	} else {
+		target := fmt.Sprintf("gui/%d/io.nagi.cli", uid)
+		if err := command("launchctl", "enable", target); err != nil {
+			managerErr = fmt.Errorf("launchctl enable: %w", err)
+		} else if err := command("launchctl", "bootstrap", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
+			managerErr = fmt.Errorf("launchctl bootstrap: %w", err)
+		}
 	}
 	if managerErr == nil {
+		result.Installed, result.Enabled, result.Active = true, true, true
 		return result, nil
 	}
 	var restoreErr error
@@ -199,53 +206,101 @@ func Status() (Result, error) {
 		result.Active = commandOK("systemctl", "--user", "is-active", "nagi.service")
 	case "launchd":
 		result.Active = commandOK("launchctl", "print", fmt.Sprintf("gui/%d/io.nagi.cli", os.Getuid()))
-		result.Enabled = result.Installed
+		if result.Installed {
+			out, err := exec.Command("launchctl", "print-disabled", fmt.Sprintf("gui/%d", os.Getuid())).CombinedOutput()
+			if err != nil {
+				return result, fmt.Errorf("read login startup preference: %w; inspect `launchctl print-disabled gui/%d`", err, os.Getuid())
+			}
+			result.Enabled = !launchdDisabled(string(out))
+		}
 	}
 	return result, nil
 }
 
 func commandOK(name string, args ...string) bool { return exec.Command(name, args...).Run() == nil }
 
+// Enable installs the login service when needed and enables it without
+// reloading a monitor that is already running.
 func Enable() (Result, error) {
 	result, err := location()
 	if err != nil {
 		return result, err
 	}
-	if _, e := os.Stat(result.Path); e != nil {
-		return result, fmt.Errorf("service definition is not installed; run `nagi service install`: %w", e)
-	}
-	switch result.Manager {
-	case "systemd":
-		if err := run("systemctl", "--user", "daemon-reload"); err != nil {
-			return result, err
-		}
-		if err := run("systemctl", "--user", "enable", "--now", "nagi.service"); err != nil {
-			return result, fmt.Errorf("enable service: %w", err)
-		}
-	case "launchd":
-		if err := run("launchctl", "bootstrap", fmt.Sprintf("gui/%d", os.Getuid()), result.Path); err != nil {
-			return result, fmt.Errorf("enable service: %w", err)
-		}
-	}
-	return result, nil
-}
-func Disable() (Result, error) {
-	result, err := location()
+	executable, err := os.Executable()
 	if err != nil {
 		return result, err
 	}
+	return enable(result, executable, os.Getuid(), run)
+}
+
+func enable(result Result, executable string, uid int, command runner) (Result, error) {
+	if _, err := os.Stat(result.Path); err != nil {
+		if os.IsNotExist(err) {
+			return install(result, executable, uid, command)
+		}
+		return result, fmt.Errorf("inspect service definition: %w", err)
+	}
 	switch result.Manager {
 	case "systemd":
-		if err := run("systemctl", "--user", "disable", "--now", "nagi.service"); err != nil {
-			return result, fmt.Errorf("disable service: %w", err)
+		if err := command("systemctl", "--user", "daemon-reload"); err != nil {
+			return result, err
+		}
+		if err := command("systemctl", "--user", "enable", "--now", "nagi.service"); err != nil {
+			return result, fmt.Errorf("enable service: %w", err)
 		}
 	case "launchd":
-		if err := run("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), result.Path); err != nil {
-			return result, fmt.Errorf("disable service: %w", err)
+		target := fmt.Sprintf("gui/%d/io.nagi.cli", uid)
+		if err := command("launchctl", "enable", target); err != nil {
+			return result, fmt.Errorf("enable service: %w", err)
 		}
+		if err := command("launchctl", "print", target); err != nil {
+			if err := command("launchctl", "bootstrap", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
+				return result, fmt.Errorf("login startup enabled but loading service failed: %w; inspect `nagi startup status`", err)
+			}
+		}
+	default:
+		return result, fmt.Errorf("unsupported service manager: %s", result.Manager)
 	}
+	result.Installed, result.Enabled, result.Active = true, true, true
 	return result, nil
 }
+
+// Disable changes next-login activation only. The current monitor and mihomo
+// remain running, preserving connections and scheduled subscription updates.
+func Disable() (Result, error) {
+	result, err := Status()
+	if err != nil {
+		return result, err
+	}
+	return disable(result, os.Getuid(), run)
+}
+
+func disable(result Result, uid int, command runner) (Result, error) {
+	if _, err := os.Stat(result.Path); err != nil {
+		if os.IsNotExist(err) {
+			return result, nil
+		}
+		return result, fmt.Errorf("inspect service definition: %w", err)
+	}
+	var err error
+	switch result.Manager {
+	case "systemd":
+		err = command("systemctl", "--user", "disable", "nagi.service")
+	case "launchd":
+		err = command("launchctl", "disable", fmt.Sprintf("gui/%d/io.nagi.cli", uid))
+	default:
+		err = fmt.Errorf("unsupported service manager: %s", result.Manager)
+	}
+	if err != nil {
+		return result, fmt.Errorf("disable login startup: %w", err)
+	}
+	result.Installed, result.Enabled = true, false
+	return result, nil
+}
+
+var launchdDisabledEntry = regexp.MustCompile(`(?m)^\s*"io\.nagi\.cli"\s*=>\s*true\s*$`)
+
+func launchdDisabled(output string) bool { return launchdDisabledEntry.MatchString(output) }
 
 // PauseIfActive stops this login session's monitor without changing whether
 // the service starts at the next login.

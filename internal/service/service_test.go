@@ -140,3 +140,120 @@ func TestUninstallReloadFailureReportsRemovedDefinition(t *testing.T) {
 		t.Fatalf("definition remains: %v", err)
 	}
 }
+
+func TestDisableOnlyChangesNextLogin(t *testing.T) {
+	for _, manager := range []string{"systemd", "launchd"} {
+		t.Run(manager, func(t *testing.T) {
+			result := serviceResult(t, manager)
+			if err := os.WriteFile(result.Path, []byte("existing definition"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			result.Active = true
+			var calls []string
+			got, err := disable(result, 501, func(name string, args ...string) error {
+				calls = append(calls, name+" "+strings.Join(args, " "))
+				return nil
+			})
+			if !got.Active || got.Enabled || !got.Installed {
+				t.Fatalf("incorrect resulting service state: %+v", got)
+			}
+			want := "systemctl --user disable nagi.service"
+			if manager == "launchd" {
+				want = "launchctl disable gui/501/io.nagi.cli"
+			}
+			if err != nil || len(calls) != 1 || calls[0] != want {
+				t.Fatalf("calls=%v err=%v", calls, err)
+			}
+			data, err := os.ReadFile(result.Path)
+			if err != nil || string(data) != "existing definition" {
+				t.Fatalf("definition=%q err=%v", data, err)
+			}
+		})
+	}
+}
+
+func TestDisableAbsentAndFailure(t *testing.T) {
+	result := serviceResult(t, "systemd")
+	_, err := disable(result, 501, func(string, ...string) error { t.Fatal("absent service must be a no-op"); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(result.Path, []byte("existing"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = disable(result, 501, func(string, ...string) error { return errors.New("manager unavailable") })
+	if err == nil || !strings.Contains(err.Error(), "disable login startup") {
+		t.Fatal(err)
+	}
+}
+
+func TestEnableInstallsMissingService(t *testing.T) {
+	for _, manager := range []string{"systemd", "launchd"} {
+		t.Run(manager, func(t *testing.T) {
+			result := serviceResult(t, manager)
+			var calls []string
+			_, err := enable(result, "/tmp/nagi", 501, func(name string, args ...string) error {
+				calls = append(calls, name+" "+strings.Join(args, " "))
+				return nil
+			})
+			data, readErr := os.ReadFile(result.Path)
+			if err != nil || readErr != nil || !strings.Contains(string(data), "__startup-watch") {
+				t.Fatalf("err=%v read=%v definition=%q", err, readErr, data)
+			}
+			want := "systemctl --user enable --now nagi.service"
+			if manager == "launchd" {
+				want = "launchctl enable gui/501/io.nagi.cli"
+			}
+			if !strings.Contains(strings.Join(calls, "\n"), want) {
+				t.Fatalf("missing enable: %v", calls)
+			}
+		})
+	}
+}
+
+func TestEnableExistingLaunchdMonitorDoesNotReload(t *testing.T) {
+	for _, active := range []bool{true, false} {
+		result := serviceResult(t, "launchd")
+		if err := os.WriteFile(result.Path, []byte("existing"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		var calls []string
+		_, err := enable(result, "/tmp/nagi", 501, func(name string, args ...string) error {
+			calls = append(calls, strings.Join(args, " "))
+			if args[0] == "print" && !active {
+				return errors.New("not loaded")
+			}
+			return nil
+		})
+		wantCalls := 2
+		if !active {
+			wantCalls = 3
+		}
+		if err != nil || len(calls) != wantCalls || calls[0] != "enable gui/501/io.nagi.cli" || calls[1] != "print gui/501/io.nagi.cli" {
+			t.Fatalf("active=%v calls=%v err=%v", active, calls, err)
+		}
+		if !active && calls[2] != "bootstrap gui/501 "+result.Path {
+			t.Fatal(calls)
+		}
+		data, _ := os.ReadFile(result.Path)
+		if string(data) != "existing" {
+			t.Fatalf("definition rewritten: %q", data)
+		}
+	}
+}
+
+func TestLaunchdDisabledPreference(t *testing.T) {
+	for _, tt := range []struct {
+		output   string
+		disabled bool
+	}{
+		{"disabled services = {\n\t\"io.nagi.cli\" => true\n}", true},
+		{"disabled services = {\n\t\"io.nagi.cli\" => false\n}", false},
+		{"disabled services = {\n\t\"io.other\" => true\n}", false},
+		{"disabled services = {\n}", false},
+	} {
+		if got := launchdDisabled(tt.output); got != tt.disabled {
+			t.Fatalf("%q: got %v", tt.output, got)
+		}
+	}
+}

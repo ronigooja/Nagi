@@ -17,21 +17,21 @@ func TestLoginStartupPageSummary(t *testing.T) {
 		err  *CLIError
 		want string
 	}{
-		{name: "running", data: `{"service":{"installed":true,"enabled":true,"active":true},"engine":{"running":true}}`, want: "Login startup: enabled | Service: running | Mihomo: running"},
-		{name: "engine stopped with monitor active", data: `{"service":{"enabled":true,"active":true},"engine":{"running":false}}`, want: "Login startup: enabled | Service: running | Mihomo: stopped"},
-		{name: "disabled", data: `{"service":{"enabled":false,"active":false},"engine":{"running":false}}`, want: "Login startup: disabled | Service: stopped | Mihomo: stopped"},
-		{name: "missing enabled", data: `{"service":{"active":true},"engine":{"running":true}}`, want: "Login startup: unknown | Service: running | Mihomo: running"},
-		{name: "missing engine", data: `{"service":{"enabled":true,"active":false}}`, want: "Login startup: enabled | Service: stopped | Mihomo: unknown"},
-		{name: "null and wrong types", data: `{"service":{"enabled":null,"active":"yes"},"engine":{"running":true}}`, want: "Login startup: unknown | Service: unknown | Mihomo: running"},
-		{name: "malformed service", data: `{"service":true,"engine":{"running":false}}`, want: "Login startup: unknown | Service: unknown | Mihomo: stopped"},
-		{name: "empty", data: `{}`, want: "Login startup: unknown | Service: unknown | Mihomo: unknown"},
-		{name: "manager unavailable", code: 1, err: &CLIError{Message: "systemd user session unavailable"}, want: "Login startup: unavailable | Service: unavailable | Mihomo: unavailable — systemd user session unavailable"},
-		{name: "read failed", code: 1, want: "Login startup: unavailable | Service: unavailable | Mihomo: unavailable — read failed; open Startup details"},
+		{name: "running", data: `{"service":{"installed":true,"enabled":true,"active":true},"engine":{"running":true}}`, want: "Start automatically at login: On | Mihomo: running"},
+		{name: "engine stopped with monitor active", data: `{"service":{"enabled":true,"active":true},"engine":{"running":false}}`, want: "Start automatically at login: On | Mihomo: stopped"},
+		{name: "disabled", data: `{"service":{"enabled":false,"active":false},"engine":{"running":false}}`, want: "Start automatically at login: Off | Mihomo: stopped"},
+		{name: "missing enabled", data: `{"service":{"active":true},"engine":{"running":true}}`, want: "Start automatically at login: unknown | Mihomo: running"},
+		{name: "missing engine", data: `{"service":{"enabled":true,"active":false}}`, want: "Start automatically at login: On | Mihomo: unknown"},
+		{name: "null and wrong types", data: `{"service":{"enabled":null,"active":"yes"},"engine":{"running":true}}`, want: "Start automatically at login: unknown | Mihomo: running"},
+		{name: "malformed service", data: `{"service":true,"engine":{"running":false}}`, want: "Start automatically at login: unknown | Mihomo: stopped"},
+		{name: "empty", data: `{}`, want: "Start automatically at login: unknown | Mihomo: unknown"},
+		{name: "manager unavailable", code: 1, err: &CLIError{Message: "systemd user session unavailable"}, want: "Start automatically at login: unavailable | Mihomo: unavailable — systemd user session unavailable"},
+		{name: "read failed", code: 1, want: "Start automatically at login: unavailable | Mihomo: unavailable — read failed; open View details"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			runner := &fakeRunner{results: map[string]Result{"startup status": {Data: json.RawMessage(tt.data), Code: tt.code, Error: tt.err}}}
 			view, err := ServicePage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
-			if err != nil || view.Context != tt.want || len(view.Actions) != 6 {
+			if err != nil || view.Context != tt.want || len(view.Actions) < 2 || len(view.Actions) > 3 {
 				t.Fatalf("view=%+v err=%v, want %q", view, err, tt.want)
 			}
 			if !reflect.DeepEqual(runner.calls, [][]string{{"startup", "status"}}) {
@@ -45,17 +45,17 @@ func TestLoginStartupDisableRefreshesSummary(t *testing.T) {
 	runner := &sequenceRunner{results: map[string][]Result{
 		"startup status": {
 			{Data: json.RawMessage(`{"service":{"enabled":true,"active":true},"engine":{"running":true}}`)},
-			{Data: json.RawMessage(`{"service":{"enabled":false,"active":false},"engine":{"running":false}}`)},
+			{Data: json.RawMessage(`{"service":{"enabled":false,"active":true},"engine":{"running":true}}`)},
 		},
 	}}
 	var out bytes.Buffer
-	code := RunPage(context.Background(), NewSession(runner, strings.NewReader("5\n0\n"), &out), ServicePage())
+	code := RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n0\n"), &out), ServicePage())
 	wantCalls := [][]string{{"startup", "status"}, {"startup", "disable"}, {"startup", "status"}}
 	if code != 0 || !reflect.DeepEqual(runner.calls, wantCalls) {
 		t.Fatalf("code=%d calls=%v", code, runner.calls)
 	}
-	before := strings.Index(out.String(), "Login startup: enabled | Service: running | Mihomo: running")
-	after := strings.Index(out.String(), "Login startup: disabled | Service: stopped | Mihomo: stopped")
+	before := strings.Index(out.String(), "Start automatically at login: On | Mihomo: running")
+	after := strings.Index(out.String(), "Start automatically at login: Off | Mihomo: running")
 	if before < 0 || after <= before {
 		t.Fatalf("summary did not refresh: %s", out.String())
 	}
@@ -83,12 +83,8 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 		args   []string
 		impact bool
 	}{
-		{ServicePage(), "Service details", []string{"service", "status"}, false},
-		{ServicePage(), "Install login service", []string{"service", "install"}, true},
-		{ServicePage(), "Uninstall login service", []string{"service", "uninstall"}, true},
-		{ServicePage(), "Startup details", []string{"startup", "status"}, false},
-		{ServicePage(), "Enable login startup", []string{"startup", "enable"}, false},
-		{ServicePage(), "Disable login startup", []string{"startup", "disable"}, true},
+		{ServicePage(), "View details", []string{"startup", "status"}, false},
+		{loginStartupAdvancedPage(), "Remove login startup service", []string{"service", "uninstall"}, true},
 		{DiagnosticsPage(), "Repair startup state", []string{"startup", "check"}, false},
 		{DiagnosticsPage(), "Clean stale runtime records", []string{"recover"}, true},
 		{diagnosticsPageForOS("linux"), "Basic checks", []string{"doctor"}, false},
@@ -154,14 +150,14 @@ func TestDiagnosticExportRequiresAbsoluteFile(t *testing.T) {
 func TestServiceUninstallRunsOnceAndKeepsRecoveryPage(t *testing.T) {
 	fake := &fakeRunner{results: map[string]Result{"service uninstall": {Code: 1, Error: &CLIError{Code: "service_error", Message: "manager unavailable"}}}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(fake, strings.NewReader("6\n0\n"), &out), ServicePage())
+	RunPage(context.Background(), NewSession(fake, strings.NewReader("2\n1\n0\n0\n"), &out), ServicePage())
 	count := 0
 	for _, args := range fake.calls {
 		if reflect.DeepEqual(args, []string{"service", "uninstall"}) {
 			count++
 		}
 	}
-	if count != 1 || !strings.Contains(out.String(), "manager unavailable") || strings.Count(out.String(), "\nStart at Login\n") != 2 {
+	if count != 1 || !strings.Contains(out.String(), "manager unavailable") || strings.Count(out.String(), "\nLogin Startup — Advanced\n") != 2 {
 		t.Fatalf("count=%d calls=%v output=%s", count, fake.calls, out.String())
 	}
 }
@@ -208,5 +204,27 @@ func TestMaintenancePlatformActionsAndOrder(t *testing.T) {
 				t.Errorf("%s action %d = %q, want %q", tt.goos, i, view.Actions[i].Label, label)
 			}
 		}
+	}
+}
+
+func TestLoginStartupToggleFollowsState(t *testing.T) {
+	for _, tt := range []struct{ data, label, command string }{
+		{`{"service":{"installed":false,"enabled":false}}`, "Enable start at login", "enable"},
+		{`{"service":{"installed":true,"enabled":false}}`, "Enable start at login", "enable"},
+		{`{"service":{"installed":true,"enabled":true}}`, "Disable start at login", "disable"},
+	} {
+		runner := &fakeRunner{results: map[string]Result{"startup status": {Data: json.RawMessage(tt.data)}}}
+		view, err := ServicePage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+		if err != nil || len(view.Actions) != 3 || view.Actions[0].Label != tt.label || !reflect.DeepEqual(view.Actions[0].Args, []string{"startup", tt.command}) {
+			t.Fatalf("view=%+v err=%v", view, err)
+		}
+	}
+}
+
+func TestLoginStartupUnknownHasNoToggle(t *testing.T) {
+	runner := &fakeRunner{results: map[string]Result{"startup status": {Code: 1, Error: &CLIError{Message: "manager unavailable"}}}}
+	view, err := ServicePage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+	if err != nil || len(view.Actions) != 2 || view.Actions[0].Label != "View details" || view.Actions[1].Next == nil {
+		t.Fatalf("view=%+v err=%v", view, err)
 	}
 }

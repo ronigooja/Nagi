@@ -14,27 +14,52 @@ func init() {
 	RegisterPage("advanced", AdvancedPage)
 }
 
-// ServicePage exposes the existing per-user service and startup commands.
+// ServicePage presents login activation separately from current engine controls.
 func ServicePage() *Page {
 	return &Page{Title: "Start at Login", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		return PageView{Context: loginStartupSummary(s.Fetch(ctx, "startup", "status")), Actions: []Item{
-			{Label: "Service details", Args: []string{"service", "status"}},
-			{Label: "Install login service", Args: []string{"service", "install"}, Impact: "Also enables login startup"},
-			{Label: "Startup details", Args: []string{"startup", "status"}},
-			{Label: "Enable login startup", Args: []string{"startup", "enable"}},
-			{Label: "Disable login startup", Args: []string{"startup", "disable"}, Impact: "Can stop mihomo"},
-			{Label: "Uninstall login service", Args: []string{"service", "uninstall"}, Impact: "Can stop mihomo"},
-		}}, nil
+		result := s.Fetch(ctx, "startup", "status")
+		actions := []Item{}
+		if enabled, known := loginStartupEnabled(result); known {
+			toggle := Item{Label: "Enable start at login", Args: []string{"startup", "enable"}}
+			if enabled {
+				toggle = Item{Label: "Disable start at login", Args: []string{"startup", "disable"}, Impact: "Keeps the current proxy running"}
+			}
+			actions = append(actions, toggle)
+		}
+		actions = append(actions,
+			Item{Label: "View details", Args: []string{"startup", "status"}},
+			Item{Label: "Advanced options", Next: loginStartupAdvancedPage},
+		)
+		return PageView{Context: loginStartupSummary(result), Actions: actions}, nil
 	}}
+}
+
+func loginStartupAdvancedPage() *Page {
+	return actionPage("Login Startup — Advanced",
+		Item{Label: "Remove login startup service", Args: []string{"service", "uninstall"}, Impact: "Can stop mihomo; keeps Nagi and configuration"},
+	)
+}
+
+func loginStartupEnabled(result Result) (bool, bool) {
+	if result.Error != nil || result.Code != 0 {
+		return false, false
+	}
+	var service map[string]json.RawMessage
+	_ = json.Unmarshal(menuObject(result.Data)["service"], &service)
+	var enabled *bool
+	if json.Unmarshal(service["enabled"], &enabled) != nil || enabled == nil {
+		return false, false
+	}
+	return *enabled, true
 }
 
 func loginStartupSummary(result Result) string {
 	if result.Error != nil || result.Code != 0 {
-		reason := "read failed; open Startup details"
+		reason := "read failed; open View details"
 		if result.Error != nil && result.Error.Message != "" {
 			reason = result.Error.Message
 		}
-		return "Login startup: unavailable | Service: unavailable | Mihomo: unavailable — " + reason
+		return "Start automatically at login: unavailable | Mihomo: unavailable — " + reason
 	}
 	object := menuObject(result.Data)
 	var service, engine map[string]json.RawMessage
@@ -50,8 +75,7 @@ func loginStartupSummary(result Result) string {
 		}
 		return no
 	}
-	return "Login startup: " + state(service["enabled"], "enabled", "disabled") +
-		" | Service: " + state(service["active"], "running", "stopped") +
+	return "Start automatically at login: " + state(service["enabled"], "On", "Off") +
 		" | Mihomo: " + state(engine["running"], "running", "stopped")
 }
 
