@@ -32,7 +32,8 @@ type manifest struct {
 	Operations []Operation `json:"operations"`
 }
 
-var checkpoint = func(string) {} // Tests replace this with abrupt-process-exit injection.
+var syncHook = func(string) error { return nil } // Tests inject storage errors.
+var checkpoint = func(string) {}                 // Tests replace this with abrupt-process-exit injection.
 
 // cleanPath refuses symlinks in every existing component, including the leaf.
 func cleanPath(p string) error {
@@ -53,7 +54,16 @@ func cleanPath(p string) error {
 	}
 	return nil
 }
+func syncFile(f *os.File) error {
+	if e := syncHook(f.Name()); e != nil {
+		return e
+	}
+	return fullSync(f)
+}
 func syncDir(p string) error {
+	if e := syncHook(p); e != nil {
+		return e
+	}
 	f, e := os.Open(p)
 	if e != nil {
 		return e
@@ -135,7 +145,7 @@ func copyTree(src, dst string) error {
 		e = metadata(dst, s)
 	}
 	if e == nil {
-		e = fullSync(out)
+		e = syncFile(out)
 	}
 	closeErr := out.Close()
 	if e == nil {
@@ -163,7 +173,7 @@ func writeJSON(path string, v any) error {
 	}
 	_, e = f.Write(b)
 	if e == nil {
-		e = fullSync(f)
+		e = syncFile(f)
 	}
 	ce := f.Close()
 	if e == nil {
@@ -180,7 +190,7 @@ func publishCommit(root string) error {
 	defer os.Remove(p)
 	_, e = f.WriteString("true")
 	if e == nil {
-		e = fullSync(f)
+		e = syncFile(f)
 	}
 	ce := f.Close()
 	if e == nil {
@@ -192,7 +202,12 @@ func publishCommit(root string) error {
 	if e = os.Rename(p, filepath.Join(root, "committed")); e != nil {
 		return e
 	}
-	return syncDir(root)
+	if e = syncDir(root); e != nil {
+		removeErr := os.Remove(filepath.Join(root, "committed"))
+		syncErr := syncDir(root)
+		return errors.Join(e, removeErr, syncErr)
+	}
+	return nil
 }
 func load(root string) (manifest, error) {
 	var m manifest
@@ -256,6 +271,26 @@ func inside(parent, child string) bool {
 	return e == nil && r != "." && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator))
 }
 
+// CommittedError means file changes committed durably, but cleanup needs recovery.
+type CommittedError struct{ Err error }
+
+func (e *CommittedError) Error() string {
+	return "installation files committed; journal cleanup pending: " + e.Err.Error()
+}
+func (e *CommittedError) Unwrap() error { return e.Err }
+func syncAncestors(p string) error {
+	for {
+		if e := syncDir(p); e != nil {
+			return e
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return nil
+		}
+		p = parent
+	}
+}
+
 // Prepare preserves both new and original trees before publishing the manifest.
 // Callers must hold WithLock throughout Prepare, Activate, and Commit.
 func Prepare(root string, ops []Operation) error {
@@ -284,6 +319,9 @@ func Prepare(root string, ops []Operation) error {
 			return e
 		}
 		if _, e := os.Stat(filepath.Dir(o.Target)); e != nil {
+			return e
+		}
+		if e := syncAncestors(filepath.Dir(o.Target)); e != nil {
 			return e
 		}
 		n := Operation{Target: o.Target}
@@ -505,7 +543,10 @@ func Commit(root string) error {
 		return e
 	}
 	checkpoint("committed")
-	return cleanup(root)
+	if e := cleanup(root); e != nil {
+		return &CommittedError{Err: e}
+	}
+	return nil
 }
 
 // Recover is idempotent even when a previous rollback was interrupted.
@@ -619,6 +660,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	err := run(args, stdout, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "nagi installation transaction:", err)
+		var committed *CommittedError
+		if errors.As(err, &committed) {
+			return 4
+		}
 		return 1
 	}
 	return 0

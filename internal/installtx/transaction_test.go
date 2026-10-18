@@ -260,3 +260,83 @@ func TestSourceParentAlias(t *testing.T) {
 		t.Fatal("accepted source leaf symlink")
 	}
 }
+
+func TestStorageFailureBeforePrepareLeavesTargetsUnchanged(t *testing.T) {
+	for _, phase := range []string{"file", "ancestor"} {
+		t.Run(phase, func(t *testing.T) {
+			root, ops := fixture(t)
+			syncHook = func(p string) error {
+				if phase == "file" && filepath.Base(p) == "old-0" || phase == "ancestor" && p == filepath.Dir(ops[0].Target) {
+					return fmt.Errorf("injected sync failure")
+				}
+				return nil
+			}
+			defer func() { syncHook = func(string) error { return nil } }()
+			if e := Prepare(root, ops); e == nil {
+				t.Fatal("sync error ignored")
+			}
+			assertVersion(t, ops, "old")
+			syncHook = func(string) error { return nil }
+			must(t, Recover(root))
+			assertVersion(t, ops, "old")
+		})
+	}
+}
+func TestStorageFailureAfterRenameRemainsRecoverable(t *testing.T) {
+	root, ops := fixture(t)
+	must(t, Prepare(root, ops))
+	syncHook = func(p string) error {
+		if p == filepath.Dir(ops[0].Target) {
+			return fmt.Errorf("injected parent sync failure")
+		}
+		return nil
+	}
+	defer func() { syncHook = func(string) error { return nil } }()
+	if e := Activate(root); e == nil {
+		t.Fatal("sync error ignored")
+	}
+	check(t, ops[0].Target, "new-nagi")
+	syncHook = func(string) error { return nil }
+	must(t, Recover(root))
+	assertVersion(t, ops, "old")
+}
+func TestPostCommitCleanupFailureReportsCommitted(t *testing.T) {
+	root, ops := fixture(t)
+	must(t, Prepare(root, ops))
+	must(t, Activate(root))
+	syncHook = func(p string) error {
+		if p == filepath.Dir(root) {
+			return fmt.Errorf("injected cleanup sync failure")
+		}
+		return nil
+	}
+	defer func() { syncHook = func(string) error { return nil } }()
+	var out bytes.Buffer
+	if got := Run([]string{"commit", root}, &out, &out); got != 4 {
+		t.Fatalf("exit %d: %s", got, out.String())
+	}
+	assertVersion(t, ops, "new")
+	syncHook = func(string) error { return nil }
+	must(t, Recover(root))
+	assertVersion(t, ops, "new")
+}
+func TestCommitMarkerSyncFailureRollsBack(t *testing.T) {
+	root, ops := fixture(t)
+	must(t, Prepare(root, ops))
+	must(t, Activate(root))
+	failed := false
+	syncHook = func(p string) error {
+		if p == root && !failed {
+			failed = true
+			return fmt.Errorf("injected commit sync failure")
+		}
+		return nil
+	}
+	defer func() { syncHook = func(string) error { return nil } }()
+	if e := Commit(root); e == nil {
+		t.Fatal("commit sync error ignored")
+	}
+	syncHook = func(string) error { return nil }
+	must(t, Recover(root))
+	assertVersion(t, ops, "old")
+}
