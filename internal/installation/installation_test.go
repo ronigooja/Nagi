@@ -26,6 +26,13 @@ import (
 func cliArtifact(version string) string {
 	return `#!/bin/sh
 if [ "${1:-}" = __install-transaction ]; then
+  if [ -n "${NAGI_TEST_TX_LOG:-}" ] && [ "${2:-}" = --locked ]; then
+    printf '%s\n' "${3:-}" >> "$NAGI_TEST_TX_LOG"
+  fi
+  if [ "${NAGI_TEST_FAIL_COMMIT_CLEANUP:-}" = 1 ] && [ "${3:-}" = commit ]; then
+    "$NAGI_TEST_INSTALL_HELPER" "$@" || exit $?
+    exit 4
+  fi
   if [ "${NAGI_TEST_FAIL_ACTIVATE:-}" = 1 ] && [ "${3:-}" = activate ]; then
     "$NAGI_TEST_INSTALL_HELPER" "$@" || exit $?
     exit 1

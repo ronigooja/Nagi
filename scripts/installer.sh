@@ -330,7 +330,7 @@ else
             commit_result=$?
             if (( commit_result == 4 )); then
                 app_committed=1
-                fail 'App files committed, but transaction cleanup remains pending; run installer.sh recover before further maintenance'
+                fail 'NAGI_INSTALL_FILES_COMMITTED: App files committed, but transaction cleanup remains pending; run installer.sh recover before further maintenance'
             fi
             exit "$commit_result"
         fi
@@ -470,7 +470,7 @@ else
     commit_result=$?
     if (( commit_result == 4 )); then
         committed=1
-        fail 'installation files committed, but transaction cleanup remains pending; run installer.sh recover before further maintenance'
+        fail 'NAGI_INSTALL_FILES_COMMITTED: installation files committed, but transaction cleanup remains pending; run installer.sh recover before further maintenance'
     fi
     exit "$commit_result"
 fi
