@@ -4,7 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
+	child "github.com/ronigooja/Nagi/internal/requestrewriteservice"
 	"io"
+	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -147,20 +152,54 @@ func rewriteGeneration(s string) bool {
 	return true
 }
 func startRewriteSupervisor(paths nagiruntime.Paths, generation string) error {
+	if rewriteSupervisorReady(paths, generation) {
+		return nil
+	}
+
 	executable, e := os.Executable()
 	if e != nil {
 		return e
 	}
+	readyRead, readyWrite, e := os.Pipe()
+	if e != nil {
+		return e
+	}
+	defer readyRead.Close()
 	cmd := exec.Command(executable, "__nagi-request-rewrite-supervisor", generation)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Stdin = nil
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
+	cmd.ExtraFiles = []*os.File{readyWrite}
 	if e = cmd.Start(); e != nil {
+		readyWrite.Close()
 		return e
 	}
-	go cmd.Wait()
+	readyWrite.Close()
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	readyRead.SetReadDeadline(time.Now().Add(5 * time.Second))
+	var reply [1]byte
+	if _, e = io.ReadFull(readyRead, reply[:]); e != nil || reply[0] != 1 {
+		_ = cmd.Process.Kill()
+		<-done
+		// Another already authenticated supervisor may own this generation.
+		if rewriteSupervisorReady(paths, generation) {
+			return nil
+		}
+		return rewriteFailure("rewrite_activation_failed")
+	}
 	return nil
+}
+
+func rewriteSupervisorSocket(paths nagiruntime.Paths, generation string) string {
+	return filepath.Join(paths.RuntimeDir, "rs-"+generation+".sock")
+}
+func rewriteSupervisorReady(paths nagiruntime.Paths, generation string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	status, e := child.Control(ctx, rewriteSupervisorSocket(paths, generation), "GET", "/status", generation)
+	return e == nil && status.Version == 1 && status.Generation == generation && status.Ready
 }
 
 // A generation supervisor is independent of menu/window/CLI lifetimes. It
@@ -188,88 +227,214 @@ func runRewriteSupervisor(generation string) int {
 	if unix.Fstat(fd, &st) != nil || int(st.Uid) != os.Geteuid() || st.Mode&077 != 0 || st.Mode&unix.S_IFMT != unix.S_IFREG || st.Nlink != 1 || unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB) != nil {
 		return 1
 	}
+	socket := rewriteSupervisorSocket(paths, generation)
+	if info, e := os.Lstat(socket); e == nil {
+		st, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || int(st.Uid) != os.Geteuid() || info.Mode()&os.ModeSocket == 0 {
+			return 1
+		}
+		if os.Remove(socket) != nil {
+			return 1
+		}
+	} else if !os.IsNotExist(e) {
+		return 1
+	}
+	listener, e := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+	if e != nil {
+		return 1
+	}
+	defer listener.Close()
+	if os.Chmod(socket, 0600) != nil {
+		return 1
+	}
+	server := &http.Server{ReadHeaderTimeout: time.Second, WriteTimeout: time.Second, IdleTimeout: time.Second, MaxHeaderBytes: 4096, ErrorLog: log.New(io.Discard, "", 0), Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/status" || r.URL.RawQuery != "" || r.ContentLength > 0 || len(r.TransferEncoding) > 0 {
+			w.WriteHeader(400)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(child.Status{Version: 1, Generation: generation, Ready: true})
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	// A private inherited descriptor acknowledges validated runtime ownership
+	// before the caller can publish any engine branch.
+	ready := os.NewFile(3, "rewrite-supervisor-ready")
+	if ready == nil {
+		return 1
+	}
+	if _, e = readRewriteRun(paths); e != nil {
+		ready.Close()
+		return 1
+	}
+	if _, e = ready.Write([]byte{1}); e != nil {
+		ready.Close()
+		return 1
+	}
+	ready.Close()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		finished := false
-		_, e = withNamedLock(paths, "config.lock", func() (any, error) {
-			run, e := readRewriteRun(paths)
-			if e != nil || run.Generation != generation {
-				finished = true
-				return nil, e
-			}
-			backend, e := readBackend(paths)
-			if e != nil || backend != run.Backend {
-				finished = true
-				return nil, rewriteFailure("rewrite_state_uncertain")
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			client, e := rewriteClient(paths)
-			if e != nil {
-				return nil, e
-			}
-			var state rewriteEngineStatus
-			if e = client.Get(ctx, "/request-rewrite/status", &state); e != nil {
-				// No authenticated heartbeat eventually blocks in a surviving engine.
-				// Close our child on proven controller disappearance only.
-				if rewriteEngineExited(ctx, paths, run) {
-					finished = true
-					_ = rewriteShutdownChild(paths, generation)
-					if run.Previous != nil {
-						_ = rewriteShutdownChild(paths, run.Previous.Generation)
-					}
-					_ = removeRewriteRun(paths)
-				}
-				return nil, e
-			}
-			if state.Generation != generation {
-				// A candidate may still be queued/prepared after lost acknowledgement.
-				// It can never publish itself. Retain ownership through its expiry window.
-				if rewriteNow().Sub(run.CreatedAt) < 35*time.Second {
-					return nil, nil
-				}
-				_ = rewriteDeleteGeneration(client, generation)
-				_ = rewriteShutdownChild(paths, generation)
-				if run.Previous != nil && state.Generation == run.Previous.Generation {
-					_ = writeRewriteRun(paths, *run.Previous)
-					_ = startRewriteSupervisor(paths, run.Previous.Generation)
-				} else {
-					_ = removeRewriteRun(paths)
-				}
-				finished = true
-				return nil, nil
-			}
-			if state.EngineEpoch != run.EngineEpoch && run.EngineEpoch != "" {
-				finished = true
-				_ = rewriteShutdownChild(paths, generation)
-				_ = removeRewriteRun(paths)
-				return nil, nil
-			}
-			if !state.TUNRunning {
-				finished = true
-				return nil, rewriteTeardown(ctx, paths)
-			}
-			health, e := rewriteChildControl(ctx, rewriteSocket(paths, generation), "GET", "/status", generation)
-			ca, caErr := requestRewriteCAStatus(paths)
-			if caErr != nil || ca.Trust != "trusted" {
-				_, _ = rewriteChildControl(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
-				return nil, nil
-			}
-			if state.State == "blocked" || e != nil || !health.Ready {
-				return nil, nil
-			}
-			if !rewriteNow().Before(run.RenewAt) {
-				if e = rewriteReconcile(ctx, paths); e != nil {
-					return nil, e
-				}
-				finished = true
-			}
-			return nil, nil
-		})
+		finished, _ := rewriteSupervisorTick(paths, generation)
 		if finished {
 			return 0
 		}
 	}
+
 	return 0
+}
+
+func rewriteSupervisorTick(paths nagiruntime.Paths, generation string) (bool, error) {
+	finished := false
+	_, err := withNamedLock(paths, "config.lock", func() (any, error) {
+		run, e := readRewriteRun(paths)
+		if errors.Is(e, os.ErrNotExist) {
+			finished = true
+			return nil, nil
+		}
+		if e != nil {
+			return nil, e
+		}
+		if run.Generation != generation {
+			finished = true
+			return nil, nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), rewriteSupervisorTimeout)
+		defer cancel()
+		backend, e := readBackend(paths)
+		if e != nil || backend != run.Backend {
+			_, _ = rewriteChildControl(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
+			return nil, rewriteFailure("rewrite_state_uncertain")
+		}
+		client, e := rewriteClient(paths)
+		if e != nil {
+			return nil, e
+		}
+		var state rewriteEngineStatus
+		if e = client.Get(ctx, "/request-rewrite/status", &state); e != nil {
+			if rewriteEngineExited(ctx, paths, run) {
+				if e = rewriteCleanupOwned(ctx, paths, run); e != nil {
+					return nil, e
+				}
+				finished = true
+				return nil, nil
+			}
+			return nil, e
+		}
+		if state.State == "prepared" && state.Generation == generation && rewriteNow().Sub(run.CreatedAt) >= 35*time.Second {
+			if e = rewriteDeleteGenerationContext(ctx, client, generation); e != nil {
+				return nil, e
+			}
+			if e = rewriteRetireCandidate(ctx, paths, run, run.Previous != nil); e != nil {
+				return nil, e
+			}
+			finished = true
+			return nil, nil
+		}
+		if state.Generation != generation {
+			// An uncertain prepare never publishes itself. Keep ownership through the
+			// engine's 30-second candidate expiry, then clean only confirmed records.
+			if rewriteNow().Sub(run.CreatedAt) < 35*time.Second {
+				return nil, nil
+			}
+			if state.PreparedGeneration == generation {
+				if e = rewriteDeleteGenerationContext(ctx, client, generation); e != nil {
+					return nil, e
+				}
+			}
+			restore := run.Previous != nil && state.Generation == run.Previous.Generation
+			if e = rewriteRetireCandidate(ctx, paths, run, restore); e != nil {
+				return nil, e
+			}
+			finished = true
+			return nil, nil
+		}
+		if state.EngineEpoch != run.EngineEpoch && run.EngineEpoch != "" {
+			if e = rewriteCleanupOwned(ctx, paths, run); e != nil {
+				return nil, e
+			}
+			finished = true
+			return nil, nil
+		}
+		if state.BranchEnabled && (state.State == "active" || state.State == "blocked") && run.Previous != nil {
+			// CAS revokes old contexts even if the newly published child has crashed.
+			if e = rewriteShutdownRun(ctx, paths, *run.Previous); e != nil {
+				return nil, e
+			}
+			run.Previous = nil
+			if e = writeRewriteRun(paths, run); e != nil {
+				return nil, e
+			}
+		}
+		if !state.TUNRunning {
+			e = rewriteTeardown(ctx, paths)
+			finished = e == nil
+			return nil, e
+		}
+		selected, e := rewriteSelected(paths)
+		if e != nil || selected != run.Profile {
+			_, _ = rewriteChildControl(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
+			return nil, rewriteFailure("rewrite_state_uncertain")
+		}
+		snapshot, e := (rewrite.Store{ConfigDir: paths.ConfigDir, Profile: selected}).Load()
+		if e != nil {
+			return nil, e
+		}
+		if !snapshot.Document().Enabled {
+			e = rewriteTeardown(ctx, paths)
+			finished = e == nil
+			return nil, e
+		}
+		if snapshot.Version() != run.RuleVersion {
+			_, _ = rewriteChildControl(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
+			return nil, rewriteFailure("rewrite_state_uncertain")
+		}
+		health, e := rewriteChildControl(ctx, rewriteSocket(paths, generation), "GET", "/status", generation)
+		ca, caErr := requestRewriteCAStatus(paths)
+		if caErr != nil || ca.Trust != "trusted" {
+			_, _ = rewriteChildControl(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
+			return nil, nil
+		}
+		if state.State == "blocked" || e != nil || !health.Ready {
+			return nil, nil
+		}
+		if !rewriteNow().Before(run.RenewAt) {
+			if e = rewriteReconcile(ctx, paths); e != nil {
+				return nil, e
+			}
+			finished = true
+		}
+		return nil, nil
+	})
+	return finished, err
+}
+
+var rewriteSupervisorTimeout = 5 * time.Second
+
+func rewriteCleanupOwned(ctx context.Context, paths nagiruntime.Paths, run rewriteRun) error {
+	if e := rewriteShutdownRun(ctx, paths, run); e != nil {
+		return e
+	}
+	if run.Previous != nil {
+		if e := rewriteShutdownRun(ctx, paths, *run.Previous); e != nil {
+			return e
+		}
+	}
+	return removeRewriteRun(paths)
+}
+func rewriteRetireCandidate(ctx context.Context, paths nagiruntime.Paths, run rewriteRun, restore bool) error {
+	if e := rewriteShutdownRun(ctx, paths, run); e != nil {
+		return e
+	}
+	if restore && run.Previous != nil {
+		if e := writeRewriteRun(paths, *run.Previous); e != nil {
+			return e
+		}
+		return rewriteStartSupervisor(paths, run.Previous.Generation)
+	}
+	if run.Previous != nil {
+		if e := rewriteShutdownRun(ctx, paths, *run.Previous); e != nil {
+			return e
+		}
+	}
+	return removeRewriteRun(paths)
 }

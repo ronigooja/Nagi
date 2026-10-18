@@ -114,7 +114,7 @@ The matching engine shares identical node measurements across group schedulers a
 
 ## Private request rewrite service
 
-The private service requires Go 1.24.0 or newer and goproxy v1.9.2. The shared `scripts/build.sh` check applies to CLI and release builds; `go.mod`/`go.sum` lock transitive versions. `go mod verify` checks the downloaded module contents. Public rewrite commands, lifecycle activation, OS trust and UI remain unavailable.
+The private service requires Go 1.24.0 or newer and goproxy v1.9.2. The shared `scripts/build.sh` check applies to CLI and release builds; `go.mod`/`go.sum` lock transitive versions. `go mod verify` checks the downloaded module contents. The public CLI, lifecycle coordinator and platform trust interfaces are implemented. Menu/App request rewrite controls and native macOS trust/TUN acceptance remain pending.
 
 Run focused race checks with an isolated test environment:
 
@@ -125,7 +125,7 @@ go mod verify
 
 The child fixture exercises a real subprocess under an ordinary UID. On Linux when tests run as root, it drops the fixture to UID/GID 65534; the production root-child guard remains enabled. All CA material and sockets are throwaway and no OS trust is installed.
 
-For the opt-in real engine integration, supply a clean tracked checkout at reviewed commit `37a10500833043e140f8e44806833902f8184c25`:
+For the opt-in real engine integration, supply a clean tracked checkout at reviewed commit `d7c0a70776e4e698bee43f2044e7fa91d2d67d7b`:
 
 ```sh
 GO=/path/to/go MIHOMO_DIR=/path/to/committed-engine ./scripts/test-request-rewrite-engine.sh
@@ -134,3 +134,30 @@ GO=/path/to/go MIHOMO_DIR=/path/to/committed-engine ./scripts/test-request-rewri
 The script checks that exact commit and tracked cleanliness, creates a temporary module with local source replacements, and removes it on exit. It leaves Nagi's module files and `engine.lock` unchanged. Engine dependencies are confined to the temporary module. The fixture uses synthetic TUN metadata through the real engine tunnel, authenticated channels, configured engine hosts and native DIRECT outbound to local HTTP/TLS servers. It verifies Rule/Global/Direct, Host/SNI changes, path/query edits, gzip JSON and exact integers. Expected final output is `actual-engine HTTP/TLS Rule/Global/Direct roundtrips passed`. It neither opens an OS TUN nor starts an installed engine, uses subscriptions or changes user routing. Invalid environment proxy addresses may be supplied to confirm the adapter ignores them. The reviewed local engine is not yet a remotely verified release pin.
 
 Native macOS peer-credential runtime behavior, real TUN/process capture, platform CA trust and final lifecycle/UI acceptance require their respective host/integration gates. Cross-compilation does not establish those results. The domain 64 MiB workspace reservation bounds admission, not process heap/RSS; pressure acceptance must measure the complete runtime.
+
+
+## Request rewrite coordinator
+
+The CLI/coordinator requires reviewed local mihomo commit `d7c0a70776e4e698bee43f2044e7fa91d2d67d7b`, including restricted immutable owner binding. That commit has not been published or made the release pin here. `nagi update` cannot provide it until a matching release exists. Ordinary operations remain compatible with the existing engine; rewrite enable reports an actionable capability error. Do not change `engine.lock` to bypass remote availability checks.
+
+For an explicitly labeled development pair, build the reviewed engine checkout separately and select its executable without modifying the pin:
+
+```sh
+go -C /path/to/reviewed-mihomo build -tags with_gvisor -o /tmp/nagi-development-mihomo .
+make build cli
+NAGI_MIHOMO_BIN=/tmp/nagi-development-mihomo ./bin/nagi --json version
+```
+
+These paths are development examples. Use isolated Nagi home/XDG directories for runtime work; do not point a test at ordinary subscriptions, existing CA files, installed services or proxy ports.
+
+Run the exact-source coordinator fixture with:
+
+```sh
+GO=/path/to/go MIHOMO_DIR=/path/to/reviewed-mihomo ./scripts/test-request-rewrite-coordinator.sh
+NAGI_REWRITE_TEST_ENGINE=/path/to/reviewed-mihomo-binary go test -race ./internal/privileged/...
+go test -race ./...
+```
+
+The coordinator script checks the exact clean engine commit, builds a temporary source fixture and CLI, and runs all commands under an ordinary UID (65534 when the Linux test runner is root). It uses real engine Unix control/mTLS channels and an explicitly synthetic internal TUN identity, never an OS TUN. Isolated CA generation/public export and `SSL_CERT_FILE`/`SSL_CERT_DIR` exercise trust without modifying an OS trust store. The fixture verifies persistent child/supervisor readiness, repeated enable, rejected-probe rule/domain rollback with the original supervisor alive, CAS cutover, child crash blocking and explicit recovery, trust-root removal and fresh assessment, scheduled transport-certificate renewal, engine-exit cleanup, same-epoch config reload, TUN teardown and quit. Temporary state and artifacts are removed. Empty generation lock files contain no secrets and may remain during a user session.
+
+The helper fixture covers a real restricted root engine, authenticated fixed-UID bootstrap, mTLS synthetic probe, reload retention, mismatched/unbound owner rejection and redacted status. Unit/race fixtures cover incomplete capability limits, actionable CLI prerequisite reasons, uncertain publish/disable, retained two-generation ownership, blocked-generation retirement, shutdown failure, private journal permissions and FIFO-safe root-store reads. These checks passed on Linux; CLI cross-builds cover Linux/macOS AMD64/ARM64. Actual OS TUN capture/routes, sleep/wake, native macOS keychain trust and macOS interaction remain unverified. Raw request fixtures, explicit rule exports and explicitly viewed engine configurations/logs may contain sensitive content and must not be attached to ordinary diagnostics.

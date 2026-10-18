@@ -39,11 +39,12 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/rules` | Profile-scoped persistent custom rules, imported rule sets, effective overlays, conflict reports, and rule-test API data contracts. |
 | `internal/diagnostic` | Read-only health, connectivity, permission, exposure, and redacted export checks. |
 | `internal/service` | Per-user launchd and systemd service installation and status. |
+| `internal/requestrewrite` | Immutable per-profile request authorization/rules, transformations, private storage and per-user CA primitives. |
+| `internal/requestrewriteservice` | Persistent unprivileged HTTP/TLS adapter with engine-authenticated handoff/reinjection and private generation control. |
 | `internal/traffic` | OS proxy and macOS TUN DNS settings, restore journals, and engine exit recovery. |
 | `internal/menu` | Terminal input, pages, command result presentation, and stream cancellation. |
 | `internal/installation` | Verified release downloads, App management, maintenance sequencing, and detached App update launch. |
 | `internal/installtx` | Durable installation file transactions, per-prefix locking, and recovery through a private CLI entry point. |
-| `internal/requestrewrite`, `internal/requestrewriteservice` | Immutable request rules, private storage/CA primitives and the internal unprivileged goproxy child/data adapter. Public activation and lifecycle coordination remain unavailable; see the [request rewrite design](docs/design/request-rewrite.md). |
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
@@ -52,6 +53,8 @@ On macOS, an optional root LaunchDaemon helper can own mihomo for TUN access. Th
 Tailscale state is persistent and separate from configuration snapshots. User-mode and privileged identities remain isolated; the helper rewrites root state paths and mihomo enforces restricted policy and adapter handoff. See the [runtime design](docs/design/runtime.md#tailscale-configuration-and-identity) and [state decision](docs/decisions/0006-privileged-tailscale-state.md).
 
 DNS policy is stored in user-owned profile overrides. The CLI validates a generated effective profile before activation and uses the private control API for DNS queries and cache clearing. TUN DNS interception and optional local resolution of proxy destinations are mihomo capabilities. On macOS, Nagi also points network-service DNS settings at the running TUN's DNS endpoints and restores their prior settings when TUN or the engine stops. The privileged backend keeps this restore journal and performs network-service changes inside the authenticated helper. `dns check` inspects the selected configuration and queries mihomo through its private control API. It does not verify operating-system routes, resolver capture, or external DNS leaks. See the [DNS reference](docs/reference/cli.md#dns-policy-and-checks) and the [system DNS decision](docs/decisions/0004-macos-tun-dns.md).
+
+Request rewriting is an accepted narrow extension: Nagi transforms explicitly authorized request content in an unprivileged child, while mihomo retains TUN capture, DNS, original connection identity, routing and all outbound forwarding. The CLI owns lifecycle coordination, generation journals, supervision, CA/trust operations and transactional rule activation. The helper binds root-engine operations to its authenticated session UID and never reads the user CA private key. This implementation requires the separately reviewed development engine; the current release pin has no rewrite protocol. Menu/App controls remain unimplemented. See the [rewrite design](docs/design/request-rewrite.md) and [CLI contract](docs/reference/cli.md#tun-request-rewrite).
 
 ## Interfaces and data
 

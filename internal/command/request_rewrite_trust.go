@@ -7,14 +7,17 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
+	"golang.org/x/sys/unix"
 )
 
 var rewriteTrustAssessment = assessRewriteTrust
@@ -64,7 +67,7 @@ func assessRewriteTrust(public []byte) string {
 	if e != nil {
 		return "unknown"
 	}
-	roots, e := x509.SystemCertPool()
+	roots, e := rewriteFreshSystemRoots()
 	if e != nil {
 		return "unknown"
 	}
@@ -141,4 +144,66 @@ func requestRewriteCATrust(ctx context.Context, paths nagiruntime.Paths, install
 		return status, rewriteFailure("rewrite_ca_trust_unknown")
 	}
 	return status, nil
+}
+
+// Linux roots are reread for each assessment. SystemCertPool caches its first
+// snapshot processwide, which is unsuitable for a persistent supervisor.
+func rewriteFreshSystemRoots() (*x509.CertPool, error) {
+	roots := x509.NewCertPool()
+	files := []string{"/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/ca-bundle.pem", "/etc/pki/tls/cacert.pem", "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem", "/etc/ssl/cert.pem"}
+	dirs := []string{"/etc/ssl/certs", "/etc/pki/tls/certs"}
+	if value := os.Getenv("SSL_CERT_FILE"); value != "" {
+		files = []string{value}
+	}
+	if value := os.Getenv("SSL_CERT_DIR"); value != "" {
+		dirs = strings.Split(value, ":")
+	}
+	total := int64(0)
+	loaded := false
+	read := func(path string) bool {
+		f, e := os.OpenFile(path, os.O_RDONLY|unix.O_NONBLOCK, 0)
+		if e != nil {
+			return false
+		}
+		defer f.Close()
+		if info, e := f.Stat(); e != nil || !info.Mode().IsRegular() {
+			return false
+		}
+		b, e := io.ReadAll(io.LimitReader(f, 4<<20+1))
+		if e != nil || len(b) > 4<<20 {
+			return false
+		}
+		total += int64(len(b))
+		if total > 16<<20 {
+			return false
+		}
+		return roots.AppendCertsFromPEM(b)
+	}
+	for _, file := range files {
+		if read(file) {
+			loaded = true
+			break
+		}
+	}
+	for _, dir := range dirs {
+		entries, e := os.ReadDir(dir)
+		if e != nil {
+			continue
+		}
+		if len(entries) > 4096 {
+			return nil, fmt.Errorf("certificate store limit")
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && read(filepath.Join(dir, entry.Name())) {
+				loaded = true
+			}
+			if total > 16<<20 {
+				return nil, fmt.Errorf("certificate store limit")
+			}
+		}
+	}
+	if !loaded {
+		return nil, fmt.Errorf("certificate store unavailable")
+	}
+	return roots, nil
 }

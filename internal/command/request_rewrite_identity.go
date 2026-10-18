@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
+	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -29,6 +31,9 @@ var rewriteProcessIdentity = func(pid int) (string, error) {
 			return "", rewriteFailure("rewrite_auth")
 		}
 		fields := strings.Fields(string(data[end+1:]))
+		if len(fields) > 0 && (fields[0] == "Z" || fields[0] == "X") {
+			return "", os.ErrNotExist
+		}
 		if len(fields) < 20 {
 			return "", rewriteFailure("rewrite_auth")
 		}
@@ -89,4 +94,41 @@ func rewriteEngineExited(ctx context.Context, paths nagiruntime.Paths, run rewri
 	}
 	identity, e := rewriteProcessIdentity(run.EnginePID)
 	return errors.Is(e, os.ErrNotExist) || e == nil && identity != run.EngineStartIdentity
+}
+
+var rewriteRunProcessGone = func(run rewriteRun) bool {
+	identity, e := rewriteProcessIdentity(run.PID)
+	return errors.Is(e, os.ErrNotExist) || e == nil && identity != run.StartIdentity
+}
+
+func rewriteShutdownRun(ctx context.Context, paths nagiruntime.Paths, run rewriteRun) error {
+	// Request shutdown even when the PID has been recycled; only the private
+	// generation socket can authorize cleanup of a surviving same-generation child.
+	_, _ = rewriteChildControl(ctx, rewriteSocket(paths, run.Generation), "POST", "/shutdown", run.Generation)
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if rewriteRunProcessGone(run) {
+			dir, e := rewriteRuntimeDir(paths)
+			if e != nil {
+				return e
+			}
+			defer syscall.Close(dir)
+			name := "rewrite-" + run.Generation + ".sock"
+			var st unix.Stat_t
+			e = unix.Fstatat(dir, name, &st, unix.AT_SYMLINK_NOFOLLOW)
+			if errors.Is(e, os.ErrNotExist) {
+				return nil
+			}
+			if e != nil || int(st.Uid) != os.Geteuid() || st.Mode&unix.S_IFMT != unix.S_IFSOCK {
+				return rewriteFailure("rewrite_auth")
+			}
+			return unix.Unlinkat(dir, name, 0)
+		}
+		select {
+		case <-ctx.Done():
+			return rewriteFailure("rewrite_state_uncertain")
+		case <-ticker.C:
+		}
+	}
 }

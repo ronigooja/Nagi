@@ -18,6 +18,7 @@ Use the macOS menu bar app for daily controls, live traffic rates, and active co
 - **Configuration profiles:** import, switch, export, back up, restore, and compare profiles; apply local overrides separately from source configuration.
 - **DNS leak prevention:** encrypted DoH, TUN DNS interception, and mihomo resolution of proxied destinations in the default settings; apply those DNS safeguards over a subscription profile while retaining its nodes, groups, and routing rules.
 - **Low-latency proxying:** in a macOS-to-Linux LAN VLESS TCP+TLS benchmark, Nagi measured 5.42 ms median for new connections and 0.32 ms for reused requests with the server's default TCP ACK settings. A reference Shadowrocket run measured 53.36 ms and 0.55 ms; the runs took place on different dates and network conditions, so these figures are indicative only. See the [benchmark notes](docs/development/benchmarks.md).
+- **Request rewrite CLI:** private per-profile authorized domains and ordered HTTP/HTTPS request rules, no-network previews, explicit CA/trust management and supervised TUN-only activation. Requires the [reviewed development engine](docs/development/build-and-test.md#request-rewrite-coordinator); the release pin and request rewrite menu/App controls are not available yet.
 - **Routing and DNS:** custom rules, imported rule sets, domain/IP rule tests, rule/global/direct modes, DNS-over-HTTPS (DoH) policy, and domain-specific DNS exceptions.
 - **Traffic access:** macOS system proxy settings, TUN controls on macOS and Linux, and proxy listener and LAN access settings.
 - **Monitoring and recovery:** connection inspection and closure, live logs, read-only diagnostics, and login startup services.
@@ -93,7 +94,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [macOS connections window](docs/design/connections-window.md): snapshot scheduling, cancellation, and operation coordination.
 - [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
-- [Request rewrite design](docs/design/request-rewrite.md) and [proposed decision](docs/decisions/0010-tun-request-rewrite.md): implemented domain/private service primitives for TUN-only HTTP/HTTPS rewriting; public activation, commands and UI remain unavailable.
+- [Request rewrite CLI](docs/reference/cli.md#tun-request-rewrite), [design](docs/design/request-rewrite.md) and [decision](docs/decisions/0010-tun-request-rewrite.md): implemented CLI/coordinator against a reviewed development engine; release integration and menu/App controls remain pending.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
 - [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
 - [Per-profile rules decision](docs/decisions/0008-per-profile-rules.md): isolated rule ownership and subscription validation.

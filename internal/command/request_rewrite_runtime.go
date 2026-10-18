@@ -69,7 +69,18 @@ type rewriteRun struct {
 }
 
 func rewriteFailure(code string) error {
-	return fail("request_rewrite_error", fmt.Errorf("%s; run `nagi request-rewrite status` or `nagi request-rewrite disable`", code))
+	next := "run `nagi request-rewrite status` or `nagi request-rewrite disable`"
+	switch code {
+	case "rewrite_capability_missing":
+		next = "a matching engine update is required; use `nagi update` once published, or build the reviewed development engine as documented in docs/development/build-and-test.md#request-rewrite-coordinator"
+	case "rewrite_tun_required":
+		next = "run `nagi tun enable`, then retry `nagi request-rewrite enable`"
+	case "rewrite_ca_required":
+		next = "run `nagi request-rewrite ca generate`, then explicitly install trust"
+	case "rewrite_ca_trust_required":
+		next = "run `nagi request-rewrite ca trust install`; on Linux export the public CA and use your distribution/application trust settings"
+	}
+	return fail("request_rewrite_error", fmt.Errorf("%s; %s", code, next))
 }
 func rewriteDomainError(err error) error {
 	if err == nil {
@@ -123,7 +134,7 @@ func rewriteStatusFor(ctx context.Context, paths nagiruntime.Paths, name string)
 		var api *control.APIError
 		if errors.As(err, &api) && api.Status == 404 {
 			code = "rewrite_capability_missing"
-			out.Recovery = "nagi update"
+			out.Recovery = "Build the reviewed development engine: docs/development/build-and-test.md#request-rewrite-coordinator"
 		}
 		out.LastError = &code
 		return out, nil
@@ -186,6 +197,15 @@ func requestRewriteSetEnabled(ctx context.Context, paths nagiruntime.Paths, enab
 		}
 		return RewriteStatus{Profile: name, Actual: "disabled", Recovery: "nagi request-rewrite import FILE"}, rewriteFailure("rewrite_invalid")
 	}
+	if enabled {
+		candidate, e := store.Load()
+		if e != nil {
+			return RewriteStatus{}, rewriteDomainError(e)
+		}
+		if _, _, e = rewritePrerequisites(ctx, paths, candidate); e != nil {
+			return RewriteStatus{}, e
+		}
+	}
 	_, e = store.Edit(ctx, func(d *rewrite.Document) error { d.Enabled = enabled; return nil })
 	if e != nil {
 		return RewriteStatus{}, rewriteDomainError(e)
@@ -237,7 +257,7 @@ func (a rewriteActivation) Rollback(ctx context.Context, old *rewrite.Snapshot) 
 			if rewriteDeleteGeneration(client, run.Generation) != nil {
 				return rewriteFailure("rewrite_state_uncertain")
 			}
-			if rewriteShutdownChild(a.paths, run.Generation) != nil {
+			if rewriteShutdownRun(ctx, a.paths, run) != nil {
 				return rewriteFailure("rewrite_state_uncertain")
 			}
 			previous := *run.Previous
@@ -305,16 +325,16 @@ var rewriteClient = controlClientForCurrentBackend
 var rewriteNow = time.Now
 var rewriteStartSupervisor = startRewriteSupervisor
 
-func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, snapshot *rewrite.Snapshot) error {
+func rewritePrerequisites(ctx context.Context, paths nagiruntime.Paths, snapshot *rewrite.Snapshot) (*control.Client, rewriteEngineStatus, error) {
 	if rewriteEffectiveUID() == 0 {
-		return rewriteFailure("rewrite_auth")
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_auth")
 	}
 	if len(snapshot.Document().Domains) == 0 {
-		return rewriteFailure("rewrite_invalid")
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_invalid")
 	}
 	client, e := rewriteClient(paths)
 	if e != nil {
-		return rewriteFailure("rewrite_unavailable")
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_unavailable")
 	}
 	var capabilities struct {
 		Versions        []int `json:"versions"`
@@ -322,36 +342,48 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 		OriginalContext bool  `json:"original_context"`
 		Reinjection     bool  `json:"reinjection"`
 		QUIC            bool  `json:"quic_domain_block"`
+		MaxContexts     int   `json:"max_contexts"`
+		MaxStreams      int   `json:"max_streams_per_context"`
+		ContextIdle     int   `json:"context_idle_seconds"`
+		ContextMax      int   `json:"context_max_seconds"`
 	}
 	if e = client.Get(ctx, "/request-rewrite/capabilities", &capabilities); e != nil {
-		return rewriteFailure("rewrite_capability_missing")
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_capability_missing")
 	}
 	supported := false
 	for _, v := range capabilities.Versions {
 		supported = supported || v == 1
 	}
-	if !supported || !capabilities.TUNOnly || !capabilities.OriginalContext || !capabilities.Reinjection || !capabilities.QUIC {
-		return rewriteFailure("rewrite_capability_missing")
+	if !supported || !capabilities.TUNOnly || !capabilities.OriginalContext || !capabilities.Reinjection || !capabilities.QUIC || capabilities.MaxContexts < 1024 || capabilities.MaxStreams < 64 || capabilities.ContextIdle < 60 || capabilities.ContextMax < 3600 {
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_capability_missing")
 	}
 	var current rewriteEngineStatus
 	if client.Get(ctx, "/request-rewrite/status", &current) != nil {
-		return rewriteFailure("rewrite_unavailable")
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_unavailable")
 	}
 	if !current.TUNRunning {
-		return rewriteFailure("rewrite_tun_required")
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_tun_required")
 	}
 	ca, e := requestRewriteCAStatus(paths)
 	if e != nil || ca.State != "generated" {
-		return rewriteFailure("rewrite_ca_required")
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_ca_required")
 	}
 	if ca.Trust != "trusted" {
-		return rewriteFailure("rewrite_ca_trust_required")
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_ca_trust_required")
 	}
 
+	return client, current, nil
+}
+
+func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, snapshot *rewrite.Snapshot) error {
+	client, current, e := rewritePrerequisites(ctx, paths, snapshot)
+	if e != nil {
+		return e
+	}
 	if run, e := readRewriteRun(paths); e == nil && current.State == "active" && run.Profile == name && current.RuleVersion == snapshot.Version() && run.Generation == current.Generation && rewriteNow().Before(run.RenewAt) {
 		health, e := rewriteChildControl(ctx, rewriteSocket(paths, run.Generation), "GET", "/status", run.Generation)
 		if e == nil && health.Ready && health.RuleVersion == snapshot.Version() {
-			return nil
+			return rewriteStartSupervisor(paths, run.Generation)
 		}
 	}
 	if r, e := readRewriteRun(paths); e == nil && r.Previous != nil {
@@ -423,7 +455,15 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 		return e
 	}
 	if e = rewriteStartSupervisor(paths, generation); e != nil {
-		_ = writeRewriteRun(paths, oldRun)
+		if oldErr == nil {
+			if writeRewriteRun(paths, oldRun) != nil {
+				return rewriteFailure("rewrite_state_uncertain")
+			}
+		} else {
+			if removeRewriteRun(paths) != nil {
+				return rewriteFailure("rewrite_state_uncertain")
+			}
+		}
 		return rewriteFailure("rewrite_activation_failed")
 	}
 	var prepared struct {
@@ -476,7 +516,16 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 	// CAS publication revokes the old contexts atomically. Shutdown uses the
 	// authenticated generation socket, never a PID read from a mutable file.
 	if previous != nil {
-		_ = rewriteShutdownChild(paths, *previous)
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if oldErr == nil && oldRun.Generation == *previous {
+			e = rewriteShutdownRun(cleanup, paths, oldRun)
+		} else {
+			e = rewriteShutdownChildContext(cleanup, paths, *previous)
+		}
+		cancel()
+		if e != nil {
+			return rewriteFailure("rewrite_state_uncertain")
+		}
 	}
 	run.Previous = nil
 	if e = writeRewriteRun(paths, run); e != nil {
@@ -571,11 +620,11 @@ func rewriteTeardown(ctx context.Context, paths nagiruntime.Paths) error {
 		// A missing socket is not proof of process exit. Compare the captured
 		// process start identity or an authenticated helper stopped response.
 		if runErr == nil && rewriteEngineExited(ctx, paths, run) {
-			if e = rewriteShutdownChildContext(ctx, paths, run.Generation); e != nil {
+			if e = rewriteShutdownRun(ctx, paths, run); e != nil {
 				return e
 			}
 			if run.Previous != nil {
-				if e = rewriteShutdownChildContext(ctx, paths, run.Previous.Generation); e != nil {
+				if e = rewriteShutdownRun(ctx, paths, *run.Previous); e != nil {
 					return e
 				}
 			}
@@ -601,7 +650,14 @@ func rewriteTeardown(ctx context.Context, paths nagiruntime.Paths) error {
 		if e = rewriteDeleteGenerationContext(ctx, client, candidate); e != nil {
 			return rewriteFailure("rewrite_state_uncertain")
 		}
-		if e = rewriteShutdownChildContext(ctx, paths, candidate); e != nil {
+		if runErr == nil && run.Generation == candidate {
+			e = rewriteShutdownRun(ctx, paths, run)
+		} else if runErr == nil && run.Previous != nil && run.Previous.Generation == candidate {
+			e = rewriteShutdownRun(ctx, paths, *run.Previous)
+		} else {
+			e = rewriteShutdownChildContext(ctx, paths, candidate)
+		}
+		if e != nil {
 			return e
 		}
 	}
@@ -612,12 +668,24 @@ func rewriteTeardown(ctx context.Context, paths nagiruntime.Paths) error {
 		if e = rewriteDeleteGenerationContext(ctx, client, generation); e != nil {
 			return rewriteFailure("rewrite_state_uncertain")
 		}
-		if e = rewriteShutdownChildContext(ctx, paths, generation); e != nil {
+		if runErr == nil && run.Generation == generation {
+			e = rewriteShutdownRun(ctx, paths, run)
+		} else if runErr == nil && run.Previous != nil && run.Previous.Generation == generation {
+			e = rewriteShutdownRun(ctx, paths, *run.Previous)
+		} else {
+			e = rewriteShutdownChildContext(ctx, paths, generation)
+		}
+		if e != nil {
 			return e
 		}
 	}
 	if runErr == nil && run.Generation != generation {
-		if e = rewriteShutdownChildContext(ctx, paths, run.Generation); e != nil {
+		if e = rewriteShutdownRun(ctx, paths, run); e != nil {
+			return e
+		}
+	}
+	if runErr == nil && run.Previous != nil && run.Previous.Generation != generation {
+		if e = rewriteShutdownRun(ctx, paths, *run.Previous); e != nil {
 			return e
 		}
 	}

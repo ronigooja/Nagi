@@ -1,13 +1,16 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -33,7 +36,7 @@ func (f *rewriteFixtureEngine) call(ctx context.Context, method, path string, bo
 	var response any
 	switch {
 	case path == "/request-rewrite/capabilities":
-		response = map[string]any{"versions": []int{1}, "tun_only": true, "original_context": true, "reinjection": true, "quic_domain_block": true}
+		response = map[string]any{"versions": []int{1}, "tun_only": true, "original_context": true, "reinjection": true, "quic_domain_block": true, "max_contexts": 1024, "max_streams_per_context": 64, "context_idle_seconds": 60, "context_max_seconds": 3600}
 	case path == "/request-rewrite/status":
 		if f.failStatus {
 			return errors.New("fixture credential must not be echoed")
@@ -121,10 +124,13 @@ func rewriteCoordinatorFixture(t *testing.T) (nagiruntime.Paths, *rewriteFixture
 	if _, e := (rewrite.CAStore{ConfigDir: paths.ConfigDir}).Generate(time.Now()); e != nil {
 		t.Fatal(e)
 	}
+	previousGone := rewriteRunProcessGone
+	rewriteRunProcessGone = func(rewriteRun) bool { return true }
 	previousIdentity := rewriteProcessIdentity
 	previousEngineIdentity := rewriteEngineIdentity
 	previousUID, previousStart, previousControl, previousSupervisor, previousClient, previousTrust := rewriteEffectiveUID, rewriteStartChild, rewriteChildControl, rewriteStartSupervisor, rewriteClient, rewriteTrustAssessment
 	t.Cleanup(func() {
+		rewriteRunProcessGone = previousGone
 		rewriteProcessIdentity = previousIdentity
 		rewriteEngineIdentity = previousEngineIdentity
 		rewriteEffectiveUID = previousUID
@@ -393,5 +399,199 @@ func TestRewriteLifecycleIntentSurvivesTeardown(t *testing.T) {
 	saved, e := store.Load()
 	if e != nil || !saved.Document().Enabled {
 		t.Fatal("lifecycle stop cleared explicit rewrite intent")
+	}
+}
+
+func TestRewriteSupervisorBlockedCutoverRetiresPrevious(t *testing.T) {
+	paths, engine, _ := rewriteCoordinatorFixture(t)
+	store := rewriteStore(paths, "work")
+	if _, e := store.Save(context.Background(), rewriteEnabledFixture(t)); e != nil {
+		t.Fatal(e)
+	}
+	run, e := readRewriteRun(paths)
+	if e != nil {
+		t.Fatal(e)
+	}
+	previous := run
+	previous.Generation = strings.Repeat("a", 32)
+	run.Previous = &previous
+	if e = writeRewriteRun(paths, run); e != nil {
+		t.Fatal(e)
+	}
+	engine.active.State = "blocked"
+	engine.calls = nil
+	finished, e := rewriteSupervisorTick(paths, run.Generation)
+	if e != nil || finished {
+		t.Fatalf("blocked ownership lost %v %v", finished, e)
+	}
+	current, e := readRewriteRun(paths)
+	if e != nil || current.Previous != nil {
+		t.Fatalf("old ownership not retired %#v %v", current, e)
+	}
+	if engine.active.State != "blocked" || !engine.active.BranchEnabled {
+		t.Fatal("crash block changed")
+	}
+	for _, call := range engine.calls {
+		if call == "PUT /request-rewrite/branch" {
+			t.Fatal("supervisor recovered crashed child automatically")
+		}
+	}
+}
+func TestRewriteSupervisorCleanupFailureRetainsJournal(t *testing.T) {
+	paths, engine, _ := rewriteCoordinatorFixture(t)
+	store := rewriteStore(paths, "work")
+	if _, e := store.Save(context.Background(), rewriteEnabledFixture(t)); e != nil {
+		t.Fatal(e)
+	}
+	run, e := readRewriteRun(paths)
+	if e != nil {
+		t.Fatal(e)
+	}
+	oldIdentity, oldTimeout, oldGone := rewriteProcessIdentity, rewriteSupervisorTimeout, rewriteRunProcessGone
+	defer func() {
+		rewriteProcessIdentity = oldIdentity
+		rewriteSupervisorTimeout = oldTimeout
+		rewriteRunProcessGone = oldGone
+	}()
+	rewriteProcessIdentity = func(pid int) (string, error) {
+		if pid == run.EnginePID {
+			return "", os.ErrNotExist
+		}
+		return "fixture-start-identity", nil
+	}
+	rewriteSupervisorTimeout = 20 * time.Millisecond
+	rewriteRunProcessGone = func(rewriteRun) bool { return false }
+	engine.failStatus = true
+	finished, e := rewriteSupervisorTick(paths, run.Generation)
+	if e == nil || finished {
+		t.Fatalf("unconfirmed cleanup lost ownership %v %v", finished, e)
+	}
+	if _, e = readRewriteRun(paths); e != nil {
+		t.Fatal("journal removed after shutdown failure")
+	}
+	rewriteRunProcessGone = func(rewriteRun) bool { return true }
+	finished, e = rewriteSupervisorTick(paths, run.Generation)
+	if e != nil || !finished {
+		t.Fatalf("confirmed cleanup failed %v %v", finished, e)
+	}
+	if _, e = readRewriteRun(paths); !os.IsNotExist(e) {
+		t.Fatal("confirmed exited engine journal retained")
+	}
+}
+func TestRewriteSupervisorReadinessFailureLeavesNoInvalidJournal(t *testing.T) {
+	paths, _, _ := rewriteCoordinatorFixture(t)
+	rewriteStartSupervisor = func(nagiruntime.Paths, string) error { return errors.New("fixture readiness rejected") }
+	if e := rewriteActivate(context.Background(), paths, "work", rewriteEnabledFixture(t)); e == nil {
+		t.Fatal("unready supervisor accepted")
+	}
+	if _, e := readRewriteRun(paths); !os.IsNotExist(e) {
+		t.Fatalf("invalid journal retained %v", e)
+	}
+}
+func TestRewriteRejectsIncompleteCapabilityLimits(t *testing.T) {
+	paths, engine, children := rewriteCoordinatorFixture(t)
+	rewriteClient = func(nagiruntime.Paths) (*control.Client, error) {
+		return control.NewWithBridge(func(ctx context.Context, method, path string, body, out any) error {
+			if path != "/request-rewrite/capabilities" {
+				return engine.call(ctx, method, path, body, out)
+			}
+			var response map[string]any
+			if e := engine.call(ctx, method, path, body, &response); e != nil {
+				return e
+			}
+			delete(response, "max_contexts")
+			data, _ := json.Marshal(response)
+			return json.Unmarshal(data, out)
+		}, nil), nil
+	}
+	if e := rewriteActivate(context.Background(), paths, "work", rewriteEnabledFixture(t)); e == nil || !strings.Contains(e.Error(), "rewrite_capability_missing") {
+		t.Fatalf("incomplete capability accepted %v", e)
+	}
+	if len(*children) != 0 {
+		t.Fatal("child started before capability gate")
+	}
+}
+func TestRewriteLinuxTrustAssessmentRefreshesRootStore(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux bundle assessment")
+	}
+	paths, _, _ := rewriteCoordinatorFixture(t)
+	public, e := (rewrite.CAStore{ConfigDir: paths.ConfigDir}).ExportPublic(time.Now())
+	if e != nil {
+		t.Fatal(e)
+	}
+	bundle := filepath.Join(t.TempDir(), "roots.pem")
+	if e = os.WriteFile(bundle, public, 0600); e != nil {
+		t.Fatal(e)
+	}
+	t.Setenv("SSL_CERT_FILE", bundle)
+	t.Setenv("SSL_CERT_DIR", t.TempDir())
+	if assessRewriteTrust(public) != "trusted" {
+		t.Fatal("fixture root not recognized")
+	}
+	if e = os.WriteFile(bundle, []byte{}, 0600); e != nil {
+		t.Fatal(e)
+	}
+	if assessRewriteTrust(public) == "trusted" {
+		t.Fatal("removed root retained in process cache")
+	}
+	fifo := filepath.Join(t.TempDir(), "fifo")
+	if e = syscall.Mkfifo(fifo, 0600); e != nil {
+		t.Fatal(e)
+	}
+	t.Setenv("SSL_CERT_FILE", fifo)
+	done := make(chan string, 1)
+	go func() { done <- assessRewriteTrust(public) }()
+	select {
+	case value := <-done:
+		if value == "trusted" {
+			t.Fatal("FIFO assessed trusted")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("root assessment blocked on FIFO")
+	}
+}
+
+func TestRewriteEnableCLIReportsPrerequisiteRecovery(t *testing.T) {
+	for _, kind := range []string{"capability", "tun", "ca", "trust"} {
+		t.Run(kind, func(t *testing.T) {
+			paths, engine, _ := rewriteCoordinatorFixture(t)
+			if _, e := rewriteStore(paths, "work").AddDomain(context.Background(), rewrite.Domain{ID: "api", Pattern: "api.service.example"}); e != nil {
+				t.Fatal(e)
+			}
+			reason, next := "", ""
+			switch kind {
+			case "capability":
+				reason = "rewrite_capability_missing"
+				next = "nagi update"
+				rewriteClient = func(nagiruntime.Paths) (*control.Client, error) {
+					return control.NewWithBridge(func(ctx context.Context, method, path string, body, out any) error {
+						if path == "/request-rewrite/capabilities" {
+							return &control.APIError{Status: 404, Message: "raw origin credential fixture"}
+						}
+						return engine.call(ctx, method, path, body, out)
+					}, nil), nil
+				}
+			case "tun":
+				reason = "rewrite_tun_required"
+				next = "nagi tun enable"
+				engine.active.TUNRunning = false
+			case "ca":
+				reason = "rewrite_ca_required"
+				next = "nagi request-rewrite ca generate"
+				if e := os.RemoveAll(filepath.Join(paths.ConfigDir, "request-rewrite", "ca")); e != nil {
+					t.Fatal(e)
+				}
+			case "trust":
+				reason = "rewrite_ca_trust_required"
+				next = "nagi request-rewrite ca trust install"
+				rewriteTrustAssessment = func([]byte) string { return "untrusted" }
+			}
+			var stdout, stderr bytes.Buffer
+			code := RunWithInput([]string{"--json", "request-rewrite", "enable"}, strings.NewReader(""), &stdout, &stderr, "test", "fixture")
+			if code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), reason) || !strings.Contains(stderr.String(), next) || strings.Contains(stderr.String(), "origin credential") {
+				t.Fatalf("unactionable/redaction failure: exit%d %s %s", code, stdout.String(), stderr.String())
+			}
+		})
 	}
 }
