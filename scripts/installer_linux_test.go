@@ -35,6 +35,18 @@ func init() {
 		json.NewEncoder(os.Stdout).Encode(map[string]any{"ok": true, "nagi": "fixture", "mihomo_commit": "fixture", "mihomo": strings.TrimSpace(string(out))})
 	}
 	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "__install-transaction" {
+		cmd := exec.Command(os.Getenv("NAGI_TEST_INSTALL_HELPER"), args...)
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			if exit, ok := err.(*exec.ExitError); ok {
+				os.Exit(exit.ExitCode())
+			}
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	if len(args) == 1 && args[0] == "hold" {
 		fmt.Println("ready")
 		scanner := bufio.NewScanner(os.Stdin)
@@ -64,6 +76,7 @@ func init() {
 }
 
 func TestUpdateKeepsRunningExecutableAtInstalledPath(t *testing.T) {
+	helper := buildTransactionHelper(t)
 	for _, rollback := range []bool{false, true} {
 		t.Run(fmt.Sprintf("rollback=%t", rollback), func(t *testing.T) {
 			root := t.TempDir()
@@ -86,7 +99,7 @@ func TestUpdateKeepsRunningExecutableAtInstalledPath(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(artifact, "mihomo"), []byte("#!/bin/sh\necho fixture-engine\n"), 0755); err != nil {
 				t.Fatal(err)
 			}
-			env := append(os.Environ(), "NAGI_INSTALLER_PROCESS_FIXTURE=1", "NAGI_MIHOMO_BIN=", "SUDO_USER=", "HOME="+filepath.Join(root, "home"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"))
+			env := append(os.Environ(), "NAGI_INSTALLER_PROCESS_FIXTURE=1", "NAGI_TEST_INSTALL_HELPER="+helper, "NAGI_MIHOMO_BIN=", "SUDO_USER=", "HOME="+filepath.Join(root, "home"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"))
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			install := func(action string, fail bool) ([]byte, error) {

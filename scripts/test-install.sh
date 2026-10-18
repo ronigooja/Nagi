@@ -7,7 +7,15 @@ installer=${INSTALLER_SCRIPT:-$script_dir/installer.sh}
 [[ -f "$installer" ]] || { printf 'installer not found: %s\n' "$installer" >&2; exit 1; }
 
 test_dir=$(mktemp -d)
+test_dir=$(cd "$test_dir" && pwd -P)
 trap 'rm -rf -- "$test_dir"' EXIT
+# Use the production dispatcher for filesystem durability; command/status fixtures
+# below replace only unrelated lifecycle operations.
+if [[ -z ${NAGI_TEST_INSTALL_HELPER:-} ]]; then
+    NAGI_TEST_INSTALL_HELPER=$test_dir/transaction-helper
+    (cd "$script_dir/.." && "${GO:-go}" build -o "$NAGI_TEST_INSTALL_HELPER" ./cmd/nagi)
+fi
+export NAGI_TEST_INSTALL_HELPER
 export HOME=$test_dir/home
 export XDG_CONFIG_HOME=$test_dir/xdg-config
 if [[ $(uname -s) == Darwin ]]; then
@@ -26,7 +34,11 @@ make_artifact() {
     cat > "$dir/nagi" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${1:-}" == __install-transaction ]]; then
+    exec "$NAGI_TEST_INSTALL_HELPER" "$@"
+fi
 if [[ "${1:-}" == __default-profile ]]; then
+    if [[ "${NAGI_TEST_EMPTY_DEFAULT:-0}" == 1 ]]; then exit 0; fi
     tail -n 1 "$0" | sed 's/^# fixture-version: /mode: /'
     exit 0
 fi
@@ -108,6 +120,19 @@ cp "$artifact_v1/nagi" "$invalid/nagi"
 expect_failure 'missing regular executable' bash "$installer" install --artifact-dir "$invalid" --prefix "$prefix"
 [[ ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'invalid artifact created an installer record'
 
+# A candidate may be executable yet contain no runnable engine/default content.
+empty_artifact=$test_dir/empty-artifact
+mkdir "$empty_artifact"
+cp "$artifact_v1/nagi" "$artifact_v1/mihomo" "$empty_artifact/"
+: > "$empty_artifact/mihomo"
+expect_failure 'missing regular executable' bash "$installer" install --artifact-dir "$empty_artifact" --prefix "$prefix"
+printf '#!/bin/sh\nexit 0\n' > "$empty_artifact/mihomo"
+chmod 0755 "$empty_artifact/mihomo"
+expect_failure 'artifact mihomo' bash "$installer" install --artifact-dir "$empty_artifact" --prefix "$prefix"
+cp "$artifact_v1/mihomo" "$empty_artifact/mihomo"
+expect_failure 'default profile' env NAGI_TEST_EMPTY_DEFAULT=1 bash "$installer" install --artifact-dir "$empty_artifact" --prefix "$prefix"
+[[ ! -e "$prefix/bin/nagi" && ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'empty artifact changed managed installation'
+
 # A failed first install must leave the destination and the existing default profile intact.
 mkdir -p "$profile_dir"
 printf 'local default\n' > "$profile_dir/default.yaml"
@@ -119,6 +144,35 @@ bash "$installer" install --artifact-dir "$artifact_v1" --prefix "$prefix" > "$l
 assert_installed_from "$artifact_v1"
 [[ $(cat "$profile_dir/default.yaml") == 'mode: v1' ]] || fail_test 'install did not write default profile'
 expect_failure 'already installed' bash "$installer" install --artifact-dir "$artifact_v2" --prefix "$prefix"
+
+# Simulate the installing process disappearing after durable helper calls.
+# The separate journal must recover even when install-state was removed, and
+# read-only verification must neither recover nor discard that journal.
+journal=$prefix/.nagi-transaction
+"$NAGI_TEST_INSTALL_HELPER" __install-transaction prepare "$journal" \
+    "$prefix/bin/nagi" "$artifact_v2/nagi" \
+    "$prefix/share/nagi/install-state" -
+bash "$installer" update --verify --artifact-dir "$artifact_v2" --prefix "$prefix" > "$log"
+[[ -f "$journal/manifest.json" ]] || fail_test 'verification discarded prepared journal'
+"$NAGI_TEST_INSTALL_HELPER" __install-transaction activate "$journal"
+[[ ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'interrupted transaction did not remove install-state'
+if bash "$installer" update --verify --artifact-dir "$artifact_v1" --prefix "$prefix" > "$log" 2>&1; then
+    fail_test 'verification accepted missing installation record'
+fi
+[[ -f "$journal/manifest.json" && ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'verification mutated interrupted installation'
+bash "$installer" update --artifact-dir "$artifact_v1" --prefix "$prefix" > "$log"
+assert_installed_from "$artifact_v1"
+[[ ! -e "$journal" ]] || fail_test 'successful recovery retained active journal'
+"$NAGI_TEST_INSTALL_HELPER" __install-transaction recover "$journal"
+
+# Explicit recovery must work without either the installed executable or record.
+"$NAGI_TEST_INSTALL_HELPER" __install-transaction prepare "$journal" \
+    "$prefix/bin/nagi" - "$prefix/share/nagi/install-state" -
+"$NAGI_TEST_INSTALL_HELPER" __install-transaction activate "$journal"
+[[ ! -e "$prefix/bin/nagi" && ! -e "$prefix/share/nagi/install-state" ]] || fail_test 'removal fixture did not remove recovery-independent files'
+bash "$installer" recover --artifact-dir "$artifact_v1" --prefix "$prefix" > "$log"
+bash "$installer" recover --artifact-dir "$artifact_v1" --prefix "$prefix" > "$log"
+assert_installed_from "$artifact_v1"
 # A recorded installation can be updated after its binaries change outside the installer.
 printf '# outside modification\n' >> "$prefix/bin/mihomo"
 printf '# outside modification\n' >> "$prefix/bin/nagi"
