@@ -171,6 +171,29 @@ func writeJSON(path string, v any) error {
 	}
 	return e
 }
+func publishCommit(root string) error {
+	f, e := os.CreateTemp(root, ".commit-")
+	if e != nil {
+		return e
+	}
+	p := f.Name()
+	defer os.Remove(p)
+	_, e = f.WriteString("true")
+	if e == nil {
+		e = fullSync(f)
+	}
+	ce := f.Close()
+	if e == nil {
+		e = ce
+	}
+	if e != nil {
+		return e
+	}
+	if e = os.Rename(p, filepath.Join(root, "committed")); e != nil {
+		return e
+	}
+	return syncDir(root)
+}
 func load(root string) (manifest, error) {
 	var m manifest
 	if e := privateRoot(root); e != nil {
@@ -273,11 +296,16 @@ func Prepare(root string, ops []Operation) error {
 			return e
 		}
 		if o.Source != "" && o.Source != "-" {
-			if e := cleanPath(o.Source); e != nil {
+			parent, e := filepath.EvalSymlinks(filepath.Dir(o.Source))
+			if e != nil {
+				return e
+			}
+			source := filepath.Join(parent, filepath.Base(o.Source))
+			if e = cleanPath(source); e != nil {
 				return e
 			}
 			n.Source = fmt.Sprintf("new-%d", i)
-			if e := copyTree(o.Source, filepath.Join(root, n.Source)); e != nil {
+			if e := copyTree(source, filepath.Join(root, n.Source)); e != nil {
 				return e
 			}
 		}
@@ -470,11 +498,7 @@ func Commit(root string) error {
 			}
 		}
 	}
-	p := filepath.Join(root, "committed")
-	if e := writeJSON(p, true); e != nil {
-		return e
-	}
-	if e := syncDir(root); e != nil {
+	if e := publishCommit(root); e != nil {
 		return e
 	}
 	checkpoint("committed")
@@ -540,10 +564,7 @@ func Recover(root string) error {
 		checkpoint(fmt.Sprintf("rollback-%d", i))
 	}
 	// Rollback completion must itself become durable before deleting backups.
-	if e = writeJSON(filepath.Join(root, "committed"), true); e != nil {
-		return e
-	}
-	if e = syncDir(root); e != nil {
+	if e = publishCommit(root); e != nil {
 		return e
 	}
 	return cleanup(root)

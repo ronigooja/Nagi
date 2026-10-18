@@ -10,6 +10,12 @@ import (
 	"testing"
 )
 
+func tempDir(t *testing.T) string {
+	t.Helper()
+	p, e := filepath.EvalSymlinks(t.TempDir())
+	must(t, e)
+	return p
+}
 func must(t *testing.T, e error) {
 	t.Helper()
 	if e != nil {
@@ -27,7 +33,7 @@ func check(t *testing.T, p, s string) {
 }
 func fixture(t *testing.T) (string, []Operation) {
 	t.Helper()
-	d := t.TempDir()
+	d := tempDir(t)
 	root := filepath.Join(d, ".journal")
 	var ops []Operation
 	for _, name := range []string{"nagi", "mihomo", "state", "default"} {
@@ -125,7 +131,7 @@ func TestInterruptedRollbackPreservesBackups(t *testing.T) {
 	}
 }
 func TestRemoveAndNewFileRollback(t *testing.T) {
-	d := t.TempDir()
+	d := tempDir(t)
 	root := filepath.Join(d, ".journal")
 	old := filepath.Join(d, "old")
 	write(t, old, "original")
@@ -170,7 +176,7 @@ func TestCorruptionRetainsRecoveryJournal(t *testing.T) {
 func TestRejectUnsafePaths(t *testing.T) {
 	for _, kind := range []string{"symlink-parent", "symlink-target", "hidden-journal", "overlap", "source-symlink"} {
 		t.Run(kind, func(t *testing.T) {
-			d := t.TempDir()
+			d := tempDir(t)
 			root := filepath.Join(d, ".journal")
 			src := filepath.Join(d, "src")
 			write(t, src, "new")
@@ -199,7 +205,7 @@ func TestRejectUnsafePaths(t *testing.T) {
 	}
 }
 func TestLockProtocol(t *testing.T) {
-	d := t.TempDir()
+	d := tempDir(t)
 	root := filepath.Join(d, ".journal")
 	var out bytes.Buffer
 	must(t, WithLock(root, func() error {
@@ -234,4 +240,23 @@ func TestCommitRefusesChangedActivation(t *testing.T) {
 	}
 	must(t, Recover(root))
 	assertVersion(t, ops, "old")
+}
+
+func TestSourceParentAlias(t *testing.T) {
+	d := tempDir(t)
+	real := filepath.Join(d, "real")
+	must(t, os.Mkdir(real, 0700))
+	alias := filepath.Join(d, "alias")
+	must(t, os.Symlink(real, alias))
+	write(t, filepath.Join(real, "source"), "new")
+	target := filepath.Join(d, "target")
+	root := filepath.Join(d, ".journal")
+	must(t, Prepare(root, []Operation{{Target: target, Source: filepath.Join(alias, "source")}}))
+	must(t, Activate(root))
+	must(t, Commit(root))
+	check(t, target, "new")
+	must(t, os.Symlink(filepath.Join(real, "source"), filepath.Join(real, "link")))
+	if e := Prepare(root, []Operation{{Target: target, Source: filepath.Join(alias, "link")}}); e == nil {
+		t.Fatal("accepted source leaf symlink")
+	}
 }
