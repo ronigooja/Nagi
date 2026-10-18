@@ -93,6 +93,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [macOS connections window](docs/design/connections-window.md): snapshot scheduling, cancellation, and operation coordination.
 - [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
+- [Request rewrite design](docs/design/request-rewrite.md) and [proposed decision](docs/decisions/0010-tun-request-rewrite.md): planned, unimplemented TUN-only HTTP/HTTPS request rewriting; no commands or UI are available yet.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
 - [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
 - [Per-profile rules decision](docs/decisions/0008-per-profile-rules.md): isolated rule ownership and subscription validation.
