@@ -205,11 +205,15 @@ func publishCommit(root string) error {
 	if e = syncDir(root); e != nil {
 		removeErr := os.Remove(filepath.Join(root, "committed"))
 		syncErr := syncDir(root)
-		return errors.Join(e, removeErr, syncErr)
+		if removeErr != nil || syncErr != nil {
+			return &CommitUncertainError{Err: errors.Join(e, removeErr, syncErr)}
+		}
+		return e
 	}
 	return nil
 }
-func load(root string) (manifest, error) {
+func load(root string) (manifest, error) { return loadAt(root, root) }
+func loadAt(root, expectedRoot string) (manifest, error) {
 	var m manifest
 	if e := privateRoot(root); e != nil {
 		return m, e
@@ -238,7 +242,7 @@ func load(root string) (manifest, error) {
 	if d.Decode(new(any)) != io.EOF {
 		return m, errors.New("trailing manifest data")
 	}
-	if m.Version != 1 || m.Root != root || len(m.Operations) == 0 {
+	if m.Version != 1 || m.Root != expectedRoot || len(m.Operations) == 0 {
 		return m, errors.New("invalid transaction manifest")
 	}
 	for i, o := range m.Operations {
@@ -248,7 +252,7 @@ func load(root string) (manifest, error) {
 				return m, errors.New("overlapping manifest targets")
 			}
 		}
-		if e = validateTarget(root, o.Target); e != nil {
+		if e = validateTarget(expectedRoot, o.Target); e != nil {
 			return m, e
 		}
 		if o.Source != "" && o.Source != fmt.Sprintf("new-%d", i) {
@@ -261,7 +265,7 @@ func validateTarget(root, target string) error {
 	if e := cleanPath(target); e != nil {
 		return e
 	}
-	if target == root || inside(root, target) || inside(target, root) || target == root+".lock" {
+	if target == root || inside(root, target) || inside(target, root) || target == root+".lock" || strings.HasPrefix(target, root+".garbage-") {
 		return errors.New("target overlaps transaction journal")
 	}
 	return nil
@@ -270,6 +274,15 @@ func inside(parent, child string) bool {
 	r, e := filepath.Rel(parent, child)
 	return e == nil && r != "." && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator))
 }
+
+// CommitUncertainError means storage failed both commit and durable withdrawal.
+// Callers must leave files and external helper state untouched until recovery.
+type CommitUncertainError struct{ Err error }
+
+func (e *CommitUncertainError) Error() string {
+	return "installation commit outcome uncertain; journal and backups retained for recovery: " + e.Err.Error()
+}
+func (e *CommitUncertainError) Unwrap() error { return e.Err }
 
 // CommittedError means file changes committed durably, but cleanup needs recovery.
 type CommittedError struct{ Err error }
@@ -551,6 +564,88 @@ func Commit(root string) error {
 
 // Recover is idempotent even when a previous rollback was interrupted.
 func Recover(root string) error {
+	if e := recoverActive(root); e != nil {
+		return e
+	}
+	return cleanupGarbage(root)
+}
+func cleanupGarbage(root string) error {
+	if e := cleanPath(root); e != nil {
+		return e
+	}
+	if _, e := os.Lstat(root); e == nil {
+		return errors.New("refusing garbage cleanup while active journal exists")
+	} else if !os.IsNotExist(e) {
+		return e
+	}
+	entries, e := os.ReadDir(filepath.Dir(root))
+	if os.IsNotExist(e) {
+		return nil
+	}
+	if e != nil {
+		return e
+	}
+	prefix := filepath.Base(root) + ".garbage-"
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		suffix := strings.TrimPrefix(name, prefix)
+		if suffix == "" || strings.Trim(suffix, "0123456789") != "" {
+			continue
+		}
+		path := filepath.Join(filepath.Dir(root), name)
+		st, e := os.Lstat(path)
+		if e != nil {
+			return e
+		}
+		if !st.IsDir() || st.Mode().Perm()&0077 != 0 || int(st.Sys().(*syscall.Stat_t).Uid) != os.Geteuid() {
+			return fmt.Errorf("unsafe detached transaction journal retained: %s", path)
+		}
+		// Never follow links, including in partially deleted backup or staging trees.
+		if e = filepath.Walk(path, func(p string, s os.FileInfo, e error) error {
+			if e != nil {
+				return e
+			}
+			if s.Mode()&os.ModeSymlink != 0 || (!s.IsDir() && !s.Mode().IsRegular()) {
+				return fmt.Errorf("unsafe detached journal entry: %s", p)
+			}
+			return nil
+		}); e != nil {
+			return e
+		}
+		if _, e = os.Lstat(filepath.Join(path, "manifest.json")); e == nil {
+			if _, e = loadAt(path, root); e != nil {
+				return e
+			}
+		} else if !os.IsNotExist(e) {
+			return e
+		}
+		if st, e = os.Lstat(filepath.Join(path, "committed")); e == nil {
+			if !st.Mode().IsRegular() || st.Size() != 4 {
+				return errors.New("invalid detached commit marker")
+			}
+			b, e := os.ReadFile(filepath.Join(path, "committed"))
+			if e != nil {
+				return e
+			}
+			if string(b) != "true" {
+				return errors.New("invalid detached commit marker")
+			}
+		} else if !os.IsNotExist(e) {
+			return e
+		}
+		if e = os.RemoveAll(path); e != nil {
+			return e
+		}
+		if e = syncDir(filepath.Dir(root)); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+func recoverActive(root string) error {
 	if e := cleanPath(root); e != nil {
 		return e
 	}
@@ -660,6 +755,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	err := run(args, stdout, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "nagi installation transaction:", err)
+		var uncertain *CommitUncertainError
+		if errors.As(err, &uncertain) {
+			return 5
+		}
 		var committed *CommittedError
 		if errors.As(err, &committed) {
 			return 4

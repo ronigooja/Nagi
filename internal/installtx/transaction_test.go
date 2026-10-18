@@ -2,6 +2,7 @@ package installtx
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -318,8 +319,14 @@ func TestPostCommitCleanupFailureReportsCommitted(t *testing.T) {
 	assertVersion(t, ops, "new")
 	syncHook = func(string) error { return nil }
 	must(t, Recover(root))
+	if p := garbagePaths(t, root); len(p) != 0 {
+		t.Fatal("recovery did not finish cleanup", p)
+	}
 	assertVersion(t, ops, "new")
 }
+
+// Failed commit-directory sync withdraws the visible marker and syncs its removal.
+// Once withdrawal succeeds, the prepared backups still define a safe rollback.
 func TestCommitMarkerSyncFailureRollsBack(t *testing.T) {
 	root, ops := fixture(t)
 	must(t, Prepare(root, ops))
@@ -335,6 +342,83 @@ func TestCommitMarkerSyncFailureRollsBack(t *testing.T) {
 	defer func() { syncHook = func(string) error { return nil } }()
 	if e := Commit(root); e == nil {
 		t.Fatal("commit sync error ignored")
+	}
+	syncHook = func(string) error { return nil }
+	must(t, Recover(root))
+	assertVersion(t, ops, "old")
+}
+
+func garbagePaths(t *testing.T, root string) []string {
+	t.Helper()
+	p, e := filepath.Glob(root + ".garbage-*")
+	must(t, e)
+	return p
+}
+func TestRecoverFinishesDetachedCleanup(t *testing.T) {
+	for _, partial := range []bool{false, true} {
+		t.Run(fmt.Sprint(partial), func(t *testing.T) {
+			root, ops := fixture(t)
+			crash(t, root, "cleanup-detached", false)
+			garbage := garbagePaths(t, root)
+			if len(garbage) != 1 {
+				t.Fatal(garbage)
+			}
+			if partial {
+				must(t, os.Remove(filepath.Join(garbage[0], "manifest.json")))
+				must(t, os.Remove(filepath.Join(garbage[0], "committed")))
+			}
+			must(t, Recover(root))
+			if p := garbagePaths(t, root); len(p) != 0 {
+				t.Fatal("garbage remains", p)
+			}
+			assertVersion(t, ops, "new")
+		})
+	}
+}
+func TestGarbageSweepRefusesLinksAndKeepsTargets(t *testing.T) {
+	root, ops := fixture(t)
+	crash(t, root, "cleanup-detached", false)
+	garbage := garbagePaths(t, root)[0]
+	must(t, os.Symlink(ops[0].Target, filepath.Join(garbage, "link")))
+	if e := Recover(root); e == nil {
+		t.Fatal("accepted garbage link")
+	}
+	assertVersion(t, ops, "new")
+	must(t, os.Remove(filepath.Join(garbage, "link")))
+	must(t, Recover(root))
+	assertVersion(t, ops, "new")
+}
+func TestGarbageNamespaceCannotBeTarget(t *testing.T) {
+	root, ops := fixture(t)
+	ops[0].Target = root + ".garbage-1234"
+	if e := Prepare(root, ops); e == nil {
+		t.Fatal("allowed transaction target in garbage namespace")
+	}
+}
+func TestFailedMarkerWithdrawalRetainsJournal(t *testing.T) {
+	root, ops := fixture(t)
+	must(t, Prepare(root, ops))
+	must(t, Activate(root))
+	syncHook = func(p string) error {
+		if p == root {
+			return fmt.Errorf("commit and withdrawal sync failed")
+		}
+		return nil
+	}
+	defer func() { syncHook = func(string) error { return nil } }()
+	if e := Commit(root); e == nil {
+		t.Fatal("ignored storage failure")
+	} else {
+		var uncertain *CommitUncertainError
+		if !errors.As(e, &uncertain) {
+			t.Fatalf("expected uncertain outcome: %v", e)
+		}
+	}
+	if _, e := os.Stat(filepath.Join(root, "manifest.json")); e != nil {
+		t.Fatal("journal not retained", e)
+	}
+	if _, e := os.Stat(filepath.Join(root, "old-0")); e != nil {
+		t.Fatal("backup not retained", e)
 	}
 	syncHook = func(string) error { return nil }
 	must(t, Recover(root))
