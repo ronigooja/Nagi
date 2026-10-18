@@ -82,31 +82,11 @@ func profileListPage() *Page {
 
 func profileDetailPage(name string) *Page {
 	return &Page{Title: "Profile: " + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		defaultApplied := false
-		var status menuDefaultOverrideStatus
-		statusAvailable := decodeMenuResult(s.Fetch(ctx, "profile", "override", "default-status", name), &status) == nil
-		if statusAvailable {
-			defaultApplied = status.Applied
-		}
-		defaultItem := Item{
-			Label:    "Apply default runtime settings",
-			Selected: statusAvailable && defaultApplied,
-			Impact:   "Copies safe settings from the default profile; keeps nodes, groups, and rules",
-			Action: func(ctx context.Context, s *Session) error {
-				return toggleDefaultOverride(ctx, s, name)
-			},
-		}
-		if defaultApplied {
-			defaultItem.Label = "Disable default runtime settings"
-			defaultItem.Impact = "Restores the local override saved before applying defaults"
-		} else if status.DNSProxyGroup != "" {
-			defaultItem.Impact += "; DNS via " + status.DNSProxyGroup
-		}
 		view := PageView{Actions: []Item{
 			{Label: "Use profile", Args: []string{"profile", "use", name}},
 			{Label: "Export configuration", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "export", name) }},
 			submenu(actionPage("Backup & Restore", Item{Label: "Back up configuration", Args: []string{"profile", "backup", name}}, Item{Label: "Restore latest backup", Args: []string{"profile", "restore", name}, Impact: "Replaces configuration; reloads if active"}, Item{Label: "Compare with backup or another profile", Action: func(ctx context.Context, s *Session) error { return diffProfile(ctx, s, name) }})),
-			submenu(actionPage("Local Overrides", defaultItem, Item{Label: "Show local override", Args: []string{"profile", "override", "show", name}}, Item{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }}, Item{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Restores original settings; reloads if active"})),
+			{Label: "Local Overrides", Next: func() *Page { return localOverridesPage(name) }},
 			{Label: "Remove profile", Navigate: removeResource("profile", name), Impact: "Deletes configuration, backups, local overrides, custom rules, and saved choices; keeps subscriptions"},
 		}}
 		var data menuProfiles
@@ -123,10 +103,50 @@ func profileDetailPage(name string) *Page {
 	}}
 }
 
-func toggleDefaultOverride(ctx context.Context, s *Session, name string) error {
+func localOverridesPage(name string) *Page {
+	return &Page{Title: "Local Overrides", Load: func(ctx context.Context, s *Session) (PageView, error) {
+		defaultApplied := false
+		var status menuDefaultOverrideStatus
+		statusErr := decodeMenuResult(s.Fetch(ctx, "profile", "override", "default-status", name), &status)
+		statusAvailable := statusErr == nil
+		if statusAvailable {
+			defaultApplied = status.Applied
+		}
+		defaultItem := Item{
+			Label:    "Apply default runtime settings",
+			Selected: statusAvailable && defaultApplied,
+			Impact:   "Copies safe settings from the default profile; keeps nodes, groups, and rules",
+			Action: func(ctx context.Context, s *Session) error {
+				return toggleDefaultOverride(ctx, s, name, defaultApplied)
+			},
+		}
+		if defaultApplied {
+			defaultItem.Label = "Disable default runtime settings"
+			defaultItem.Impact = "Restores the local override saved before applying defaults"
+		} else if status.DNSProxyGroup != "" {
+			defaultItem.Impact += "; DNS via " + status.DNSProxyGroup
+		}
+		view := PageView{Actions: []Item{
+			{Label: "Show local override", Args: []string{"profile", "override", "show", name}},
+			{Label: "Set local override from file", Action: func(ctx context.Context, s *Session) error { return profileFileAction(ctx, s, "override", name) }},
+			{Label: "Clear local override", Args: []string{"profile", "override", "clear", name}, Impact: "Restores original settings; reloads if active"},
+		}}
+		if statusAvailable {
+			view.Actions = append([]Item{defaultItem}, view.Actions...)
+		} else {
+			view.Context = "Default runtime settings: unavailable"
+		}
+		return view, statusErr
+	}}
+}
+
+func toggleDefaultOverride(ctx context.Context, s *Session, name string, expected bool) error {
 	var status menuDefaultOverrideStatus
 	if err := decodeMenuResult(s.Fetch(ctx, "profile", "override", "default-status", name), &status); err != nil {
 		return err
+	}
+	if status.Applied != expected {
+		return errors.New("Default runtime settings changed. Review the refreshed menu before choosing again.")
 	}
 	var result Result
 	if status.Applied {
@@ -324,17 +344,9 @@ func subscriptionDetailPage(name string) *Page {
 				updateAndApplySubscription(ctx, s, name, false)
 				return nil
 			}},
-			{Label: "Automatic Updates", Next: func() *Page {
-				return actionPage("Automatic Updates",
-					Item{Label: "Set update interval", Action: func(ctx context.Context, s *Session) error { return subscriptionSchedule(ctx, s, name) }},
-					Item{Label: "Disable automatic updates", Args: []string{"subscription", "schedule", name, "off"}})
-			}},
+			{Label: "Automatic Updates", Next: func() *Page { return subscriptionSettingsPage(name, false) }},
 			{Label: "Automatic latency checks", Next: func() *Page { return healthcheckPage("subscription", name) }},
-			{Label: "Encryption Settings", Next: func() *Page {
-				return actionPage("Encryption Settings",
-					Item{Label: "Set identity file", Action: func(ctx context.Context, s *Session) error { return subscriptionKey(ctx, s, name) }},
-					Item{Label: "Clear encryption key", Args: []string{"subscription", "key", name, "clear"}})
-			}},
+			{Label: "Encryption Settings", Next: func() *Page { return subscriptionSettingsPage(name, true) }},
 			{Label: "Remove subscription and cache", Navigate: removeResource("subscription", name)},
 		}}
 		var data struct {
@@ -358,6 +370,50 @@ func subscriptionDetailPage(name string) *Page {
 			}
 		}
 		return view, nil
+	}}
+}
+
+// Subscription settings read only public metadata, never the identity contents.
+func subscriptionSettingsPage(name string, encryption bool) *Page {
+	title := "Automatic Updates"
+	if encryption {
+		title = "Encryption Settings"
+	}
+	return &Page{Title: title, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Context: "Automatic updates: unavailable", Actions: []Item{
+			{Label: "Set update interval", Action: func(ctx context.Context, s *Session) error { return subscriptionSchedule(ctx, s, name) }},
+		}}
+		if encryption {
+			view.Context = "Identity file: unavailable"
+			view.Actions = []Item{{Label: "Set identity file", Action: func(ctx context.Context, s *Session) error { return subscriptionKey(ctx, s, name) }}}
+		}
+		var data struct {
+			Subscriptions []menuSubscription `json:"subscriptions"`
+		}
+		if err := decodeMenuResult(s.Fetch(ctx, "subscription", "list"), &data); err != nil {
+			return view, err
+		}
+		for _, entry := range data.Subscriptions {
+			if entry.Name != name {
+				continue
+			}
+			if encryption {
+				view.Context = "Identity file: not configured"
+				if entry.KeyConfigured {
+					view.Context = "Identity file: configured"
+					view.Actions[0].Label = "Replace identity file"
+					view.Actions = append(view.Actions, Item{Label: "Clear encryption key", Args: []string{"subscription", "key", name, "clear"}})
+				}
+			} else {
+				view.Context = "Automatic updates: disabled"
+				if entry.ScheduleSeconds > 0 {
+					view.Context = fmt.Sprintf("Download update interval: %d seconds", entry.ScheduleSeconds)
+					view.Actions = append(view.Actions, Item{Label: "Disable automatic updates", Args: []string{"subscription", "schedule", name, "off"}})
+				}
+			}
+			return view, nil
+		}
+		return view, errors.New("subscription record unavailable")
 	}}
 }
 

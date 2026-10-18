@@ -68,7 +68,7 @@ func TestDefaultSettingsMenuSelectsTargetDNSGroupAndReusesBinding(t *testing.T) 
 			}}
 			var out bytes.Buffer
 			s := NewSession(runner, strings.NewReader(tc.input), &out)
-			if err := toggleDefaultOverride(ctx, s, "work"); err != nil {
+			if err := toggleDefaultOverride(ctx, s, "work", false); err != nil {
 				t.Fatal(err)
 			}
 			if got := runner.calls[len(runner.calls)-1]; !reflect.DeepEqual(got, tc.want) {
@@ -83,7 +83,7 @@ func TestDefaultSettingsMenuNeedsEligibleDNSGroup(t *testing.T) {
 		"profile\x00override\x00default-status\x00work": {Data: map[string]any{"default_override_applied": false, "dns_proxy_required": true, "dns_proxy_groups": []string{}}},
 	}}
 	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
-	err := toggleDefaultOverride(context.Background(), s, "work")
+	err := toggleDefaultOverride(context.Background(), s, "work", false)
 	if err == nil || !strings.Contains(err.Error(), "No eligible proxy group") || len(runner.calls) != 1 {
 		t.Fatalf("result = %v, calls = %#v", err, runner.calls)
 	}
@@ -95,7 +95,7 @@ func TestDefaultSettingsMenuNoNodesAppliesWithoutDNSGroup(t *testing.T) {
 		"profile\x00override\x00apply-default\x00default":  {},
 	}}
 	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
-	if err := toggleDefaultOverride(context.Background(), s, "default"); err != nil {
+	if err := toggleDefaultOverride(context.Background(), s, "default", false); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"profile", "override", "apply-default", "default"}; !reflect.DeepEqual(runner.calls[len(runner.calls)-1], want) {
@@ -299,6 +299,152 @@ func TestSubscriptionMissingAndInvalidMetadata(t *testing.T) {
 		}
 		if !strings.Contains(list.Items[0].Label, updated) || !strings.Contains(detail.Context, "Updated: "+updated+"\nQuota: unknown\nExpires: unknown") || strings.Contains(detail.Context+list.Items[0].Label, "secret.example") {
 			t.Fatalf("missing/invalid metadata: list=%+v, detail=%+v", list, detail)
+		}
+	}
+}
+
+func TestLocalOverridesRefreshAfterToggle(t *testing.T) {
+	status := func(applied bool) Result {
+		return Result{Data: map[string]any{"default_override_applied": applied, "dns_proxy_required": false}}
+	}
+	for _, initial := range []bool{false, true} {
+		runner := &sequenceRunner{results: map[string][]Result{
+			"profile override default-status work": {status(initial), status(initial), status(!initial), status(!initial), status(initial)},
+		}}
+		var out bytes.Buffer
+		RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n1\n0\n"), &out), localOverridesPage("work"))
+		var mutations []string
+		for _, call := range runner.calls {
+			if call[2] != "default-status" {
+				mutations = append(mutations, call[2])
+			}
+		}
+		want := []string{"apply-default", "restore-default"}
+		if initial {
+			want = []string{"restore-default", "apply-default"}
+		}
+		if !reflect.DeepEqual(mutations, want) || !strings.Contains(out.String(), "Apply default runtime settings") || !strings.Contains(out.String(), "Disable default runtime settings") {
+			t.Fatalf("initial=%v mutations=%v output=%s", initial, mutations, out.String())
+		}
+	}
+}
+
+func TestLocalOverridesRefreshAfterSetAndClear(t *testing.T) {
+	for _, action := range []string{"set", "clear"} {
+		runner := &sequenceRunner{results: map[string][]Result{
+			"profile override default-status work": {
+				{Data: map[string]any{"default_override_applied": true}},
+				{Data: map[string]any{"default_override_applied": false, "dns_proxy_group": "New Group"}},
+			},
+		}}
+		input := "4\n0\n"
+		if action == "set" {
+			input = "3\n/tmp/local.yaml\n0\n"
+		}
+		var out bytes.Buffer
+		RunPage(context.Background(), NewSession(runner, strings.NewReader(input), &out), localOverridesPage("work"))
+		if !strings.Contains(out.String(), "Apply default runtime settings") || !strings.Contains(out.String(), "DNS via New Group") {
+			t.Fatalf("%s did not refresh: %s", action, out.String())
+		}
+		if len(runner.calls) != 3 || runner.calls[1][2] != action {
+			t.Fatalf("%s calls=%v", action, runner.calls)
+		}
+	}
+}
+
+func TestLocalOverridesRejectChangedStateBeforeMutation(t *testing.T) {
+	runner := &sequenceRunner{results: map[string][]Result{
+		"profile override default-status work": {
+			{Data: map[string]any{"default_override_applied": true}},
+			{Data: map[string]any{"default_override_applied": false}},
+			{Data: map[string]any{"default_override_applied": false}},
+		},
+	}}
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n0\n"), &out), localOverridesPage("work"))
+	for _, call := range runner.calls {
+		if call[2] != "default-status" {
+			t.Fatalf("unexpected mutation: %v", runner.calls)
+		}
+	}
+	if !strings.Contains(out.String(), "changed. Review the refreshed menu") || !strings.Contains(out.String(), "Apply default runtime settings") {
+		t.Fatal(out.String())
+	}
+}
+
+func TestSubscriptionSettingsReloadAfterOperations(t *testing.T) {
+	for _, encryption := range []bool{false, true} {
+		entry := func(enabled bool) Result {
+			seconds := 0
+			if enabled {
+				seconds = 3600
+			}
+			return Result{Data: map[string]any{"subscriptions": []map[string]any{{"name": "feed", "key_configured": enabled, "schedule_seconds": seconds}}}}
+		}
+		runner := &sequenceRunner{results: map[string][]Result{
+			"subscription list": {entry(false), entry(true), entry(false)},
+		}}
+		input, state, cleared := "1\n3600\n2\n0\n", "Download update interval: 3600 seconds", "Automatic updates: disabled"
+		want := [][]string{{"subscription", "schedule", "feed", "3600"}, {"subscription", "schedule", "feed", "off"}}
+		if encryption {
+			input, state, cleared = "1\n/tmp/test-identity.txt\n2\n0\n", "Identity file: configured", "Identity file: not configured"
+			want = [][]string{{"subscription", "key", "feed", "/tmp/test-identity.txt"}, {"subscription", "key", "feed", "clear"}}
+		}
+		var out bytes.Buffer
+		RunPage(context.Background(), NewSession(runner, strings.NewReader(input), &out), subscriptionSettingsPage("feed", encryption))
+		var mutations [][]string
+		for _, call := range runner.calls {
+			if call[1] != "list" {
+				mutations = append(mutations, call)
+			}
+		}
+		if !reflect.DeepEqual(mutations, want) || !strings.Contains(out.String(), state) || strings.Count(out.String(), cleared) != 2 {
+			t.Fatalf("encryption=%v calls=%v output=%s", encryption, runner.calls, out.String())
+		}
+	}
+}
+
+func TestSettingsReadFailureRetainsOnlyRecoveryActions(t *testing.T) {
+	for _, tc := range []struct {
+		page    *Page
+		command string
+		actions int
+	}{
+		{localOverridesPage("work"), "profile override default-status work", 3},
+		{subscriptionSettingsPage("feed", false), "subscription list", 1},
+		{subscriptionSettingsPage("feed", true), "subscription list", 1},
+	} {
+		runner := &sequenceRunner{results: map[string][]Result{tc.command: {{Code: 1, Error: &CLIError{Message: "read failed"}}}}}
+		view, err := tc.page.Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+		if err == nil || len(view.Actions) != tc.actions || !strings.Contains(view.Context, "unavailable") {
+			t.Fatalf("%s view=%+v error=%v", tc.page.Title, view, err)
+		}
+	}
+	for _, encryption := range []bool{false, true} {
+		runner := &sequenceRunner{results: map[string][]Result{"subscription list": {{Data: map[string]any{"subscriptions": []any{}}}}}}
+		view, err := subscriptionSettingsPage("missing", encryption).Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+		if err == nil || len(view.Actions) != 1 || !strings.Contains(view.Context, "unavailable") {
+			t.Fatalf("missing record: view=%+v err=%v", view, err)
+		}
+	}
+}
+
+func TestSettingsRefreshFailureDropsStateDependentActions(t *testing.T) {
+	for _, tc := range []struct {
+		page              *Page
+		command           string
+		initial           Result
+		input, staleLabel string
+	}{
+		{localOverridesPage("work"), "profile override default-status work", Result{Data: map[string]any{"default_override_applied": true}}, "4\n0\n", "Disable default runtime settings"},
+		{subscriptionSettingsPage("feed", false), "subscription list", Result{Data: map[string]any{"subscriptions": []map[string]any{{"name": "feed", "schedule_seconds": 3600}}}}, "2\n0\n", "Disable automatic updates"},
+		{subscriptionSettingsPage("feed", true), "subscription list", Result{Data: map[string]any{"subscriptions": []map[string]any{{"name": "feed", "key_configured": true}}}}, "2\n0\n", "Clear encryption key"},
+	} {
+		runner := &sequenceRunner{results: map[string][]Result{tc.command: {tc.initial, {Code: 1, Error: &CLIError{Message: "read failed https://example.invalid/private-token"}}}}}
+		var out bytes.Buffer
+		RunPage(context.Background(), NewSession(runner, strings.NewReader(tc.input), &out), tc.page)
+		if strings.Count(out.String(), tc.staleLabel) != 1 || !strings.Contains(out.String(), "unavailable") || strings.Contains(out.String(), "private-token") {
+			t.Fatalf("%s stale action or unredacted error: %s", tc.page.Title, out.String())
 		}
 	}
 }
