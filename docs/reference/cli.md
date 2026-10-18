@@ -630,7 +630,9 @@ maintenance operation for the same user. Download and preflight failures occur
 before stopping Nagi. After preparation, a failed transaction leaves the engine
 stopped and attempts to restore engine login preferences; errors include the
 installer's rollback details and any restoration failure. A failure to clean up a durably committed file transaction reports that the new
-files remain installed and cleanup is pending. A successful file
+files remain installed and cleanup is pending. A storage failure that leaves
+the commit outcome uncertain preserves the journal and backups, skips
+compensation, and requires explicit recovery before runtime activation. A successful file
 update followed by a service/restart failure is reported as partial completion
 with a recovery command. If user data cleanup fails after `uninstall --purge-data`
 has removed the managed installation, the error states that Nagi was removed,

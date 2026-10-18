@@ -73,9 +73,14 @@ interruption during rollback can be recovered again. Journal cleanup first
 retires the complete journal by rename and synchronizes its parent; removing
 retired files cannot turn a committed transaction back into an uncommitted one.
 A crash during deletion can leave a retired garbage directory; it is no longer
-an active recovery journal and cannot authorize rollback. A cleanup failure
+an active recovery journal and cannot authorize rollback. Recovery removes
+validated private retired directories when no active journal remains. A cleanup failure
 after durable commit reports that the files were committed and cleanup remains;
-it must not trigger file rollback or privileged-helper compensation.
+it must not trigger file rollback or privileged-helper compensation. If storage
+fails both commit publication and durable withdrawal of its marker, the commit
+outcome is reported as uncertain. The installer retains the journal and backups
+and skips compensation; explicit recovery must establish a complete file state
+before services or the engine are started again.
 macOS uses `F_FULLFSYNC` for regular file durability; Linux uses `fsync`.
 
 The durable journal choice and its trade-offs are recorded in

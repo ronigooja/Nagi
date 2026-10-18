@@ -190,7 +190,11 @@ is resolved; deleting them can destroy the only recoverable previous version. If
 commit succeeded but cleanup failed, the new files remain installed and the
 error reports pending cleanup; do not assume the previous version was restored.
 A cleanup interruption may leave a retired garbage directory beside the journal;
-it is not an active transaction and cannot authorize rollback.
+it is not an active transaction and cannot authorize rollback. Recovery removes
+validated private retired directories once no active journal remains. If the
+error instead reports an uncertain commit outcome, preserve all recovery data
+and run explicit recovery before starting Nagi or repairing the privileged
+helper; the installer cannot promise that either version was restored.
 See the [transaction design](../design/installation.md#transactions-and-recovery)
 for the commit and recovery rules.
 
