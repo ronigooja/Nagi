@@ -21,6 +21,7 @@ fi
 if [[ -z "$go_bin" ]]; then echo 'Set GO=/path/to/go (Go 1.24.0 or newer)' >&2; exit 1; fi
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/nagi-rewrite-engine.XXXXXX")"
 trap 'rm -rf -- "$fixture_dir"' EXIT
+chmod 0755 "$fixture_dir"
 cp "$engine_dir/go.mod" "$engine_dir/go.sum" "$fixture_dir/"
 cp "$project_dir/internal/requestrewriteservice/testdata/engine-fixture/main.go" "$fixture_dir/main.go"
 export GOWORK=off
@@ -31,4 +32,12 @@ export GOWORK=off
     -require=github.com/metacubex/mihomo@v0.0.0 \
     "-replace=github.com/ronigooja/Nagi=$project_dir" \
     "-replace=github.com/metacubex/mihomo=$engine_dir"
-"$go_bin" -C "$fixture_dir" run -mod=mod -tags with_gvisor .
+"$go_bin" -C "$fixture_dir" build -mod=mod -tags with_gvisor -o "$fixture_dir/fixture" .
+python3 - "$fixture_dir/fixture" <<'PYTHON'
+import os, sys
+if os.geteuid() == 0:
+    os.setgroups([])
+    os.setgid(65534)
+    os.setuid(65534)
+os.execv(sys.argv[1], [sys.argv[1]])
+PYTHON

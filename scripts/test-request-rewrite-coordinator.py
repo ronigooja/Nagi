@@ -121,6 +121,13 @@ try:
         # Explicit start reads retained intent and stages a fresh generation.
         run("start")
         assert run("request-rewrite", "status")["actual"] == "active"
+    # Profile selection switches consent and intent with the same coordinator.
+    run("profile", "import", "idle", profile)
+    run("profile", "use", "idle")
+    idle = run("request-rewrite", "status")
+    assert idle["profile"] == "idle" and idle["actual"] == "disabled" and not idle["enabled_intent"]
+    run("profile", "use", "work")
+    assert run("request-rewrite", "status")["actual"] == "active"
     run("tun", "disable")
     assert not journal.exists()
     assert run("request-rewrite", "status")["enabled_intent"] is True
@@ -143,3 +150,10 @@ finally:
     except Exception:
         pass
     shutil.rmtree(root)
+    if sys.platform.startswith("linux"):
+        while True:
+            try:
+                if os.waitpid(-1, os.WNOHANG)[0] == 0:
+                    break
+            except ChildProcessError:
+                break
