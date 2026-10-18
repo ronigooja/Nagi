@@ -59,6 +59,11 @@ if [[ -z "$go_bin" ]] || ! command -v "$go_bin" >/dev/null 2>&1; then
     echo 'Go executable not found; install Go or set GO=/path/to/go' >&2
     exit 1
 fi
+go_version="$(GOTOOLCHAIN=local "$go_bin" version)"
+if [[ ! "$go_version" =~ go([0-9]+)\.([0-9]+) ]] || (( BASH_REMATCH[1] < 1 || (BASH_REMATCH[1] == 1 && BASH_REMATCH[2] < 24) )); then
+    echo 'Go 1.24.0 or newer is required; set GO=/path/to/a/supported/go' >&2
+    exit 1
+fi
 nagi_version="$(git -C "$project_dir" describe --tags --always --dirty)"
 output_dir="$project_dir/bin"
 if [[ -n "${TARGET_GOOS:-}" || -n "${TARGET_GOARCH:-}" ]]; then

@@ -2,7 +2,7 @@
 
 This document describes development builds and verification for Nagi and the pinned mihomo source.
 
-Use Go 1.20 or newer. `engine.lock` records the mihomo repository, ref, and exact commit. `make build cli` creates `bin/nagi` without rebuilding mihomo and prints `Nagi CLI build succeeded: PATH` on success or `Nagi CLI build failed` on a compilation error. The CLI build uses Go from `PATH`, then checks `$HOME/environment/go*/bin/go`, `/opt/homebrew/bin/go`, and `/usr/local/go/bin/go`. This also works in macOS SSH sessions whose non-interactive `PATH` omits Homebrew. Set `GO=/path/to/go` to choose another executable. On macOS, `make build app` packages `bin/Nagi.app` through `macos/NagiApp/package-app.sh` and prints `Nagi App build succeeded: PATH` or `Nagi App build failed`. Run `./scripts/build.sh` for a full pinned mihomo and CLI build; it reports the result of each compilation. The mihomo build includes `with_gvisor`, which is required when a profile selects the gVisor TUN stack. Set `MIHOMO_DIR` to a checkout at the exact locked commit for local builds. Otherwise the script clones or updates `.build/mihomo` and checks out that commit. A mismatch fails the build.
+Use Go 1.24.0 or newer. `engine.lock` records the mihomo repository, ref, and exact commit. `make build cli` creates `bin/nagi` without rebuilding mihomo and prints `Nagi CLI build succeeded: PATH` on success or `Nagi CLI build failed` on a compilation error. The CLI build uses Go from `PATH`, then checks `$HOME/environment/go*/bin/go`, `/opt/homebrew/bin/go`, and `/usr/local/go/bin/go`. This also works in macOS SSH sessions whose non-interactive `PATH` omits Homebrew. Set `GO=/path/to/go` to choose another executable. On macOS, `make build app` packages `bin/Nagi.app` through `macos/NagiApp/package-app.sh` and prints `Nagi App build succeeded: PATH` or `Nagi App build failed`. Run `./scripts/build.sh` for a full pinned mihomo and CLI build; it reports the result of each compilation. The mihomo build includes `with_gvisor`, which is required when a profile selects the gVisor TUN stack. Set `MIHOMO_DIR` to a checkout at the exact locked commit for local builds. Otherwise the script clones or updates `.build/mihomo` and checks out that commit. A mismatch fails the build.
 
 ```sh
 make build cli
@@ -111,3 +111,26 @@ Go unit/installer tests, targeted race tests, Go vet, Bash and Bash 3.2 contextu
 The matching engine shares identical node measurements across group schedulers and manual tests; the [CLI reference](../reference/cli.md#automatic-latency-check-intervals) defines the five-second reuse behavior. Engine race checks cover concurrent request sharing, expiry, distinct node instances and test conditions, caller cancellation, expected-status failures, and successful zero-millisecond API responses. Nagi regression tests accept successful reused node/group responses without requiring new history.
 
 `make test` passed, including installer integration. Engine checks passed with `go test -race -tags with_gvisor ./adapter ./adapter/provider ./adapter/outboundgroup ./hub/route`. An isolated Linux runtime fixture used two automatic groups referencing one local direct node, a local HTTP test server, private XDG directories, and disabled TUN, DNS, and proxy listeners. Both initial automatic checks produced one HTTP request; subsequent manual node and group tests reused it and retained its original history timestamp. After five seconds, concurrent group tests produced one new request. Expected-status failures were retried without caching and invalidated the earlier success. No installed engine was restarted. Native macOS interactive acceptance was not run.
+
+## Private request rewrite service
+
+The private service requires Go 1.24.0 or newer and goproxy v1.9.2. The shared `scripts/build.sh` check applies to CLI and release builds; `go.mod`/`go.sum` lock transitive versions. `go mod verify` checks the downloaded module contents. Public rewrite commands, lifecycle activation, OS trust and UI remain unavailable.
+
+Run focused race checks with an isolated test environment:
+
+```sh
+go test -race ./internal/requestrewrite ./internal/requestrewriteservice
+go mod verify
+```
+
+The child fixture exercises a real subprocess under an ordinary UID. On Linux when tests run as root, it drops the fixture to UID/GID 65534; the production root-child guard remains enabled. All CA material and sockets are throwaway and no OS trust is installed.
+
+For the opt-in real engine integration, supply a clean tracked checkout at reviewed commit `37a10500833043e140f8e44806833902f8184c25`:
+
+```sh
+GO=/path/to/go MIHOMO_DIR=/path/to/committed-engine ./scripts/test-request-rewrite-engine.sh
+```
+
+The script checks that exact commit and tracked cleanliness, creates a temporary module with local source replacements, and removes it on exit. It leaves Nagi's module files and `engine.lock` unchanged. Engine dependencies are confined to the temporary module. The fixture uses synthetic TUN metadata through the real engine tunnel, authenticated channels, configured engine hosts and native DIRECT outbound to local HTTP/TLS servers. It verifies Rule/Global/Direct, Host/SNI changes, path/query edits, gzip JSON and exact integers. Expected final output is `actual-engine HTTP/TLS Rule/Global/Direct roundtrips passed`. It neither opens an OS TUN nor starts an installed engine, uses subscriptions or changes user routing. Invalid environment proxy addresses may be supplied to confirm the adapter ignores them. The reviewed local engine is not yet a remotely verified release pin.
+
+Native macOS peer-credential runtime behavior, real TUN/process capture, platform CA trust and final lifecycle/UI acceptance require their respective host/integration gates. Cross-compilation does not establish those results. The domain 64 MiB workspace reservation bounds admission, not process heap/RSS; pressure acceptance must measure the complete runtime.

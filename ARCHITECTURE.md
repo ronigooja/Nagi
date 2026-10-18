@@ -43,6 +43,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/menu` | Terminal input, pages, command result presentation, and stream cancellation. |
 | `internal/installation` | Verified release downloads, App management, maintenance sequencing, and detached App update launch. |
 | `internal/installtx` | Durable installation file transactions, per-prefix locking, and recovery through a private CLI entry point. |
+| `internal/requestrewrite`, `internal/requestrewriteservice` | Immutable request rules, private storage/CA primitives and the internal unprivileged goproxy child/data adapter. Public activation and lifecycle coordination remain unavailable; see the [request rewrite design](docs/design/request-rewrite.md). |
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 

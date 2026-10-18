@@ -205,6 +205,15 @@ func setURL(r *http.Request, o Operation) error {
 // Transform performs no forwarding/DNS. The caller owns the returned body, and
 // must send it once only after success. Non-JSON bodies keep their original stream.
 func (s *Snapshot) Transform(ctx context.Context, original *http.Request) (Result, error) {
+	return s.transform(ctx, original, false)
+}
+
+// TransformUpgrade applies header/URL operations to an upgrade handshake.
+// JSON operations are skipped; upgraded frames are never body transformations.
+func (s *Snapshot) TransformUpgrade(ctx context.Context, original *http.Request) (Result, error) {
+	return s.transform(ctx, original, true)
+}
+func (s *Snapshot) transform(ctx context.Context, original *http.Request, upgrade bool) (Result, error) {
 	result := Result{RuleIDs: []string{}, Outcome: "unchanged", RuleVersion: s.version}
 	if ctx.Err() != nil {
 		return result, &Error{Code: "rewrite_cancelled"}
@@ -264,6 +273,9 @@ func (s *Snapshot) Transform(ctx context.Context, original *http.Request) (Resul
 					changesTarget = true
 				}
 			case "json_set", "json_delete":
+				if upgrade {
+					continue
+				}
 				lastJSONRule = rule
 				if body == nil {
 					body, e = newBodyEdit(ctx, original)
