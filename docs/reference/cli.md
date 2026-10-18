@@ -545,6 +545,21 @@ running `PREFIX/bin/nagi`;
 they do not use `NAGI_MIHOMO_BIN` to select files for replacement. They do not
 require a valid active profile merely to display help or manage the App.
 
+Mutating maintenance also uses an independent per-prefix file transaction
+journal. The installer recovers an interrupted transaction before reading its
+installation record: uncommitted changes are rolled back, while committed
+changes are retained and cleanup is completed. Recovery is safe to repeat.
+A damaged journal or incomplete recovery stops maintenance and preserves recovery
+data. If the installed CLI is missing or cannot execute, invoke a verified
+release's artifact installer for the same prefix; see the
+[recovery workflow](../development/install.md#install-update-and-remove).
+Read-only installer verification does not recover an interrupted transaction. Ordinary
+engine start/restart, configuration reload, and startup activation return
+`installation_recovery_required` while a journal is pending; read-only App
+status also reports pending recovery. Use the artifact installer's `recover`
+action; `nagi recover` continues to clean stale runtime markers only. Recovery
+after a hard crash does not automatically restore services or restart mihomo.
+
 After a successful update, an already-open terminal menu can still find the
 installed mihomo; exit and reopen it to use the new CLI version. See the
 [maintenance design](../design/installation.md#transactions-and-recovery).
@@ -614,7 +629,8 @@ checksum failures, authorization/installer failures, running Apps, and another
 maintenance operation for the same user. Download and preflight failures occur
 before stopping Nagi. After preparation, a failed transaction leaves the engine
 stopped and attempts to restore engine login preferences; errors include the
-installer's rollback details and any restoration failure. A successful file
+installer's rollback details and any restoration failure. A failure to clean up a durably committed file transaction reports that the new
+files remain installed and cleanup is pending. A successful file
 update followed by a service/restart failure is reported as partial completion
 with a recovery command. If user data cleanup fails after `uninstall --purge-data`
 has removed the managed installation, the error states that Nagi was removed,

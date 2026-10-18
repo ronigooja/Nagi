@@ -14,8 +14,10 @@ service operations. It does not configure mihomo protocols, DNS, or forwarding.
 The terminal menu calls ordinary CLI commands. The macOS App calls only the CLI
 JSON interface and retains its existing normal launch/quit responsibilities.
 
-`scripts/installer.sh` owns managed path validation, staged replacement,
-privileged-helper changes, and rollback. The CLI embeds this same source through
+`scripts/installer.sh` owns managed path validation, operation sequencing,
+privileged-helper changes, and rollback. The CLI's private
+`__install-transaction` entry point delegates durable filesystem changes to
+`internal/installtx` before ordinary runtime configuration is loaded. The CLI embeds this same source through
 the `scripts` Go package for local verification, App-only operations, and
 uninstall. Whole updates run the installer contained in the verified release so
 its file transaction agrees with the candidate version. The existing shell
@@ -54,11 +56,55 @@ remain errors.
 
 ## Transactions and recovery
 
+The independent journal at `PREFIX/.nagi-transaction` records the complete file
+operation list and keeps durable copies of the previous and candidate contents.
+It does not depend on `share/nagi/install-state`, which can itself be absent
+partway through replacement or removal. A per-prefix filesystem lock serializes
+mutating installer invocations, including direct shell invocations. The CLI's
+per-user maintenance lock additionally covers downloads and runtime preparation.
+
+Before publishing a prepared journal, the helper synchronizes staged files,
+backup files, their directories, and the journal. Each destination mutation is
+followed by synchronization of its parent directory. A separately synchronized
+commit marker decides recovery: a transaction without that marker restores the
+previous files; a committed transaction keeps the installed result and finishes
+cleanup. Recovery copies backups instead of consuming them so another
+interruption during rollback can be recovered again. Journal cleanup first
+retires the complete journal by rename and synchronizes its parent; removing
+retired files cannot turn a committed transaction back into an uncommitted one.
+A crash during deletion can leave a retired garbage directory; it is no longer
+an active recovery journal and cannot authorize rollback. A cleanup failure
+after durable commit reports that the files were committed and cleanup remains;
+it must not trigger file rollback or privileged-helper compensation.
+macOS uses `F_FULLFSYNC` for regular file durability; Linux uses `fsync`.
+
+The durable journal choice and its trade-offs are recorded in
+[decision 0009](../decisions/0009-durable-installation-transactions.md).
+
+The next mutating installer invocation recovers the journal before interpreting
+the installer record or beginning another transaction. Installed CLI maintenance
+also detects and recovers a pending journal before reading its record. Ordinary
+engine start/restart, configuration reload, and startup activation refuse a
+pending journal with `installation_recovery_required`; they do not start an
+incomplete installation. Read-only App status reports pending recovery instead
+of treating a partial record as an authoritative installation. The artifact
+installer's explicit `recover` operation can run using candidate artifacts even
+when the installed executable is absent. It restores files without automatically
+restoring runtime services or starting the engine. `--verify` remains
+read-only: it neither recovers an interrupted transaction nor deletes its
+journal. Recovery refuses unsafe paths and invalid or damaged recovery data,
+returns an error, and preserves the journal for inspection. Operators must not
+delete backups to bypass that error. Managed paths, journal paths, and their
+existing ancestors must not be symbolic links; staged App trees also refuse
+symbolic links and special files.
+
 App installation/removal uses `app-install`/`app-uninstall` in the embedded
-installer. It refuses a running App, stages changes beside the destination and
-installation record, updates both, and restores prior state on failure. It
-does not change CLI/engine files, profiles, services, or running engine state.
-An incomplete rollback reports and retains backup directories for repair.
+installer. It refuses a running App and includes both the App directory and
+installer record in one transaction. It does not change CLI/engine files,
+profiles, services, or running engine state. The same file transaction machinery
+covers whole installation, update, and removal; updates also include the default
+profile. Recovery offers an old-or-committed result after it completes, rather
+than atomic visibility of every destination to concurrent readers.
 
 Whole update/removal refuses a running recorded App and snapshots engine
 running state and login service installed/enabled state through the installed
@@ -67,14 +113,14 @@ removes an installed login service. The explicit stop prevents a restored login
 monitor from starting mihomo during maintenance. The installer then performs
 the existing file/helper transaction.
 
-For updates, the installer copies the old CLI into its rollback directory
-without moving the installed executable, then renames the staged replacement
-over `PREFIX/bin/nagi`. On Linux, a still-running CLI therefore retains its
-installed executable path even after the old inode is unlinked. Companion
-mihomo lookup and later CLI invocations continue to use `PREFIX/bin`, rather
-than a deleted rollback directory. The rollback copy preserves file metadata
-and is restored if the transaction fails. Uninstall still moves the old CLI
-out of the installation directory before deleting it.
+For updates, the helper copies the old CLI without moving the installed
+executable, then renames the staged replacement over `PREFIX/bin/nagi`. On Linux,
+a still-running CLI therefore retains its installed executable path even after
+the old inode is unlinked. Companion mihomo lookup and later CLI invocations
+continue to use `PREFIX/bin`. Backups preserve permissions and ownership for
+restoration. Filesystem transaction recovery does not replay service-manager,
+privileged-helper activation, or engine lifecycle calls; those remain the
+orchestrator's responsibility and failures require the reported recovery steps.
 
 After a whole update succeeds, the CLI restores login service installed/enabled
 preferences and starts an engine that was running before preparation. A whole
@@ -169,6 +215,15 @@ rollback. Command/menu tests check help, argument validation, JSON errors,
 completion discovery, and dispatch. Swift tests cover CLI preparation before
 quit, preparation failure without quitting, and persisted failure retention
 across startup refreshes. Platform simulation in installer tests verifies file
-transactions; administrator authorization, launchd helper
-replacement, Terminal automation permission, and visible menu interaction
-still require native interactive macOS acceptance.
+transactions. Transaction tests inject abrupt process death at preparation,
+destination replacement, commit, rollback, and cleanup boundaries, and inject
+synchronization failures. Integration checks invoke the production helper in
+separate processes and verify that shell recovery works when the installer
+record is missing; read-only verification leaves the interrupted journal intact.
+These tests validate process-crash recovery and synchronization ordering. They
+do not simulate loss of volatile storage caches or prove physical power-loss
+durability. The [installation verification workflow](../development/install.md#durability-verification)
+describes the separate VM power-cut acceptance, which has not been run in this
+Linux development environment. Administrator authorization, launchd helper
+replacement, Terminal automation permission, and visible menu interaction also
+require native interactive macOS acceptance.

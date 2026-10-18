@@ -163,7 +163,38 @@ It replaces remote source files, including local edits, and removes remote sourc
 
 The macOS app invokes `/usr/local/bin/nagi` directly. Keep the default prefix when installing the app; an alternate prefix does not change the path compiled into the app. Install the app in Applications before enabling “Open menu bar app at login.” `--app-dest` cannot enable App installation without a `Nagi.app` in the artifact directory. On update, an installation that includes the App requires an updated App in the artifact directory. A CLI-only installation gains the App when the update artifact contains it and the destination is free.
 
-The installer record at `<prefix>/share/nagi/install-state` identifies managed files. New records contain only a version marker and the App path. Existing v3 records are accepted for update or removal; a successful update writes the smaller v4 record. Content changes at recorded paths do not block update, removal, or App-only operations. An absent or invalid installation record and symbolic links at managed paths are refused. The installer stages replacements and attempts to restore the previous files if an operation fails. A failed operation restores the previous default profile; after a successful operation, the temporary rollback copy is deleted. Other user profiles, subscriptions, settings, and logs are preserved unless whole uninstall uses `--purge-data`; this option removes the user's Nagi configuration, data, state, runtime, and cache directories after the managed installation transaction commits. A purge failure is reported as partial completion after the managed installation has been removed; some user data may remain, and the CLI does not attempt to restore the removed login service. Uninstall does not remove user login service definitions. Updating and uninstalling require removing any installed login service first. On macOS with `/usr/local`, the installer manages the privileged helper using `sudo`; run it as the intended user, not as root. Stop mihomo before update or uninstall. Uninstall leaves the user backend selected. If the helper was present before an update, its backend selection is restored; if it was absent, the update installs and selects it. TUN itself remains a runtime setting and must be enabled again after mihomo restarts. On macOS, disable the App login item before uninstalling the App. A privileged helper requires a root-owned, non-symlink `/usr/local/bin/nagi` and root-controlled parent directories. The installer does not change parent-directory ownership or permissions; check them before installation, especially on machines where `/usr/local` is user-writable.
+An interrupted file transaction is recovered automatically by the next mutating
+installer invocation for the same prefix, before reading the installer record.
+Until recovery completes, some installed paths may reflect the interrupted
+operation. If the installed CLI cannot run, use a verified release's installer
+and runnable artifacts for the same platform, with the original `--prefix`.
+For example, from a development checkout with matching binaries in `bin/`:
+
+```sh
+./scripts/installer.sh recover --prefix /usr/local --artifact-dir ./bin
+```
+
+A release package's installer accepts the same `recover` action and artifact
+directory layout. Recovery restores the previous files for an uncommitted
+transaction and keeps committed files; it does not automatically restore the
+login service or restart the engine after a hard crash. Inspect `nagi status`
+and `nagi service status`, then restore the intended service preference and run
+`nagi start` as needed. This installer action differs from `nagi recover`, which
+only cleans stale runtime markers. Do not manually reconstruct `install-state`.
+Ordinary engine activation refuses a pending journal with
+`installation_recovery_required`. Read-only `--verify`
+does not perform recovery. A corrupt journal, unsafe path, failed synchronization,
+or incomplete rollback stops maintenance and reports retained recovery data.
+Preserve `PREFIX/.nagi-transaction` and its backups until the reported problem
+is resolved; deleting them can destroy the only recoverable previous version. If
+commit succeeded but cleanup failed, the new files remain installed and the
+error reports pending cleanup; do not assume the previous version was restored.
+A cleanup interruption may leave a retired garbage directory beside the journal;
+it is not an active transaction and cannot authorize rollback.
+See the [transaction design](../design/installation.md#transactions-and-recovery)
+for the commit and recovery rules.
+
+The installer record at `<prefix>/share/nagi/install-state` identifies managed files. New records contain only a version marker and the App path. Existing v3 records are accepted for update or removal; a successful update writes the smaller v4 record. Content changes at recorded paths do not block update, removal, or App-only operations. An absent or invalid installation record and symbolic links at managed paths are refused. The installer durably stages replacements and backups before changing managed files. A failed operation attempts recovery of the previous files and default profile; a recovery error retains its journal and backups. After commit, recovery keeps the new files and completes journal cleanup. Other user profiles, subscriptions, settings, and logs are preserved unless whole uninstall uses `--purge-data`; this option removes the user's Nagi configuration, data, state, runtime, and cache directories after the managed installation transaction commits. A purge failure is reported as partial completion after the managed installation has been removed; some user data may remain, and the CLI does not attempt to restore the removed login service. Uninstall does not remove user login service definitions. Updating and uninstalling require removing any installed login service first. On macOS with `/usr/local`, the installer manages the privileged helper using `sudo`; run it as the intended user, not as root. Stop mihomo before update or uninstall. Uninstall leaves the user backend selected. If the helper was present before an update, its backend selection is restored; if it was absent, the update installs and selects it. TUN itself remains a runtime setting and must be enabled again after mihomo restarts. On macOS, disable the App login item before uninstalling the App. A privileged helper requires a root-owned, non-symlink `/usr/local/bin/nagi` and root-controlled parent directories. The installer does not change parent-directory ownership or permissions; check them before installation, especially on machines where `/usr/local` is user-writable.
 
 The online wrapper requires Bash, `curl`, `tar`, and `shasum`. It expects each GitHub
 Release to contain `nagi-linux-amd64.tar.gz`, `nagi-linux-arm64.tar.gz`,
@@ -173,3 +204,37 @@ macOS archives may also contain `Nagi.app`; the release script includes it when
 an App was built for the release host architecture.
 Local Linux testing covers the CLI artifact flow. The macOS helper lifecycle
 and unsigned App launch must be checked on a macOS host.
+
+## Durability verification
+
+Run the installer checks with Go and Bash available on `PATH`:
+
+```sh
+go test ./internal/installtx ./scripts ./internal/installation
+bash scripts/test-install.sh
+```
+
+The shell fixtures forward filesystem transactions to a freshly built production
+CLI; they replace only unrelated lifecycle/status responses. The transaction
+package tests inject process termination and synchronization failures. Separate
+process checks cover prepare/activate/commit recovery, repeated recovery, whole
+installation/update/removal, and App directory installation/removal. The shell
+checks additionally recover a transaction with a missing installation record and
+ensure `--verify` leaves its journal untouched. Process termination does not
+emulate loss of the kernel's or device's volatile write cache.
+
+VM power-cut acceptance is a separate, unrun requirement in the Linux development
+environment. On disposable Linux and macOS virtual machines, retain a snapshot
+with known old files and checksums, use the filesystem and storage-cache settings
+intended for deployment, and run each installation/update/removal scenario.
+Interrupt the VM's power externally at preparation, destination mutation, commit,
+rollback, and cleanup boundaries; do not shut down the guest or merely kill the
+installer. After reboot, run the same verified installer against the original
+prefix and recover repeatedly, including a second power cut during rollback.
+Confirm that uncommitted transactions restore every prior file and profile,
+committed transactions retain the complete new result, and recovery data remains
+available when restoration cannot finish. Include App bundles and cross-volume
+App/profile destinations. Record guest OS/filesystem, virtual disk cache policy,
+cut point, before/after checksums, recovery output, and any native helper/service
+state. Passing process-crash tests alone must not be reported as passing this
+power-cut acceptance.

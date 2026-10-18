@@ -42,6 +42,7 @@ The executable entry point is `cmd/nagi`. `internal/command` handles help, check
 | `internal/traffic` | OS proxy and macOS TUN DNS settings, restore journals, and engine exit recovery. |
 | `internal/menu` | Terminal input, pages, command result presentation, and stream cancellation. |
 | `internal/installation` | Verified release downloads, App management, maintenance sequencing, and detached App update launch. |
+| `internal/installtx` | Durable installation file transactions, per-prefix locking, and recovery through a private CLI entry point. |
 
 `engine` does not make REST requests. `control` does not start processes. The CLI selects the active profile, constructs the engine and control clients, and connects profile reloads to the mihomo configuration API. See the [runtime design](docs/design/runtime.md) for state and recovery details.
 
@@ -63,7 +64,7 @@ Nagi uses a private Unix Socket by default. Its default profile does not expose 
 
 ## Services, builds, and validation
 
-Installed CLI maintenance reuses the transactional artifact installer embedded from `scripts/installer.sh`; whole updates use the verified release's installer. The CLI owns release selection, download verification, service preparation, and recovery. The macOS App requests update preparation through the CLI, which downloads, verifies, and obtains any required authorization before the App exits through its ordinary quit flow. A detached updater installs the prepared package and reopens the App after success; after failure, it persists a sanitized CLI-owned error and attempts to reopen the App for recovery. See the [maintenance design](docs/design/installation.md).
+Installed CLI maintenance reuses the transactional artifact installer embedded from `scripts/installer.sh`; whole updates use the verified release's installer. The CLI owns release selection, download verification, service preparation, and recovery. An independent file journal permits recovery before reading the installation record; runtime activation refuses a pending transaction until recovery completes. The macOS App requests update preparation through the CLI, which downloads, verifies, and obtains any required authorization before the App exits through its ordinary quit flow. A detached updater installs the prepared package and reopens the App after success; after failure, it persists a sanitized CLI-owned error and attempts to reopen the App for recovery. See the [maintenance design](docs/design/installation.md).
 
 `nagi service install` creates a user launchd Agent on macOS or a `systemd --user` unit on Linux. The service invokes the CLI; the app never invokes a service manager. Its login monitor also hosts the per-user subscription scheduler; a foreground `subscription watch` uses the same singleton host lock. Locked local and fetched builds are described in [Build and test](docs/development/build-and-test.md).
 
