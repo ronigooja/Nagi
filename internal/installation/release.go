@@ -103,7 +103,7 @@ func fetchWithClient(ctx context.Context, base, target, tag string, client *http
 	}
 	for _, name := range []string{"nagi", "mihomo", "installer.sh"} {
 		info, err := os.Lstat(filepath.Join(artifact, name))
-		if err != nil || !info.Mode().IsRegular() || info.Mode()&0111 == 0 {
+		if err != nil || !info.Mode().IsRegular() || info.Mode()&0111 == 0 || info.Size() == 0 {
 			return "", nil, fmt.Errorf("release has no regular executable %s", name)
 		}
 	}

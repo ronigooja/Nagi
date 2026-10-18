@@ -16,7 +16,7 @@ release:
 
 test:
 	$(GO) test ./...
-	./scripts/test-install.sh
+	GO="$(GO)" ./scripts/test-install.sh
 
 clean:
 	rm -rf bin dist

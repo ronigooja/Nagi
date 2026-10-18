@@ -84,6 +84,9 @@ func writeIntent(paths nagiruntime.Paths, intent string) error {
 }
 
 func execute(ctx context.Context, args []string, version, commit string) (any, error) {
+	if err := guardInstallationStart(args); err != nil {
+		return nil, err
+	}
 	if !configMutation(args) {
 		return executeUnlocked(ctx, args, version, commit)
 	}

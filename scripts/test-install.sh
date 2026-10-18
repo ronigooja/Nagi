@@ -12,8 +12,15 @@ trap 'rm -rf -- "$test_dir"' EXIT
 # Use the production dispatcher for filesystem durability; command/status fixtures
 # below replace only unrelated lifecycle operations.
 if [[ -z ${NAGI_TEST_INSTALL_HELPER:-} ]]; then
+    go_bin=${GO:-$(command -v go || true)}
+    if [[ -z "$go_bin" ]]; then
+        for candidate in "$HOME"/environment/go*/bin/go /opt/homebrew/bin/go /usr/local/go/bin/go; do
+            if [[ -x "$candidate" ]]; then go_bin=$candidate; break; fi
+        done
+    fi
+    [[ -n "$go_bin" ]] || { printf 'Go executable not found; set GO=/path/to/go\n' >&2; exit 1; }
     NAGI_TEST_INSTALL_HELPER=$test_dir/transaction-helper
-    (cd "$script_dir/.." && "${GO:-go}" build -o "$NAGI_TEST_INSTALL_HELPER" ./cmd/nagi)
+    (cd "$script_dir/.." && "$go_bin" build -o "$NAGI_TEST_INSTALL_HELPER" ./cmd/nagi)
 fi
 export NAGI_TEST_INSTALL_HELPER
 export HOME=$test_dir/home

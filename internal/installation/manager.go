@@ -114,6 +114,9 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	if background && m.OS != "darwin" {
 		return nil, fmt.Errorf("background update requires an installed macOS App")
 	}
+	if err := m.recoverPending(ctx, action); err != nil {
+		return nil, err
+	}
 	r, err := m.record()
 	if err != nil {
 		return nil, err
@@ -347,6 +350,13 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	if action == "uninstall" && purgeData && bytes.Contains(transactionOutput, []byte("NAGI_PURGE_DATA_INCOMPLETE:")) {
 		return nil, fmt.Errorf("Nagi was removed, but user data cleanup was incomplete; some user data may remain: %w", transactionErr)
 	}
+	if transactionErr != nil && bytes.Contains(transactionOutput, []byte("NAGI_INSTALL_COMMIT_UNCERTAIN:")) {
+		return nil, fmt.Errorf("installation commit state is uncertain; transaction backups are retained; repair the storage failure and run installer.sh recover before resuming Nagi; service restoration was skipped: %w", transactionErr)
+	}
+	filesCommitted := transactionErr != nil && bytes.Contains(transactionOutput, []byte("NAGI_INSTALL_FILES_COMMITTED:"))
+	if action == "uninstall" && filesCommitted {
+		return nil, fmt.Errorf("Nagi installation files were removed, but transaction cleanup was incomplete; run the current release's installer.sh recover; service restoration was skipped: %w", transactionErr)
+	}
 	// Restore login preferences after success or a rolled-back failure. A failed
 	// transaction leaves mihomo stopped so recovery remains an explicit action.
 	var restoreErr error
@@ -357,6 +367,9 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 		}
 	}
 	if transactionErr != nil {
+		if filesCommitted {
+			return nil, errors.Join(fmt.Errorf("files updated, but transaction cleanup was incomplete; Nagi remains stopped; run installer.sh recover before resuming: %w", transactionErr), restoreErr)
+		}
 		return nil, errors.Join(fmt.Errorf("installation failed; inspect installer details; Nagi remains stopped: %w", transactionErr), restoreErr)
 	}
 	if restoreErr != nil {
