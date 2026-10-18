@@ -113,11 +113,12 @@ if [[ "$action" != uninstall && "$action" != recover ]]; then
     [[ -d "$artifact_dir" ]] || fail "artifact directory does not exist: $artifact_dir"
     artifact_dir=$(cd "$artifact_dir" && pwd -P)
     for name in nagi mihomo; do
-        [[ -f "$artifact_dir/$name" && -x "$artifact_dir/$name" && ! -L "$artifact_dir/$name" ]] || fail "missing regular executable: $artifact_dir/$name"
+        [[ -f "$artifact_dir/$name" && -s "$artifact_dir/$name" && -x "$artifact_dir/$name" && ! -L "$artifact_dir/$name" ]] || fail "missing regular executable: $artifact_dir/$name"
     done
     version=$(NAGI_MIHOMO_BIN="$artifact_dir/mihomo" "$artifact_dir/nagi" --json version) || fail "artifact nagi cannot report its version on this host"
     [[ "$version" == *'"ok":true'* && "$version" == *'"mihomo_commit"'* && "$version" == *'"nagi"'* ]] || fail "artifact nagi returned an invalid version response"
-    "$artifact_dir/mihomo" -v >/dev/null || fail "artifact mihomo cannot run on this host"
+    engine_version=$("$artifact_dir/mihomo" -v) || fail "artifact mihomo cannot run on this host"
+    [[ -n "$engine_version" ]] || fail "artifact mihomo returned an empty version response"
     "$artifact_dir/nagi" __default-profile >/dev/null || fail "artifact nagi cannot provide its default profile"
     if [[ -e "$artifact_dir/Nagi.app" || -L "$artifact_dir/Nagi.app" ]]; then
         [[ "$platform" == Darwin && -d "$artifact_dir/Nagi.app" && ! -L "$artifact_dir/Nagi.app" ]] || fail "Nagi.app must be an ordinary directory on macOS"
@@ -323,8 +324,16 @@ else
         fi
         transaction_fs prepare "$transaction_root" "$app_dest" "$app_source" "$state" "$app_stage/new-state"
         transaction_fs activate "$transaction_root"
-        transaction_fs commit "$transaction_root"
-        app_committed=1
+        if transaction_fs commit "$transaction_root"; then
+            app_committed=1
+        else
+            commit_result=$?
+            if (( commit_result == 4 )); then
+                app_committed=1
+                fail 'App files committed, but transaction cleanup remains pending; run installer.sh recover before further maintenance'
+            fi
+            exit "$commit_result"
+        fi
         printf 'Nagi App %s complete\n' "$app_only"
         exit 0
     fi
@@ -423,6 +432,7 @@ trap 'exit 130' INT TERM
 if [[ "$action" != uninstall ]]; then
     mkdir -p -m 0700 -- "$profile_dir"
     "$artifact_dir/nagi" __default-profile > "$stage/default.yaml" || fail "artifact nagi cannot provide its default profile"
+    [[ -s "$stage/default.yaml" ]] || fail "artifact nagi returned an empty default profile"
     chmod 0600 "$stage/default.yaml"
     write_fs install -m 0755 -- "$artifact_dir/nagi" "$stage/new-nagi"
     write_fs install -m 0755 -- "$artifact_dir/mihomo" "$stage/new-mihomo"
@@ -454,8 +464,16 @@ if [[ "$action" != uninstall ]]; then
         if [[ "$action" == install ]] || (( helper_was_privileged )); then enable_helper_when_ready; fi
     fi
 fi
-transaction_fs commit "$transaction_root"
-committed=1
+if transaction_fs commit "$transaction_root"; then
+    committed=1
+else
+    commit_result=$?
+    if (( commit_result == 4 )); then
+        committed=1
+        fail 'installation files committed, but transaction cleanup remains pending; run installer.sh recover before further maintenance'
+    fi
+    exit "$commit_result"
+fi
 if (( purge_data )); then
     for data_path in "${user_data_targets[@]}"; do
         [[ "$data_path" != / && "$data_path" != "$HOME" ]] || purge_fail "refusing unsafe user data path: $data_path"
