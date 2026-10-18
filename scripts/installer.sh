@@ -146,7 +146,7 @@ if [[ -z "$transaction_helper" ]]; then
     fi
 fi
 transaction_fs() {
-    if [[ -w "$(nearest_parent "$prefix")" && ( ! -e "$transaction_root" || -w "$transaction_root" ) ]]; then
+    if (( ! ${needs_sudo:-0} && ! ${app_needs_sudo:-0} )) && [[ -w "$(nearest_parent "$prefix")" && ( ! -e "$transaction_root" || -w "$transaction_root" ) ]]; then
         "$transaction_helper" __install-transaction --locked "$@"
     else
         sudo "$transaction_helper" __install-transaction --locked "$@"
