@@ -133,6 +133,16 @@ func TestProfileValidatorPreservesSpecificRuleDiagnostic(t *testing.T) {
 	}
 }
 
+func TestProfileValidatorShowsGeoIPFailureWithoutRuleSyntaxAdvice(t *testing.T) {
+	binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[10446]\",\"code\":\"geodata_download_failed\",\"message\":\"GeoIP database (MMDB) download failed: connection refused\"}]}'\necho 'PRIVATE raw diagnostic' >&2\nexit 1\n")
+	store, _ := validationStore(t, binary)
+	err := store.ApplySubscription(context.Background(), "Jimiao", []byte("rules: [\"GEOIP,CN,DIRECT\"]\n"))
+	want := `profile "Jimiao" validation failed at rules[10446] (geodata_download_failed): GeoIP database (MMDB) download failed: connection refused`
+	if err == nil || err.Error() != want {
+		t.Fatalf("GeoIP diagnostic: %v; want %s", err, want)
+	}
+}
+
 func TestProfileValidatorResolvesBinaryOnPATH(t *testing.T) {
 	binDir := t.TempDir()
 	writeFakeMihomo(t, binDir, "mihomo", "#!/bin/sh\nexit 0\n")

@@ -323,7 +323,7 @@ func (e *ValidationError) Error() string {
 		prefix = fmt.Sprintf("profile %q", e.Profile)
 	}
 	message := fmt.Sprintf("%s validation failed at %s (%s): %s", prefix, e.Path, e.Code, e.Message)
-	if strings.HasPrefix(e.Path, "rules[") {
+	if strings.HasPrefix(e.Path, "rules[") && !strings.HasPrefix(e.Code, "geodata_") {
 		if e.Message == "configuration validation failed" {
 			message += "; mihomo did not provide a specific cause"
 		}
