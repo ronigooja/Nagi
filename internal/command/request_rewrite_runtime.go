@@ -711,8 +711,8 @@ func rewriteMutation(args []string) bool {
 	switch args[1] {
 	case "enable", "disable", "import":
 		return true
-	case "domains", "rules":
-		return len(args) > 2 && args[2] != "list" && args[2] != "show"
+	case "scripts", "rules":
+		return len(args) > 2 && args[2] != "list" && args[2] != "show" && args[2] != "source"
 	case "ca":
 		return len(args) > 2 && (args[2] == "generate" || args[2] == "trust")
 	}

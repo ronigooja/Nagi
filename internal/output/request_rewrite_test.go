@@ -31,3 +31,19 @@ func TestRewriteHumanAndJSONBoundaries(t *testing.T) {
 		t.Fatal(e, raw.String())
 	}
 }
+
+func TestRewriteScriptSourceAndStagedOutput(t *testing.T) {
+	source := "function rewrite(input) { return {}; }\n\n"
+	var out bytes.Buffer
+	if e := Write(&out, false, RewriteResult{"sensitive": true, "script": map[string]any{"id": "local", "source": source}}); e != nil || out.String() != source {
+		t.Fatal(e, out.String())
+	}
+	out.Reset()
+	if e := Write(&out, false, RewriteResult{"scripts": []any{}}); e != nil || !strings.Contains(out.String(), "No local rewrite scripts.") {
+		t.Fatal(e, out.String())
+	}
+	out.Reset()
+	if e := Write(&out, false, RewriteResult{"sensitive": true, "stage": "response", "response": map[string]any{"status": 201}, "stages": []any{map[string]any{"stage": "response"}}}); e != nil || !strings.Contains(out.String(), `"status": 201`) || !strings.HasPrefix(out.String(), "Sensitive output:") {
+		t.Fatal(e, out.String())
+	}
+}

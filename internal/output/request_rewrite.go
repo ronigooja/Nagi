@@ -22,12 +22,18 @@ func writeRewrite(w io.Writer, v RewriteResult) error {
 	if e = json.Unmarshal(b, &v); e != nil {
 		return e
 	}
+	if script, ok := v["script"].(map[string]any); ok && v["sensitive"] == true {
+		if source, ok := script["source"].(string); ok {
+			_, err := io.WriteString(w, source)
+			return err
+		}
+	}
 	if v["sensitive"] == true {
 		if err := line(w, "Sensitive output: may contain request or rule credentials."); err != nil {
 			return err
 		}
 	}
-	if v["request"] != nil {
+	if v["request"] != nil || v["response"] != nil || v["message"] != nil || v["stages"] != nil {
 		b, e := json.MarshalIndent(v, "", "  ")
 		if e != nil {
 			return e
@@ -64,16 +70,18 @@ func writeRewrite(w io.Writer, v RewriteResult) error {
 			return err
 		}
 	}
-	if domains, ok := v["domains"].([]any); ok {
-		if len(domains) == 0 {
-			return line(w, "No authorized domains.")
+	if scripts, ok := v["scripts"].([]any); ok {
+		if len(scripts) == 0 {
+			return line(w, "No local rewrite scripts.")
 		}
-		for _, d := range domains {
-			m, _ := d.(map[string]any)
-			if err := line(w, fmt.Sprintf("%v  %v", m["id"], m["pattern"])); err != nil {
+		for _, script := range scripts {
+			if err := writeRewriteScript(w, script); err != nil {
 				return err
 			}
 		}
+	}
+	if script, ok := v["script"]; ok {
+		return writeRewriteScript(w, script)
 	}
 	if rules, ok := v["rules"].([]any); ok {
 		if len(rules) == 0 {
@@ -96,5 +104,10 @@ func writeRewriteRule(w io.Writer, index int, v any) error {
 	if index > 0 {
 		prefix = fmt.Sprintf("%d. ", index)
 	}
-	return line(w, fmt.Sprintf("%s%v  enabled=%v  match=%v  operations=%v  on_error=%v", prefix, m["id"], m["enabled"], m["match"], m["operations"], m["on_error"]))
+	return line(w, fmt.Sprintf("%s%v  enabled=%v  stage=%v  range=%v  match=%v  operations=%v  on_error=%v", prefix, m["id"], m["enabled"], m["stage"], m["range_mode"], m["match"], m["operations"], m["on_error"]))
+}
+
+func writeRewriteScript(w io.Writer, v any) error {
+	m, _ := v.(map[string]any)
+	return line(w, fmt.Sprintf("%v  body_access=%v  source_bytes=%v  rule_ids=%v", m["id"], m["body_access"], m["source_bytes"], m["rule_ids"]))
 }

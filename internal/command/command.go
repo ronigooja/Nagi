@@ -325,7 +325,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		return result, nil
 	}
 	if command == "completion" {
-		if len(args) >= 3 && args[1] == "candidates" && (args[2] == "rewrite-domains" || args[2] == "rewrite-rules") {
+		if len(args) >= 3 && args[1] == "candidates" && (args[2] == "rewrite-scripts" || args[2] == "rewrite-rules") {
 			return rewriteCandidates(args)
 		}
 		if len(args) >= 2 && args[1] == "candidates" {

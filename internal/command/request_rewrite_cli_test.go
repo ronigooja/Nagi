@@ -40,7 +40,7 @@ func rewriteAliasOK(t *testing.T, root, input string, args ...string) map[string
 	return envelope.Data
 }
 
-const rewriteTestRule = `{"id":"edit-api","enabled":true,"match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"Authorization","value":"fictitious-secret"}]}`
+const rewriteTestRule = `{"id":"edit-api","enabled":true,"stage":"request","match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"Authorization","value":"fictitious-secret"}]}`
 
 func TestRewriteCLIInventoryHelpAndUsageWithoutRuntime(t *testing.T) {
 	invalidTestConfigDir(t, t.TempDir())
@@ -59,7 +59,7 @@ func TestRewriteCLIInventoryHelpAndUsageWithoutRuntime(t *testing.T) {
 			}
 		}
 	}
-	for _, args := range [][]string{{"request-rewrite"}, {"request-rewrite", "domains"}, {"request-rewrite", "ca", "trust"}, {"request-rewrite", "rules", "update", "id"}, {"request-rewrite", "enable", "--profile", "work"}, {"request-rewrite", "rules", "show", "../bad"}, {"request-rewrite", "preview", "https://fictitious.example/fixture"}, {"request-rewrite", "validate", "--profile", "work", "--profile", "other"}, {"request-rewrite", "export", "-", "--json"}, {"request-rewrite", "ca", "export", "-", "--json"}} {
+	for _, args := range [][]string{{"request-rewrite"}, {"request-rewrite", "scripts"}, {"request-rewrite", "ca", "trust"}, {"request-rewrite", "rules", "update", "id"}, {"request-rewrite", "enable", "--profile", "work"}, {"request-rewrite", "rules", "show", "../bad"}, {"request-rewrite", "preview", "https://fictitious.example/fixture"}, {"request-rewrite", "validate", "--profile", "work", "--profile", "other"}, {"request-rewrite", "export", "-", "--json"}, {"request-rewrite", "ca", "export", "-", "--json"}} {
 		for _, root := range []string{"rewrite", "request-rewrite"} {
 			args[0] = root
 			code, out, err := rewriteCLIRun(t, "", append([]string{"--json"}, args...)...)
@@ -74,11 +74,11 @@ func TestRewriteCLIOfflineJourneySensitiveBoundaries(t *testing.T) {
 		t.Run(root, func(t *testing.T) {
 			paths := isolatedTestPaths(t, t.TempDir())
 			t.Setenv("NAGI_MIHOMO_BIN", "/missing/mihomo")
-			code, out, err := rewriteCLIRun(t, "", root, "domains", "list")
-			if code != 0 || !strings.Contains(out, "No authorized domains.") || err != "" {
+			code, out, err := rewriteCLIRun(t, "", root, "scripts", "list")
+			if code != 0 || !strings.Contains(out, "No local rewrite scripts.") || err != "" {
 				t.Fatal(code, out, err)
 			}
-			rewriteAliasOK(t, root, `{"id":"api","pattern":"API.Service.Example."}`, "domains", "add", "-")
+			rewriteAliasOK(t, root, `{"id":"api","body_access":"none","source":"function rewrite(input) { return {}; }"}`, "scripts", "add", "-")
 			rewriteAliasOK(t, root, rewriteTestRule, "rules", "add", "-")
 			for _, args := range [][]string{{"rules", "list"}, {"rules", "show", "edit-api"}} {
 				v := rewriteAliasOK(t, root, "", args...)
@@ -87,7 +87,7 @@ func TestRewriteCLIOfflineJourneySensitiveBoundaries(t *testing.T) {
 					t.Fatal("ordinary read exposed operation value", string(b))
 				}
 			}
-			fixture := `{"scheme":"https","host":"api.service.example","port":443,"method":"GET","path":"/","query":"","headers":{},"body_base64":""}`
+			fixture := `{"stage":"request","request":{"scheme":"https","host":"api.service.example","port":443,"method":"GET","path":"/","query":"","headers":{},"body_base64":""}}`
 			preview := rewriteAliasOK(t, root, fixture, "preview", "-")
 			if preview["sensitive"] != true || preview["outcome"] != "rewritten" {
 				t.Fatal(preview)
@@ -101,8 +101,8 @@ func TestRewriteCLIOfflineJourneySensitiveBoundaries(t *testing.T) {
 			}
 			rewriteAliasOK(t, root, "", "validate")
 			before, _ := os.ReadFile(rewrite.Path(paths.ConfigDir, "default"))
-			for _, bad := range []string{"", `{"id":"other","pattern":"other.service.example","pattern":"evil.example"}`, `{"id":"other","pattern":"other.service.example","extra":true}`, `{"id":"other","pattern":"other.service.example"},{"id":"injected","pattern":"injected.example"}`} {
-				code, out, err = rewriteCLIRun(t, bad, "--json", root, "domains", "add", "-")
+			for _, bad := range []string{"", `{"id":"other","body_access":"none","source":"fictitious","source":"secret"}`, `{"id":"other","body_access":"none","source":"fictitious","extra":true}`, `{"id":"other","body_access":"none","source":"fictitious"},{"id":"injected","body_access":"none","source":"fictitious"}`} {
+				code, out, err = rewriteCLIRun(t, bad, "--json", root, "scripts", "add", "-")
 				if code != 1 || out != "" || !strings.Contains(err, `"code":"request_rewrite_error"`) || strings.Contains(err, "evil.example") {
 					t.Fatal(code, out, err)
 				}
@@ -119,7 +119,7 @@ func TestRewriteCLIOfflineJourneySensitiveBoundaries(t *testing.T) {
 			rewriteAliasOK(t, root, "", "rules", "disable", "edit-api")
 			rewriteAliasOK(t, root, "", "rules", "enable", "edit-api")
 			code, raw, err := rewriteCLIRun(t, "", root, "export", "-")
-			if code != 0 || err != "" || !strings.Contains(raw, "fictitious-secret") || strings.Contains(raw, `"enabled":true,"domains"`) {
+			if code != 0 || err != "" || !strings.Contains(raw, "fictitious-secret") || strings.Contains(raw, `"enabled":true,"scripts"`) {
 				t.Fatal(code, raw, err)
 			}
 			portable, e := rewrite.Parse([]byte(raw))
@@ -149,8 +149,8 @@ func TestRewriteCLIOfflineJourneySensitiveBoundaries(t *testing.T) {
 				t.Fatal(code, out, err)
 			}
 			rewriteAliasOK(t, root, "", "rules", "remove", "edit-api")
-			rewriteAliasOK(t, root, `{"id":"api","pattern":"api.changed.example"}`, "domains", "update", "api", "-")
-			rewriteAliasOK(t, root, "", "domains", "remove", "api")
+			rewriteAliasOK(t, root, `{"id":"api","body_access":"buffer","source":"function rewrite(input) { return {}; }"}`, "scripts", "update", "api", "-")
+			rewriteAliasOK(t, root, "", "scripts", "remove", "api")
 
 		})
 	}
@@ -162,19 +162,19 @@ func TestRewriteCLIInputFilesAndBounds(t *testing.T) {
 			isolatedTestPaths(t, t.TempDir())
 			inputDir := t.TempDir()
 			input := filepath.Join(inputDir, "domain.json")
-			data := `{"id":"api","pattern":"api.service.example"}`
+			data := `{"id":"api","body_access":"none","source":"function rewrite(input) { return {}; }"}`
 			if e := os.WriteFile(input, []byte(data), 0644); e != nil {
 				t.Fatal(e)
 			}
-			code, out, err := rewriteCLIRun(t, "", "--json", root, "domains", "add", input)
+			code, out, err := rewriteCLIRun(t, "", "--json", root, "scripts", "add", input)
 			if code != 1 || out != "" || !strings.Contains(err, "rewrite_input_private_file_required") {
 				t.Fatal(code, out, err)
 			}
 			os.Chmod(input, 0600)
-			rewriteAliasOK(t, root, "", "domains", "add", input)
+			rewriteAliasOK(t, root, "", "scripts", "add", input)
 			link := filepath.Join(inputDir, "link")
 			os.Symlink(input, link)
-			code, _, _ = rewriteCLIRun(t, "", root, "domains", "add", link)
+			code, _, _ = rewriteCLIRun(t, "", root, "scripts", "add", link)
 			if code != 1 {
 				t.Fatal("accepted symlink")
 			}
@@ -220,8 +220,8 @@ COMP_WORDS=(nagi request-rewrite rules ''); COMP_CWORD=3; _nagi_complete; printf
 COMP_WORDS=(nagi request-rewrite ca trust ''); COMP_CWORD=4; _nagi_complete; printf 'TRUST:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi request-rewrite rules show edit); COMP_CWORD=4; _nagi_complete; printf 'ID:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi --json request-rewrite --profile work rules show edit); COMP_CWORD=7; _nagi_complete; printf 'NAMED:%s\n' "${COMPREPLY[*]}"
-COMP_WORDS=(nagi request-rewrite domains update a); COMP_CWORD=4; _nagi_complete; printf 'DOMAIN:%s\n' "${COMPREPLY[*]}"
-COMP_WORDS=(nagi request-rewrite domains --profile work update a); COMP_CWORD=6; _nagi_complete; printf 'DOMAIN_NAMED:%s\n' "${COMPREPLY[*]}"
+COMP_WORDS=(nagi request-rewrite scripts update a); COMP_CWORD=4; _nagi_complete; printf 'SCRIPT:%s\n' "${COMPREPLY[*]}"
+COMP_WORDS=(nagi request-rewrite scripts --profile work update a); COMP_CWORD=6; _nagi_complete; printf 'SCRIPT_NAMED:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi request-rewrite preview ''); COMP_CWORD=3; _nagi_complete; printf 'FILE:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi request-rewrite rules list --p); COMP_CWORD=4; _nagi_complete; printf 'PROFILE:%s\n' "${COMPREPLY[*]}"
 `
@@ -234,7 +234,7 @@ COMP_WORDS=(nagi request-rewrite rules list --p); COMP_CWORD=4; _nagi_complete; 
 			if e != nil {
 				t.Fatalf("%s %s %v", shell, out, e)
 			}
-			for _, want := range []string{"RULES:list show add update remove enable disable reorder", "TRUST:install remove", "ID:edit-api", "NAMED:edit-api", "DOMAIN:api", "DOMAIN_NAMED:api", "PROFILE:--profile", "FILE:"} {
+			for _, want := range []string{"RULES:list show add update remove enable disable reorder", "TRUST:install remove", "ID:edit-api", "NAMED:edit-api", "SCRIPT:api", "SCRIPT_NAMED:api", "PROFILE:--profile", "FILE:"} {
 				if !strings.Contains(string(out), want) {
 					t.Fatalf("missing %s: %s", want, out)
 				}
@@ -243,10 +243,70 @@ COMP_WORDS=(nagi request-rewrite rules list --p); COMP_CWORD=4; _nagi_complete; 
 	}
 	for _, shell := range []string{"zsh", "fish"} {
 		script, _ := completion(shell)
-		for _, want := range []string{"rewrite-domains", "rewrite-rules", "--profile", "reorder", "trust"} {
+		for _, want := range []string{"rewrite-scripts", "rewrite-rules", "--profile", "reorder", "trust"} {
 			if !strings.Contains(script, want) && !(shell == "fish" && want == "--profile") {
 				t.Fatal(shell, want)
 			}
+		}
+	}
+}
+
+func TestRewriteCLIScriptReferencesAndSensitiveSource(t *testing.T) {
+	isolatedTestPaths(t, t.TempDir())
+	source := "function rewrite(input) { return {}; }\n// fictitious-source-secret\n"
+	script, _ := json.Marshal(map[string]any{"id": "local-edit", "body_access": "buffer", "source": source})
+	rewriteOK(t, string(script), "scripts", "add", "-")
+	rule := `{"id":"use-script","enabled":false,"stage":"response","match":{"domain":"api.service.example"},"on_error":"block","redirect_consent":[],"operations":[{"op":"script","script":"local-edit"}]}`
+	rewriteOK(t, rule, "rules", "add", "-")
+	for _, args := range [][]string{{"scripts", "list"}, {"scripts", "show", "local-edit"}} {
+		value := rewriteOK(t, "", args...)
+		raw, _ := json.Marshal(value)
+		if strings.Contains(string(raw), "fictitious-source-secret") || !strings.Contains(string(raw), "use-script") {
+			t.Fatal(string(raw))
+		}
+	}
+	code, out, stderr := rewriteCLIRun(t, "", "request-rewrite", "scripts", "source", "local-edit")
+	if code != 0 || stderr != "" || out != source {
+		t.Fatal(code, out, stderr)
+	}
+	full := rewriteOK(t, "", "scripts", "source", "local-edit")
+	if full["sensitive"] != true {
+		t.Fatal(full)
+	}
+	code, out, stderr = rewriteCLIRun(t, "", "--json", "request-rewrite", "scripts", "remove", "local-edit")
+	if code != 1 || out != "" || !strings.Contains(stderr, "rewrite_script_referenced") || strings.Contains(stderr, "fictitious-source-secret") {
+		t.Fatal(code, out, stderr)
+	}
+	rewriteOK(t, "", "rules", "remove", "use-script")
+	rewriteOK(t, "", "scripts", "remove", "local-edit")
+}
+
+func TestRewriteCLIStagedPreview(t *testing.T) {
+	isolatedTestPaths(t, t.TempDir())
+	request := map[string]any{"scheme": "https", "host": "api.service.example", "port": 443, "method": "GET", "path": "/", "query": "", "headers": map[string][]string{}, "body_base64": ""}
+	for _, stage := range []string{"request", "response", "websocket_client", "websocket_server"} {
+		rule := map[string]any{"id": stage, "enabled": true, "stage": stage, "match": map[string]any{"domain": "api.service.example"}, "on_error": "block", "redirect_consent": []any{}, "operations": []any{map[string]any{"op": "body_set", "encoding": "text", "value": "changed"}}}
+		b, _ := json.Marshal(rule)
+		rewriteOK(t, string(b), "rules", "add", "-")
+	}
+	for _, stage := range []string{"request", "response", "exchange", "websocket_client", "websocket_server"} {
+		fixture := map[string]any{"stage": stage, "request": request}
+		if stage != "request" {
+			status := 200
+			if strings.HasPrefix(stage, "websocket_") {
+				status = 101
+			}
+			fixture["response"] = map[string]any{"status": status, "headers": map[string][]string{"Content-Type": {"text/plain"}}, "body_base64": ""}
+		}
+		if strings.HasPrefix(stage, "websocket_") {
+			fixture["message"] = map[string]any{"type": "text", "body_base64": ""}
+		}
+		// Text body replacement requires an explicitly textual media type.
+		request["headers"] = map[string][]string{"Content-Type": {"text/plain"}}
+		raw, _ := json.Marshal(fixture)
+		result := rewriteOK(t, string(raw), "preview", "-")
+		if result["stage"] != stage || result["sensitive"] != true || result["request"] == nil || result["stages"] == nil {
+			t.Fatal(result)
 		}
 	}
 }

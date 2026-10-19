@@ -33,18 +33,18 @@ const rewriteBashCompletion = `  if [[ ${semantic[0]} == request-rewrite || ${se
     fi
     if [[ $cur == --* ]]; then
       rwchoices='--json --help'
-      case "${rw[1]}" in domains|rules|import|export|validate|preview) rwchoices+=' --profile';; esac
-    elif [[ ${#rw[@]} -eq 1 ]]; then rwchoices='status enable disable domains rules import export validate preview ca'
+      case "${rw[1]}" in scripts|rules|import|export|validate|preview) rwchoices+=' --profile';; esac
+    elif [[ ${#rw[@]} -eq 1 ]]; then rwchoices='status enable disable scripts rules import export validate preview ca'
     elif [[ ${#rw[@]} -eq 2 ]]; then
-      case "${rw[1]}" in domains) rwchoices='list add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; import|export|validate|preview) rwfile=1;; esac
+      case "${rw[1]}" in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; import|export|validate|preview) rwfile=1;; esac
     elif [[ ${#rw[@]} -eq 3 ]]; then
       case "${rw[1]} ${rw[2]}" in
         'ca trust') rwchoices='install remove';;
-        'domains update'|'domains remove') rwkind=rewrite-domains;;
+        'scripts show'|'scripts source'|'scripts update'|'scripts remove') rwkind=rewrite-scripts;;
         'rules update'|'rules remove'|'rules show'|'rules enable'|'rules disable') rwkind=rewrite-rules;;
-        'domains add'|'rules add'|'rules reorder'|'ca export') rwfile=1;;
+        'scripts add'|'rules add'|'rules reorder'|'ca export') rwfile=1;;
       esac
-    elif [[ ${#rw[@]} -eq 4 && ${rw[2]} == update && ( ${rw[1]} == rules || ${rw[1]} == domains ) ]]; then rwfile=1
+    elif [[ ${#rw[@]} -eq 4 && ${rw[2]} == update && ( ${rw[1]} == rules || ${rw[1]} == scripts ) ]]; then rwfile=1
     fi
     if [[ -n $rwkind ]]; then
       if [[ -n $rp ]]; then while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates "$rwkind" "$rp" 2>/dev/null)
@@ -66,18 +66,18 @@ const rewriteZshCompletion = `  if [[ ${semantic[1]} == request-rewrite || ${sem
     if [[ $prev == --profile ]]; then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
     if [[ $words[CURRENT] == --* ]]; then
       rwchoices='--json --help'
-      case ${rw[2]} in domains|rules|import|export|validate|preview) rwchoices+=' --profile';; esac
-    elif (( ${#rw} == 1 )); then rwchoices='status enable disable domains rules import export validate preview ca'
+      case ${rw[2]} in scripts|rules|import|export|validate|preview) rwchoices+=' --profile';; esac
+    elif (( ${#rw} == 1 )); then rwchoices='status enable disable scripts rules import export validate preview ca'
     elif (( ${#rw} == 2 )); then
-      case ${rw[2]} in domains) rwchoices='list add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; import|export|validate|preview) rwfile=1;; esac
+      case ${rw[2]} in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; import|export|validate|preview) rwfile=1;; esac
     elif (( ${#rw} == 3 )); then
       case "${rw[2]} ${rw[3]}" in
         'ca trust') rwchoices='install remove';;
-        'domains update'|'domains remove') rwkind=rewrite-domains;;
+        'scripts show'|'scripts source'|'scripts update'|'scripts remove') rwkind=rewrite-scripts;;
         'rules update'|'rules remove'|'rules show'|'rules enable'|'rules disable') rwkind=rewrite-rules;;
-        'domains add'|'rules add'|'rules reorder'|'ca export') rwfile=1;;
+        'scripts add'|'rules add'|'rules reorder'|'ca export') rwfile=1;;
       esac
-    elif (( ${#rw} == 4 )) && [[ ${rw[3]} == update && ( ${rw[2]} == domains || ${rw[2]} == rules ) ]]; then rwfile=1
+    elif (( ${#rw} == 4 )) && [[ ${rw[3]} == update && ( ${rw[2]} == scripts || ${rw[2]} == rules ) ]]; then rwfile=1
     fi
     if [[ -n $rwkind ]]; then
       if [[ -n $rp ]]; then compadd -- ${(f)"$(nagi completion candidates "$rwkind" "$rp" 2>/dev/null)"}; else compadd -- ${(f)"$(nagi completion candidates "$rwkind" 2>/dev/null)"}; fi
@@ -109,7 +109,7 @@ function __nagi_rewrite_ids
   nagi completion candidates $argv[1] $profile 2>/dev/null
 end
 `)
-	for _, group := range []struct{ path, choices string }{{"request-rewrite domains", "list add update remove"}, {"request-rewrite rules", "list show add update remove enable disable reorder"}, {"request-rewrite ca", "status generate export trust"}, {"request-rewrite ca trust", "install remove"}} {
+	for _, group := range []struct{ path, choices string }{{"request-rewrite scripts", "list show source add update remove"}, {"request-rewrite rules", "list show add update remove enable disable reorder"}, {"request-rewrite ca", "status generate export trust"}, {"request-rewrite ca trust", "install remove"}} {
 		parts := strings.Fields(group.path)
 		conditions := fmt.Sprintf("set -l s (__nagi_rewrite_words); test (count $s) -eq %d", len(parts))
 		for i, p := range parts {
@@ -117,12 +117,12 @@ end
 		}
 		fmt.Fprintf(&b, "complete -c nagi -f -n '%s' -a '%s'\n", conditions, group.choices)
 	}
-	b.WriteString(`complete -c nagi -f -r -n 'set -l s (__nagi_rewrite_words); test "$s[1]" = request-rewrite; and contains -- "$s[2]" domains rules import export validate preview' -l profile -a '(nagi completion candidates profile 2>/dev/null)'
-complete -c nagi -f -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 3; and test "$s[1]" = request-rewrite; and test "$s[2]" = domains; and contains -- "$s[3]" update remove' -a '(__nagi_rewrite_ids rewrite-domains)'
+	b.WriteString(`complete -c nagi -f -r -n 'set -l s (__nagi_rewrite_words); test "$s[1]" = request-rewrite; and contains -- "$s[2]" scripts rules import export validate preview' -l profile -a '(nagi completion candidates profile 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 3; and test "$s[1]" = request-rewrite; and test "$s[2]" = scripts; and contains -- "$s[3]" show source update remove' -a '(__nagi_rewrite_ids rewrite-scripts)'
 complete -c nagi -f -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 3; and test "$s[1]" = request-rewrite; and test "$s[2]" = rules; and contains -- "$s[3]" show update remove enable disable' -a '(__nagi_rewrite_ids rewrite-rules)'
 complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 2; and test "$s[1]" = request-rewrite; and contains -- "$s[2]" import export validate preview' -a '-'
-complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 3; and test "$s[1]" = request-rewrite; and begin; test "$s[2] $s[3]" = "domains add"; or test "$s[2] $s[3]" = "rules add"; or test "$s[2] $s[3]" = "rules reorder"; or test "$s[2] $s[3]" = "ca export"; end' -a '-'
-complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 4; and test "$s[1]" = request-rewrite; and contains -- "$s[2]" domains rules; and test "$s[3]" = update' -a '-'
+complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 3; and test "$s[1]" = request-rewrite; and begin; test "$s[2] $s[3]" = "scripts add"; or test "$s[2] $s[3]" = "rules add"; or test "$s[2] $s[3]" = "rules reorder"; or test "$s[2] $s[3]" = "ca export"; end' -a '-'
+complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 4; and test "$s[1]" = request-rewrite; and contains -- "$s[2]" scripts rules; and test "$s[3]" = update' -a '-'
 `)
 	return b.String()
 }

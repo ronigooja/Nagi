@@ -10,10 +10,10 @@ import (
 )
 
 func rewritePreviewPage(profile string) *Page {
-	return actionPage("Preview sample request",
+	return actionPage("Preview staged fixture",
 		Item{Label: "Enter sample request", Impact: rewriteSensitive + " Transforms locally without DNS/network, persistence or ordinary logging.", Action: rewritePreviewForm(profile)},
 		Item{Label: "Preview private fixture file", Impact: rewriteSensitive, Action: func(ctx context.Context, s *Session) error {
-			_, err := s.rewriteForm(ctx, []Field{{Key: "path", Label: "Private request fixture file path", Required: true}}, nil, func(v map[string]string) Result {
+			_, err := s.rewriteForm(ctx, []Field{{Key: "path", Label: "Private staged fixture file path", Required: true}}, nil, func(v map[string]string) Result {
 				if v["path"] == "-" {
 					r := rewriteFailure("Enter a private file path; use the sample form for terminal input")
 					s.ShowResult(nil, r)
@@ -23,6 +23,7 @@ func rewritePreviewPage(profile string) *Page {
 			})
 			return err
 		}},
+		Item{Label: "Enter complete staged fixture JSON", Impact: rewriteSensitive + " Request, response, exchange and both WebSocket directions.", Action: rewritePreviewJSONForm(profile)},
 		Item{Label: "Validate private document file", Action: rewriteFileForm(profile, "validate")},
 	)
 }
@@ -30,7 +31,7 @@ func rewritePreviewForm(profile string) func(context.Context, *Session) error {
 	return func(ctx context.Context, s *Session) error {
 		fields := []Field{
 			{Key: "scheme", Label: "Scheme", Choices: []string{"https", "http"}},
-			{Key: "host", Label: "Authorized request host", Required: true},
+			{Key: "host", Label: "Request host within enabled rule scope", Required: true},
 			{Key: "port", Label: "Port", Required: true, Validate: func(v string) error {
 				n, e := strconv.Atoi(v)
 				if e != nil || n < 1 || n > 65535 {
@@ -65,7 +66,7 @@ func rewritePreviewForm(profile string) func(context.Context, *Session) error {
 				_ = json.Unmarshal([]byte(v["headers"]), &headers)
 			}
 			fixture := map[string]any{"scheme": v["scheme"], "host": v["host"], "port": port, "method": v["method"], "path": v["path"], "query": v["query"], "headers": headers, "body_base64": v["body"]}
-			return rewritePreviewResult(ctx, s, fixture, profile, "preview", "-")
+			return rewritePreviewResult(ctx, s, map[string]any{"stage": "request", "request": fixture}, profile, "preview", "-")
 		})
 		return err
 	}
@@ -102,4 +103,13 @@ func rewritePreviewResult(ctx context.Context, s *Session, fixture any, profile 
 	fmt.Fprintln(s.out, string(raw))
 	s.longResult = true
 	return r
+}
+
+func rewritePreviewJSONForm(profile string) func(context.Context, *Session) error {
+	return func(ctx context.Context, s *Session) error {
+		_, err := s.rewriteForm(ctx, []Field{{Key: "json", Label: "Complete {stage,request,response?,message?} JSON (single line)", Required: true, Validate: func(v string) error { var candidate map[string]json.RawMessage; return rewriteMenuJSON(v, &candidate) }}}, nil, func(v map[string]string) Result {
+			return rewritePreviewResult(ctx, s, json.RawMessage(v["json"]), profile, "preview", "-")
+		})
+		return err
+	}
 }

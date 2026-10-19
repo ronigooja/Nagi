@@ -307,7 +307,7 @@ func TestRewriteLiveMutationFailureRestoresDiskAndPreviousGeneration(t *testing.
 	}
 	generation := engine.active.Generation
 	engine.failProbe = true
-	_, err = store.AddDomain(context.Background(), rewrite.Domain{ID: "mirror", Pattern: "mirror.service.example"})
+	_, err = store.AddRule(context.Background(), rewrite.Rule{ID: "mirror", Enabled: true, Stage: rewrite.StageRequest, Match: rewrite.Match{Domain: "mirror.service.example"}, OnError: "block", RedirectConsent: []rewrite.Consent{}, Operations: []rewrite.Operation{{Op: "header_delete", Name: "X-Old"}}})
 	if err == nil {
 		t.Fatal("failed candidate accepted")
 	}
@@ -380,7 +380,7 @@ func TestRewriteDisableFailurePreservesServiceAndIntent(t *testing.T) {
 func TestRewriteDisabledMutationDoesNotStartChild(t *testing.T) {
 	paths, engine, children := rewriteCoordinatorFixture(t)
 	store := rewriteStore(paths, "work")
-	if _, e := store.AddDomain(context.Background(), rewrite.Domain{ID: "api", Pattern: "api.service.example"}); e != nil {
+	if _, e := store.AddRule(context.Background(), rewriteEnabledFixture(t).Document().Rules[0]); e != nil {
 		t.Fatal(e)
 	}
 	if len(*children) != 0 || engine.active.BranchEnabled {
@@ -556,7 +556,7 @@ func TestRewriteEnableCLIReportsPrerequisiteRecovery(t *testing.T) {
 	for _, kind := range []string{"capability", "tun", "ca", "trust"} {
 		t.Run(kind, func(t *testing.T) {
 			paths, engine, _ := rewriteCoordinatorFixture(t)
-			if _, e := rewriteStore(paths, "work").AddDomain(context.Background(), rewrite.Domain{ID: "api", Pattern: "api.service.example"}); e != nil {
+			if _, e := rewriteStore(paths, "work").AddRule(context.Background(), rewriteEnabledFixture(t).Document().Rules[0]); e != nil {
 				t.Fatal(e)
 			}
 			reason, next := "", ""

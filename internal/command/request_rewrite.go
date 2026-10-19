@@ -42,7 +42,7 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 		return o, errors.New("missing subcommand")
 	}
 	n := 2
-	if args[1] == "domains" || args[1] == "rules" || args[1] == "ca" {
+	if args[1] == "scripts" || args[1] == "rules" || args[1] == "ca" {
 		n = 3
 	}
 	if len(args) >= 3 && args[1] == "ca" && args[2] == "trust" {
@@ -72,7 +72,7 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 	}
 	allowProfile := args[1] != "status" && args[1] != "enable" && args[1] != "disable" && args[1] != "ca"
 	if o.profile != "" && !allowProfile {
-		return o, errors.New("--profile is only valid for domains, rules, import, export, validate and preview")
+		return o, errors.New("--profile is only valid for scripts, rules, import, export, validate and preview")
 	}
 	min, max := rewriteArity(o.path)
 	if len(o.values) < min {
@@ -82,7 +82,7 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 		return o, errors.New("too many arguments")
 	}
 	action := args[n-1]
-	if (args[1] == "domains" || args[1] == "rules") && (action == "show" || action == "update" || action == "remove" || action == "enable" || action == "disable") && !rewriteID(o.values[0]) {
+	if (args[1] == "scripts" || args[1] == "rules") && (action == "show" || action == "source" || action == "update" || action == "remove" || action == "enable" || action == "disable") && !rewriteID(o.values[0]) {
 		return o, errors.New("ID must contain 1..128 ASCII letters, digits, _ or -")
 	}
 	if input := o.inputFile(); input != "" && input != "-" && (strings.Contains(input, "://") || strings.ContainsAny(input, "\x00\r\n")) {
@@ -92,9 +92,9 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 }
 func rewriteArity(path string) (int, int) {
 	switch path {
-	case "request-rewrite domains add", "request-rewrite domains remove", "request-rewrite rules add", "request-rewrite rules show", "request-rewrite rules remove", "request-rewrite rules enable", "request-rewrite rules disable", "request-rewrite rules reorder", "request-rewrite import", "request-rewrite export", "request-rewrite preview", "request-rewrite ca export":
+	case "request-rewrite scripts add", "request-rewrite scripts show", "request-rewrite scripts source", "request-rewrite scripts remove", "request-rewrite rules add", "request-rewrite rules show", "request-rewrite rules remove", "request-rewrite rules enable", "request-rewrite rules disable", "request-rewrite rules reorder", "request-rewrite import", "request-rewrite export", "request-rewrite preview", "request-rewrite ca export":
 		return 1, 1
-	case "request-rewrite domains update", "request-rewrite rules update":
+	case "request-rewrite scripts update", "request-rewrite rules update":
 		return 2, 2
 	case "request-rewrite validate":
 		return 0, 1
@@ -103,9 +103,9 @@ func rewriteArity(path string) (int, int) {
 }
 func (o rewriteArguments) inputFile() string {
 	switch o.path {
-	case "request-rewrite domains add", "request-rewrite rules add", "request-rewrite rules reorder", "request-rewrite import", "request-rewrite preview":
+	case "request-rewrite scripts add", "request-rewrite rules add", "request-rewrite rules reorder", "request-rewrite import", "request-rewrite preview":
 		return o.values[0]
-	case "request-rewrite domains update", "request-rewrite rules update":
+	case "request-rewrite scripts update", "request-rewrite rules update":
 		return o.values[1]
 	case "request-rewrite validate":
 		if len(o.values) > 0 {
@@ -154,17 +154,45 @@ func prepareRewriteInput(o rewriteArguments, stdin io.Reader) ([]byte, error) {
 	return data, nil
 }
 
-// Parse each entry through the domain's strict document parser, including duplicate
-// and unknown field rejection. Rule validation later uses the profile's consent.
-func parseRewriteDomain(data []byte) (rewrite.Domain, error) {
-	s, e := rewrite.Parse(append(append([]byte(`{"version":1,"enabled":false,"domains":[`), data...), []byte(`],"rules":[]}`)...))
+// Embed entries verbatim in a complete document to reject duplicate and unknown fields.
+func parseRewriteScript(data []byte, old *rewrite.Snapshot) (rewrite.Script, error) {
+	scripts := old.Document().Scripts
+	// Validate the candidate and every referencing rule together. Replacement must
+	// not create a duplicate script ID in this temporary validation document.
+	var candidate struct {
+		ID string `json:"id"`
+	}
+	if rewriteStrictJSONScriptID(data, &candidate.ID) != nil {
+		return rewrite.Script{}, &rewrite.Error{Code: "rewrite_invalid"}
+	}
+	kept := []rewrite.Script{}
+	for _, script := range scripts {
+		if script.ID != candidate.ID {
+			kept = append(kept, script)
+		}
+	}
+	rules, _ := json.Marshal(old.Document().Rules)
+	existing, _ := json.Marshal(kept)
+	b := append([]byte(`{"version":2,"enabled":false,"rules":`), rules...)
+	b = append(b, []byte(`,"scripts":[`)...)
+	if len(kept) > 0 {
+		b = append(b, existing[1:len(existing)-1]...)
+		b = append(b, ',')
+	}
+	b = append(b, data...)
+	b = append(b, []byte(`]}`)...)
+	snapshot, e := rewrite.Parse(b)
 	if e != nil {
-		return rewrite.Domain{}, e
+		return rewrite.Script{}, e
 	}
-	if len(s.Document().Domains) != 1 {
-		return rewrite.Domain{}, &rewrite.Error{Code: "rewrite_invalid"}
+	return snapshot.Document().Scripts[len(kept)], nil
+}
+func rewriteStrictJSONScriptID(data []byte, id *string) error {
+	var value map[string]json.RawMessage
+	if rewriteStrictJSON(data, &value) != nil || json.Unmarshal(value["id"], id) != nil {
+		return &rewrite.Error{Code: "rewrite_invalid"}
 	}
-	return s.Document().Domains[0], nil
+	return nil
 }
 func rewriteStrictJSON(data []byte, out any) error {
 	if !utf8.Valid(data) {
@@ -183,8 +211,8 @@ func rewriteStrictJSON(data []byte, out any) error {
 }
 func parseRewriteRule(data []byte, old *rewrite.Snapshot) (rewrite.Rule, error) {
 	// Embed untrusted input verbatim so the domain parser detects duplicate keys.
-	domains, _ := json.Marshal(old.Document().Domains)
-	b := append([]byte(`{"version":1,"enabled":false,"domains":`), domains...)
+	scripts, _ := json.Marshal(old.Document().Scripts)
+	b := append([]byte(`{"version":2,"enabled":false,"scripts":`), scripts...)
 	b = append(b, []byte(`,"rules":[`)...)
 	b = append(b, data...)
 	b = append(b, []byte(`]}`)...)
@@ -302,9 +330,26 @@ func requestRewriteCommand(ctx context.Context, args []string, paths nagiruntime
 	}
 	result := output.RewriteResult{"profile": name, "configured_rule_version": snapshot.Version()}
 	switch o.path {
-	case "request-rewrite domains list":
-		result["domains"] = snapshot.Document().Domains
+	case "request-rewrite scripts list":
+		result["scripts"] = snapshot.ScriptSummaries()
 		return result, nil
+	case "request-rewrite scripts show":
+		for _, script := range snapshot.ScriptSummaries() {
+			if script.ID == o.values[0] {
+				result["script"] = script
+				return result, nil
+			}
+		}
+		return nil, rewriteFailure("rewrite_script_not_found")
+	case "request-rewrite scripts source":
+		for _, script := range snapshot.Document().Scripts {
+			if script.ID == o.values[0] {
+				result["sensitive"] = true
+				result["script"] = script
+				return result, nil
+			}
+		}
+		return nil, rewriteFailure("rewrite_script_not_found")
 	case "request-rewrite rules list":
 		result["rules"] = snapshot.RuleSummaries()
 		return result, nil
@@ -331,18 +376,18 @@ func requestRewriteCommand(ctx context.Context, args []string, paths nagiruntime
 	}
 	var saved rewrite.SaveResult
 	switch o.path {
-	case "request-rewrite domains add", "request-rewrite domains update":
-		var d rewrite.Domain
-		d, e = parseRewriteDomain(data)
+	case "request-rewrite scripts add", "request-rewrite scripts update":
+		var d rewrite.Script
+		d, e = parseRewriteScript(data, snapshot)
 		if e == nil {
 			if strings.HasSuffix(o.path, "add") {
-				saved, e = store.AddDomain(ctx, d)
+				saved, e = store.AddScript(ctx, d)
 			} else {
-				saved, e = store.UpdateDomain(ctx, o.values[0], d)
+				saved, e = store.UpdateScript(ctx, o.values[0], d)
 			}
 		}
-	case "request-rewrite domains remove":
-		saved, e = store.RemoveDomain(ctx, o.values[0])
+	case "request-rewrite scripts remove":
+		saved, e = store.RemoveScript(ctx, o.values[0])
 	case "request-rewrite rules add", "request-rewrite rules update":
 		var r rewrite.Rule
 		r, e = parseRewriteRule(data, snapshot)
@@ -403,8 +448,8 @@ func rewriteCandidates(args []string) (any, error) {
 		return nil, rewriteDomainError(e)
 	}
 	out := output.Candidates{}
-	if args[2] == "rewrite-domains" {
-		for _, d := range s.Document().Domains {
+	if args[2] == "rewrite-scripts" {
+		for _, d := range s.ScriptSummaries() {
 			out = append(out, d.ID)
 		}
 	} else {

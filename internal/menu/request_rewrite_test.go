@@ -97,7 +97,7 @@ func TestRewriteStatusUnknownAndTUNGuard(t *testing.T) {
 		t.Fatal(f.calls)
 	}
 }
-func TestRewriteDomainsRetainRetryLiteralZeroAndProfile(t *testing.T) {
+func TestRewriteScriptsRetainRetryLiteralZeroAndProfile(t *testing.T) {
 	submissions := 0
 	f := &rewriteTestRunner{input: func(a []string, b string) Result {
 		submissions++
@@ -107,8 +107,8 @@ func TestRewriteDomainsRetainRetryLiteralZeroAndProfile(t *testing.T) {
 		return Result{}
 	}}
 	var out bytes.Buffer
-	s := NewSession(f, strings.NewReader("0\n*.service.example\n1\n3\n"), &out)
-	err := rewriteDomainForm("work", nil)(context.Background(), s)
+	s := NewSession(f, strings.NewReader(`{"id":"0","body_access":"none","source":"function rewrite(input) { return {}; }"}`+"\n1\n2\n"), &out)
+	err := rewriteScriptForm("work", nil)(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestRewriteDomainsRetainRetryLiteralZeroAndProfile(t *testing.T) {
 		t.Fatal(f.inputs)
 	}
 	for _, a := range f.calls {
-		if !reflect.DeepEqual(a, []string{"request-rewrite", "domains", "add", "-", "--profile", "work"}) {
+		if !reflect.DeepEqual(a, []string{"request-rewrite", "scripts", "add", "-", "--profile", "work"}) {
 			t.Fatal(a)
 		}
 	}
@@ -126,7 +126,7 @@ func TestRewriteDomainsRetainRetryLiteralZeroAndProfile(t *testing.T) {
 }
 func TestRewriteDraftNoMutationBeforeExplicitSaveAndRetainedFailure(t *testing.T) {
 	f := &rewriteTestRunner{input: func([]string, string) Result { return rewriteFailure("rewrite_invalid") }}
-	initial := rewrite.Rule{ID: "demo", Enabled: true, Match: rewrite.Match{Domain: "api.service.example", Methods: []string{"GET"}, PathPrefix: "/"}, OnError: "block", RedirectConsent: []rewrite.Consent{}, Operations: []rewrite.Operation{}}
+	initial := rewrite.Rule{ID: "demo", Enabled: true, Stage: rewrite.StageRequest, RangeMode: "fragment", Match: rewrite.Match{Domain: "api.service.example", Methods: []string{"GET"}, PathPrefix: "/"}, OnError: "block", RedirectConsent: []rewrite.Consent{}, Operations: []rewrite.Operation{}}
 	out := rewriteRun(t, rewriteRuleDraft("work", initial, true), f, "1\napi.service.example\nPOST\n/v1/\n1\n2\n4\n4\n0\n")
 	if len(f.inputs) != 2 || f.inputs[0] != f.inputs[1] || !strings.Contains(f.inputs[0], `"methods":["POST"]`) || !strings.Contains(f.inputs[0], `"on_error":"forward_original"`) {
 		t.Fatal(f.inputs)
@@ -186,7 +186,7 @@ func TestRewriteOperationsPaginationMoveAndRemoveOnlyDraft(t *testing.T) {
 }
 func TestRewriteRuleEditExplicitSensitiveExportAndPortableValidation(t *testing.T) {
 	summary := rewrite.RuleSummary{ID: "demo", Enabled: true, Match: rewrite.Match{Domain: "api.service.example", Methods: []string{"GET"}, PathPrefix: "/"}, Operations: []string{"header_set"}, OnError: "block"}
-	f := &rewriteTestRunner{run: func([]string) Result { return Result{Data: map[string]any{"profile": "work", "rule": summary}} }, raw: Result{Data: `{"version":1,"enabled":false,"domains":[{"id":"api","pattern":"api.service.example"}],"rules":[{"id":"demo","enabled":true,"match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"Authorization","value":"test-secret-value"}]}]}`}}
+	f := &rewriteTestRunner{run: func([]string) Result { return Result{Data: map[string]any{"profile": "work", "rule": summary}} }, raw: Result{Data: `{"version":2,"enabled":false,"scripts":[],"rules":[{"id":"demo","enabled":true,"stage":"request","match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"Authorization","value":"test-secret-value"}]}]}`}}
 	s := NewSession(f, strings.NewReader(""), io.Discard)
 	v := rewriteLoad(t, rewriteRuleDetail("work", "demo"), s)
 	if len(f.rawCalls) != 0 {
@@ -242,7 +242,7 @@ func TestRewriteReadFailuresClearTargetsAndKeepRecovery(t *testing.T) {
 	f := &rewriteTestRunner{run: func([]string) Result { return rewriteFailure("unavailable") }}
 	var out bytes.Buffer
 	s := NewSession(f, strings.NewReader(""), &out)
-	for _, p := range []*Page{rewriteDomainsPage("work"), rewriteRulesPage("work"), rewriteRuleDetail("work", "old"), RequestRewritePage()} {
+	for _, p := range []*Page{rewriteScriptsPage("work"), rewriteRulesPage("work"), rewriteRuleDetail("work", "old"), RequestRewritePage()} {
 		v, e := p.Load(context.Background(), s)
 		if e == nil || len(v.Items) > 0 {
 			t.Fatal(v, e)
@@ -261,7 +261,7 @@ func TestRewritePreviewSensitiveDisplayAndFailureRetention(t *testing.T) {
 		if calls == 1 {
 			return rewriteFailure("rewrite_invalid")
 		}
-		return Result{Data: map[string]any{"sensitive": true, "rule_version": "v1", "rule_ids": []string{}, "outcome": "unchanged", "request": map[string]any{"query": "token=explicit-preview-value"}}}
+		return Result{Data: map[string]any{"sensitive": true, "rule_version": "v2", "rule_ids": []string{}, "outcome": "unchanged", "request": map[string]any{"query": "token=explicit-preview-value"}}}
 	}}
 	var out bytes.Buffer
 	s := NewSession(f, strings.NewReader("1\napi.service.example\n443\nGET\n/v1/\ntoken=sample\n{}\n\n1\n9\n"), &out)
@@ -372,8 +372,8 @@ func TestRewriteMoveReturnsToListBeforeEditAndRemove(t *testing.T) {
 func TestRewriteEOFOrCancelAfterFinalFieldDoesNotSubmit(t *testing.T) {
 	for _, ending := range []string{"", "0\n"} {
 		f := &rewriteTestRunner{}
-		s := NewSession(f, strings.NewReader("api\napi.service.example\n"+ending), io.Discard)
-		err := rewriteDomainForm("work", nil)(context.Background(), s)
+		s := NewSession(f, strings.NewReader(`{"id":"api","body_access":"none","source":"function rewrite(input) { return {}; }"}`+"\n"+ending), io.Discard)
+		err := rewriteScriptForm("work", nil)(context.Background(), s)
 		if err == nil || len(f.calls) != 0 {
 			t.Fatalf("ending %q: err=%v calls=%v", ending, err, f.calls)
 		}
@@ -397,5 +397,60 @@ func TestRewriteRecoveryValidationBindsFallbackProfile(t *testing.T) {
 	}
 	if !reflect.DeepEqual(f.calls[len(f.calls)-1], []string{"request-rewrite", "validate", "--profile", "work"}) {
 		t.Fatal(f.calls)
+	}
+}
+
+func TestRewriteCompleteJSONDraftPreservesStageAndPredicates(t *testing.T) {
+	f := &rewriteTestRunner{}
+	original := rewrite.Rule{ID: "complete", Enabled: true, Stage: rewrite.StageRequest, RangeMode: "fragment", Match: rewrite.Match{Domain: "api.service.example"}, OnError: "block", RedirectConsent: []rewrite.Consent{}, Operations: []rewrite.Operation{{Op: "header_delete", Name: "X-Old"}}}
+	updated := original
+	updated.Stage = rewrite.StageResponse
+	updated.RangeMode = "full"
+	updated.Match.PathRegex = "^/v[0-9]+/"
+	updated.Match.StatusCodes = []int{200}
+	updated.Match.Query = map[string][]string{"token": {"fictitious"}}
+	updated.Operations = []rewrite.Operation{{Op: "regex_replace", Pattern: "(old)", Replacement: "${1}-new", All: true}, {Op: "json_set", Pointer: "/n", Value: json.RawMessage(`9007199254740993`)}}
+	raw, _ := json.Marshal(rewriteRuleWire(updated))
+	// Complete JSON changes only the in-memory draft; Save sends it once.
+	rewriteRun(t, rewriteRuleDraft("work", original, true), f, "5\n"+string(raw)+"\n4\n")
+	if len(f.inputs) != 1 {
+		t.Fatal(f.inputs)
+	}
+	var got rewrite.Rule
+	if json.Unmarshal([]byte(f.inputs[0]), &got) != nil || !reflect.DeepEqual(got, updated) {
+		t.Fatalf("got %#v want %#v", got, updated)
+	}
+}
+
+func TestRewriteScriptSummaryDoesNotFetchSource(t *testing.T) {
+	f := &rewriteTestRunner{run: func(a []string) Result {
+		if a[2] == "show" {
+			return Result{Data: map[string]any{"profile": "work", "script": rewrite.ScriptSummary{ID: "script", BodyAccess: "none", SourceBytes: 17, RuleIDs: []string{"dependent"}}}}
+		}
+		if a[2] == "source" {
+			return Result{Data: map[string]any{"profile": "work", "sensitive": true, "script": rewrite.Script{ID: "script", BodyAccess: "none", Source: "fictitious-source"}}}
+		}
+		return Result{}
+	}}
+	var out bytes.Buffer
+	s := NewSession(f, strings.NewReader(""), &out)
+	view := rewriteLoad(t, rewriteScriptDetail("work", "script"), s)
+	if len(f.calls) != 1 || strings.Contains(view.Context, "fictitious-source") {
+		t.Fatal(view, f.calls)
+	}
+	if e := rewriteFind(t, view, "View sensitive source").Action(context.Background(), s); e != nil {
+		t.Fatal(e)
+	}
+	if len(f.calls) != 2 || !strings.Contains(out.String(), "fictitious-source") || !s.longResult {
+		t.Fatal(f.calls, out.String())
+	}
+}
+
+func TestRewriteDraftJSONRejectsAmbiguousFields(t *testing.T) {
+	for _, raw := range []string{`{"op":"header_delete","name":"X-First","name":"X-Second"}`, `{"op":"header_delete","name":"X-First","extra":true}`, `{"op":"header_delete","name":"X-First"} {}`} {
+		var op rewrite.Operation
+		if rewriteMenuJSON(raw, &op) == nil {
+			t.Fatalf("accepted ambiguous operation %s", raw)
+		}
 	}
 }

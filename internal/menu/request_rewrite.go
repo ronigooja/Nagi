@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
 )
 
 const rewriteEffect = "Saves profile-local settings; updates the active generation if enabled. Does not start TUN."
@@ -108,13 +106,13 @@ func RequestRewritePage() *Page {
 				view.Context += "\nEnable unavailable: actual TUN is not confirmed running. Open Traffic Access to start TUN."
 			}
 			view.Actions = append(view.Actions,
-				Item{Label: "Authorized Domains", Next: func() *Page { return rewriteDomainsPage(profile) }},
+				Item{Label: "Local Scripts", Next: func() *Page { return rewriteScriptsPage(profile) }},
 				Item{Label: "Ordered Rules", Next: func() *Page { return rewriteRulesPage(profile) }},
 				Item{Label: "Validate stored document", Action: func(ctx context.Context, s *Session) error {
 					rewriteSubmit(ctx, s, profile, nil, "validate")
 					return nil
 				}},
-				Item{Label: "Preview sample request", Impact: rewriteSensitive + " No DNS/network or persistence.", Next: func() *Page { return rewritePreviewPage(profile) }},
+				Item{Label: "Preview staged fixture", Impact: rewriteSensitive + " No DNS/network or persistence.", Next: func() *Page { return rewritePreviewPage(profile) }},
 				Item{Label: "Import document from file", Impact: rewriteEffect, Action: rewriteFileForm(profile, "import")},
 				Item{Label: "Export document to file", Impact: rewriteSensitive, Action: rewriteFileForm(profile, "export")})
 		}
@@ -130,7 +128,7 @@ func rewriteRuntimeItem(profile string, enable bool) Item {
 	effect := "Stops rewriting; retains rules, CA and OS trust."
 	if enable {
 		action = "enable"
-		effect = "Intercepts authorized TUN HTTP/HTTPS only; requires compatible engine and trusted CA."
+		effect = "Intercepts matching TUN HTTP/HTTPS only; requires compatible engine and trusted CA."
 	}
 	return Item{Label: strings.Title(action) + " request rewrite", Impact: effect, Action: func(ctx context.Context, s *Session) error {
 		r := s.Fetch(ctx, "request-rewrite", "status")
@@ -174,81 +172,6 @@ func rewriteRecoveryPage(profile string, known bool) *Page {
 		}})
 		return v, nil
 	}}
-}
-func rewriteDomainsPage(profile string) *Page {
-	return &Page{Title: "Authorized Domains", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		v := PageView{Context: "Profile: " + profile + "\nExact ASCII DNS names or explicit *.service.example; wildcard excludes the apex. No implicit suffix consent.", Actions: []Item{{Label: "Add authorized domain", Impact: rewriteEffect, Action: rewriteDomainForm(profile, nil)}}}
-		r := s.Fetch(ctx, rewriteArgs(profile, "domains", "list")...)
-		if rewriteFailed(r) {
-			return v, rewriteReadError(r)
-		}
-		var data struct {
-			Profile string           `json:"profile"`
-			Domains []rewrite.Domain `json:"domains"`
-		}
-		if decodeMenuResult(r, &data) != nil || data.Profile != profile {
-			return v, fmt.Errorf("domain profile mismatch or invalid response")
-		}
-		for _, d := range data.Domains {
-			d := d
-			v.Items = append(v.Items, Item{Label: d.ID + " — " + d.Pattern, Next: func() *Page { return rewriteDomainDetail(profile, d.ID) }})
-		}
-		v.Empty = "No authorized domains."
-		return v, nil
-	}}
-}
-func rewriteDomainDetail(profile, id string) *Page {
-	return &Page{Title: "Domain — " + id, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		v := PageView{Context: "Profile: " + profile}
-		r := s.Fetch(ctx, rewriteArgs(profile, "domains", "list")...)
-		if rewriteFailed(r) {
-			return v, rewriteReadError(r)
-		}
-		var data struct {
-			Profile string           `json:"profile"`
-			Domains []rewrite.Domain `json:"domains"`
-		}
-		if decodeMenuResult(r, &data) != nil || data.Profile != profile {
-			return v, fmt.Errorf("domain profile mismatch or invalid response")
-		}
-		for _, d := range data.Domains {
-			if d.ID == id {
-				d := d
-				v.Context += " | Domain: " + d.Pattern
-				v.Actions = []Item{
-					{Label: "Edit domain", Impact: rewriteEffect, Action: rewriteDomainForm(profile, &d)},
-					{Label: "Remove domain", Impact: "Removes consent only if no rule references it.", Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
-						r := rewriteSubmit(ctx, s, profile, nil, "domains", "remove", id)
-						return Navigation{Back: !rewriteFailed(r)}, nil
-					}},
-				}
-				return v, nil
-			}
-		}
-		return v, fmt.Errorf("domain no longer exists")
-	}}
-}
-func rewriteDomainForm(profile string, existing *rewrite.Domain) func(context.Context, *Session) error {
-	return func(ctx context.Context, s *Session) error {
-		values := map[string]string{}
-		fields := []Field{}
-		if existing == nil {
-			fields = append(fields, Field{Key: "id", Label: "Stable domain ID", Required: true})
-		} else {
-			values["id"] = existing.ID
-			values["pattern"] = existing.Pattern
-		}
-		fields = append(fields, Field{Key: "pattern", Label: "Exact domain or explicit wildcard pattern", Required: true})
-		_, err := s.rewriteForm(ctx, fields, values, func(v map[string]string) Result {
-			args := []string{"domains", "add"}
-			if existing != nil {
-				args = []string{"domains", "update", existing.ID}
-			}
-			args = append(args, "-")
-			return rewriteSubmit(ctx, s, profile, rewrite.Domain{ID: v["id"], Pattern: v["pattern"]}, args...)
-		})
-		return err
-	}
 }
 func rewriteFileForm(profile, action string) func(context.Context, *Session) error {
 	return func(ctx context.Context, s *Session) error {
