@@ -2,8 +2,10 @@ package command
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -755,5 +757,19 @@ func TestRefreshFailureUsesSourceStageNotEnglish(t *testing.T) {
 	var failure *subscription.RefreshFailure
 	if !errors.As(err, &failure) || failure.Stage != "validate" {
 		t.Fatalf("normalization did not retain stage: %v", err)
+	}
+}
+
+func TestRefreshIdentityFailureKeepsDecryptClassification(t *testing.T) {
+	_, store, _ := schedulerFixture(t, func(w http.ResponseWriter, r *http.Request) { t.Fatal("identity failure must precede request") })
+	sum := sha256.Sum256([]byte("work"))
+	keyPath := filepath.Join(store.ConfigDir, "subscription-keys", fmt.Sprintf("%x.txt", sum))
+	if err := os.MkdirAll(keyPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	_, err := store.Refresh(context.Background(), "work")
+	stage, reason := classifyRefreshFailure(err)
+	if stage != "decrypt" || reason != "identity_unavailable" {
+		t.Fatalf("%v => %s/%s", err, stage, reason)
 	}
 }

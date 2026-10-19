@@ -169,7 +169,7 @@ func (s *Store) read() ([]Entry, error) {
 		Subscriptions []storedEntry `json:"subscriptions"`
 	}
 	if err := json.Unmarshal(data, &file); err != nil {
-		return nil, i18n.Errorf("backend.subscription.invalid_subscriptions_index", "invalid subscriptions index")
+		return nil, refreshFailure("validate", i18n.Errorf("backend.subscription.invalid_subscriptions_index", "invalid subscriptions index"))
 	}
 	seen := map[string]bool{}
 	result := make([]Entry, 0, len(file.Subscriptions))
@@ -179,7 +179,7 @@ func (s *Store) read() ([]Entry, error) {
 			e.PauseReason = e.LastFailureReason // Migrate indices written before pause_reason existed.
 		}
 		if !validName(e.Name) || !validURL(e.URL) || seen[e.Name] || (e.HealthcheckURL != nil && !ValidHealthcheckURL(*e.HealthcheckURL)) || (e.HealthcheckIntervalSeconds != nil && (*e.HealthcheckIntervalSeconds < 1 || *e.HealthcheckIntervalSeconds > 31536000)) || e.ScheduleSeconds < 0 || e.ScheduleSeconds > MaxScheduleSeconds || (e.Profile != "" && !validName(e.Profile)) {
-			return nil, i18n.Errorf("backend.subscription.invalid_subscriptions_index", "invalid subscriptions index")
+			return nil, refreshFailure("validate", i18n.Errorf("backend.subscription.invalid_subscriptions_index", "invalid subscriptions index"))
 		}
 		seen[e.Name] = true
 		result = append(result, e)
@@ -311,7 +311,7 @@ func (s *Store) AddWithOptions(name, rawURL string, options AddOptions) error {
 
 func (s *Store) Remove(name string) error {
 	if !validName(name) {
-		return i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name")
+		return refreshFailure("validate", i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name"))
 	}
 	return s.withIndexLock(func() error {
 		entries, err := s.read()
@@ -494,7 +494,7 @@ func (s *Store) cachePath(name string) string {
 
 func (s *Store) Cached(name string) ([]byte, error) {
 	if !validName(name) {
-		return nil, i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name")
+		return nil, refreshFailure("validate", i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name"))
 	}
 	entries, err := s.read()
 	if err != nil {
@@ -511,7 +511,7 @@ func (s *Store) Cached(name string) ([]byte, error) {
 func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error) {
 	var zero RefreshResult
 	if !validName(name) {
-		return zero, i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name")
+		return zero, refreshFailure("validate", i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name"))
 	}
 	entries, err := s.read()
 	if err != nil {
@@ -535,7 +535,7 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, original.URL, nil)
 	if err != nil {
-		return zero, i18n.Errorf("backend.subscription.invalid_subscription_request", "invalid subscription request")
+		return zero, refreshFailure("validate", i18n.Errorf("backend.subscription.invalid_subscription_request", "invalid subscription request"))
 	}
 	req.Header.Set("User-Agent", subscriptionUserAgent)
 	req.Header.Set("Accept", "application/yaml, text/yaml, text/plain;q=0.9, */*;q=0.8")
@@ -646,11 +646,11 @@ func (s *Store) keyVersion(name string) (string, error) {
 		return "", nil
 	}
 	if err != nil || !info.Mode().IsRegular() || info.Size() > maxIdentitySize {
-		return "", i18n.Errorf("backend.subscription.subscription_identity_is_unavailable", "subscription identity is unavailable")
+		return "", refreshFailure("decrypt", i18n.Errorf("backend.subscription.subscription_identity_is_unavailable", "subscription identity is unavailable"))
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", i18n.Errorf("backend.subscription.cannot_read_subscription_identity", "cannot read subscription identity")
+		return "", refreshFailure("decrypt", i18n.Errorf("backend.subscription.cannot_read_subscription_identity", "cannot read subscription identity"))
 	}
 	return Hash(data), nil
 }
