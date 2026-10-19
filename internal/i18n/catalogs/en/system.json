@@ -372,5 +372,9 @@
   "system.rewritescript.execution.failed": "script_execution_failed",
   "system.rewritescript.invalid.output": "script_invalid_output",
   "system.rewritescript.timeout": "script_timeout",
-  "system.rewritescript.canceled": "script_canceled"
+  "system.rewritescript.canceled": "script_canceled",
+  "system.installation.update.permission": "Nagi needs permission to update.",
+  "system.installation.update.cancelled": "Update cancelled: Nagi.app did not quit.",
+  "system.installation.update.failed": "Update failed. Inspect the Nagi update log and retry the update.",
+  "cli.subscription.healthcheck.inherited": "Follows the subscription configuration and mihomo defaults. Provider and group local intervals take precedence in their native schedulers; provider enablement and separate local settings are retained."
 }

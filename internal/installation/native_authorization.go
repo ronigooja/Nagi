@@ -38,8 +38,8 @@ if [[ ! -s "$bridge/ready" ]]; then
     (
         set +e
         /usr/bin/osascript -e 'on run argv
-            do shell script ("/bin/bash -c " & quoted form of (item 1 of argv)) with administrator privileges with prompt "Nagi needs permission to update."
-        end run' "$command"
+            do shell script ("/bin/bash -c " & quoted form of (item 1 of argv)) with administrator privileges with prompt (item 2 of argv)
+        end run' "$command" "${NAGI_UPDATE_PROMPT:-Nagi needs permission to update.}"
         [[ ! -d "$bridge" ]] || touch "$bridge/ended"
     ) 3>&- &
     deadline=$((SECONDS + 600))

@@ -25,6 +25,7 @@ import (
 type Runner func(context.Context, string, ...string) ([]byte, error)
 
 type Manager struct {
+	Locale                                     i18n.Context
 	OS, Arch, Executable, Version, ReleaseBase string
 	Run                                        Runner
 	PreparedArtifact                           string
@@ -426,8 +427,8 @@ func (m *Manager) launchTerminal(ctx context.Context, r record) (map[string]any,
 	}
 	// No downloaded code is run by the launcher. The installed CLI downloads and
 	// verifies the release after the App has completed its normal quit cleanup.
-	command := "i=0; while pgrep -x NagiApp >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 60 ]; then echo 'Update cancelled: Nagi.app did not quit.'; exit 1; fi; sleep 1; done; " +
-		shellQuote(m.Executable) + " update && open " + shellQuote(r.App)
+	command := "i=0; while pgrep -x NagiApp >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 60 ]; then echo " + shellQuote(m.Locale.Render(i18n.Errorf("system.installation.update.cancelled", "Update cancelled: Nagi.app did not quit."))) + "; exit 1; fi; sleep 1; done; " +
+		shellQuote(m.Executable) + " --lang " + shellQuote(string(m.Locale.Language())) + " update && open " + shellQuote(r.App)
 	command = "/bin/bash -c " + shellQuote(command)
 	script := "on run argv\n tell application \"Terminal\"\n activate\n do script (item 1 of argv)\n end tell\nend run"
 	if _, err := m.Run(ctx, "/usr/bin/osascript", "-e", script, command); err != nil {

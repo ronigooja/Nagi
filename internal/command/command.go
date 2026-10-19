@@ -335,6 +335,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			ctx, timeoutCancel = context.WithTimeout(ctx, 14*time.Minute)
 			defer timeoutCancel()
 		}
+		manager.Locale = LanguageContext(ctx)
 		result, err := manager.ManageWithMessages(ctx, action, tag, purgeData)
 		if manager.PreparedArtifact != "" && err != nil {
 			_ = installation.SaveUpdateError(err)

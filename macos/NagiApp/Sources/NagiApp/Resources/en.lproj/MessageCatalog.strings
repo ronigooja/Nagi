@@ -1260,6 +1260,7 @@
 "cli.state.yes" = "yes";
 "cli.stream.subscription.started" = "Subscription scheduler running; interrupt to stop.";
 "cli.stream.traffic.sample" = "Upload: %1$@ B/s (total %2$@ B)  Download: %3$@ B/s (total %4$@ B)  Sampled: %5$@";
+"cli.subscription.healthcheck.inherited" = "Follows the subscription configuration and mihomo defaults. Provider and group local intervals take precedence in their native schedulers; provider enablement and separate local settings are retained.";
 "help.command.app.detail" = "Requires a release-managed CLI at /usr/local/bin/nagi. App install and uninstall change only the App; app update updates the whole installation.";
 "help.command.app.install.detail" = "Downloads and verifies the release matching the current CLI version by default. TAG selects another release. Installs only the App; leaves binaries, profiles, engine, and login service unchanged. Administrator authorization may be required.";
 "help.command.app.install.summary" = "Install the macOS menu bar App";
@@ -8484,6 +8485,9 @@
 "system.installation.unsafe.release.archive.path" = "unsafe release archive path";
 "system.installation.unsupported.release.platform" = "unsupported release platform";
 "system.installation.update.authorization.was.cancelled.or.failed.nagi.remains.running" = "update authorization was cancelled or failed; Nagi remains running";
+"system.installation.update.cancelled" = "Update cancelled: Nagi.app did not quit.";
+"system.installation.update.failed" = "Update failed. Inspect the Nagi update log and retry the update.";
+"system.installation.update.permission" = "Nagi needs permission to update.";
 "system.installation.update.preparation.cancelled.nagi.remains.running" = "update preparation cancelled; Nagi remains running: %1$@";
 "system.installation.use.the.installed.cli.at.prefix.bin.nagi" = "use the installed CLI at PREFIX/bin/nagi";
 "system.installtx.activated.transaction.target.differs.from.prepared.content" = "activated transaction target differs from prepared content";

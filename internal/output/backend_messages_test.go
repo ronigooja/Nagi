@@ -1,8 +1,10 @@
 package output
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/ronigooja/Nagi/internal/diagnostic"
@@ -60,6 +62,31 @@ func TestCollectMessagesCycleDoesNotPanic(t *testing.T) {
 func TestRenderMessageFieldNilProducerFallsBack(t *testing.T) {
 	var check *diagnostic.Check
 	if got := RenderMessageField(check, "/message", "legacy", i18n.New(i18n.SimplifiedChinese)); got != "legacy" {
+		t.Fatal(got)
+	}
+}
+
+func TestNestedSourceMetadataIsInvariantAndRedacted(t *testing.T) {
+	inner := i18n.Errorf("backend.control.read_mihomo_response_w", "read mihomo response: %w", errors.New("https://secret.example/?token=secret"))
+	outer := i18n.Errorf("backend.control.read_mihomo_response_w", "read mihomo response: %w", inner)
+	var en, zh bytes.Buffer
+	for _, item := range []struct {
+		buffer   *bytes.Buffer
+		language i18n.Language
+	}{{&en, i18n.English}, {&zh, i18n.SimplifiedChinese}} {
+		if err := WriteMessage(item.buffer, true, i18n.New(item.language), outer); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if en.String() != zh.String() || strings.Contains(en.String(), "token=secret") || !strings.Contains(en.String(), "argument_messages") {
+		t.Fatal(en.String(), zh.String())
+	}
+	var envelope Envelope
+	if err := json.Unmarshal(en.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	descriptor := envelope.Messages["/data"]
+	if got := i18n.New(i18n.SimplifiedChinese).RenderDescriptor(descriptor, "fallback"); got != "读取 mihomo 响应：读取 mihomo 响应：[redacted URL]" {
 		t.Fatal(got)
 	}
 }

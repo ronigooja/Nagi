@@ -158,18 +158,23 @@ struct MessageDescriptor: Decodable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey { case id, args; case argumentMessages = "argument_messages" }
     init(id: String, args: [String: MessageArgument] = [:], argumentMessages: [String: MessageDescriptor] = [:]) { self.id = id; self.args = args; self.argumentMessages = argumentMessages }
     init(from decoder: Decoder) throws {
+        var nodes = 64
+        self = try Self.decode(from: decoder, depth: 0, nodes: &nodes)
+    }
+    private static func decode(from decoder: Decoder, depth: Int, nodes: inout Int) throws -> MessageDescriptor {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        id = try values.decode(String.self, forKey: .id)
-        args = values.contains(.args) ? try values.decode([String: MessageArgument].self, forKey: .args) : [:]
+        let id = try values.decode(String.self, forKey: .id)
+        let args = values.contains(.args) ? try values.decode([String: MessageArgument].self, forKey: .args) : [:]
         var children: [String: MessageDescriptor] = [:]
-        let depth = decoder.codingPath.filter { $0.stringValue == "argument_messages" }.count
         if depth < 8, let container = try? values.nestedContainer(keyedBy: ArgumentKey.self, forKey: .argumentMessages) {
-            for key in container.allKeys.sorted(by: { $0.stringValue < $1.stringValue }).prefix(64) {
-                guard case .string? = args[key.stringValue] else { continue }
-                children[key.stringValue] = try? container.decode(MessageDescriptor.self, forKey: key)
+            for key in container.allKeys.sorted(by: { $0.stringValue < $1.stringValue }) {
+                guard nodes > 0 else { break }
+                nodes -= 1
+                guard case .string? = args[key.stringValue], let child = try? container.superDecoder(forKey: key) else { continue }
+                children[key.stringValue] = try? Self.decode(from: child, depth: depth + 1, nodes: &nodes)
             }
         }
-        argumentMessages = children
+        return MessageDescriptor(id: id, args: args, argumentMessages: children)
     }
 
     /// Only registered IDs with exact named argument signatures may format.

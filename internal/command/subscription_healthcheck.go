@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net/url"
 
 	"github.com/ronigooja/Nagi/internal/profile"
@@ -11,6 +12,7 @@ import (
 func subscriptionHealthcheckResult(entry subscription.Entry) profile.Healthcheck {
 	r := profile.Healthcheck{Kind: "subscription", Name: entry.Name, Profile: entry.Profile, Lazy: true, Source: "profile", CanResetURL: true, IntervalDefaulted: entry.HealthcheckIntervalSeconds == nil,
 		Reason: "Follows the subscription configuration and mihomo defaults. Provider and group local intervals take precedence in their native schedulers; provider enablement and separate local settings are retained."}
+	r.Messages = map[string]i18n.Descriptor{"/reason": {ID: "cli.subscription.healthcheck.inherited"}}
 	if entry.HealthcheckIntervalSeconds != nil {
 		r.IntervalSeconds = *entry.HealthcheckIntervalSeconds
 		r.Source = "override"

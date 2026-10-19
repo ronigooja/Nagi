@@ -748,5 +748,9 @@
   "system.rewritescript.execution.failed": {},
   "system.rewritescript.invalid.output": {},
   "system.rewritescript.timeout": {},
-  "system.rewritescript.canceled": {}
+  "system.rewritescript.canceled": {},
+  "system.installation.update.permission": {},
+  "system.installation.update.cancelled": {},
+  "system.installation.update.failed": {},
+  "cli.subscription.healthcheck.inherited": {}
 }

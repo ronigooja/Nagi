@@ -735,3 +735,25 @@ func TestRuleBundleTargetPreflight(t *testing.T) {
 		t.Fatalf("disabled bundle rejected: %v", err)
 	}
 }
+
+func TestRefreshFailureUsesSourceStageNotEnglish(t *testing.T) {
+	for _, test := range []struct {
+		err           error
+		stage, reason string
+	}{
+		{errors.New("invalid yaml content identity decrypt"), "fetch", "network_error"},
+		{&subscription.RefreshFailure{Stage: "validate", Cause: errors.New("tunnels must be a list")}, "validate", "invalid_content"},
+		{&subscription.RefreshFailure{Stage: "decrypt", Cause: errors.New("取消")}, "decrypt", "identity_unavailable"},
+	} {
+		stage, reason := classifyRefreshFailure(test.err)
+		if stage != test.stage || reason != test.reason {
+			t.Fatalf("%v: %s %s", test.err, stage, reason)
+		}
+	}
+	_, store, _ := schedulerFixture(t, func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "tunnels: {}\n") })
+	_, err := store.Refresh(context.Background(), "work")
+	var failure *subscription.RefreshFailure
+	if !errors.As(err, &failure) || failure.Stage != "validate" {
+		t.Fatalf("normalization did not retain stage: %v", err)
+	}
+}

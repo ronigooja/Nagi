@@ -372,5 +372,9 @@
   "system.rewritescript.execution.failed": "脚本执行失败（script_execution_failed）",
   "system.rewritescript.invalid.output": "脚本输出无效（script_invalid_output）",
   "system.rewritescript.timeout": "脚本执行超时（script_timeout）",
-  "system.rewritescript.canceled": "脚本执行已取消（script_canceled）"
+  "system.rewritescript.canceled": "脚本执行已取消（script_canceled）",
+  "system.installation.update.permission": "Nagi 需要获得权限才能更新。",
+  "system.installation.update.cancelled": "更新已取消：Nagi.app 尚未退出。",
+  "system.installation.update.failed": "更新失败。请检查 Nagi 更新日志并重试更新。",
+  "cli.subscription.healthcheck.inherited": "遵循订阅配置和 mihomo 默认设置。提供方和代理组的本地间隔在各自的原生调度器中优先生效；保留提供方启用状态和独立的本地设置。"
 }

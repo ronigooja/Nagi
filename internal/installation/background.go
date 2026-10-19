@@ -61,11 +61,7 @@ func SaveUpdateError(err error) error {
 	if !i18n.ValidDescriptor(descriptor) {
 		return nil
 	}
-	for key, value := range descriptor.Args {
-		if text, ok := value.(string); ok {
-			descriptor.Args[key] = output.RedactError(text)
-		}
-	}
+	descriptor = i18n.CopyDescriptor(descriptor, output.RedactError)
 	encoded, e := json.Marshal(updateErrorMetadata{Digest: updateErrorDigest(message), Message: descriptor})
 	if e != nil {
 		return e
@@ -200,13 +196,15 @@ func (m *Manager) launchBackgroundUpdate(ctx context.Context, r record, artifact
 	failed := filepath.Join(bridge, "authorization-failed")
 	proceed := filepath.Join(bridge, "proceed")
 	errorPath := filepath.Join(logDir, "update-error")
+	fallback := i18n.Errorf("system.installation.update.failed", "Update failed. Inspect the Nagi update log and retry the update.")
+	metadata, _ := json.Marshal(updateErrorMetadata{Digest: updateErrorDigest(fallback.Error()), Message: fallback.Descriptor()})
 	command := "umask 077; export NAGI_UPDATE_OWNER_PID=$$; trap " + shellQuote("/bin/rm -f -- "+shellQuote(filepath.Join(bridge, "alive"))+"; /bin/rm -rf -- "+shellQuote(bridge)+" "+shellQuote(filepath.Dir(artifact))) + " EXIT; " +
 		"if [ " + shellQuote(r.Prefix) + " = /usr/local ] || [ ! -w " + shellQuote(filepath.Join(r.Prefix, "bin")) + " ] || [ ! -w " + shellQuote(filepath.Join(r.Prefix, "share", "nagi")) + " ] || [ ! -w " + shellQuote(filepath.Dir(r.App)) + " ]; then sudo -v < /dev/null 3>&- || { touch " + shellQuote(failed) + "; exit 1; }; fi; " +
 		"touch " + shellQuote(ready) + "; i=0; while [ ! -e " + shellQuote(proceed) + " ]; do i=$((i+1)); [ \"$i\" -lt 100 ] || exit 1; sleep 0.1; done; " +
-		"i=0; while pgrep -x NagiApp >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 60 ]; then echo 'Update cancelled: Nagi.app did not quit.'; exit 1; fi; sleep 1; done; " +
-		"NAGI_UPDATE_LOCK_FD=3 NAGI_UPDATE_ARTIFACT=" + shellQuote(artifact) + fmt.Sprintf(" NAGI_UPDATE_ENGINE_RUNNING=%t ", running) + shellQuote(m.Executable) + " --json update; result=$?; if [ \"$result\" -ne 0 ] && [ ! -e " + shellQuote(errorPath) + " ]; then printf '%s' 'Update failed. Inspect the Nagi update log and retry the update.' > " + shellQuote(errorPath) + "; fi; /usr/bin/open " + shellQuote(r.App)
+		"i=0; while pgrep -x NagiApp >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 60 ]; then echo " + shellQuote(m.Locale.Render(i18n.Errorf("system.installation.update.cancelled", "Update cancelled: Nagi.app did not quit."))) + "; exit 1; fi; sleep 1; done; " +
+		"NAGI_UPDATE_LOCK_FD=3 NAGI_UPDATE_ARTIFACT=" + shellQuote(artifact) + fmt.Sprintf(" NAGI_UPDATE_ENGINE_RUNNING=%t ", running) + shellQuote(m.Executable) + " --json update; result=$?; if [ \"$result\" -ne 0 ] && [ ! -e " + shellQuote(errorPath) + " ]; then printf '%s' " + shellQuote(fallback.Error()) + " > " + shellQuote(errorPath) + "; printf '%s' " + shellQuote(string(metadata)) + " > " + shellQuote(errorPath+".messages") + "; fi; /usr/bin/open " + shellQuote(r.App)
 	cmd := exec.Command("/bin/bash", "-c", command)
-	cmd.Env = append(os.Environ(), "PATH="+bridge+":"+os.Getenv("PATH"), fmt.Sprintf("NAGI_UPDATE_REQUEST_PID=%d", os.Getpid()))
+	cmd.Env = append(os.Environ(), "NAGI_UPDATE_PROMPT="+m.Locale.Render(i18n.Errorf("system.installation.update.permission", "Nagi needs permission to update.")), "PATH="+bridge+":"+os.Getenv("PATH"), fmt.Sprintf("NAGI_UPDATE_REQUEST_PID=%d", os.Getpid()))
 	cmd.ExtraFiles = []*os.File{lock}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdout, cmd.Stderr = logFile, logFile

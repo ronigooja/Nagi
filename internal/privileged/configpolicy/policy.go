@@ -360,7 +360,7 @@ func policyErrorf(id, format string, values ...any) *i18n.Message {
 	message := i18n.Errorf(id, format, values...)
 	descriptor := message.Descriptor()
 	delete(descriptor.Args, "arg0") // The first argument is the fixed ErrUnsupported sentinel.
-	return i18n.NewMessage(id, descriptor.Args, message.Error(), message)
+	return i18n.MessageFromDescriptor(descriptor, message.Error(), message)
 }
 
 func fieldError(field string, err error) error {
@@ -370,11 +370,13 @@ func fieldError(field string, err error) error {
 		descriptor := message.Descriptor()
 		if inner, ok := descriptor.Args["field"].(string); ok && strings.HasSuffix(descriptor.ID, ".field") {
 			descriptor.Args["field"] = field + "." + inner
-			return i18n.NewMessage(descriptor.ID, descriptor.Args, original.Error(), original)
+			return i18n.MessageFromDescriptor(descriptor, original.Error(), original)
 		}
 		// Compose a registered event variant from the source ID, never error text.
 		if i18n.ValidDescriptor(i18n.Descriptor{ID: descriptor.ID + ".field", Args: withField(descriptor.Args, field)}) {
-			return i18n.NewMessage(descriptor.ID+".field", withField(descriptor.Args, field), original.Error(), original)
+			descriptor.ID += ".field"
+			descriptor.Args = withField(descriptor.Args, field)
+			return i18n.MessageFromDescriptor(descriptor, original.Error(), original)
 		}
 	}
 	return i18n.NewMessage("system.privileged.field.invalid", map[string]any{"field": field}, original.Error(), original)

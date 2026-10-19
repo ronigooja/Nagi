@@ -1260,6 +1260,7 @@
 "cli.state.yes" = "是";
 "cli.stream.subscription.started" = "订阅调度器运行中；中断以停止。";
 "cli.stream.traffic.sample" = "上传：%1$@ B/s（总计 %2$@ B）  下载：%3$@ B/s（总计 %4$@ B）  采样：%5$@";
+"cli.subscription.healthcheck.inherited" = "遵循订阅配置和 mihomo 默认设置。提供方和代理组的本地间隔在各自的原生调度器中优先生效；保留提供方启用状态和独立的本地设置。";
 "help.command.app.detail" = "需要位于 /usr/local/bin/nagi、由发行版管理的 CLI。安装和卸载 App 仅更改 App；更新 App 会更新整个安装。";
 "help.command.app.install.detail" = "默认下载并验证与当前 CLI 版本匹配的发行版。TAG 可选择其他发行版。仅安装 App；保留二进制文件、配置方案、引擎和登录服务。可能需要管理员授权。";
 "help.command.app.install.summary" = "安装 macOS 菜单栏 App";
@@ -8484,6 +8485,9 @@
 "system.installation.unsafe.release.archive.path" = "发布归档路径不安全";
 "system.installation.unsupported.release.platform" = "不支持此发布平台";
 "system.installation.update.authorization.was.cancelled.or.failed.nagi.remains.running" = "更新授权已取消或失败；Nagi 仍在运行";
+"system.installation.update.cancelled" = "更新已取消：Nagi.app 尚未退出。";
+"system.installation.update.failed" = "更新失败。请检查 Nagi 更新日志并重试更新。";
+"system.installation.update.permission" = "Nagi 需要获得权限才能更新。";
 "system.installation.update.preparation.cancelled.nagi.remains.running" = "更新准备已取消；Nagi 仍在运行：%1$@";
 "system.installation.use.the.installed.cli.at.prefix.bin.nagi" = "请使用 PREFIX/bin/nagi 中安装的 CLI";
 "system.installtx.activated.transaction.target.differs.from.prepared.content" = "已激活的事务目标与准备的内容不同";

@@ -3096,6 +3096,7 @@
     "arg3": "string",
     "arg4": "string"
   },
+  "cli.subscription.healthcheck.inherited": {},
   "help.command.app.detail": {},
   "help.command.app.install.detail": {},
   "help.command.app.install.summary": {},
@@ -32586,6 +32587,9 @@
   "system.installation.unsafe.release.archive.path": {},
   "system.installation.unsupported.release.platform": {},
   "system.installation.update.authorization.was.cancelled.or.failed.nagi.remains.running": {},
+  "system.installation.update.cancelled": {},
+  "system.installation.update.failed": {},
+  "system.installation.update.permission": {},
   "system.installation.update.preparation.cancelled.nagi.remains.running": {
     "arg0": "string"
   },
