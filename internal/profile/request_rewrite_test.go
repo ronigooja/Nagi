@@ -17,7 +17,7 @@ func TestRequestRewritePreservedAcrossSubscriptionsRemovedWithProfile(t *testing
 		t.Fatal(e)
 	}
 	rewrites := requestrewrite.Store{ConfigDir: dir, Profile: "work"}
-	candidate, e := requestrewrite.Compile(requestrewrite.Document{Version: 1, Domains: []requestrewrite.Domain{{ID: "api", Pattern: "api.service.example"}}, Rules: []requestrewrite.Rule{}})
+	candidate, e := requestrewrite.Compile(requestrewrite.Document{Version: 2, Scripts: []requestrewrite.Script{}, Rules: []requestrewrite.Rule{}})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -34,7 +34,7 @@ func TestRequestRewritePreservedAcrossSubscriptionsRemovedWithProfile(t *testing
 		}
 		got, e := rewrites.Load()
 		if e != nil || got.Version() != candidate.Version() || got.Document().Enabled {
-			t.Fatal("subscription changed local consent/intent", e)
+			t.Fatal("subscription changed local rules/intent", e)
 		}
 	}
 	if e = profiles.Apply(ctx, "other", []byte("mode: direct\n")); e != nil {
@@ -53,8 +53,8 @@ func TestRequestRewritePreservedAcrossSubscriptionsRemovedWithProfile(t *testing
 		t.Fatal(e)
 	}
 	got, e := rewrites.Load()
-	if e != nil || got.Document().Enabled || len(got.Document().Domains) != 0 {
-		t.Fatal("profile recreated with stale consent", e)
+	if e != nil || got.Document().Enabled || len(got.Document().Rules) != 0 {
+		t.Fatal("profile recreated with stale rules", e)
 	}
 	if _, e = os.Stat(filepath.Join(dir, "request-rewrite", "ca")); e != nil {
 		t.Fatal(e)

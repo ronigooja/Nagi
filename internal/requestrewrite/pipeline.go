@@ -671,8 +671,12 @@ func (s *Snapshot) TransformMessage(parent context.Context, stage string, req *h
 
 // TransformHandshake applies ordinary header operations from matching WebSocket
 // rules to a valid upgrade response. Protocol-owned fields remain immutable.
-func (s *Snapshot) TransformHandshake(req *http.Request, resp *http.Response) (*http.Response, error) {
-	work := cloneResponse(resp)
+func (s *Snapshot) TransformHandshake(req *http.Request, resp *http.Response, current ...*http.Response) (*http.Response, error) {
+	base := resp
+	if len(current) > 0 {
+		base = current[0]
+	}
+	work := cloneResponse(base)
 	for _, r := range s.doc.Rules {
 		if (r.Stage == StageWebSocketClient || r.Stage == StageWebSocketServer) && s.matchesRequest(r, req) && s.matchesResponse(r, resp) {
 			for _, o := range r.Operations {
@@ -682,7 +686,7 @@ func (s *Snapshot) TransformHandshake(req *http.Request, resp *http.Response) (*
 			}
 			if !validHeaders(work.Header, MaxHeadersBytes) {
 				if r.OnError == "forward_original" {
-					return cloneResponse(resp), nil
+					return cloneResponse(base), nil
 				}
 				return nil, transformFailure(invalid(), r.ID)
 			}

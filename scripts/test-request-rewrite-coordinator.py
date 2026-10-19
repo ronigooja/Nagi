@@ -60,7 +60,10 @@ try:
     run("profile", "use", "work")
     run("request-rewrite", "ca", "generate")
     run("request-rewrite", "ca", "export", str(root / "public-root.pem"), raw=True)
-    run("request-rewrite", "domains", "add", "-", data={"id":"api", "pattern":"api.service.example"})
+    def rule(id, domain):
+        return {"id":id,"enabled":True,"stage":"request","match":{"domain":domain},
+                "on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"X-Demo","value":"example"}]}
+    run("request-rewrite", "rules", "add", "-", data=rule("api", "api.service.example"))
     run("start")
     enabled = run("request-rewrite", "enable")
     assert enabled["actual"] == "active" and enabled["service_running"] is True, enabled
@@ -69,21 +72,21 @@ try:
     # The old supervisor remains live while a rejected candidate is rolled
     # back. Its owner socket makes supervisor start idempotent under cfg lock.
     write("fail-next-probe", "fixture")
-    failed = subprocess.run([cli, "--json", "request-rewrite", "domains", "add", "-"],
-                            input=json.dumps({"id":"rejected", "pattern":"rejected.service.example"}).encode(),
+    failed = subprocess.run([cli, "--json", "request-rewrite", "rules", "add", "-"],
+                            input=json.dumps(rule("rejected", "rejected.service.example")).encode(),
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
                             preexec_fn=credentials, timeout=35)
     assert failed.returncode == 1 and not failed.stdout, failed
     restored = run("request-rewrite", "status")
     assert restored["actual"] == "active" and restored["generation"] == first["generation"], restored
-    assert [d["id"] for d in run("request-rewrite", "domains", "list")["domains"]] == ["api"]
+    assert [d["id"] for d in run("request-rewrite", "rules", "list")["rules"]] == ["api"]
 
     assert first["owner_uid"] == uid and first["start_identity"] and first["engine_start_identity"]
     assert (root / "run/nagi" / ("rs-" + first["generation"] + ".sock")).exists()
     # A normal transient CLI exit leaves both child and supervisor alive.
     time.sleep(1.2)
     assert run("request-rewrite", "status")["actual"] == "active"
-    run("request-rewrite", "domains", "add", "-", data={"id":"mirror", "pattern":"mirror.service.example"})
+    run("request-rewrite", "rules", "add", "-", data=rule("mirror", "mirror.service.example"))
     second = json.loads(journal.read_text())
     assert second["generation"] != first["generation"]
     wait_for(lambda: not (root / "run/nagi" / ("rewrite-" + first["generation"] + ".sock")).exists())
@@ -121,7 +124,7 @@ try:
         # Explicit start reads retained intent and stages a fresh generation.
         run("start")
         assert run("request-rewrite", "status")["actual"] == "active"
-    # Profile selection switches consent and intent with the same coordinator.
+    # Profile selection switches rules and intent with the same coordinator.
     run("profile", "import", "idle", profile)
     run("profile", "use", "idle")
     idle = run("request-rewrite", "status")
@@ -135,6 +138,13 @@ try:
     # internal synthetic fixture TUN (never a real OS interface).
     run("request-rewrite", "disable")
     run("request-rewrite", "enable")
+    # Zero enabled rules preserve enabled intent while removing the branch.
+    run("request-rewrite", "rules", "disable", "api")
+    run("request-rewrite", "rules", "disable", "mirror")
+    assert run("request-rewrite", "status")["actual"] == "idle"
+    assert not journal.exists()
+    run("request-rewrite", "rules", "enable", "api")
+    assert run("request-rewrite", "status")["actual"] == "active"
     run("quit")
     assert not journal.exists()
     assert not list((root / "run/nagi").glob("rewrite-*.sock"))
