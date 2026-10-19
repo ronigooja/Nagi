@@ -32,6 +32,42 @@ import AppKit
         XCTAssertEqual(text.count, 16)
         XCTAssertEqual(text.filter { $0 == ":" }.count, 1)
     }
+    func testWindowTitleTracksProfileRefreshAndRetainsLastProfileOnFailure() async throws {
+        _ = NSApplication.shared
+        var profile: String? = "work"
+        var failRead = false
+        let model = RequestRewriteModel(read: { args, _ in
+            if failRead { throw CLIError.command("fixture", "read failed") }
+            if args == ["status"] {
+                return .objectValue(["profile": profile.map(JSONValue.stringValue) ?? .null,
+                    "actual": .stringValue("disabled"), "enabled_intent": .boolValue(false)])
+            }
+            return .objectValue([args.first == "scripts" ? "scripts" : "rules": .arrayValue([])])
+        }, submit: { _, _ in .objectValue([:]) }, export: { _ in Data() }, interval: 60_000_000_000)
+        let controller = RequestRewriteWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
+        // Drive the read slot directly so the test does not depend on window occlusion.
+        model.refreshStatus()
+        for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
+        XCTAssertEqual(window.title, "Nagi Request Rewrite — work")
+
+        profile = "personal"
+        model.refreshStatus()
+        for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
+        XCTAssertEqual(window.title, "Nagi Request Rewrite — personal")
+
+        failRead = true
+        model.refreshStatus()
+        for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
+        XCTAssertTrue(model.stale)
+        XCTAssertEqual(window.title, "Nagi Request Rewrite — personal")
+
+        failRead = false; profile = nil
+        model.refreshStatus()
+        for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
+        XCTAssertEqual(window.title, "Nagi Request Rewrite")
+    }
     func testQuitWaitsForRewriteSubmitAndFailedQuitRestoresGate() async throws {
         var allowSubmit: CheckedContinuation<Void, Never>?
         var submitted = false, cleanup = 0, completion: Bool?

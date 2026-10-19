@@ -1,6 +1,63 @@
 import SwiftUI
 import AppKit
 
+enum RewriteLabels {
+    static func stage(_ value: String) -> String {
+        switch value {
+        case "request": return "Request"
+        case "response": return "Response"
+        case "exchange": return "Request & Response"
+        case "websocket_client": return "WebSocket · Client → Server"
+        case "websocket_server": return "WebSocket · Server → Client"
+        default: return value
+        }
+    }
+    static func operation(_ value: String) -> String {
+        switch value {
+        case "header_set": return "Set header"
+        case "header_append": return "Append header"
+        case "header_delete": return "Delete header"
+        case "url_set": return "Change URL"
+        case "method_set": return "Change method"
+        case "status_set": return "Change status"
+        case "json_set": return "Set JSON value"
+        case "json_delete": return "Delete JSON value"
+        case "body_set": return "Replace body"
+        case "text_replace": return "Replace text"
+        case "regex_replace": return "Replace regular expression"
+        case "trailer_set": return "Set trailer"
+        case "trailer_delete": return "Delete trailer"
+        case "script": return "Run script"
+        default: return value
+        }
+    }
+}
+
+private struct RewriteField: View {
+    let label: String
+    @Binding var text: String
+    var prompt = ""
+    init(_ label: String, text: Binding<String>, prompt: String = "") {
+        self.label = label; _text = text; self.prompt = prompt
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption).foregroundColor(.secondary)
+            TextField(prompt, text: $text).accessibilityLabel(label)
+        }
+    }
+}
+
+private struct RewriteHelp: View {
+    let text: String
+    @State private var showing = false
+    var body: some View {
+        Button { showing.toggle() } label: { Image(systemName: "questionmark.circle") }
+            .accessibilityLabel("Help")
+            .popover(isPresented: $showing) { Text(text).padding().frame(width: 360, alignment: .leading) }
+    }
+}
+
 @MainActor struct RewriteRuleEditor: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var presentation: RewritePresentation
@@ -8,92 +65,120 @@ import AppKit
     let originalID: String?
     let profile: String
     @State private var localError: String?
+    @State private var showingConditions = false
+    @State private var showingOptions = false
+    @State private var showingDestinations = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(originalID == nil ? "Create Rewrite Rule" : "Edit Sensitive Rule Values").font(.title2.bold())
-            Text("Profile: \(profile). Drafts stay in memory until Submit; sensitive values travel through CLI stdin.").foregroundColor(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        TextField("Rule ID", text: $draft.id).disabled(originalID != nil)
-                        Toggle("Enabled rule", isOn: $draft.enabled)
-                        Picker("Stage", selection: $draft.stage) { ForEach(RewriteRuleDraft.stages, id: \.self) { Text($0).tag($0) } }
+                    GroupBox("Rule") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            RewriteField("Rule name", text: $draft.id).disabled(originalID != nil)
+                            HStack {
+                                Picker("Apply to", selection: $draft.stage) { ForEach(RewriteRuleDraft.stages, id: \.self) { Text(RewriteLabels.stage($0)).tag($0) } }
+                                Toggle("Enabled", isOn: $draft.enabled)
+                            }
+                        }.padding(6)
                     }
                     matchEditor
-                    GroupBox("Ordered operations") {
+                    GroupBox("Operations") {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(draft.operations.indices, id: \.self) { index in
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack {
                                         Text("Operation \(index + 1)").bold(); Spacer()
-                                        Button("↑") { draft.operations.swapAt(index, index - 1) }.disabled(index == 0).accessibilityLabel("Move operation up")
-                                        Button("↓") { draft.operations.swapAt(index, index + 1) }.disabled(index + 1 == draft.operations.count).accessibilityLabel("Move operation down")
+                                        Button { draft.operations.swapAt(index, index - 1) } label: { Image(systemName: "arrow.up") }
+                                            .disabled(index == 0).help("Move operation up").accessibilityLabel("Move operation up")
+                                        Button { draft.operations.swapAt(index, index + 1) } label: { Image(systemName: "arrow.down") }
+                                            .disabled(index + 1 == draft.operations.count).help("Move operation down").accessibilityLabel("Move operation down")
                                         Button("Remove") { draft.operations.remove(at: index) }
                                     }
                                     RewriteOperationEditor(draft: $draft.operations[index], stage: draft.stage)
                                 }.padding(8).background(Color.secondary.opacity(0.07)).cornerRadius(6)
                             }
                             Button("Add Operation") { draft.operations.append(RewriteOperationDraft()) }
-                            Text("The CLI checks operations against the chosen stage and enforces body, trailer, framing and script limits. Values can contain credentials.").font(.caption).foregroundColor(.secondary)
                         }.padding(6)
                     }
-                    consentEditor
+                    if draft.stage == "request" || !draft.consent.isEmpty { consentEditor }
+                    optionsEditor
                 }
             }
             if let error = localError ?? presentation.model.error { Text(error).foregroundColor(.red).fixedSize(horizontal: false, vertical: true) }
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Refresh Current State") { presentation.model.refresh() }; Spacer()
-                Button("Submit Rule") { submit() }.keyboardShortcut(.defaultAction)
+                Button("Refresh") { presentation.model.refresh() }
+                RewriteHelp(text: "All match conditions apply to the original message. A wildcard domain excludes its apex. Operations run in list order. Changing the URL scheme, host or port requires an allowed destination; path and query edits do not. Cancel discards the draft.")
+                Spacer()
+                Button("Save Rule") { submit() }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
             }
         }.padding(22).frame(width: 800, height: 740)
             .disabled(presentation.model.operationInProgress)
             .interactiveDismissDisabled(presentation.model.operationInProgress)
+            .onAppear {
+                showingConditions = [draft.pathRegex, draft.query, draft.headers, draft.statusCodes, draft.contentTypes, draft.responseHeaders, draft.messageTypes].contains { !$0.isEmpty }
+                showingOptions = draft.rangeMode != "fragment" || draft.onError != "block"
+                showingDestinations = !draft.consent.isEmpty || needsDestination
+            }
+            .onChange(of: needsDestination) { needed in if needed { showingDestinations = true } }
+    }
+    private var needsDestination: Bool {
+        draft.stage == "request" && draft.operations.contains { $0.kind == "url_set" && ["scheme", "host", "port"].contains($0.component) }
     }
     private var matchEditor: some View {
-        GroupBox("Match original metadata · all supplied predicates apply") {
+        GroupBox("Match Conditions") {
             VStack(alignment: .leading, spacing: 8) {
-                TextField("Exact domain or explicit wildcard (wildcards exclude apex)", text: $draft.domain)
-                TextField("HTTP methods; blank means any", text: $draft.methods)
-                TextField("Escaped path prefix; blank means any", text: $draft.path)
-                TextField("Path regular expression (Go/RE2)", text: $draft.pathRegex)
-                RewritePredicateEditor(label: "Query", text: $draft.query)
-                RewritePredicateEditor(label: "Request headers", text: $draft.headers)
-                if draft.stage != "request" {
-                    TextField("Original status codes, e.g. 200, 206", text: $draft.statusCodes)
-                    TextField("Original content types, e.g. application/json", text: $draft.contentTypes)
-                    RewritePredicateEditor(label: "Response / handshake headers", text: $draft.responseHeaders)
+                RewriteField("Domain", text: $draft.domain, prompt: "api.service.example or *.service.example")
+                HStack(alignment: .top) {
+                    RewriteField("Methods", text: $draft.methods, prompt: "Any").frame(width: 160)
+                    RewriteField("Path prefix", text: $draft.path, prompt: "Any")
                 }
-                if draft.stage.hasPrefix("websocket_") { TextField("Message types: text, binary; blank means any", text: $draft.messageTypes) }
-                Picker("Range body handling", selection: $draft.rangeMode) {
-                    Text("Transform fragments (preserve length)").tag("fragment")
-                    Text("Require full representation").tag("full")
+                DisclosureGroup("Additional Conditions", isExpanded: $showingConditions) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        RewriteField("Path expression", text: $draft.pathRegex, prompt: "Any").help("Go/RE2 expression over the escaped path.")
+                        RewritePredicateEditor(label: "Query parameters", text: $draft.query)
+                        RewritePredicateEditor(label: "Request headers", text: $draft.headers)
+                        if draft.stage != "request" {
+                            RewriteField("Status codes", text: $draft.statusCodes, prompt: "Any")
+                            RewriteField("Content types", text: $draft.contentTypes, prompt: "Any")
+                            RewritePredicateEditor(label: "Response / handshake headers", text: $draft.responseHeaders)
+                        }
+                        if draft.stage.hasPrefix("websocket_") { RewriteField("Message types", text: $draft.messageTypes, prompt: "text, binary") }
+                    }.padding(.top, 8)
                 }
-                Picker("On transformation error", selection: $draft.onError) {
-                    Text("Block (default)").tag("block")
-                    Text("Forward complete original message").tag("forward_original")
-                }
-                Text("Forward original discards uncommitted stage edits. The CLI applies protocol and failure-policy constraints.").font(.caption).foregroundColor(.secondary)
             }.padding(6)
         }
     }
-    private var consentEditor: some View {
-        GroupBox("Explicit destination consent · request stage") {
+    private var optionsEditor: some View {
+        DisclosureGroup("Advanced Settings", isExpanded: $showingOptions) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Scheme, host or port changes require explicit destination consent. Consent itself authorizes the replacement destination; it does not add an interception rule. Path/query-only edits need no destination entry.").font(.caption).foregroundColor(.secondary)
+                Picker("Partial content", selection: $draft.rangeMode) {
+                    Text("Preserve fragment length").tag("fragment")
+                    Text("Use full representation").tag("full")
+                }
+                Picker("If an operation fails", selection: $draft.onError) {
+                    Text("Block").tag("block")
+                    Text("Forward original").tag("forward_original")
+                }.help("Forward original discards uncommitted changes for this stage.")
+            }.padding(.top, 8)
+        }.padding(6)
+    }
+    private var consentEditor: some View {
+        DisclosureGroup("Allowed Destinations", isExpanded: $showingDestinations) {
+            VStack(alignment: .leading, spacing: 10) {
                 ForEach(draft.consent.indices, id: \.self) { index in
                     VStack(alignment: .leading) {
                         HStack { Text("Destination \(index + 1)").bold(); Spacer(); Button("Remove") { draft.consent.remove(at: index) } }
-                        TextField("Destination domain", text: $draft.consent[index].domain)
+                        RewriteField("Domain", text: $draft.consent[index].domain)
                         HStack {
-                            TextField("Schemes, e.g. https", text: $draft.consent[index].schemes)
-                            TextField("Explicit ports, e.g. 443", text: $draft.consent[index].ports)
+                            RewriteField("Schemes", text: $draft.consent[index].schemes, prompt: "https")
+                            RewriteField("Ports", text: $draft.consent[index].ports, prompt: "443")
                         }
                     }
                 }
-                Button("Add Destination Consent") { draft.consent.append(RewriteConsentDraft()) }.disabled(draft.stage != "request")
+                Button("Add Destination") { draft.consent.append(RewriteConsentDraft()) }.disabled(draft.stage != "request")
             }.padding(6)
-        }
+        }.padding(6)
     }
     private func submit() {
         do {
@@ -109,8 +194,9 @@ private struct RewritePredicateEditor: View {
     @Binding var text: String
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("\(label) · JSON object of string arrays; blank disables predicate").font(.caption)
+            Text(label).font(.caption).foregroundColor(.secondary)
             TextEditor(text: $text).font(.system(.body, design: .monospaced)).frame(height: 55)
+                .accessibilityLabel(label).help("JSON object mapping names to string arrays, for example {\"X-Demo\":[\"example\"]}. Leave blank to match any value.")
         }
     }
 }
@@ -120,27 +206,28 @@ struct RewriteOperationEditor: View {
     let stage: String
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker("Operation", selection: $draft.kind) { ForEach(RewriteOperationDraft.kinds, id: \.self) { Text($0).tag($0) } }
-            if draft.kind.hasPrefix("header_") || draft.kind.hasPrefix("trailer_") { TextField("Header or trailer name", text: $draft.name) }
+            Picker("Operation", selection: $draft.kind) { ForEach(RewriteOperationDraft.kinds, id: \.self) { Text(RewriteLabels.operation($0)).tag($0) } }
+            if draft.kind.hasPrefix("header_") || draft.kind.hasPrefix("trailer_") { RewriteField(draft.kind.hasPrefix("header_") ? "Header name" : "Trailer name", text: $draft.name) }
             if draft.kind == "url_set" {
                 Picker("URL component", selection: $draft.component) { ForEach(["scheme", "host", "port", "path", "query"], id: \.self) { Text($0).tag($0) } }
             }
-            if draft.kind.hasPrefix("json_") { TextField("JSON Pointer (RFC 6901)", text: $draft.pointer) }
+            if draft.kind.hasPrefix("json_") { RewriteField("JSON Pointer", text: $draft.pointer).help("RFC 6901 path to the JSON value; leave blank to select the root.") }
             if ["json_set", "body_set"].contains(draft.kind) {
-                Text(draft.kind == "json_set" ? "JSON value · exact numeric digits retained" : "Replacement body").font(.caption)
+                Text(draft.kind == "json_set" ? "JSON value" : "Replacement body").font(.caption)
                 TextEditor(text: $draft.value).font(.system(.body, design: .monospaced)).frame(minHeight: 70)
+                    .accessibilityLabel(draft.kind == "json_set" ? "JSON value" : "Replacement body")
             } else if ["header_set", "header_append", "trailer_set", "url_set", "method_set", "status_set"].contains(draft.kind) {
-                TextField(draft.kind == "status_set" ? "Status (200–599)" : "Value", text: $draft.value)
+                RewriteField(draft.kind == "status_set" ? "Status (200–599)" : "Value", text: $draft.value)
             }
             if draft.kind == "body_set" {
                 Picker("Body encoding", selection: $draft.encoding) { Text("UTF-8").tag("text"); Text("Base64").tag("base64") }
             }
             if ["text_replace", "regex_replace"].contains(draft.kind) {
-                TextField(draft.kind == "regex_replace" ? "Go/RE2 pattern" : "Literal text", text: $draft.pattern)
-                TextField("Replacement", text: $draft.replacement)
+                RewriteField(draft.kind == "regex_replace" ? "Go/RE2 pattern" : "Find", text: $draft.pattern)
+                RewriteField("Replace with", text: $draft.replacement)
                 Toggle("Replace all occurrences", isOn: $draft.all)
             }
-            if draft.kind == "script" { TextField("Saved script ID", text: $draft.script) }
+            if draft.kind == "script" { RewriteField("Script name", text: $draft.script) }
             if stage.hasPrefix("websocket_") && ["body_set", "json_set", "json_delete", "text_replace", "regex_replace", "script"].contains(draft.kind) {
                 Picker("Message type after operation", selection: $draft.messageType) {
                     Text("Preserve type").tag(""); Text("Text").tag("text"); Text("Binary").tag("binary")
@@ -159,23 +246,24 @@ struct RewriteOperationEditor: View {
     @State private var localError: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(originalID == nil ? "Create Transform Script" : "Edit Sensitive Script Source").font(.title2.bold())
-            Text("Profile: \(profile). Source can contain credentials. Drafts remain in memory; Submit sends source through CLI stdin.").foregroundColor(.secondary)
-            TextField("Script ID", text: $draft.id).disabled(originalID != nil)
+            RewriteField("Script name", text: $draft.id).disabled(originalID != nil)
             Picker("Body access", selection: $draft.bodyAccess) { Text("Metadata only").tag("none"); Text("Buffered body (up to 8 MiB)").tag("buffer") }
-            Text("Define synchronous transform(input) and return {action: 'unchanged'}, {action: 'block'}, or {action: 'replace', message: {...}}. Execution is isolated with no network, files, clock or random; source limit 64 KiB.").font(.caption).foregroundColor(.secondary)
+            Text("JavaScript").font(.caption).foregroundColor(.secondary)
             TextEditor(text: $draft.source).font(.system(.body, design: .monospaced))
+                .accessibilityLabel("JavaScript source")
             if let error = localError ?? presentation.model.error { Text(error).foregroundColor(.red) }
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Refresh Current State") { presentation.model.refresh() }; Spacer()
-                Button("Submit Script") {
+                Button("Refresh") { presentation.model.refresh() }
+                RewriteHelp(text: "Define synchronous transform(input). Return {action: 'unchanged'}, {action: 'block'}, or {action: 'replace', message: {...}}. Scripts run only through a rule's Run script operation, without network or file access. Source limit: 64 KiB.")
+                Spacer()
+                Button("Save Script") {
                     do {
                         let bytes = try draft.json(); localError = nil
                         let args = originalID.map { ["scripts", "update", $0, "-"] } ?? ["scripts", "add", "-"]
                         Task { if await presentation.model.perform(args, input: bytes, profile: profile) { dismiss() } }
                     } catch { localError = error.localizedDescription }
-                }.keyboardShortcut(.defaultAction)
+                }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
             }
         }.padding(22).frame(width: 780, height: 620)
             .disabled(presentation.model.operationInProgress)
@@ -234,10 +322,9 @@ struct RewritePreviewDraft {
     @State private var localError: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Explicit sensitive local preview. No DNS, network request or persistence. Output can contain credentials, URLs and bodies; keep it private.").foregroundColor(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Picker("Preview stage", selection: $draft.stage) { ForEach(RewritePreviewDraft.stages, id: \.self) { Text($0).tag($0) } }
+                    Picker("Apply to", selection: $draft.stage) { ForEach(RewritePreviewDraft.stages, id: \.self) { Text(RewriteLabels.stage($0)).tag($0) } }
                         .onChange(of: draft.stage) { stage in if stage.hasPrefix("websocket_") { draft.responseStatus = "101" } }
                     requestForm
                     if draft.stage != "request" { responseForm }
@@ -250,20 +337,23 @@ struct RewritePreviewDraft {
                         }
                     }
                 }
-            }.frame(maxHeight: 320)
+            }.frame(minHeight: 200, idealHeight: 320, maxHeight: 360)
             HStack {
-                Button("Preview & Reveal Sensitive Result") {
+                Button("Run Preview") {
                     do {
                         let data = try draft.data(); localError = nil
                         Task { _ = await presentation.model.perform(["preview", "-"], input: data, profile: presentation.model.status?.profile) }
                     } catch { localError = error.localizedDescription }
-                }
-                Button("Preview Fixture File & Reveal…") { pickFixture() }; Spacer()
-                Button("Clear Result") { presentation.model.clearPreview() }
-            }.disabled(!presentation.model.canOperate || presentation.model.status?.profile == nil)
+                }.disabled(!presentation.model.canOperate || presentation.model.status?.profile == nil)
+                Button("Preview File…") { pickFixture() }
+                    .disabled(!presentation.model.canOperate || presentation.model.status?.profile == nil)
+                RewriteHelp(text: "Preview applies saved rules to the original request, response or WebSocket message locally. It sends no network request and saves no changes. Headers and trailers use one Name: value pair per line. Choose Base64 for binary bodies.")
+                Spacer()
+                Button("Clear Result") { presentation.model.clearPreview() }.disabled(presentation.model.preview == nil)
+            }
             if let error = localError { Text(error).foregroundColor(.red) }
             ScrollView {
-                Text(presentation.model.preview ?? "No preview requested. Input remains a local draft until you submit it.")
+                Text(presentation.model.preview ?? "No preview result")
                     .font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxHeight: .infinity).padding(8).background(Color.secondary.opacity(0.06))
         }.padding()
@@ -273,11 +363,11 @@ struct RewritePreviewDraft {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Picker("Scheme", selection: $draft.scheme) { Text("https").tag("https"); Text("http").tag("http") }.frame(width: 150)
-                    TextField("Rule match host", text: $draft.host)
-                    TextField("Port", text: $draft.port).frame(width: 70)
-                    TextField("Method", text: $draft.method).frame(width: 90)
+                    RewriteField("Host", text: $draft.host)
+                    RewriteField("Port", text: $draft.port).frame(width: 70)
+                    RewriteField("Method", text: $draft.method).frame(width: 90)
                 }
-                HStack { TextField("Escaped path", text: $draft.path); TextField("Raw query, without ?", text: $draft.query) }
+                HStack { RewriteField("Path", text: $draft.path); RewriteField("Query", text: $draft.query).help("Raw query without the leading question mark.") }
                 HStack {
                     RewritePreviewHeaderEditor(label: "Headers", text: $draft.headers)
                     RewritePreviewHeaderEditor(label: "Trailers", text: $draft.trailers)
@@ -289,7 +379,7 @@ struct RewritePreviewDraft {
     private var responseForm: some View {
         GroupBox(draft.stage.hasPrefix("websocket_") ? "Original handshake response (status 101)" : "Original response") {
             VStack(alignment: .leading, spacing: 6) {
-                TextField("Status", text: $draft.responseStatus)
+                RewriteField("Status", text: $draft.responseStatus)
                 HStack {
                     RewritePreviewHeaderEditor(label: "Headers", text: $draft.responseHeaders)
                     RewritePreviewHeaderEditor(label: "Trailers", text: $draft.responseTrailers)
@@ -300,7 +390,7 @@ struct RewritePreviewDraft {
     }
     private func pickFixture() {
         let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
-        panel.message = "Choose a private v2 preview envelope with stage and request, plus response/message when required. The CLI reads it without sending network requests."
+        panel.message = "Choose a private preview JSON file."
         if panel.runModal() == .OK, let file = panel.url {
             Task { _ = await presentation.model.perform(["preview", file.path], profile: presentation.model.status?.profile) }
         }
@@ -309,7 +399,13 @@ struct RewritePreviewDraft {
 private struct RewritePreviewHeaderEditor: View {
     let label: String
     @Binding var text: String
-    var body: some View { VStack(alignment: .leading) { Text("\(label) · Name: value per line").font(.caption); TextEditor(text: $text).font(.system(.body, design: .monospaced)).frame(height: 55) } }
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(label).font(.caption).foregroundColor(.secondary)
+            TextEditor(text: $text).font(.system(.body, design: .monospaced)).frame(height: 55)
+                .accessibilityLabel(label).help("One Name: value pair per line.")
+        }
+    }
 }
 private struct RewritePreviewBodyEditor: View {
     @Binding var bodyText: String
@@ -318,6 +414,7 @@ private struct RewritePreviewBodyEditor: View {
         VStack(alignment: .leading) {
             Picker("Body input", selection: $encoding) { Text("UTF-8").tag("utf8"); Text("Base64 binary").tag("base64") }
             TextEditor(text: $bodyText).font(.system(.body, design: .monospaced)).frame(height: 65)
+                .accessibilityLabel("Body")
         }
     }
 }

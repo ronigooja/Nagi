@@ -138,7 +138,7 @@ import Foundation
             if arguments.first == "preview" {
                 // Only an explicitly requested preview reveals sensitive values.
                 preview = Self.display(result)
-                notice = "Sensitive local preview only. No network request was sent."
+                notice = "Preview completed."
             } else { notice = "Operation completed. Refresh status to confirm current activation." }
             operationInProgress = false
             if visible { refresh() } else { refreshStatus() }
