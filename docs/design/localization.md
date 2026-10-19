@@ -1,6 +1,6 @@
 # Localization
 
-**Status: implementation in progress.** This is the accepted localization design
+**Status: source migration implemented; native interactive acceptance incomplete.** This is the accepted localization design
 and migration audit for English (`en`) and Simplified Chinese (`zh-Hans`). It is
 not a claim that every interface is translated. The source inventory below was
 captured from baseline `661a69c`; implementation and acceptance remain separate.
@@ -11,23 +11,36 @@ message metadata contract, terminology, and migration accounting. The
 JSON fields and exit codes; the [terminal menu design](terminal-menu.md) and
 [UI rules](../development/ui-design.md) retain their interaction requirements.
 
-## Implemented migration checkpoint
+## Implemented scope and acceptance
 
-The CLI now translates source-owned command errors and human output labels,
-empty states and operation feedback. The terminal menu has bilingual pages,
-forms, navigation, retained-value failure feedback and semantic state styling.
-Its command runner carries the session language into independent reads and
-child streams. The native App has bilingual AppKit/SwiftUI resources, plural
-forms, stable picker identities and typed error origins. Its descriptor-aware
-presentation covers normal, rewrite, capture and streaming transports while
-preserving original business values. Raw configuration, logs, completion scripts,
-exports, previews and captured content retain their existing contracts.
+The CLI translates command help, source-owned errors, human labels, empty states
+and operation feedback. The terminal menu translates pages, forms, navigation,
+retained-value failure feedback and semantic state styling. Its runner carries
+one immutable session language into independent reads and child streams. The
+native App has bilingual AppKit/SwiftUI resources, plural forms, stable picker
+identities and typed error origins. Descriptor-aware presentation covers normal,
+rewrite, capture and streaming transports while preserving original business
+values. Raw configuration, logs, completion scripts, exports, previews and
+captured content retain their existing contracts.
 
-Coverage is still being integrated: command-help migration, Nagi-owned backend
-diagnostics and nested successful-result descriptors require the follow-on
-checkpoint. Unannotated messages retain their original English. Native automated
-resource and layout checks are evidence distinct from manual acceptance; known
-baseline layout assertions and interactive acceptance remain unresolved.
+Backend descriptors originate in validation and operation code, including nested
+successful-result diagnostics. The ordinary envelope collector preserves those
+associations through typed objects, maps and arrays. Private helper responses
+carry optional descriptors for their existing error string. The detached updater
+persists optional metadata beside its legacy plain error file; the
+[installation design](installation.md) defines that storage boundary. Nested
+Nagi error arguments remain structured rather than being inferred from English.
+External diagnostic causes retain their sanitized original detail within
+localized Nagi context. Unknown or unannotated messages retain their original
+fallback.
+
+Acceptance is separate from source migration. Full Linux Go and installer tests
+pass at the integrated candidate. Native source compilation, automated tests and
+packaging are verified on macOS independently. Automated native actions include
+bilingual retry/retained forms and accessibility/keyboard fixtures in light and
+dark appearances. These fixtures do not establish interactive desktop acceptance:
+the macOS test session has accessibility disabled, so actual menu-bar interaction,
+all-window focus/scrolling and visual acceptance remain pending.
 
 Go catalog modules live under `internal/i18n/catalogs/en` and `zh-Hans`. Each
 module declares its exact argument signatures in
@@ -36,8 +49,8 @@ argument-name/type object (`{}` for no arguments). Supported types are `string`,
 `number` and `boolean`. Loading rejects duplicate keys/IDs, language/schema ID
 drift, invalid plural forms, and inconsistent placeholders. Plural messages use
 a numeric `count` and `one`/`other` forms; Chinese may define only `other`.
-The Go and native App tests consume the shared contract fixture to check
-registered fixture IDs, typed argument fallback and resource agreement. The
+The Go and native App tests consume the shared contract fixture to require exact
+producer ID/signature parity, typed argument fallback and resource agreement. The
 maintained native bridge is regenerated with
 `python3 macos/NagiApp/Tools/update-message-catalog.py` after producer catalogs
 change; it checks named signatures and retains English fallback for unknown IDs.
@@ -120,7 +133,8 @@ tracks this fixture contract, not a new CLI envelope version.
 - Each key is an RFC 6901 JSON Pointer into the existing envelope. `/data` is
   valid only when `data` itself is a string; nested string fields such as
   `/data/message`, `/data/checks/0/message` and `/error/message` may be annotated.
-- A descriptor contains a nonempty stable `id` and optional `args` object.
+- A descriptor contains a nonempty stable `id`, optional `args` object and
+  optional `argument_messages` object.
   Argument values are JSON scalars: string, finite number or boolean. Null and
   container arguments are invalid. Empty arguments should be omitted.
 - IDs describe semantic events, never English sentence text. A producer creates
@@ -135,6 +149,16 @@ tracks this fixture contract, not a new CLI envelope version.
   absent/nonstring targets, unknown IDs, malformed metadata and unsupported
   argument types preserve the original English value. A bad optional descriptor
   must not invalidate an otherwise valid command response or sibling descriptor.
+- `argument_messages` associates a string argument name with another source
+  descriptor. The original scalar remains unchanged in `args`, including its
+  English fallback. Consumers render a child only for an existing string
+  argument and a known, exactly typed child ID. Missing, malformed or unknown
+  children preserve that argument independently; siblings and the parent remain
+  usable. Child keys are visited in sorted order. Composition is bounded to
+  eight child levels and 64 child nodes per descriptor. Bounds discard deeper
+  metadata and retain the original scalar. Producers sanitize every level before
+  serialization; no cause object or raw captured content becomes an argument.
+  Older consumers ignore this optional field and display the original scalar.
 - Metadata is presentation-only. Consumers branch on `error.code`, typed state,
   command identities and protocol fields. They never branch on localized text.
 - Older consumers ignore the additive field; older producers without metadata
@@ -218,12 +242,20 @@ Counts are estimates of occurrences, not unique semantic IDs or verified
 user-visible messages. Concatenated strings and Swift interpolation can produce
 multiple fragments; some apparent prose is protocol or an example. Multiline
 literals, generated labels, dynamic backend diagnostics and imported content
-require the boundary review above. The checklist must never be used by itself
-to claim complete localization. The 793 menu candidates have individual source-owner audits: 756 translated,
-34 preserved protocol/import/unit/format/sentinel occurrences and three
-internal-only sentinels whose public validation is localized. The TSV includes
-per-row reasons. Other areas remain pending the integration audit; migrated
-resources alone do not change their inventory status.
+require the boundary review above. The checklist must never be used by itself to claim complete localization.
+All 4,964 baseline rows now have source-audited classifications and evidence:
+3,388 translated occurrences, 1,226 protocol occurrences, 265 out-of-scope
+occurrences, 69 raw occurrences and 16 external-diagnostic markers. The 793 menu
+rows retain their owner's individual audit, including three internal sentinels.
+An additional 797 rows audit semantic producers and presentation/transport
+boundaries absent from the literal baseline; 779 identify explicit resource IDs
+and 18 describe source/consumer boundaries. The complete 5,761-row checklist has
+4,180 translated, 1,226 protocol, 265 out-of-scope, 74 raw and 16 external-diagnostic
+records. These are source records, not unique messages or exercised paths.
+Expanded anchors refer to source candidate `3281b76`; baseline anchors remain
+historical and use symbol/resource notes to identify current code. No pending
+source-review status remains. This accounting does not establish desktop
+interaction or visual acceptance.
 
 | Area | Candidate occurrences | Primary work |
 | --- | ---: | --- |
@@ -252,18 +284,18 @@ requires code review of rendering and error origins, not just catalog key counts
 
 ## String-driven behavior and transport audit
 
-These baseline paths require semantic refactoring before translating text:
+The source migration replaced the following baseline string-driven behavior:
 
-| Path / symbol | Baseline behavior | Required change |
+| Path / symbol | Baseline behavior | Current implementation |
 | --- | --- | --- |
-| `internal/menu/render.go:renderValue`, `statusLabel` | Branches on English normalized field labels for timestamps, endpoint redaction, profile and state colors. | Retain original field identity and semantic style before choosing translated display labels. |
-| `internal/output/style.go:StyleStateValue` | Classifies English state tokens for color. | Classify stable state token separately from translated text; never classify a resource name. |
-| `AppModel.swift:refresh` | Clears errors by `hasPrefix("Status unavailable:")`. | Track typed error origin. |
-| `AppModel.swift` traffic task | Clears errors by `hasPrefix("Traffic unavailable:")`. | Track typed error origin. |
-| `SourceSettingsPanel.swift` validation reset | Detects `hasPrefix("Enter ")` in field text. | Track validation state independently of localized message. |
-| `CaptureDraftWindow.swift:CaptureDraftPreview` | Uses `Before / After`, `Diff`, `Raw Result` as picker identities and branch values. | Stable tab enum/tags with translated labels. |
-| Rewrite/capture picker tags | Protocol kind/stage/component values also appear as generated labels. | Preserve tags; map display labels by semantic value. |
-| Menu `Item.Selected` and feedback kind | Already carries semantic selection and severity. | Preserve typed state; do not regress to matching labels. |
+| `internal/menu/render.go:renderValue`, `statusLabel` | Branches on English normalized field labels for timestamps, endpoint redaction, profile and state colors. | Uses original field identity and semantic style before translated display labels. |
+| `internal/output/style.go:StyleStateValue` | Classifies English state tokens for color. | Classifies stable state tokens separately from translated text and resource names. |
+| `AppModel.swift:refresh` | Clears errors by `hasPrefix("Status unavailable:")`. | Tracks typed error origin. |
+| `AppModel.swift` traffic task | Clears errors by `hasPrefix("Traffic unavailable:")`. | Tracks typed error origin. |
+| `SourceSettingsPanel.swift` validation reset | Detects `hasPrefix("Enter ")` in field text. | Tracks validation state independently of localized messages. |
+| `CaptureDraftWindow.swift:CaptureDraftPreview` | Uses `Before / After`, `Diff`, `Raw Result` as picker identities and branch values. | Uses stable tab enums/tags with translated labels. |
+| Rewrite/capture picker tags | Protocol kind/stage/component values also appear as generated labels. | Preserves tags and maps semantic display values. |
+| Menu `Item.Selected` and feedback kind | Already carries semantic selection and severity. | Preserves typed selection and severity. |
 
 Every CLI JSON decoding path must preserve optional metadata and localize the
 presentation without changing typed operation data:
@@ -287,13 +319,13 @@ The source-owner migration checkpoints retain separate responsibilities:
 
 | Owner | Files and resources | Required review |
 | --- | --- | --- |
-| CLI | `internal/command/**`, `internal/output/**`, `cmd/**`, CLI catalogs; then dedicated backend diagnostic pass. | Every command spec, output branch, Nagi-owned error origin, nested message pointer and completion/raw exception. |
+| CLI | `internal/command/**`, `internal/output/**`, `cmd/**`, CLI catalogs and source-owned backend diagnostic modules. | Every command spec, output branch, Nagi-owned error origin, nested message pointer and completion/raw exception. |
 | Menu | `internal/menu/**`, menu catalog. | Every page/form/selector, styles, retained forms, command metadata, read/stream/raw paths and effects. |
 | App | `macos/NagiApp/Sources/**`, tests, Package.swift and packaging resource declarations. | All AppKit/SwiftUI surfaces and all transports; typed state/tab fixes and open-window language refresh. |
 | Integration/docs | README, architecture summary, CLI reference, App README, build/install documents and final status here. | Final behavior matches documented options, fallback and package layout; links and examples are valid. |
 
-Backend work can be delegated after one UI owner finishes, but must have explicit
-package ownership and retain event descriptors at error origins. Do not classify
+Backend modules retain explicit package ownership and event descriptors at
+error origins. Do not classify
 all `err.Error()` strings as external: many originate inside Nagi.
 
 Acceptance requires catalog parity, exact typed placeholder checks, immutable
@@ -313,10 +345,8 @@ focused/disabled controls and documented restart behavior for already-open windo
 retain the menu image and add `en`/`zh-Hans` localizations without embedding
 source paths or breaking bundle resolution.
 
-The Linux audit host has Go under `$HOME/environment/go1.26.4`; no native Swift
-or macOS SDK was found in PATH. No dependency was downloaded. Earlier native
-build and test evidence is recorded in the
-[verification matrix](../development/request-rewrite-acceptance.md), but does
-not establish localization acceptance. No remote host address or credential is
-part of this design. Cross-compilation cannot establish native window or
-resource behavior; record any remaining native checks explicitly.
+The Linux audit host has Go under `$HOME/environment/go1.26.4`; macOS checks use
+an isolated native checkout. No installed user App or host language preference is
+changed. Cross-compilation cannot establish native window or resource behavior.
+The [build and test workflow](../development/build-and-test.md#localization-verification)
+records reproducible automated checks and the remaining desktop acceptance gap.

@@ -171,21 +171,39 @@ Catalog/schema parity and strict descriptor arguments are checked by Go tests;
 native resources in the same change. This generator is a maintenance step,
 not a runtime translation dependency.
 
-The Phase B integration checkpoint passed focused command, output, menu and
-catalog tests. Earlier source-owner race checks, bilingual Linux PTY menu flows,
-native English/Chinese resource/transport tests and App packaging passed. These
-checks do not establish final integrated full-suite or manual native acceptance.
+Run `make test` for the complete Go suite and installer integration. Exercise
+the affected operation boundaries and immutable contexts with:
+
+```sh
+go test -race ./internal/i18n ./internal/output ./internal/menu ./internal/command ./internal/subscription ./internal/installation ./internal/privileged/... ./internal/profile
+```
+
+The integrated Linux candidate passed the complete Go/installer suite and the
+affected race checks. Catalog checks require exact producer signatures, independently invalid optional
+metadata, nested source composition, redaction and language-invariant JSON.
+Bilingual PTY menu flows and raw-content preservation have separate regression
+coverage. Actual macOS Zsh syntax, loading and language-prefix operand completion
+passed using isolated fictitious candidates. Fish was unavailable on both test hosts;
+its generation/schema checks passed, but executable Fish acceptance remains
+unverified.
+
 On an isolated macOS checkout, run `swift test --package-path macos/NagiApp` and
 `make build app`, inspect both packaged language directories, signature JSON and
 menu PDF, and verify the relocated bundle without the development directory.
 Use per-process language preferences for automated English/Chinese runs; leave
-the host's preferences and installed user App untouched.
-
-Native migration tests reproduced five known assertions in three baseline layout
-tests: capture draft button discovery, Connections minimum height, and rewrite
-window horizontal repositioning. They remain visible acceptance gates. Manual
-checks must cover all window families, preferred/per-App language and restart,
-long text, focused/disabled controls, keyboard/editor interaction, scrolling,
-light/dark appearance and minimum window size. The
-[localization design](../design/localization.md) tracks migration status separately
-from these native gates.
+the host's preferences and installed user App untouched. Native minimum-size
+constraints and mounted accessibility fixtures resolve the earlier five baseline
+layout assertions. The native full English suite ran 231 tests with no failures
+and one intentional live-capture skip; 26
+selected Chinese resource, transport, action and layout tests passed. Earlier
+full Chinese runs include legacy English-only test assertions, so these results
+do not claim a complete Chinese suite pass. After the final resource update,
+18 localization/parity tests passed separately in each language, and App
+packaging plus fresh-process relocated resource selection passed with all 8,800
+producer signatures. Native automated actions cover bilingual retry forms,
+retained edits, keyboard focus and light/dark appearances. The test session has desktop accessibility disabled; in-process fixtures do not
+require that permission. Manual checks must still
+cover all window families, preferred/per-App language and restart, long text,
+focused/disabled controls, editor interaction, scrolling and minimum window size.
+The [localization design](../design/localization.md) separates source migration
+from this remaining desktop acceptance.

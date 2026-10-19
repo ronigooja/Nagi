@@ -18,14 +18,17 @@ automatic locales fall back to English. Missing, repeated, empty, or unsupported
 explicit language options exit with usage status `2`. Command operands remain
 command-owned, so a resource named `--lang` is preserved after the command.
 
-Human command errors, output labels and terminal menu pages support both
-languages. Command help and backend diagnostic migration are being integrated;
-unannotated messages retain English fallback. JSON values retain their original
+Human command help, source-owned errors, output labels and terminal menu pages
+support both languages. Unknown or unannotated messages retain their original
+fallback. JSON values retain their original
 English strings. Typed messages may
 add optional `messages` metadata mapping existing string JSON Pointers to
 `{"id":"semantic.id","args":{"name":"value"}}`; absent or invalid metadata
 must preserve the original response. The [localization design](../design/localization.md)
-defines argument types, fallback and migration status.
+defines argument types, fallback and acceptance status. Optional
+`argument_messages` composes descriptors for existing string arguments while
+leaving their original scalar values unchanged. Invalid children fall back
+independently; legacy consumers can ignore this field.
 
 Human traffic samples and certificate validity times display timestamps at minute
 precision. Machine-readable `sampled_at` and stored timestamps retain their
@@ -722,7 +725,9 @@ The diagnostic export is redacted by construction and written mode `0600`. It re
 
 `subscription schedule NAME SECONDS|off` persists an update interval from 1 through 31,536,000 seconds (one year), or disables scheduling with `off`. New subscriptions default to 3,600 seconds. Entries created by older Nagi versions without schedule metadata migrate to `off`. Run `nagi subscription watch` in the foreground or use the installed login monitor to host the scheduler. Only one scheduler runs per user; `scheduler_running` requires its live host lock and fresh heartbeat. The scheduler wakes at the next due time, polling at least once a minute for schedule changes, and downloads due subscriptions without holding `config.lock`, and commits cache/index changes under a short configuration lock. A completed download for an unselected or unassociated subscription updates only its cache. `subscription list` adds schedule, next due, cache/applied version, profile association, and redacted failure fields while continuing to omit URLs and credentials. A foreground watch prints a running message in text mode or one JSON success envelope (`scheduler_running: true`) when acquired. A second `subscription watch` exits 1 with `scheduler_already_running`; interrupting the foreground host releases the scheduler lock.
 
-Scheduler failures use fixed `last_failure_stage` and `last_failure_reason` values. `fetch/network_error` covers download failures; `decrypt/identity_unavailable` covers private identity or decryption failures; `validate/invalid_content` covers an unsupported or invalid feed. `apply/dns_target_missing`, `apply/custom_rule_conflict`, and `apply/selection_conflict` identify local settings that cannot be retained. Other activation or validation failures use `apply/activation_failed`. `pause_reason` persists as `profile_changed` or `source_unreadable` until explicit apply. During the pause, a failed download is visible through `last_failure_stage` and `last_failure_reason`; a later successful download returns those fields to `paused` and the pause reason. URLs, credentials, and feed contents are not stored in these fields.
+Scheduler failures use fixed `last_failure_stage` and `last_failure_reason` values. `fetch/network_error` covers download failures; `decrypt/identity_unavailable` covers private identity or decryption failures; `validate/invalid_content` covers an unsupported or invalid feed, including normalization of inbound
+listener configuration. Stages come from typed source failures; external
+diagnostic words do not determine them. `apply/dns_target_missing`, `apply/custom_rule_conflict`, and `apply/selection_conflict` identify local settings that cannot be retained. Other activation or validation failures use `apply/activation_failed`. `pause_reason` persists as `profile_changed` or `source_unreadable` until explicit apply. During the pause, a failed download is visible through `last_failure_stage` and `last_failure_reason`; a later successful download returns those fields to `paused` and the pause reason. URLs, credentials, and feed contents are not stored in these fields.
 
 A successful refresh creates a cache version independently of the applied version. A failed refresh may still retry a previously validated pending cache when the selected profile and source remain eligible. Automatic apply preserves local overrides, persistent Tailscale subscription policy, enabled custom rules, and saved group choices that still exist; removed choices are pruned. Rule targets are checked against the candidate source plus that profile's local override and custom rules; rules owned by other profiles do not participate. Known inline-provider nodes are included; remote-provider node names cannot be determined statically. Live mihomo group options are authoritative for choice pruning. When the engine or control API is unavailable, pruning uses the effective profile; choices for a group using a remote provider remain until mihomo can verify them. Invalid DNS proxy targets, missing custom rule targets, failed validation, or failed activation leave the new cache pending and report a redacted failure reason. External source edits or an unreadable source pause automatic apply while scheduled downloads continue to refresh the cache and advance `next_due`. A download failure advances `next_due` to a retry time and remains visible alongside `pause_reason`. Restoring the old source bytes does not resume automatic apply; explicitly run `subscription apply NAME` after reviewing the source to resume. `schedule off` disables both downloading and automatic apply. Applying a cached subscription records the cache version, profile association, and a source hash only after activation and saved-choice replacement succeed. Failed activation leaves the new cache available for retry and records only a fixed failure stage and redacted reason. Manual profile import or profile removal clears a subscription association after the profile operation succeeds; `profile use` leaves associations unchanged.
 

@@ -207,7 +207,14 @@ returns and clears it through `app update-error`, without requiring an
 installation record or running engine. Its JSON result contains `error`, an
 empty string when no failure is pending. The App reads this once on startup and
 retains the message across normal startup and refresh results; the next explicit
-Update attempt clears its displayed update error. The App does not read the
+Update attempt clears its displayed update error.
+An optional owner-only `update-error.messages` sidecar stores the source
+descriptor and SHA-256 of the sanitized plain error. The CLI accepts metadata
+only when the digest and descriptor match; old files and invalid metadata retain
+the plain English fallback. Reading `app update-error` consumes both files and
+may add `/data/error` message metadata without changing `data.error`. Every
+nested argument is redacted before persistence. Detached-update authorization
+and cancellation prompts use the initiating CLI language. The App does not read the
 pending file or update log directly. The detached updater appends operation and
 reopen output to `~/Library/Caches/Nagi/update.log`.
 

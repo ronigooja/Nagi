@@ -50,7 +50,9 @@ existing menu PDF. The installed resource bundle is preferred over the SwiftPM
 development fallback. Native automated bilingual tests and relocated/package
 resource checks have passed at the migration checkpoint. Manual interaction,
 focus/scrolling and complete light/dark/minimum-size acceptance remain pending;
-three existing layout tests still have five baseline assertion failures. See the
+the earlier five layout assertion failures were resolved with native minimum-size
+constraints and mounted accessibility fixtures. Automated fixtures do not replace
+interactive desktop acceptance. See the
 [localization design](../../docs/design/localization.md) for coverage and gates.
 
 ## Node latency and automatic checks
