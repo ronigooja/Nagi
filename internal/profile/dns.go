@@ -3,7 +3,7 @@ package profile
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -61,7 +61,7 @@ func DefaultDNS(group string) map[string]any {
 func dnsGroups(data []byte) ([]map[string]any, map[string]bool, map[string]bool, error) {
 	var cfg map[string]any
 	if err := yaml.Unmarshal(data, &cfg); err != nil || cfg == nil {
-		return nil, nil, nil, errors.New("profile must be a YAML mapping")
+		return nil, nil, nil, i18n.Errorf("backend.profile.profile_must_be_a_yaml_mapping", "profile must be a YAML mapping")
 	}
 	groups, _ := cfg["proxy-groups"].([]any)
 	proxies, _ := cfg["proxies"].([]any)
@@ -138,7 +138,7 @@ func ValidateDNSGroup(data []byte, name string) error {
 
 func validateDNSGroup(data []byte, name string, saved map[string]string) error {
 	if name == "" || name == "DIRECT" || name == "RULES" || strings.ContainsAny(name, "&#=") {
-		return errors.New("DNS proxy group must be a configured proxy group")
+		return i18n.Errorf("backend.profile.dns_proxy_group_must_be_a_configured_proxy_group", "DNS proxy group must be a configured proxy group")
 	}
 	groups, nodes, providers, err := dnsGroups(data)
 	if err != nil {
@@ -151,16 +151,16 @@ func validateDNSGroup(data []byte, name string, saved map[string]string) error {
 	}
 	group := byName[name]
 	if group == nil {
-		return fmt.Errorf("DNS proxy group %q does not exist", name)
+		return i18n.Errorf("backend.profile.dns_proxy_group_q_does_not_exist", "DNS proxy group %q does not exist", name)
 	}
 	if !usableDNSGroup(group, byName, nodes, providers, map[string]bool{}) {
-		return fmt.Errorf("DNS proxy group %q has no proxy members", name)
+		return i18n.Errorf("backend.profile.dns_proxy_group_q_has_no_proxy_members", "DNS proxy group %q has no proxy members", name)
 	}
 	visited := map[string]bool{}
 	for group != nil {
 		current, _ := group["name"].(string)
 		if visited[current] {
-			return fmt.Errorf("DNS proxy group %q has a selection cycle", name)
+			return i18n.Errorf("backend.profile.dns_proxy_group_q_has_a_selection_cycle", "DNS proxy group %q has a selection cycle", name)
 		}
 		visited[current] = true
 		if group["type"] != "select" {
@@ -177,7 +177,7 @@ func validateDNSGroup(data []byte, name string, saved map[string]string) error {
 			}
 		}
 		if selected == "DIRECT" || selected == "REJECT" || selected == "REJECT-DROP" || selected == "PASS" || selected == "RULES" {
-			return fmt.Errorf("DNS proxy group %q selects %s", current, selected)
+			return i18n.Errorf("backend.profile.dns_proxy_group_q_selects_s", "DNS proxy group %q selects %s", current, selected)
 		}
 		providerChoice := false
 		for _, provider := range dnsStrings(group["use"]) {
@@ -186,7 +186,7 @@ func validateDNSGroup(data []byte, name string, saved map[string]string) error {
 			}
 		}
 		if selected != "" && !nodes[selected] && byName[selected] == nil && !providerChoice {
-			return fmt.Errorf("DNS proxy group %q selects a non-proxy member", current)
+			return i18n.Errorf("backend.profile.dns_proxy_group_q_selects_a_non_proxy_member", "DNS proxy group %q selects a non-proxy member", current)
 		}
 		group = byName[selected]
 	}
@@ -254,7 +254,7 @@ func dnsGroupWithSavedSelection(data []byte, dir, profileName, groupName string)
 	}
 	var saved map[string]map[string]string
 	if err := json.Unmarshal(selection, &saved); err != nil {
-		return errors.New("saved proxy selections are invalid")
+		return i18n.Errorf("backend.profile.saved_proxy_selections_are_invalid", "saved proxy selections are invalid")
 	}
 	return validateDNSGroup(data, groupName, saved[profileName])
 }

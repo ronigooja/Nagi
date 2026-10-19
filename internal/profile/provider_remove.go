@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"strings"
 	"unicode"
@@ -12,11 +13,11 @@ import (
 
 func ValidateProviderRemoval(name string) error {
 	if name == "COMPATIBLE" || name == "" || len(name) > 128 || strings.TrimSpace(name) != name {
-		return errors.New("NAME must contain 1..128 bytes without surrounding whitespace and must not be COMPATIBLE")
+		return i18n.Errorf("backend.profile.name_must_contain_1_128_bytes_without_surrounding_whitespace_and_must_not_be_compatible", "NAME must contain 1..128 bytes without surrounding whitespace and must not be COMPATIBLE")
 	}
 	for _, r := range name {
 		if !unicode.IsPrint(r) {
-			return errors.New("NAME must contain printable characters")
+			return i18n.Errorf("backend.profile.name_must_contain_printable_characters", "NAME must contain printable characters")
 		}
 	}
 	return nil
@@ -34,14 +35,14 @@ func (s *Store) RemoveProvider(ctx context.Context, profileName, name string) er
 	}
 	var effective map[string]any
 	if yaml.Unmarshal(data, &effective) != nil || effective == nil {
-		return errors.New("selected profile must be a YAML mapping")
+		return i18n.Errorf("backend.profile.selected_profile_must_be_a_yaml_mapping", "selected profile must be a YAML mapping")
 	}
 	providers, ok := effective["proxy-providers"].(map[string]any)
 	if !ok {
-		return errors.New("selected profile has no proxy providers")
+		return i18n.Errorf("backend.profile.selected_profile_has_no_proxy_providers", "selected profile has no proxy providers")
 	}
 	if _, exists := providers[name]; !exists {
-		return errors.New("provider not found in the selected profile")
+		return i18n.Errorf("backend.profile.provider_not_found_in_the_selected_profile", "provider not found in the selected profile")
 	}
 	source, err := s.Show(profileName)
 	if err != nil {
@@ -49,13 +50,13 @@ func (s *Store) RemoveProvider(ctx context.Context, profileName, name string) er
 	}
 	var sourceDoc map[string]any
 	if yaml.Unmarshal(source, &sourceDoc) != nil || sourceDoc == nil {
-		return errors.New("selected profile must be a YAML mapping")
+		return i18n.Errorf("backend.profile.selected_profile_must_be_a_yaml_mapping", "selected profile must be a YAML mapping")
 	}
 	overlay := map[string]any{}
 	old, err := s.Override(profileName)
 	if err == nil {
 		if yaml.Unmarshal(old, &overlay) != nil || overlay == nil {
-			return errors.New("local override must be a YAML mapping")
+			return i18n.Errorf("backend.profile.local_override_must_be_a_yaml_mapping", "local override must be a YAML mapping")
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -100,7 +101,7 @@ func removeProviderReferences(doc map[string]any, name string) (bool, error) {
 	if value, exists := doc["proxy-providers"]; exists && value != nil {
 		providers, ok := value.(map[string]any)
 		if !ok {
-			return false, errors.New("proxy-providers must be a mapping")
+			return false, i18n.Errorf("backend.profile.proxy_providers_must_be_a_mapping", "proxy-providers must be a mapping")
 		}
 		if _, exists := providers[name]; exists {
 			delete(providers, name)
@@ -110,23 +111,23 @@ func removeProviderReferences(doc map[string]any, name string) (bool, error) {
 	if value, exists := doc["proxy-groups"]; exists && value != nil {
 		groups, ok := value.([]any)
 		if !ok {
-			return false, errors.New("proxy-groups must be a list")
+			return false, i18n.Errorf("backend.profile.proxy_groups_must_be_a_list", "proxy-groups must be a list")
 		}
 		for _, value := range groups {
 			group, ok := value.(map[string]any)
 			if !ok {
-				return false, errors.New("proxy-groups must contain mappings")
+				return false, i18n.Errorf("backend.profile.proxy_groups_must_contain_mappings", "proxy-groups must contain mappings")
 			}
 			if value, exists := group["use"]; exists && value != nil {
 				use, ok := value.([]any)
 				if !ok {
-					return false, errors.New("GROUP use must be a list")
+					return false, i18n.Errorf("backend.profile.group_use_must_be_a_list", "GROUP use must be a list")
 				}
 				remaining := make([]any, 0, len(use))
 				for _, value := range use {
 					candidate, ok := value.(string)
 					if !ok {
-						return false, errors.New("GROUP use must contain provider names")
+						return false, i18n.Errorf("backend.profile.group_use_must_contain_provider_names", "GROUP use must contain provider names")
 					}
 					if candidate != name {
 						remaining = append(remaining, value)

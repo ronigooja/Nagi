@@ -2,7 +2,7 @@ package profile
 
 import (
 	"context"
-	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"reflect"
 
 	"github.com/ronigooja/Nagi/internal/subscription"
@@ -28,7 +28,7 @@ func (s *Store) subscriptionHealthcheck(name string) (*int, error) {
 		}
 	}
 	if associations > 1 && interval != nil {
-		return nil, errors.New("profile has multiple subscription associations; reapply the intended subscription")
+		return nil, i18n.Errorf("backend.profile.profile_has_multiple_subscription_associations_reapply_the_intended_subscription", "profile has multiple subscription associations; reapply the intended subscription")
 	}
 	return interval, nil
 }
@@ -63,7 +63,7 @@ func (s *Store) subscriptionHealthcheckURL(name string) (*string, error) {
 		}
 	}
 	if associations > 1 && value != nil {
-		return nil, errors.New("profile has multiple subscription associations; reapply the intended subscription")
+		return nil, i18n.Errorf("backend.profile.profile_has_multiple_subscription_associations_reapply_the_intended_subscription", "profile has multiple subscription associations; reapply the intended subscription")
 	}
 	return value, nil
 }
@@ -134,7 +134,7 @@ func (s *Store) applySubscriptionHealthcheckSource(name string, data []byte) ([]
 	}
 	var base map[string]any
 	if yaml.Unmarshal(data, &base) != nil || base == nil {
-		return nil, errors.New("subscription profile must be a YAML mapping")
+		return nil, i18n.Errorf("backend.profile.subscription_profile_must_be_a_yaml_mapping", "subscription profile must be a YAML mapping")
 	}
 	if err := s.applySubscriptionHealthcheck(name, base, base, nil); err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"net/url"
 	"reflect"
@@ -30,7 +31,7 @@ func healthInterval(value any) (int, error) {
 			return n, nil
 		}
 	}
-	return 0, errors.New("healthcheck interval must be an integer")
+	return 0, i18n.Errorf("backend.profile.healthcheck_interval_must_be_an_integer", "healthcheck interval must be an integer")
 }
 func healthBool(value any) bool {
 	switch v := value.(type) {
@@ -48,12 +49,12 @@ func applyGroupHealthcheckIntervals(base map[string]any, raw any) error {
 	}
 	intervals, ok := raw.(map[string]any)
 	if !ok {
-		return errors.New("local group healthcheck intervals must be a mapping")
+		return i18n.Errorf("backend.profile.local_group_healthcheck_intervals_must_be_a_mapping", "local group healthcheck intervals must be a mapping")
 	}
 	for name, value := range intervals {
 		n, err := healthInterval(value)
 		if err != nil || n < 1 || n > 31536000 {
-			return errors.New("local group healthcheck interval must be 1..31536000")
+			return i18n.Errorf("backend.profile.local_group_healthcheck_interval_must_be_1_31536000", "local group healthcheck interval must be 1..31536000")
 		}
 		target, err := healthTarget(base, "group", name)
 		if err != nil {
@@ -65,23 +66,24 @@ func applyGroupHealthcheckIntervals(base map[string]any, raw any) error {
 }
 
 type Healthcheck struct {
-	Kind                     string `json:"kind"`
-	Name                     string `json:"name"`
-	Profile                  string `json:"profile"`
-	IntervalSeconds          int    `json:"interval_seconds"`
-	Enabled                  *bool  `json:"enabled"`
-	Lazy                     bool   `json:"lazy"`
-	Source                   string `json:"source"`
-	URLSource                string `json:"url_source"`
-	CanResetURL              bool   `json:"can_reset_url"`
-	TestURL                  string `json:"test_url,omitempty"`
-	FullTestURL              string `json:"-"`
-	InheritedIntervalSeconds *int   `json:"inherited_interval_seconds,omitempty"`
-	InheritedTestURL         string `json:"inherited_test_url,omitempty"`
-	InheritedIntervalStatus  string `json:"inherited_interval_status,omitempty"`
-	InheritedURLStatus       string `json:"inherited_url_status,omitempty"`
-	Reason                   string `json:"reason,omitempty"`
-	IntervalDefaulted        bool   `json:"interval_defaulted"`
+	Messages                 map[string]i18n.Descriptor `json:"-"`
+	Kind                     string                     `json:"kind"`
+	Name                     string                     `json:"name"`
+	Profile                  string                     `json:"profile"`
+	IntervalSeconds          int                        `json:"interval_seconds"`
+	Enabled                  *bool                      `json:"enabled"`
+	Lazy                     bool                       `json:"lazy"`
+	Source                   string                     `json:"source"`
+	URLSource                string                     `json:"url_source"`
+	CanResetURL              bool                       `json:"can_reset_url"`
+	TestURL                  string                     `json:"test_url,omitempty"`
+	FullTestURL              string                     `json:"-"`
+	InheritedIntervalSeconds *int                       `json:"inherited_interval_seconds,omitempty"`
+	InheritedTestURL         string                     `json:"inherited_test_url,omitempty"`
+	InheritedIntervalStatus  string                     `json:"inherited_interval_status,omitempty"`
+	InheritedURLStatus       string                     `json:"inherited_url_status,omitempty"`
+	Reason                   string                     `json:"reason,omitempty"`
+	IntervalDefaulted        bool                       `json:"interval_defaulted"`
 }
 
 func healthTarget(m map[string]any, kind, name string) (map[string]any, error) {
@@ -89,19 +91,19 @@ func healthTarget(m map[string]any, kind, name string) (map[string]any, error) {
 		providers, _ := m["proxy-providers"].(map[string]any)
 		p, _ := providers[name].(map[string]any)
 		if p == nil {
-			return nil, errors.New("provider not found in selected profile")
+			return nil, i18n.Errorf("backend.profile.provider_not_found_in_selected_profile", "provider not found in selected profile")
 		}
 		return p, nil
 	}
 	if kind != "group" {
-		return nil, errors.New("KIND must be group or provider")
+		return nil, i18n.Errorf("backend.profile.kind_must_be_group_or_provider", "KIND must be group or provider")
 	}
 	_, groups, err := namedList(m["proxy-groups"])
 	if err != nil {
 		return nil, err
 	}
 	if groups[name] == nil {
-		return nil, errors.New("group not found in selected profile")
+		return nil, i18n.Errorf("backend.profile.group_not_found_in_selected_profile", "group not found in selected profile")
 	}
 	return groups[name], nil
 }
@@ -119,14 +121,14 @@ func (s *Store) healthMaps(name string) (map[string]any, map[string]any, map[str
 	}
 	var effective, source, overlay map[string]any
 	if yaml.Unmarshal(data, &effective) != nil {
-		return nil, nil, nil, errors.New("invalid effective YAML")
+		return nil, nil, nil, i18n.Errorf("backend.profile.invalid_effective_yaml", "invalid effective YAML")
 	}
 	data, err = s.Show(name)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	if yaml.Unmarshal(data, &source) != nil {
-		return nil, nil, nil, errors.New("invalid source YAML")
+		return nil, nil, nil, i18n.Errorf("backend.profile.invalid_source_yaml", "invalid source YAML")
 	}
 	data, err = s.Override(name)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -134,7 +136,7 @@ func (s *Store) healthMaps(name string) (map[string]any, map[string]any, map[str
 	}
 	overlay = map[string]any{}
 	if err == nil && (yaml.Unmarshal(data, &overlay) != nil || overlay == nil) {
-		return nil, nil, nil, errors.New("invalid override YAML")
+		return nil, nil, nil, i18n.Errorf("backend.profile.invalid_override_yaml", "invalid override YAML")
 	}
 	return effective, source, overlay, nil
 }
@@ -190,7 +192,7 @@ func (s *Store) healthcheckFromMaps(name, kind, targetName string, effective, so
 		switch target["type"] {
 		case "select", "url-test", "fallback", "load-balance":
 		default:
-			return r, errors.New("unsupported group type")
+			return r, i18n.Errorf("backend.profile.unsupported_group_type", "unsupported group type")
 		}
 	}
 	r.IntervalSeconds, err = healthInterval(fields["interval"])
@@ -202,6 +204,7 @@ func (s *Store) healthcheckFromMaps(name, kind, targetName string, effective, so
 		r.Lazy = healthBool(value)
 	}
 	enabled := false
+	reasonID := "backend.profile.healthcheck.reason." + kind
 	if kind == "provider" {
 		enabled = healthBool(fields["enable"])
 		if enabled && r.IntervalSeconds == 0 {
@@ -221,13 +224,16 @@ func (s *Store) healthcheckFromMaps(name, kind, targetName string, effective, so
 		if explicit := groupHasExplicitNodes(target, effective); explicit == nil || !*explicit {
 			r.Enabled = nil
 			if explicit == nil {
+				reasonID += "_included"
 				r.Reason += " Included node membership is resolved by mihomo; automatic groups with included explicit nodes default to 300 seconds."
 			}
 		}
 	}
 	if r.IntervalDefaulted {
+		reasonID += "_defaulted"
 		r.Reason += " Interval is omitted or zero; mihomo defaults apply."
 	}
+	r.Messages = map[string]i18n.Descriptor{"/reason": {ID: reasonID}}
 	if interval, e := s.subscriptionHealthcheck(name); e != nil {
 		return r, e
 	} else if interval != nil && (kind == "provider" && fields != nil || kind == "group" && subscriptionGroupEligible(target)) {
@@ -317,7 +323,7 @@ func (s *Store) healthcheckFromMaps(name, kind, targetName string, effective, so
 // SetHealthcheck changes only the interval; nil restores the source interval.
 func (s *Store) SetHealthcheck(ctx context.Context, name, kind, targetName string, seconds *int) error {
 	if seconds != nil && (*seconds < 1 || *seconds > 31536000) {
-		return errors.New("SECONDS must be an integer from 1 to 31536000")
+		return i18n.Errorf("backend.profile.seconds_must_be_an_integer_from_1_to_31536000", "SECONDS must be an integer from 1 to 31536000")
 	}
 	effective, source, overlay, err := s.healthMaps(name)
 	if err != nil {
@@ -420,7 +426,7 @@ func (s *Store) HealthcheckTargets(name, kind string) ([]string, error) {
 			}
 		}
 	default:
-		return nil, errors.New("KIND must be group or provider")
+		return nil, i18n.Errorf("backend.profile.kind_must_be_group_or_provider", "KIND must be group or provider")
 	}
 	sort.Strings(names)
 	return names, nil

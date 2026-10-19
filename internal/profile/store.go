@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -23,7 +24,7 @@ type Store struct {
 	EffectiveOverlay func([]byte) ([]byte, error)
 }
 
-var ErrInvalidSelectedProfile = errors.New("invalid selected profile")
+var ErrInvalidSelectedProfile = i18n.Errorf("backend.profile.invalid_selected_profile", "invalid selected profile")
 
 func NewStore(configDir string, validate func([]byte) error, reload func(context.Context) error) *Store {
 	return &Store{Dir: configDir, Validate: validate, Reload: reload}
@@ -43,7 +44,7 @@ func validName(name string) bool {
 
 func (s *Store) path(name string) (string, error) {
 	if !validName(name) {
-		return "", errors.New("invalid profile name")
+		return "", i18n.Errorf("backend.profile.invalid_profile_name", "invalid profile name")
 	}
 	return filepath.Join(s.Dir, "profiles", name+".yaml"), nil
 }
@@ -98,7 +99,7 @@ func (s *Store) Show(name string) ([]byte, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("profile is not a regular file")
+		return nil, i18n.Errorf("backend.profile.profile_is_not_a_regular_file", "profile is not a regular file")
 	}
 	return os.ReadFile(path)
 }
@@ -114,7 +115,7 @@ func (s *Store) Backup(name string) ([]byte, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("backup is not a regular file")
+		return nil, i18n.Errorf("backend.profile.backup_is_not_a_regular_file", "backup is not a regular file")
 	}
 	return os.ReadFile(path + ".bak")
 }
@@ -154,14 +155,14 @@ func (s *Store) Remove(name string) error {
 		return err
 	}
 	if !info.Mode().IsRegular() {
-		return errors.New("profile is not a regular file")
+		return i18n.Errorf("backend.profile.profile_is_not_a_regular_file", "profile is not a regular file")
 	}
 	current, err := s.Current()
 	if err != nil {
 		return err
 	}
 	if current == name {
-		return errors.New("cannot remove the selected profile; select another profile first")
+		return i18n.Errorf("backend.profile.cannot_remove_the_selected_profile_select_another_profile_first", "cannot remove the selected profile; select another profile first")
 	}
 	override, _ := s.overridePath(name)
 	state, _ := s.defaultOverrideStatePath(name)
@@ -177,7 +178,7 @@ func (s *Store) Remove(name string) error {
 			return err
 		}
 		if !info.Mode().IsRegular() {
-			return fmt.Errorf("profile cleanup target is not a regular file: %s", target)
+			return i18n.Errorf("backend.profile.profile_cleanup_target_is_not_a_regular_file_s", "profile cleanup target is not a regular file: %s", target)
 		}
 	}
 	if err := requestrewrite.RemoveProfile(s.Dir, name); err != nil {
@@ -230,7 +231,7 @@ func (s *Store) Write(ctx context.Context, name string, data []byte) error {
 	current, err := s.Current()
 	if err != nil {
 		if errors.Is(err, ErrInvalidSelectedProfile) {
-			return fmt.Errorf("%w; use `nagi profile use NAME` or `nagi subscription apply NAME` to repair the selection", err)
+			return i18n.Errorf("backend.profile.w_use_nagi_profile_use_name_or_nagi_subscription_apply_name_to_repair_the_selection", "%w; use `nagi profile use NAME` or `nagi subscription apply NAME` to repair the selection", err)
 		}
 		return err
 	}
@@ -338,10 +339,10 @@ func (e *ValidationError) Error() string {
 
 func (s *Store) validate(name string, data []byte) error {
 	if len(strings.TrimSpace(string(data))) == 0 {
-		return errors.New("empty profile")
+		return i18n.Errorf("backend.profile.empty_profile", "empty profile")
 	}
 	if s.Validate == nil {
-		return errors.New("profile validator is required")
+		return i18n.Errorf("backend.profile.profile_validator_is_required", "profile validator is required")
 	}
 	err := s.Validate(data)
 	var diagnostic *ValidationError
@@ -360,7 +361,7 @@ func atomicWrite(path string, data []byte) (err error) {
 	}
 	if info, statErr := os.Lstat(path); statErr == nil {
 		if !info.Mode().IsRegular() {
-			return errors.New("target is not a regular file")
+			return i18n.Errorf("backend.profile.target_is_not_a_regular_file", "target is not a regular file")
 		}
 		old, readErr := os.ReadFile(path)
 		if readErr != nil {

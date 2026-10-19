@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"io/fs"
 	"net/url"
@@ -40,34 +41,34 @@ type TailscaleOptions struct{ ExitNode, Hostname, ControlURL, AuthKeyFile, AuthK
 
 func ValidateTailscaleName(value string) error {
 	if value == "" || len(value) > 128 || strings.TrimSpace(value) != value {
-		return errors.New("NAME must contain 1..128 printable bytes without surrounding whitespace")
+		return i18n.Errorf("backend.profile.name_must_contain_1_128_printable_bytes_without_surrounding_whitespace", "NAME must contain 1..128 printable bytes without surrounding whitespace")
 	}
 	for _, r := range value {
 		if !unicode.IsPrint(r) {
-			return errors.New("NAME must contain printable characters")
+			return i18n.Errorf("backend.profile.name_must_contain_printable_characters", "NAME must contain printable characters")
 		}
 	}
 	switch value {
 	case "DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE", "GLOBAL":
-		return errors.New("NAME conflicts with a reserved proxy name")
+		return i18n.Errorf("backend.profile.name_conflicts_with_a_reserved_proxy_name", "NAME conflicts with a reserved proxy name")
 	}
 	return nil
 }
 func ValidateTailscaleOptions(o TailscaleOptions) error {
 	if o.AuthKey != nil && o.AuthKeyFile != nil {
-		return errors.New("choose one auth key input method")
+		return i18n.Errorf("backend.profile.choose_one_auth_key_input_method", "choose one auth key input method")
 	}
 	if o.AuthKeyFile != nil && strings.TrimSpace(*o.AuthKeyFile) == "" {
-		return errors.New("auth key file must be specified")
+		return i18n.Errorf("backend.profile.auth_key_file_must_be_specified", "auth key file must be specified")
 	}
 	for _, value := range []*string{o.ExitNode, o.Hostname} {
 		if value != nil {
 			if strings.TrimSpace(*value) == "" || len(*value) > 253 {
-				return errors.New("exit-node and hostname must be nonempty and at most 253 bytes")
+				return i18n.Errorf("backend.profile.exit_node_and_hostname_must_be_nonempty_and_at_most_253_bytes", "exit-node and hostname must be nonempty and at most 253 bytes")
 			}
 			for _, r := range *value {
 				if !unicode.IsPrint(r) {
-					return errors.New("exit-node and hostname must be printable")
+					return i18n.Errorf("backend.profile.exit_node_and_hostname_must_be_printable", "exit-node and hostname must be printable")
 				}
 			}
 		}
@@ -76,7 +77,7 @@ func ValidateTailscaleOptions(o TailscaleOptions) error {
 		raw := nagiruntime.NormalizeTailscaleControlURL(*o.ControlURL)
 		u, err := url.Parse(raw)
 		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-			return errors.New("control-url must be an absolute HTTPS URL without credentials, query, or fragment")
+			return i18n.Errorf("backend.profile.control_url_must_be_an_absolute_https_url_without_credentials_query_or_fragment", "control-url must be an absolute HTTPS URL without credentials, query, or fragment")
 		}
 	}
 	return nil
@@ -84,21 +85,21 @@ func ValidateTailscaleOptions(o TailscaleOptions) error {
 func readTailscaleAuthKey(path string) (string, error) {
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > MaxTailscaleAuthKeyBytes {
-		return "", errors.New("auth key file must be a regular file containing 1..16384 bytes")
+		return "", i18n.Errorf("backend.profile.auth_key_file_must_be_a_regular_file_containing_1_16384_bytes", "auth key file must be a regular file containing 1..16384 bytes")
 	}
 	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return "", errors.New("could not read auth key file")
+		return "", i18n.Errorf("backend.profile.could_not_read_auth_key_file", "could not read auth key file")
 	}
 	f := os.NewFile(uintptr(fd), "auth-key")
 	defer f.Close()
 	actual, err := f.Stat()
 	if err != nil || !actual.Mode().IsRegular() || !os.SameFile(info, actual) {
-		return "", errors.New("auth key file changed while opening")
+		return "", i18n.Errorf("backend.profile.auth_key_file_changed_while_opening", "auth key file changed while opening")
 	}
 	data, err := io.ReadAll(io.LimitReader(f, MaxTailscaleAuthKeyBytes+1))
 	if err != nil || len(data) > MaxTailscaleAuthKeyBytes {
-		return "", errors.New("could not read bounded auth key file")
+		return "", i18n.Errorf("backend.profile.could_not_read_bounded_auth_key_file", "could not read bounded auth key file")
 	}
 	key := strings.TrimSpace(string(data))
 	if err := ValidateTailscaleAuthKey(key); err != nil {
@@ -110,15 +111,15 @@ func readTailscaleAuthKey(path string) (string, error) {
 // ValidateTailscaleAuthKey never includes the supplied key in an error.
 func ValidateTailscaleAuthKey(value string) error {
 	if len(value) > MaxTailscaleAuthKeyBytes {
-		return errors.New("auth key must contain at most 16384 bytes")
+		return i18n.Errorf("backend.profile.auth_key_must_contain_at_most_16384_bytes", "auth key must contain at most 16384 bytes")
 	}
 	key := strings.TrimSpace(value)
 	if key == "" {
-		return errors.New("auth key must not be empty")
+		return i18n.Errorf("backend.profile.auth_key_must_not_be_empty", "auth key must not be empty")
 	}
 	for _, r := range key {
 		if unicode.IsSpace(r) || !unicode.IsPrint(r) {
-			return errors.New("auth key must contain one printable key")
+			return i18n.Errorf("backend.profile.auth_key_must_contain_one_printable_key", "auth key must contain one printable key")
 		}
 	}
 	return nil
@@ -134,7 +135,7 @@ func (s *Store) tailscaleConfig(name string) (map[string]any, error) {
 	}
 	var cfg map[string]any
 	if yaml.Unmarshal(data, &cfg) != nil || cfg == nil {
-		return nil, errors.New("selected profile must be a YAML mapping")
+		return nil, i18n.Errorf("backend.profile.selected_profile_must_be_a_yaml_mapping", "selected profile must be a YAML mapping")
 	}
 	return cfg, nil
 }
@@ -217,7 +218,7 @@ func (s *Store) TailscaleShow(profileName, name string) (TailscaleNode, []Tailsc
 	}
 	m := tsFind(cfg, name)
 	if m == nil || tsString(m, "type") != "tailscale" {
-		return TailscaleNode{}, nil, errors.New("Tailscale node not found; run `nagi proxy tailscale list`")
+		return TailscaleNode{}, nil, i18n.Errorf("backend.profile.tailscale_node_not_found_run_nagi_proxy_tailscale_list", "Tailscale node not found; run `nagi proxy tailscale list`")
 	}
 	bindings := []TailscaleBinding{}
 	for _, t := range tsTargets(cfg) {
@@ -239,7 +240,7 @@ func (s *Store) saveTailscale(ctx context.Context, name string, cfg map[string]a
 	data, err := s.Override(name)
 	if err == nil {
 		if yaml.Unmarshal(data, &overlay) != nil || overlay == nil {
-			return errors.New("local override must be a YAML mapping")
+			return i18n.Errorf("backend.profile.local_override_must_be_a_yaml_mapping", "local override must be a YAML mapping")
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -272,7 +273,7 @@ func (s *Store) saveTailscale(ctx context.Context, name string, cfg map[string]a
 	}
 	updated, err := yaml.Marshal(overlay)
 	if err != nil {
-		return errors.New("could not prepare Tailscale override")
+		return i18n.Errorf("backend.profile.could_not_prepare_tailscale_override", "could not prepare Tailscale override")
 	}
 	return s.SetOverride(ctx, name, updated)
 }
@@ -293,7 +294,7 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 		return err
 	}
 	if policy != nil && (action != "edit" || tsString(policy.Node, "name") != name) {
-		return errors.New("subscription Tailscale policy is active; unbind the subscription before adding or removing nodes")
+		return i18n.Errorf("backend.profile.subscription_tailscale_policy_is_active_unbind_the_subscription_before_adding_or_removing_nodes", "subscription Tailscale policy is active; unbind the subscription before adding or removing nodes")
 	}
 	cfg, err := s.tailscaleConfig(profileName)
 	if err != nil {
@@ -305,28 +306,28 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 			return err
 		}
 		if node != nil {
-			return errors.New("proxy NAME already exists")
+			return i18n.Errorf("backend.profile.proxy_name_already_exists", "proxy NAME already exists")
 		}
 	}
 	if action == "add" {
 		providers, _ := cfg["proxy-providers"].(map[string]any)
 		if _, exists := providers[name]; exists {
-			return errors.New("NAME conflicts with an existing provider")
+			return i18n.Errorf("backend.profile.name_conflicts_with_an_existing_provider", "NAME conflicts with an existing provider")
 		}
 		groups, _ := cfg["proxy-groups"].([]any)
 		for _, v := range groups {
 			m, _ := v.(map[string]any)
 			if tsString(m, "name") == name {
-				return errors.New("NAME conflicts with an existing group")
+				return i18n.Errorf("backend.profile.name_conflicts_with_an_existing_group", "NAME conflicts with an existing group")
 			}
 		}
 		if o.ExitNode == nil || o.AuthKeyFile == nil && o.AuthKey == nil {
-			return errors.New("add requires EXIT_NODE and an auth key")
+			return i18n.Errorf("backend.profile.add_requires_exit_node_and_an_auth_key", "add requires EXIT_NODE and an auth key")
 		}
 		node = map[string]any{"name": name, "type": "tailscale", "udp": true, "control-url": nagiruntime.TailscaleControlURL}
 		cfg["proxies"] = append(tsProxies(cfg), node)
 	} else if action != "unbind" && (node == nil || tsString(node, "type") != "tailscale") {
-		return errors.New("Tailscale node not found; run `nagi proxy tailscale list`")
+		return i18n.Errorf("backend.profile.tailscale_node_not_found_run_nagi_proxy_tailscale_list", "Tailscale node not found; run `nagi proxy tailscale list`")
 	}
 	switch action {
 	case "add", "edit":
@@ -357,13 +358,13 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 	case "remove":
 		for _, t := range tsTargets(cfg) {
 			if t.DialerProxy == name {
-				return errors.New("Tailscale node is still bound; unbind its targets first")
+				return i18n.Errorf("backend.profile.tailscale_node_is_still_bound_unbind_its_targets_first", "Tailscale node is still bound; unbind its targets first")
 			}
 		}
 		for _, v := range tsProxies(cfg) {
 			m, _ := v.(map[string]any)
 			if tsString(m, "dialer-proxy") == name {
-				return errors.New("Tailscale node is still referenced by a dialer-proxy")
+				return i18n.Errorf("backend.profile.tailscale_node_is_still_referenced_by_a_dialer_proxy", "Tailscale node is still referenced by a dialer-proxy")
 			}
 		}
 
@@ -372,20 +373,20 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 			p, _ := v.(map[string]any)
 			dialer, overrides := tsProviderDialer(p)
 			if dialer == name {
-				return errors.New("Tailscale node is still referenced by a provider")
+				return i18n.Errorf("backend.profile.tailscale_node_is_still_referenced_by_a_provider", "Tailscale node is still referenced by a provider")
 			}
 			if !overrides {
 				payload, _ := p["payload"].([]any)
 				for _, v := range payload {
 					m, _ := v.(map[string]any)
 					if tsString(m, "dialer-proxy") == name {
-						return errors.New("Tailscale node is still referenced by a provider node")
+						return i18n.Errorf("backend.profile.tailscale_node_is_still_referenced_by_a_provider_node", "Tailscale node is still referenced by a provider node")
 					}
 				}
 			}
 		}
 		if tsDNSReferences(cfg["dns"], name) {
-			return errors.New("Tailscale node is still referenced by DNS configuration; edit its configuration explicitly")
+			return i18n.Errorf("backend.profile.tailscale_node_is_still_referenced_by_dns_configuration_edit_its_configuration_explicitly", "Tailscale node is still referenced by DNS configuration; edit its configuration explicitly")
 		}
 		list := []any{}
 		for _, v := range tsProxies(cfg) {
@@ -396,7 +397,7 @@ func (s *Store) MutateTailscale(ctx context.Context, profileName, action, name, 
 		}
 		cfg["proxies"] = list
 	default:
-		return errors.New("unsupported Tailscale action")
+		return i18n.Errorf("backend.profile.unsupported_tailscale_action", "unsupported Tailscale action")
 	}
 	if policy != nil {
 		oldNode := policy.Node
@@ -562,20 +563,20 @@ func tsDNSReferences(value any, name string) bool {
 // caller holds config.lock and owns runtime recovery through the CLI transaction.
 func (s *Store) MutateTailscaleBindings(ctx context.Context, profileName, action, name, kind string, targets []string) error {
 	if action != "bind" && action != "unbind" {
-		return errors.New("binding action must be bind or unbind")
+		return i18n.Errorf("backend.profile.binding_action_must_be_bind_or_unbind", "binding action must be bind or unbind")
 	}
 	policy, err := s.SubscriptionTailscale(profileName)
 	if err != nil {
 		return err
 	}
 	if policy != nil {
-		return errors.New("subscription Tailscale policy is active; unbind the subscription before changing individual bindings")
+		return i18n.Errorf("backend.profile.subscription_tailscale_policy_is_active_unbind_the_subscription_before_changing_individual_bindings", "subscription Tailscale policy is active; unbind the subscription before changing individual bindings")
 	}
 	if kind != "node" && kind != "provider" {
-		return errors.New("KIND must be node or provider")
+		return i18n.Errorf("backend.profile.kind_must_be_node_or_provider", "KIND must be node or provider")
 	}
 	if len(targets) == 0 {
-		return errors.New("at least one TARGET is required")
+		return i18n.Errorf("backend.profile.at_least_one_target_is_required", "at least one TARGET is required")
 	}
 	seen := map[string]bool{}
 	for _, target := range targets {
@@ -583,7 +584,7 @@ func (s *Store) MutateTailscaleBindings(ctx context.Context, profileName, action
 			return err
 		}
 		if seen[target] {
-			return errors.New("duplicate binding target")
+			return i18n.Errorf("backend.profile.duplicate_binding_target", "duplicate binding target")
 		}
 		seen[target] = true
 	}
@@ -594,7 +595,7 @@ func (s *Store) MutateTailscaleBindings(ctx context.Context, profileName, action
 	if action == "bind" {
 		node := tsFind(cfg, name)
 		if node == nil || tsString(node, "type") != "tailscale" {
-			return errors.New("Tailscale node not found; run `nagi proxy tailscale list`")
+			return i18n.Errorf("backend.profile.tailscale_node_not_found_run_nagi_proxy_tailscale_list", "Tailscale node not found; run `nagi proxy tailscale list`")
 		}
 	}
 	for _, target := range targets {
@@ -629,7 +630,7 @@ func tsChangeBinding(cfg map[string]any, action, name, kind, target string) erro
 						if dialer != "" {
 							existing := tsFind(cfg, dialer)
 							if existing == nil || tsString(existing, "type") != "tailscale" {
-								return errors.New("provider contains a node with a non-Tailscale dialer-proxy")
+								return i18n.Errorf("backend.profile.provider_contains_a_node_with_a_non_tailscale_dialer_proxy", "provider contains a node with a non-Tailscale dialer-proxy")
 							}
 						}
 					}
@@ -639,18 +640,18 @@ func tsChangeBinding(cfg map[string]any, action, name, kind, target string) erro
 		}
 	}
 	if selected == nil {
-		return errors.New("target not found or unsupported; run `nagi proxy tailscale targets`")
+		return i18n.Errorf("backend.profile.target_not_found_or_unsupported_run_nagi_proxy_tailscale_targets", "target not found or unsupported; run `nagi proxy tailscale targets`")
 	}
 	if current != "" {
 		existing := tsFind(cfg, current)
 		if existing == nil || tsString(existing, "type") != "tailscale" {
-			return errors.New("target has an existing non-Tailscale dialer-proxy; edit its configuration explicitly")
+			return i18n.Errorf("backend.profile.target_has_an_existing_non_tailscale_dialer_proxy_edit_its_configuration_explicitly", "target has an existing non-Tailscale dialer-proxy; edit its configuration explicitly")
 		}
 	}
 	if action == "bind" {
 		selected["dialer-proxy"] = name
 		if tsCycle(cfg) {
-			return errors.New("binding would create a proxy dependency cycle")
+			return i18n.Errorf("backend.profile.binding_would_create_a_proxy_dependency_cycle", "binding would create a proxy dependency cycle")
 		}
 	} else {
 		selected["dialer-proxy"] = ""

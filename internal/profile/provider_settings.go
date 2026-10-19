@@ -2,7 +2,7 @@ package profile
 
 import (
 	"context"
-	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"gopkg.in/yaml.v3"
 	"net/url"
 	"strings"
@@ -15,7 +15,7 @@ const groupHealthcheckURLsKey = "nagi-group-healthcheck-urls"
 func ValidateHealthcheckURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil || strings.ContainsAny(raw, "\r\n\t ") || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || strings.Contains(raw, "#") {
-		return errors.New("URL must be an absolute HTTP(S) URL without userinfo or fragment")
+		return i18n.Errorf("backend.profile.url_must_be_an_absolute_http_s_url_without_userinfo_or_fragment", "URL must be an absolute HTTP(S) URL without userinfo or fragment")
 	}
 	return nil
 }
@@ -26,12 +26,12 @@ func applyGroupHealthcheckURLs(base map[string]any, raw any) error {
 	}
 	urls, ok := raw.(map[string]any)
 	if !ok {
-		return errors.New("local group healthcheck URLs must be a mapping")
+		return i18n.Errorf("backend.profile.local_group_healthcheck_urls_must_be_a_mapping", "local group healthcheck URLs must be a mapping")
 	}
 	for name, value := range urls {
 		text, ok := value.(string)
 		if !ok || ValidateHealthcheckURL(text) != nil {
-			return errors.New("invalid local group healthcheck URL")
+			return i18n.Errorf("backend.profile.invalid_local_group_healthcheck_url", "invalid local group healthcheck URL")
 		}
 		target, err := healthTarget(base, "group", name)
 		if err == nil {
@@ -56,7 +56,7 @@ func (s *Store) SetHealthcheckURL(ctx context.Context, name, kind, targetName st
 		return err
 	}
 	if raw == nil && kind == "provider" && !state.CanResetURL {
-		return errors.New("provider has no inherited test URL; set an explicit test URL instead")
+		return i18n.Errorf("backend.profile.provider_has_no_inherited_test_url_set_an_explicit_test_url_instead", "provider has no inherited test URL; set an explicit test URL instead")
 	}
 	if kind == "group" {
 		urls, _ := overlay[groupHealthcheckURLsKey].(map[string]any)
@@ -144,7 +144,7 @@ func (s *Store) ProviderInterval(name, targetName string) (ProviderInterval, err
 		return r, err
 	}
 	if target["type"] != "http" {
-		return r, errors.New("download interval requires an HTTP provider")
+		return r, i18n.Errorf("backend.profile.download_interval_requires_an_http_provider", "download interval requires an HTTP provider")
 	}
 	r.IntervalSeconds, err = healthInterval(target["interval"])
 	if err != nil {
@@ -161,12 +161,12 @@ func (s *Store) ProviderInterval(name, targetName string) (ProviderInterval, err
 }
 func (s *Store) SetProviderInterval(ctx context.Context, name, targetName string, seconds *int) error {
 	if seconds != nil && (*seconds < 0 || *seconds > 31536000) {
-		return errors.New("SECONDS must be off or an integer from 1 to 31536000")
+		return i18n.Errorf("backend.profile.seconds_must_be_off_or_an_integer_from_1_to_31536000", "SECONDS must be off or an integer from 1 to 31536000")
 	}
 	if state, err := s.ProviderInterval(name, targetName); err != nil {
 		return err
 	} else if seconds == nil && !state.CanReset {
-		return errors.New("provider has no source download interval; set an explicit interval or off")
+		return i18n.Errorf("backend.profile.provider_has_no_source_download_interval_set_an_explicit_interval_or_off", "provider has no source download interval; set an explicit interval or off")
 	}
 	_, _, overlay, err := s.healthMaps(name)
 	if err != nil {

@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,7 +16,7 @@ import (
 
 func (s *Store) overridePath(name string) (string, error) {
 	if !validName(name) {
-		return "", errors.New("invalid profile name")
+		return "", i18n.Errorf("backend.profile.invalid_profile_name", "invalid profile name")
 	}
 	return filepath.Join(s.Dir, "overrides", name+".yaml"), nil
 }
@@ -31,7 +31,7 @@ func (s *Store) Override(name string) ([]byte, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("override is not a regular file")
+		return nil, i18n.Errorf("backend.profile.override_is_not_a_regular_file", "override is not a regular file")
 	}
 	return os.ReadFile(path)
 }
@@ -92,17 +92,17 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 	}
 	var base, overlay map[string]any
 	if err := yaml.Unmarshal(source, &base); err != nil || base == nil {
-		return nil, errors.New("profile YAML cannot be merged with override")
+		return nil, i18n.Errorf("backend.profile.profile_yaml_cannot_be_merged_with_override", "profile YAML cannot be merged with override")
 	}
 	if err := yaml.Unmarshal(patch, &overlay); err != nil || overlay == nil {
-		return nil, errors.New("override is invalid YAML")
+		return nil, i18n.Errorf("backend.profile.override_is_invalid_yaml", "override is invalid YAML")
 	}
 	if replace, exists := overlay[DNSReplaceKey]; exists {
 		if replace != true {
-			return nil, errors.New("nagi-dns-replace must be true")
+			return nil, i18n.Errorf("backend.profile.nagi_dns_replace_must_be_true", "nagi-dns-replace must be true")
 		}
 		if _, ok := overlay["dns"].(map[string]any); !ok {
-			return nil, errors.New("nagi-dns-replace requires a DNS mapping")
+			return nil, i18n.Errorf("backend.profile.nagi_dns_replace_requires_a_dns_mapping", "nagi-dns-replace requires a DNS mapping")
 		}
 		delete(base, "dns")
 	}
@@ -111,7 +111,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 	additions, _ := overlay[proxyAdditionsKey].([]any)
 	if raw, exists := overlay[proxyAdditionsKey]; exists {
 		if _, ok := raw.([]any); !ok {
-			return nil, errors.New("local proxy additions must be a list")
+			return nil, i18n.Errorf("backend.profile.local_proxy_additions_must_be_a_list", "local proxy additions must be a list")
 		}
 	}
 	delete(overlay, proxyAdditionsKey)
@@ -136,22 +136,22 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 	for _, value := range additions {
 		node, _ := value.(map[string]any)
 		if node == nil || tsString(node, "type") != "tailscale" || ValidateTailscaleName(tsString(node, "name")) != nil {
-			return nil, errors.New("local proxy additions must contain named Tailscale nodes")
+			return nil, i18n.Errorf("backend.profile.local_proxy_additions_must_contain_named_tailscale_nodes", "local proxy additions must contain named Tailscale nodes")
 		}
 		providers, _ := base["proxy-providers"].(map[string]any)
 		if _, exists := providers[tsString(node, "name")]; exists {
-			return nil, errors.New("local proxy addition conflicts with a source provider")
+			return nil, i18n.Errorf("backend.profile.local_proxy_addition_conflicts_with_a_source_provider", "local proxy addition conflicts with a source provider")
 		}
 		groups, _ := base["proxy-groups"].([]any)
 		for _, v := range groups {
 			m, _ := v.(map[string]any)
 			if tsString(m, "name") == tsString(node, "name") {
-				return nil, errors.New("local proxy addition conflicts with a source group")
+				return nil, i18n.Errorf("backend.profile.local_proxy_addition_conflicts_with_a_source_group", "local proxy addition conflicts with a source group")
 			}
 		}
 		if existing := tsFind(base, tsString(node, "name")); existing != nil {
 			if tsString(existing, "type") != "tailscale" {
-				return nil, errors.New("local proxy addition conflicts with a source node")
+				return nil, i18n.Errorf("backend.profile.local_proxy_addition_conflicts_with_a_source_node", "local proxy addition conflicts with a source node")
 			}
 			for i, v := range tsProxies(base) {
 				m, _ := v.(map[string]any)
@@ -191,7 +191,7 @@ func (s *Store) Effective(name string) ([]byte, error) {
 // onto the named profile, excluding nodes, groups, rules, and Nagi-managed fields.
 func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy ...string) error {
 	if len(dnsProxy) > 1 {
-		return errors.New("at most one DNS proxy group is allowed")
+		return i18n.Errorf("backend.profile.at_most_one_dns_proxy_group_is_allowed", "at most one DNS proxy group is allowed")
 	}
 	group := ""
 	if len(dnsProxy) == 1 {
@@ -205,11 +205,11 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 	}
 	data, err := s.Show("default")
 	if err != nil {
-		return fmt.Errorf("default profile is unavailable: %w", err)
+		return i18n.Errorf("backend.profile.default_profile_is_unavailable_w", "default profile is unavailable: %w", err)
 	}
 	var source map[string]any
 	if err := yaml.Unmarshal(data, &source); err != nil || source == nil {
-		return errors.New("default profile must be a YAML mapping")
+		return i18n.Errorf("backend.profile.default_profile_must_be_a_yaml_mapping", "default profile must be a YAML mapping")
 	}
 	for key := range defaultOverrideExcludedKeys {
 		delete(source, key)
@@ -228,7 +228,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 	}
 	var target map[string]any
 	if err := yaml.Unmarshal(current, &target); err != nil || target == nil {
-		return errors.New("target profile must be a YAML mapping")
+		return i18n.Errorf("backend.profile.target_profile_must_be_a_yaml_mapping", "target profile must be a YAML mapping")
 	}
 	if group == "" {
 		_, nodes, providers, err := dnsGroups(current)
@@ -236,7 +236,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 			return err
 		}
 		if len(nodes) > 0 || len(providers) > 0 {
-			return errors.New("choose a DNS proxy group for a profile with proxy nodes or providers")
+			return i18n.Errorf("backend.profile.choose_a_dns_proxy_group_for_a_profile_with_proxy_nodes_or_providers", "choose a DNS proxy group for a profile with proxy nodes or providers")
 		}
 	}
 	if group != "" {
@@ -255,7 +255,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 	}
 	filtered, err := yaml.Marshal(source)
 	if err != nil {
-		return fmt.Errorf("default profile settings could not be prepared: %w", err)
+		return i18n.Errorf("backend.profile.default_profile_settings_could_not_be_prepared_w", "default profile settings could not be prepared: %w", err)
 	}
 	old, oldErr := s.Override(name)
 	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
@@ -264,7 +264,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 	if oldErr == nil {
 		var previous map[string]any
 		if err := yaml.Unmarshal(old, &previous); err != nil || previous == nil {
-			return errors.New("existing override must be a YAML mapping")
+			return i18n.Errorf("backend.profile.existing_override_must_be_a_yaml_mapping", "existing override must be a YAML mapping")
 		}
 		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", proxyAdditionsKey, groupHealthcheckIntervalsKey, groupHealthcheckURLsKey} {
 			if value, ok := previous[key]; ok {
@@ -273,7 +273,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 		}
 		filtered, err = yaml.Marshal(source)
 		if err != nil {
-			return fmt.Errorf("default profile settings could not be prepared: %w", err)
+			return i18n.Errorf("backend.profile.default_profile_settings_could_not_be_prepared_w", "default profile settings could not be prepared: %w", err)
 		}
 	}
 	statePath, err := s.defaultOverrideStatePath(name)
@@ -343,7 +343,7 @@ func (s *Store) DefaultOverrideStatus(name string) (bool, error) {
 	}
 	var state defaultOverrideState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return false, fmt.Errorf("saved default override state is invalid: %w", err)
+		return false, i18n.Errorf("backend.profile.saved_default_override_state_is_invalid_w", "saved default override state is invalid: %w", err)
 	}
 	current, err := s.Override(name)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -362,7 +362,7 @@ func (s *Store) RestoreDefaultOverride(ctx context.Context, name string) error {
 		return err
 	}
 	if !active {
-		return errors.New("local default settings are not active; current override was changed or no restore point exists")
+		return i18n.Errorf("backend.profile.local_default_settings_are_not_active_current_override_was_changed_or_no_restore_point_exists", "local default settings are not active; current override was changed or no restore point exists")
 	}
 	path, err := s.defaultOverrideStatePath(name)
 	if err != nil {
@@ -397,7 +397,7 @@ var defaultOverrideExcludedKeys = map[string]struct{}{
 // SetOverride stores a user-owned YAML mapping separately from the source profile.
 func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error {
 	if len(data) == 0 || len(data) > 8<<20 {
-		return errors.New("override must contain 1 byte to 8 MiB")
+		return i18n.Errorf("backend.profile.override_must_contain_1_byte_to_8_mib", "override must contain 1 byte to 8 MiB")
 	}
 	path, err := s.overridePath(name)
 	if err != nil {
@@ -408,7 +408,7 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 	}
 	var patch map[string]any
 	if err := yaml.Unmarshal(data, &patch); err != nil || patch == nil {
-		return errors.New("override must be a YAML mapping")
+		return i18n.Errorf("backend.profile.override_must_be_a_yaml_mapping", "override must be a YAML mapping")
 	}
 	policy, err := s.SubscriptionTailscale(name)
 	if err != nil {
@@ -416,7 +416,7 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 	}
 	if policy != nil {
 		if _, exists := patch["proxies"]; exists {
-			return errors.New("subscription Tailscale policy requires source nodes; unbind the subscription before setting a full proxy override")
+			return i18n.Errorf("backend.profile.subscription_tailscale_policy_requires_source_nodes_unbind_the_subscription_before_setting_a_full_pr", "subscription Tailscale policy requires source nodes; unbind the subscription before setting a full proxy override")
 		}
 	}
 	old, oldErr := s.Override(name)

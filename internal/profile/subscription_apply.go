@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"os"
 	"reflect"
@@ -32,7 +32,7 @@ func (s *Store) subscriptionOverride(name string, source []byte) ([]byte, error)
 func rebaseSubscriptionOverride(old, next, patch []byte) ([]byte, error) {
 	var overlay map[string]any
 	if yaml.Unmarshal(patch, &overlay) != nil || overlay == nil {
-		return nil, errors.New("subscription override must be a YAML mapping")
+		return nil, i18n.Errorf("backend.profile.subscription_override_must_be_a_yaml_mapping", "subscription override must be a YAML mapping")
 	}
 	// No list snapshot means no dependency on the old source. This also permits
 	// repairing an unreadable old feed when only runtime settings are overridden.
@@ -43,10 +43,10 @@ func rebaseSubscriptionOverride(old, next, patch []byte) ([]byte, error) {
 	}
 	var previous, incoming map[string]any
 	if yaml.Unmarshal(old, &previous) != nil || previous == nil {
-		return nil, errors.New("cannot retain local node or group changes from an invalid previous subscription; repair the source or edit the local override and retry")
+		return nil, i18n.Errorf("backend.profile.cannot_retain_local_node_or_group_changes_from_an_invalid_previous_subscription_repair_the_source_or", "cannot retain local node or group changes from an invalid previous subscription; repair the source or edit the local override and retry")
 	}
 	if yaml.Unmarshal(next, &incoming) != nil || incoming == nil {
-		return nil, errors.New("subscription must be a YAML mapping")
+		return nil, i18n.Errorf("backend.profile.subscription_must_be_a_yaml_mapping", "subscription must be a YAML mapping")
 	}
 	changed := false
 	for _, field := range []string{"proxies", "proxy-groups"} {
@@ -56,7 +56,7 @@ func rebaseSubscriptionOverride(old, next, patch []byte) ([]byte, error) {
 		}
 		merged, err := rebaseNamedList(previous[field], incoming[field], local)
 		if err != nil {
-			return nil, fmt.Errorf("cannot retain local %s: %w", field, err)
+			return nil, i18n.Errorf("backend.profile.cannot_retain_local_s_w", "cannot retain local %s: %w", field, err)
 		}
 		changed = changed || !reflect.DeepEqual(local, merged)
 		overlay[field] = merged
@@ -73,17 +73,17 @@ func namedList(value any) ([]any, map[string]map[string]any, error) {
 	}
 	list, ok := value.([]any)
 	if !ok {
-		return nil, nil, errors.New("expected a list of named mappings")
+		return nil, nil, i18n.Errorf("backend.profile.expected_a_list_of_named_mappings", "expected a list of named mappings")
 	}
 	names := make(map[string]map[string]any, len(list))
 	for _, item := range list {
 		entry, ok := item.(map[string]any)
 		name, _ := entry["name"].(string)
 		if !ok || name == "" {
-			return nil, nil, errors.New("expected a list of named mappings")
+			return nil, nil, i18n.Errorf("backend.profile.expected_a_list_of_named_mappings", "expected a list of named mappings")
 		}
 		if _, exists := names[name]; exists {
-			return nil, nil, errors.New("duplicate name; edit the subscription or local override and retry")
+			return nil, nil, i18n.Errorf("backend.profile.duplicate_name_edit_the_subscription_or_local_override_and_retry", "duplicate name; edit the subscription or local override and retry")
 		}
 		names[name] = entry
 	}
@@ -113,7 +113,7 @@ func rebaseNamedList(old, next, patch any) ([]any, error) {
 			continue
 		}
 		if !existed && retained && !reflect.DeepEqual(node, custom) {
-			return nil, errors.New("a new subscription entry conflicts with a local entry of the same name; rename the local entry or edit its override and retry")
+			return nil, i18n.Errorf("backend.profile.a_new_subscription_entry_conflicts_with_a_local_entry_of_the_same_name_rename_the_local_entry_or_edi", "a new subscription entry conflicts with a local entry of the same name; rename the local entry or edit its override and retry")
 		}
 		if existed && retained {
 			node = rebaseMapping(before, node, custom)
@@ -227,7 +227,7 @@ func (s *Store) ApplySubscription(ctx context.Context, name string, data []byte)
 		if stateErr == nil {
 			var state defaultOverrideState
 			if json.Unmarshal(stateData, &state) != nil {
-				return errors.New("saved default override state is invalid; inspect the local default settings before retrying")
+				return i18n.Errorf("backend.profile.saved_default_override_state_is_invalid_inspect_the_local_default_settings_before_retrying", "saved default override state is invalid; inspect the local default settings before retrying")
 			}
 			if state.AppliedHash == sha256.Sum256(old) {
 				if state.HadPrevious {

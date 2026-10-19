@@ -4,8 +4,8 @@ import (
 	"context"
 	"gopkg.in/yaml.v3"
 
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"path/filepath"
-	"strings"
 
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
@@ -126,7 +126,8 @@ func applyScheduledCacheFactory(ctx context.Context, p nagiruntime.Paths, s *sub
 	return err
 }
 func classifyScheduledApply(err error) error {
-	if strings.Contains(err.Error(), "DNS proxy target is missing") {
+	var message *i18n.Message
+	if errors.As(err, &message) && message.Descriptor().ID == "cli.error.dns.dns_proxy_target_is_missing_or_no_longer_usable_update_nagi_dns_set_" {
 		return messageError("cli.error.subscription_apply.w_v_167", "%w: %v", errDNSConflict, err)
 	}
 	return err

@@ -39,6 +39,10 @@ var ErrResponseTooLarge = i18n.Errorf("backend.control.mihomo_response_exceeds_t
 
 func (e *APIError) Error() string { return fmt.Sprintf("mihomo API %d: %s", e.Status, e.Message) }
 
+func (e *APIError) Unwrap() error {
+	return i18n.Errorf("backend.control.api_response", "mihomo API %d: %s", e.Status, e.Message)
+}
+
 func New(socketPath string) *Client {
 	return NewWithTimeout(socketPath, 10*time.Second)
 }

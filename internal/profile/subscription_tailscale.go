@@ -3,7 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -42,7 +42,7 @@ func (s *Store) SubscriptionTailscale(name string) (*SubscriptionTailscalePolicy
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("subscription Tailscale policy must be a regular file")
+		return nil, i18n.Errorf("backend.profile.subscription_tailscale_policy_must_be_a_regular_file", "subscription Tailscale policy must be a regular file")
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
@@ -50,7 +50,7 @@ func (s *Store) SubscriptionTailscale(name string) (*SubscriptionTailscalePolicy
 	}
 	var policy SubscriptionTailscalePolicy
 	if yaml.Unmarshal(data, &policy) != nil || !validName(policy.Subscription) || tsString(policy.Node, "type") != "tailscale" || ValidateTailscaleName(tsString(policy.Node, "name")) != nil {
-		return nil, errors.New("subscription Tailscale policy is invalid")
+		return nil, i18n.Errorf("backend.profile.subscription_tailscale_policy_is_invalid", "subscription Tailscale policy is invalid")
 	}
 	return &policy, nil
 }
@@ -92,16 +92,16 @@ func (s *Store) applySubscriptionTailscale(name string, data []byte) ([]byte, er
 	}
 	var cfg map[string]any
 	if yaml.Unmarshal(data, &cfg) != nil || cfg == nil {
-		return nil, errors.New("subscription profile must be a YAML mapping")
+		return nil, i18n.Errorf("backend.profile.subscription_profile_must_be_a_yaml_mapping", "subscription profile must be a YAML mapping")
 	}
 	nodeName := tsString(policy.Node, "name")
 	if existing := tsFind(cfg, nodeName); existing != nil {
 		if tsString(existing, "type") != "tailscale" {
-			return nil, errors.New("subscription proxy conflicts with the managed Tailscale node")
+			return nil, i18n.Errorf("backend.profile.subscription_proxy_conflicts_with_the_managed_tailscale_node", "subscription proxy conflicts with the managed Tailscale node")
 		}
 		// Only an identical retained node may coexist with the managed definition.
 		if !sameTailscaleDefinition(existing, policy.Node) && (policy.SourceNode == nil || !sameTailscaleDefinition(existing, policy.SourceNode)) {
-			return nil, errors.New("subscription Tailscale node conflicts with the managed definition")
+			return nil, i18n.Errorf("backend.profile.subscription_tailscale_node_conflicts_with_the_managed_definition", "subscription Tailscale node conflicts with the managed definition")
 		}
 	} else {
 		cfg["proxies"] = append(tsProxies(cfg), policy.Node)
@@ -116,20 +116,20 @@ func (s *Store) applySubscriptionTailscale(name string, data []byte) ([]byte, er
 	for _, v := range groups {
 		m, _ := v.(map[string]any)
 		if tsString(m, "name") == nodeName {
-			return nil, errors.New("subscription group conflicts with the managed Tailscale node")
+			return nil, i18n.Errorf("backend.profile.subscription_group_conflicts_with_the_managed_tailscale_node", "subscription group conflicts with the managed Tailscale node")
 		}
 	}
 	providers, _ := cfg["proxy-providers"].(map[string]any)
 	if _, ok := providers[nodeName]; ok {
-		return nil, errors.New("subscription provider conflicts with the managed Tailscale node")
+		return nil, i18n.Errorf("backend.profile.subscription_provider_conflicts_with_the_managed_tailscale_node", "subscription provider conflicts with the managed Tailscale node")
 	}
 	for _, target := range tsTargets(cfg) {
 		if err := tsChangeBinding(cfg, "bind", nodeName, target.Kind, target.Name); err != nil {
-			return nil, fmt.Errorf("subscription Tailscale target %q: %w", target.Name, err)
+			return nil, i18n.Errorf("backend.profile.subscription_tailscale_target_q_w", "subscription Tailscale target %q: %w", target.Name, err)
 		}
 	}
 	if tsCycle(cfg) {
-		return nil, errors.New("subscription binding would create a proxy dependency cycle")
+		return nil, i18n.Errorf("backend.profile.subscription_binding_would_create_a_proxy_dependency_cycle", "subscription binding would create a proxy dependency cycle")
 	}
 	return yaml.Marshal(cfg)
 }
@@ -148,7 +148,7 @@ func (s *Store) normalizeSubscriptionOverride(name string, overlay map[string]an
 	}
 	var cfg map[string]any
 	if yaml.Unmarshal(source, &cfg) != nil {
-		return errors.New("subscription source is invalid")
+		return i18n.Errorf("backend.profile.subscription_source_is_invalid", "subscription source is invalid")
 	}
 	sourceNodes := map[string]map[string]any{}
 	for _, v := range tsProxies(cfg) {
@@ -157,7 +157,7 @@ func (s *Store) normalizeSubscriptionOverride(name string, overlay map[string]an
 	}
 	list, ok := raw.([]any)
 	if !ok {
-		return errors.New("local proxy snapshot must be a list")
+		return i18n.Errorf("backend.profile.local_proxy_snapshot_must_be_a_list", "local proxy snapshot must be a list")
 	}
 	extras := []any{}
 	seen := map[string]bool{}
@@ -170,7 +170,7 @@ func (s *Store) normalizeSubscriptionOverride(name string, overlay map[string]an
 		original := sourceNodes[n]
 		if original == nil {
 			if tsString(m, "type") != "tailscale" {
-				return errors.New("local proxy snapshot contains added ordinary nodes; clear or revise it before binding a subscription")
+				return i18n.Errorf("backend.profile.local_proxy_snapshot_contains_added_ordinary_nodes_clear_or_revise_it_before_binding_a_subscription", "local proxy snapshot contains added ordinary nodes; clear or revise it before binding a subscription")
 			}
 			extras = append(extras, m)
 			continue
@@ -194,13 +194,13 @@ func (s *Store) normalizeSubscriptionOverride(name string, overlay map[string]an
 			same = sameTailscaleDefinition(copyNode, original)
 		}
 		if !same {
-			return errors.New("local proxy snapshot changes subscription nodes; clear or revise it before binding a subscription")
+			return i18n.Errorf("backend.profile.local_proxy_snapshot_changes_subscription_nodes_clear_or_revise_it_before_binding_a_subscription", "local proxy snapshot changes subscription nodes; clear or revise it before binding a subscription")
 		}
 		seen[n] = true
 	}
 	for n := range sourceNodes {
 		if n != nodeName && !seen[n] {
-			return errors.New("local proxy snapshot omits subscription nodes; clear or revise it before binding a subscription")
+			return i18n.Errorf("backend.profile.local_proxy_snapshot_omits_subscription_nodes_clear_or_revise_it_before_binding_a_subscription", "local proxy snapshot omits subscription nodes; clear or revise it before binding a subscription")
 		}
 	}
 	delete(overlay, "proxies")
@@ -214,14 +214,14 @@ func (s *Store) normalizeSubscriptionOverride(name string, overlay map[string]an
 // hold config.lock and snapshot the entire configuration for runtime recovery.
 func (s *Store) MutateSubscriptionTailscale(ctx context.Context, profileName, subscriptionName, action, nodeName string) error {
 	if !validName(subscriptionName) {
-		return errors.New("invalid subscription name")
+		return i18n.Errorf("backend.profile.invalid_subscription_name", "invalid subscription name")
 	}
 	old, err := s.SubscriptionTailscale(profileName)
 	if err != nil {
 		return err
 	}
 	if action != "bind" && action != "unbind" {
-		return errors.New("subscription binding action must be bind or unbind")
+		return i18n.Errorf("backend.profile.subscription_binding_action_must_be_bind_or_unbind", "subscription binding action must be bind or unbind")
 	}
 	var cfg map[string]any
 	if action == "bind" {
@@ -234,7 +234,7 @@ func (s *Store) MutateSubscriptionTailscale(ctx context.Context, profileName, su
 	patch, patchErr := s.Override(profileName)
 	if patchErr == nil {
 		if yaml.Unmarshal(patch, &overlay) != nil {
-			return errors.New("local override is invalid")
+			return i18n.Errorf("backend.profile.local_override_is_invalid", "local override is invalid")
 		}
 	} else if !errors.Is(patchErr, fs.ErrNotExist) {
 		return patchErr
@@ -243,7 +243,7 @@ func (s *Store) MutateSubscriptionTailscale(ctx context.Context, profileName, su
 	if action == "bind" {
 		node := tsFind(cfg, nodeName)
 		if node == nil || tsString(node, "type") != "tailscale" {
-			return errors.New("Tailscale node not found; run `nagi proxy tailscale list`")
+			return i18n.Errorf("backend.profile.tailscale_node_not_found_run_nagi_proxy_tailscale_list", "Tailscale node not found; run `nagi proxy tailscale list`")
 		}
 		policy = &SubscriptionTailscalePolicy{Subscription: subscriptionName, Node: node}
 		source, err := s.Show(profileName)
@@ -252,7 +252,7 @@ func (s *Store) MutateSubscriptionTailscale(ctx context.Context, profileName, su
 		}
 		var sourceCfg map[string]any
 		if yaml.Unmarshal(source, &sourceCfg) != nil {
-			return errors.New("subscription source is invalid")
+			return i18n.Errorf("backend.profile.subscription_source_is_invalid", "subscription source is invalid")
 		}
 		policy.SourceNode = tsFind(sourceCfg, nodeName)
 		if values, ok := overlay[proxyAdditionsKey].([]any); ok {
@@ -279,7 +279,7 @@ func (s *Store) MutateSubscriptionTailscale(ctx context.Context, profileName, su
 		}
 	} else {
 		if old == nil || old.Subscription != subscriptionName {
-			return errors.New("subscription has no persistent Tailscale binding")
+			return i18n.Errorf("backend.profile.subscription_has_no_persistent_tailscale_binding", "subscription has no persistent Tailscale binding")
 		}
 		list, _ := overlay[proxyAdditionsKey].([]any)
 		overlay[proxyAdditionsKey] = append(list, old.Node)

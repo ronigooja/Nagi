@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"gopkg.in/yaml.v3"
 	"net"
 	"net/url"
@@ -102,30 +104,40 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		servers := stringList(dns["nameserver"])
 		defaultServers := stringList(dns["default-nameserver"])
 		issues := []string{}
+		messages := map[string]i18n.Descriptor{}
+		addIssue := func(message *i18n.Message) {
+			messages[fmt.Sprintf("/issues/%d", len(issues))] = message.Descriptor()
+			issues = append(issues, message.Error())
+		}
 		if dns["enable"] != true {
-			issues = append(issues, "mihomo DNS is disabled")
+			addIssue(i18n.Errorf("backend.dns.issue.mihomo_dns_is_disabled", "mihomo DNS is disabled"))
 		}
 		if !encryptedServers(servers) || !encryptedServers(defaultServers) {
-			issues = append(issues, "primary or bootstrap DNS includes a non-DoH server")
+			addIssue(i18n.Errorf("backend.dns.issue.primary_or_bootstrap_dns_includes_a_non_doh_server", "primary or bootstrap DNS includes a non-DoH server"))
 		}
 		for _, key := range []string{"fallback", "proxy-server-nameserver", "direct-nameserver"} {
 			if values := stringList(dns[key]); len(values) > 0 && !encryptedServers(values) {
-				issues = append(issues, key+" includes a non-DoH server")
+				addIssue(i18n.NewMessage("backend.dns.issue.non_doh", map[string]any{"field": key}, key+" includes a non-DoH server", nil))
 			}
 		}
 		if policy, ok := dns["nameserver-policy"].(map[string]any); ok {
 			for domain, servers := range policy {
 				if !encryptedServers(stringList(servers)) {
-					issues = append(issues, "explicit plaintext exception: "+domain)
+					addIssue(i18n.NewMessage("backend.dns.issue.plaintext_exception", map[string]any{"domain": domain}, "explicit plaintext exception: "+domain, nil))
 				}
 			}
 		}
 		if err := validateDNSProxyTargets(data); err != nil {
-			issues = append(issues, err.Error())
+			var message *i18n.Message
+			if errors.As(err, &message) {
+				addIssue(message)
+			} else {
+				issues = append(issues, err.Error())
+			}
 		}
 		hijack := stringList(tun["dns-hijack"])
 		if tun["enable"] != true || tun["auto-route"] != true || tun["strict-route"] != true || !containsDNS(hijack, "any:53") || !containsDNS(hijack, "tcp://any:53") {
-			issues = append(issues, "TUN routing and DNS interception are not fully configured")
+			addIssue(i18n.Errorf("backend.dns.issue.tun_routing_and_dns_interception_are_not_fully_configured", "TUN routing and DNS interception are not fully configured"))
 		}
 		policy := "direct"
 		proxied, ruled := 0, 0
@@ -144,23 +156,24 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 			policy = "rules"
 		} else if proxied+ruled > 0 {
 			policy = "mixed"
-			issues = append(issues, "DNS upstreams use mixed routing policies")
+			addIssue(i18n.Errorf("backend.dns.issue.dns_upstreams_use_mixed_routing_policies", "DNS upstreams use mixed routing policies"))
 		} else if dns["respect-rules"] == true {
 			policy = "rules"
 		}
 		result := map[string]any{"profile": name, "enabled": dns["enable"] == true, "ipv6": dns["ipv6"] == true, "resolve_proxy_destinations": dns["resolve-proxy-destinations"] == true, "policy": policy, "upstream_hosts": dnsHosts(servers), "tun_enabled": tun["enable"] == true, "issues": issues}
 		if args[1] == "check" {
 			result["scope"] = "configuration and mihomo API"
+			messages["/scope"] = i18n.Descriptor{ID: "backend.dns.check.scope"}
 			var response map[string]any
 			if err := client.Get(ctx, "/dns/query?name=example.com&type=A", &response); err == nil {
 				result["engine_query_ok"] = true
 			} else {
 				result["engine_query_ok"] = false
-				issues = append(issues, "mihomo DNS query unavailable")
+				addIssue(i18n.Errorf("backend.dns.issue.mihomo_dns_query_unavailable", "mihomo DNS query unavailable"))
 			}
 			result["issues"] = issues
 		}
-		return result, nil
+		return i18n.Result{Value: result, Messages: messages}, nil
 	case "set":
 		if len(args) < 4 {
 			return nil, usage("dns set direct URL [URL...]|proxy NODE URL [URL...]")

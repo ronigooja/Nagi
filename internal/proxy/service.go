@@ -79,10 +79,11 @@ type DelayResult struct {
 }
 
 type BatchDelayItem struct {
-	Proxy        string `json:"proxy"`
-	DelayMS      *int   `json:"delay_ms,omitempty"`
-	Error        string `json:"error,omitempty"`
-	Unmeasurable string `json:"unmeasurable,omitempty"`
+	Messages     map[string]i18n.Descriptor `json:"-"`
+	Proxy        string                     `json:"proxy"`
+	DelayMS      *int                       `json:"delay_ms,omitempty"`
+	Error        string                     `json:"error,omitempty"`
+	Unmeasurable string                     `json:"unmeasurable,omitempty"`
 }
 type BatchDelayResult struct {
 	Group                 string           `json:"group"`
@@ -150,7 +151,7 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 		if errors.As(err, &apiErr) && apiErr.Status == 504 {
 			if len(g.All) > 0 && len(rejecting) == len(g.All) {
 				for _, name := range g.All {
-					result.Results = append(result.Results, BatchDelayItem{Proxy: name, Unmeasurable: "reject action has no latency"})
+					result.Results = append(result.Results, BatchDelayItem{Proxy: name, Unmeasurable: "reject action has no latency", Messages: map[string]i18n.Descriptor{"/unmeasurable": {ID: "backend.proxy.delay.reject"}}})
 				}
 				return result, DelayResetConfirmed, nil
 			}
@@ -165,10 +166,12 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 		item := BatchDelayItem{Proxy: name}
 		if rejecting[name] {
 			item.Unmeasurable = "reject action has no latency"
+			item.Messages = map[string]i18n.Descriptor{"/unmeasurable": {ID: "backend.proxy.delay.reject"}}
 		} else if delay, ok := measured[name]; ok {
 			item.DelayMS = &delay
 		} else {
 			item.Error = "latency test failed"
+			item.Messages = map[string]i18n.Descriptor{"/error": {ID: "backend.proxy.delay.failed"}}
 		}
 		result.Results = append(result.Results, item)
 	}

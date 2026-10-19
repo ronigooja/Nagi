@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net"
 	"reflect"
 	"sort"
@@ -436,9 +437,10 @@ type Preview struct {
 // ConfigChange contains only a path, change kind, and general behavioral hint.
 // Values and user-defined names are intentionally excluded.
 type ConfigChange struct {
-	Path     string `json:"path"`
-	Kind     string `json:"kind"`
-	Behavior string `json:"behavior"`
+	Messages map[string]i18n.Descriptor `json:"-"`
+	Path     string                     `json:"path"`
+	Kind     string                     `json:"kind"`
+	Behavior string                     `json:"behavior"`
 }
 
 func Compare(name, format string, incoming, existing map[string]any) Preview {
@@ -489,32 +491,32 @@ func Compare(name, format string, incoming, existing map[string]any) Preview {
 		} else if !newExists {
 			kind = "removed"
 		}
-		behavior := "Configuration behavior may change."
+		behavior := i18n.Errorf("backend.subscription.preview.configuration_behavior_may_change", "Configuration behavior may change.")
 		switch category {
 		case "proxies":
-			behavior = "Proxy definitions or order may change."
+			behavior = i18n.Errorf("backend.subscription.preview.proxy_definitions_or_order_may_change", "Proxy definitions or order may change.")
 		case "proxy-groups":
-			behavior = "Proxy selection or group membership may change."
+			behavior = i18n.Errorf("backend.subscription.preview.proxy_selection_or_group_membership_may_change", "Proxy selection or group membership may change.")
 		case "proxy-providers":
-			behavior = "Provider membership or update behavior may change."
+			behavior = i18n.Errorf("backend.subscription.preview.provider_membership_or_update_behavior_may_change", "Provider membership or update behavior may change.")
 		case "rules", "rule-providers":
-			behavior = "Routing order or targets may change."
+			behavior = i18n.Errorf("backend.subscription.preview.routing_order_or_targets_may_change", "Routing order or targets may change.")
 		case "dns":
-			behavior = "DNS resolution or upstream routing may change."
+			behavior = i18n.Errorf("backend.subscription.preview.dns_resolution_or_upstream_routing_may_change", "DNS resolution or upstream routing may change.")
 		case "tun":
-			behavior = "TUN traffic interception may change."
+			behavior = i18n.Errorf("backend.subscription.preview.tun_traffic_interception_may_change", "TUN traffic interception may change.")
 		case "listeners", "tunnels", "tuic-server", "port", "socks-port", "mixed-port", "redir-port", "tproxy-port", "bind-address", "allow-lan":
-			behavior = "Local listening behavior may change."
+			behavior = i18n.Errorf("backend.subscription.preview.local_listening_behavior_may_change", "Local listening behavior may change.")
 		case "mode":
-			behavior = "Default traffic routing mode may change."
+			behavior = i18n.Errorf("backend.subscription.preview.default_traffic_routing_mode_may_change", "Default traffic routing mode may change.")
 		case "sniffer":
-			behavior = "Traffic sniffing behavior may change."
+			behavior = i18n.Errorf("backend.subscription.preview.traffic_sniffing_behavior_may_change", "Traffic sniffing behavior may change.")
 		}
 		path := "/" + category
 		if !safePreviewTopLevel(category) {
 			path = fmt.Sprintf("/field-%d", index+1)
 		}
-		result.Changes = append(result.Changes, ConfigChange{Path: path, Kind: kind, Behavior: behavior})
+		result.Changes = append(result.Changes, ConfigChange{Path: path, Kind: kind, Behavior: behavior.Error(), Messages: map[string]i18n.Descriptor{"/behavior": behavior.Descriptor()}})
 		if oldExists && newExists {
 			appendDetailedChanges(&result.Changes, path, before, after, behavior, 0)
 		}
@@ -525,7 +527,7 @@ func Compare(name, format string, incoming, existing map[string]any) Preview {
 	return result
 }
 
-func appendDetailedChanges(out *[]ConfigChange, path string, before, after any, behavior string, depth int) {
+func appendDetailedChanges(out *[]ConfigChange, path string, before, after any, behavior *i18n.Message, depth int) {
 	if depth >= 4 || reflect.DeepEqual(before, after) {
 		return
 	}
@@ -560,7 +562,7 @@ func appendDetailedChanges(out *[]ConfigChange, path string, before, after any, 
 					field = fmt.Sprintf("field-%d", index+1)
 				}
 				child := path + "/" + field
-				*out = append(*out, ConfigChange{Path: child, Kind: kind, Behavior: behavior})
+				*out = append(*out, ConfigChange{Path: child, Kind: kind, Behavior: behavior.Error(), Messages: map[string]i18n.Descriptor{"/behavior": behavior.Descriptor()}})
 				if oldOK && newOK {
 					appendDetailedChanges(out, child, a, b, behavior, depth+1)
 				}
@@ -584,7 +586,7 @@ func appendDetailedChanges(out *[]ConfigChange, path string, before, after any, 
 				} else if reflect.DeepEqual(oldList[i], newList[i]) {
 					continue
 				}
-				*out = append(*out, ConfigChange{Path: child, Kind: kind, Behavior: behavior})
+				*out = append(*out, ConfigChange{Path: child, Kind: kind, Behavior: behavior.Error(), Messages: map[string]i18n.Descriptor{"/behavior": behavior.Descriptor()}})
 				if i < len(oldList) && i < len(newList) {
 					appendDetailedChanges(out, child, oldList[i], newList[i], behavior, depth+1)
 				}
