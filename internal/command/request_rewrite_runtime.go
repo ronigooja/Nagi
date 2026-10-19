@@ -171,6 +171,10 @@ func rewriteStatusFor(ctx context.Context, paths nagiruntime.Paths, name string)
 	}
 	if out.Actual == "absent" {
 		out.Actual = "disabled"
+		if out.EnabledIntent && !snapshot.HasEnabledRules() {
+			out.Actual = "idle"
+			out.Recovery = ""
+		}
 	}
 	if out.Actual == "active" && out.EnabledIntent && out.ActiveRuleVersion == out.ConfiguredRuleVersion {
 		out.Recovery = ""
@@ -202,8 +206,10 @@ func requestRewriteSetEnabled(ctx context.Context, paths nagiruntime.Paths, enab
 		if e != nil {
 			return RewriteStatus{}, rewriteDomainError(e)
 		}
-		if _, _, e = rewritePrerequisites(ctx, paths, candidate); e != nil {
-			return RewriteStatus{}, e
+		if candidate.HasEnabledRules() {
+			if _, _, e = rewritePrerequisites(ctx, paths, candidate); e != nil {
+				return RewriteStatus{}, e
+			}
 		}
 	}
 	_, e = store.Edit(ctx, func(d *rewrite.Document) error { d.Enabled = enabled; return nil })
@@ -226,7 +232,7 @@ func (a rewriteActivation) Apply(ctx context.Context, old, candidate *rewrite.Sn
 	if selected != a.profile {
 		return nil
 	}
-	if !candidate.Document().Enabled {
+	if !candidate.Document().Enabled || !candidate.HasEnabledRules() {
 		return rewriteTeardown(ctx, a.paths)
 	}
 	return rewriteActivate(ctx, a.paths, a.profile, candidate)
@@ -239,7 +245,7 @@ func (a rewriteActivation) Rollback(ctx context.Context, old *rewrite.Snapshot) 
 	if selected != a.profile {
 		return nil
 	}
-	if !old.Document().Enabled {
+	if !old.Document().Enabled || !old.HasEnabledRules() {
 		return rewriteTeardown(ctx, a.paths)
 	}
 	// A rejected candidate can leave the previous active generation untouched.
@@ -281,7 +287,7 @@ func rewriteReconcile(ctx context.Context, paths nagiruntime.Paths) error {
 	if e != nil {
 		return rewriteDomainError(e)
 	}
-	if !snapshot.Document().Enabled {
+	if !snapshot.Document().Enabled || !snapshot.HasEnabledRules() {
 		return rewriteLifecycleStop(ctx, paths)
 	}
 	backend, backendErr := readBackend(paths)
@@ -329,32 +335,18 @@ func rewritePrerequisites(ctx context.Context, paths nagiruntime.Paths, snapshot
 	if rewriteEffectiveUID() == 0 {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_auth")
 	}
-	if len(snapshot.Document().Domains) == 0 {
+	if !snapshot.HasEnabledRules() {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_invalid")
 	}
 	client, e := rewriteClient(paths)
 	if e != nil {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_unavailable")
 	}
-	var capabilities struct {
-		Versions        []int `json:"versions"`
-		TUNOnly         bool  `json:"tun_only"`
-		OriginalContext bool  `json:"original_context"`
-		Reinjection     bool  `json:"reinjection"`
-		QUIC            bool  `json:"quic_domain_block"`
-		MaxContexts     int   `json:"max_contexts"`
-		MaxStreams      int   `json:"max_streams_per_context"`
-		ContextIdle     int   `json:"context_idle_seconds"`
-		ContextMax      int   `json:"context_max_seconds"`
-	}
+	var capabilities control.RewriteCapabilities
 	if e = client.Get(ctx, "/request-rewrite/capabilities", &capabilities); e != nil {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_capability_missing")
 	}
-	supported := false
-	for _, v := range capabilities.Versions {
-		supported = supported || v == 1
-	}
-	if !supported || !capabilities.TUNOnly || !capabilities.OriginalContext || !capabilities.Reinjection || !capabilities.QUIC || capabilities.MaxContexts < 1024 || capabilities.MaxStreams < 64 || capabilities.ContextIdle < 60 || capabilities.ContextMax < 3600 {
+	if !capabilities.Supported() {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_capability_missing")
 	}
 	var current rewriteEngineStatus
@@ -376,6 +368,9 @@ func rewritePrerequisites(ctx context.Context, paths nagiruntime.Paths, snapshot
 }
 
 func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, snapshot *rewrite.Snapshot) error {
+	if !snapshot.HasEnabledRules() {
+		return rewriteTeardown(ctx, paths)
+	}
 	client, current, e := rewritePrerequisites(ctx, paths, snapshot)
 	if e != nil {
 		return e
@@ -430,7 +425,7 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 		v := current.Generation
 		previous = &v
 	}
-	request := map[string]any{"version": 1, "generation": generation, "previous_generation": previous, "owner_uid": rewriteEffectiveUID(), "handoff_addr": worker.Announcement().HandoffAddr, "child_transport_cert": worker.Announcement().ChildTransportCert, "handoff_secret": handoff, "reinjection_secret": reinjection, "domains": rewritePatterns(snapshot), "rule_version": snapshot.Version(), "block_authorized_quic": true}
+	request := control.RewritePrepare{Version: control.RewriteProtocolVersion, Generation: generation, PreviousGeneration: previous, OwnerUID: uint32(rewriteEffectiveUID()), HandoffAddr: worker.Announcement().HandoffAddr, ChildTransportCert: worker.Announcement().ChildTransportCert, HandoffSecret: handoff, ReinjectionSecret: reinjection, InterceptDomains: snapshot.InterceptDomains(), TargetDomains: snapshot.TargetDomains(), RuleVersion: snapshot.Version(), BlockAuthorizedQUIC: true}
 	backend, e := readBackend(paths)
 	if e != nil {
 		_ = rewriteDeleteGeneration(client, generation)
@@ -445,7 +440,7 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 	if e != nil {
 		return rewriteFailure("rewrite_activation_failed")
 	}
-	run := rewriteRun{EnginePID: enginePID, EngineStartIdentity: engineIdentity, OwnerUID: rewriteEffectiveUID(), StartIdentity: identity, Version: 1, Profile: name, Backend: backend, Generation: generation, EngineEpoch: current.EngineEpoch, RuleVersion: snapshot.Version(), PID: worker.PID(), CreatedAt: rewriteNow(), RenewAt: rewriteNow().Add(24*time.Hour - 6*time.Minute)}
+	run := rewriteRun{EnginePID: enginePID, EngineStartIdentity: engineIdentity, OwnerUID: rewriteEffectiveUID(), StartIdentity: identity, Version: control.RewriteProtocolVersion, Profile: name, Backend: backend, Generation: generation, EngineEpoch: current.EngineEpoch, RuleVersion: snapshot.Version(), PID: worker.PID(), CreatedAt: rewriteNow(), RenewAt: rewriteNow().Add(24*time.Hour - 6*time.Minute)}
 	if oldErr == nil {
 		oldRun.Previous = nil
 		run.Previous = &oldRun
@@ -487,7 +482,7 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 	var probe struct {
 		Ready bool `json:"ready"`
 	}
-	if e = client.Post(ctx, "/request-rewrite/probe", map[string]any{"version": 1, "generation": generation}, &probe); e != nil || !probe.Ready {
+	if e = client.Post(ctx, "/request-rewrite/probe", map[string]any{"version": control.RewriteProtocolVersion, "generation": generation}, &probe); e != nil || !probe.Ready {
 		_ = rewriteDeleteGeneration(client, generation)
 		return rewriteFailure("rewrite_activation_failed")
 	}
@@ -495,7 +490,7 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 	// preserved on uncertainty; it never substitutes for engine status evidence.
 	mutationCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	var active rewriteEngineStatus
-	e = client.Put(mutationCtx, "/request-rewrite/branch", map[string]any{"version": 1, "generation": generation, "enabled": true}, &active)
+	e = client.Put(mutationCtx, "/request-rewrite/branch", map[string]any{"version": control.RewriteProtocolVersion, "generation": generation, "enabled": true}, &active)
 	cancel()
 	if e != nil || active.Generation != generation || !active.BranchEnabled || active.RuleVersion != snapshot.Version() {
 		checkCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
@@ -532,13 +527,6 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 		return rewriteFailure("rewrite_state_uncertain")
 	}
 	return nil
-}
-func rewritePatterns(snapshot *rewrite.Snapshot) []string {
-	out := []string{}
-	for _, d := range snapshot.Document().Domains {
-		out = append(out, d.Pattern)
-	}
-	return out
 }
 func rewriteRandom(n int, token bool) (string, error) {
 	b := make([]byte, n)
@@ -635,7 +623,7 @@ func rewriteTeardown(ctx context.Context, paths nagiruntime.Paths) error {
 	generation := state.Generation
 	if state.BranchEnabled {
 		bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
-		e = client.Put(bounded, "/request-rewrite/branch", map[string]any{"version": 1, "generation": generation, "enabled": false}, &state)
+		e = client.Put(bounded, "/request-rewrite/branch", map[string]any{"version": control.RewriteProtocolVersion, "generation": generation, "enabled": false}, &state)
 		cancel()
 		if e != nil || state.BranchEnabled {
 			check, stop := context.WithTimeout(context.Background(), 5*time.Second)

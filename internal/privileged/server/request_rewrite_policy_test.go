@@ -35,7 +35,7 @@ func rewriteTestCertificate(t *testing.T) tls.Certificate {
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
 }
 func rewriteTestPrepare(t *testing.T) rewritePrepare {
-	return rewritePrepare{Version: 1, Generation: strings.Repeat("a", 32), OwnerUID: 1000, HandoffAddr: "127.0.0.1:43101", ChildTransportCert: base64.StdEncoding.EncodeToString(rewriteTestCertificate(t).Certificate[0]), HandoffSecret: base64.RawURLEncoding.EncodeToString(make([]byte, 32)), ReinjectionSecret: base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("x", 32))), Domains: []string{"api.service.example", "*.service.example"}, RuleVersion: "sha256:" + strings.Repeat("a", 64), BlockAuthorizedQUIC: true}
+	return rewritePrepare{Version: 2, Generation: strings.Repeat("a", 32), OwnerUID: 1000, HandoffAddr: "127.0.0.1:43101", ChildTransportCert: base64.StdEncoding.EncodeToString(rewriteTestCertificate(t).Certificate[0]), HandoffSecret: base64.RawURLEncoding.EncodeToString(make([]byte, 32)), ReinjectionSecret: base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("x", 32))), InterceptDomains: []string{"api.service.example", "*.service.example"}, TargetDomains: []string{"*.service.example", "api.service.example"}, RuleVersion: "sha256:" + strings.Repeat("a", 64), BlockAuthorizedQUIC: true}
 }
 func rewriteTestBody(t *testing.T, v any) []byte {
 	t.Helper()
@@ -47,7 +47,7 @@ func rewriteTestBody(t *testing.T, v any) []byte {
 }
 func TestRewriteControlExactAllowlist(t *testing.T) {
 	prepare := rewriteTestBody(t, rewriteTestPrepare(t))
-	allowed := []privileged.Request{{Method: "GET", Path: "/request-rewrite/capabilities"}, {Method: "GET", Path: "/request-rewrite/status"}, {Method: "PUT", Path: "/request-rewrite/session", Body: prepare}, {Method: "POST", Path: "/request-rewrite/probe", Body: []byte(`{"version":1,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`)}, {Method: "PUT", Path: "/request-rewrite/branch", Body: []byte(`{"version":1,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","enabled":false}`)}, {Method: "DELETE", Path: "/request-rewrite/session?generation=" + strings.Repeat("a", 32)}}
+	allowed := []privileged.Request{{Method: "GET", Path: "/request-rewrite/capabilities"}, {Method: "GET", Path: "/request-rewrite/status"}, {Method: "PUT", Path: "/request-rewrite/session", Body: prepare}, {Method: "POST", Path: "/request-rewrite/probe", Body: []byte(`{"version":2,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`)}, {Method: "PUT", Path: "/request-rewrite/branch", Body: []byte(`{"version":2,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","enabled":false}`)}, {Method: "DELETE", Path: "/request-rewrite/session?generation=" + strings.Repeat("a", 32)}}
 	for _, req := range allowed {
 		if e := validateControl(req); e != nil {
 			t.Fatalf("%s %s: %v", req.Method, req.Path, e)
@@ -86,13 +86,13 @@ func TestRewriteControlExactAllowlist(t *testing.T) {
 func TestRewriteStrictSchemaAndBounds(t *testing.T) {
 	good := rewriteTestPrepare(t)
 	body := string(rewriteTestBody(t, good))
-	invalid := []string{"null", "[]", body + " {}", strings.Replace(body, `"version":1`, `"version":1,"version":1`, 1), strings.Replace(body, `"version":1`, `"Version":1`, 1), strings.Replace(body, `"version":1`, `"version":null`, 1), strings.Replace(body, `"version":1`, `"version":2`, 1), strings.Replace(body, `"version":1`, `"version":1,"path":"/etc/shadow"`, 1), strings.Replace(body, `"previous_generation":null`, `"previous_generation":{"x":1,"x":2}`, 1), strings.Replace(body, `"domains":[`, `"domains":[null,`, 1), strings.Repeat(" ", rewriteControlLimit) + body}
+	invalid := []string{"null", "[]", body + " {}", strings.Replace(body, `"version":2`, `"version":2,"version":2`, 1), strings.Replace(body, `"version":2`, `"Version":1`, 1), strings.Replace(body, `"version":2`, `"version":null`, 1), strings.Replace(body, `"version":2`, `"version":1`, 1), strings.Replace(body, `"version":2`, `"version":2,"path":"/etc/shadow"`, 1), strings.Replace(body, `"previous_generation":null`, `"previous_generation":{"x":1,"x":2}`, 1), strings.Replace(body, `"intercept_domains":[`, `"intercept_domains":[null,`, 1), strings.Repeat(" ", rewriteControlLimit) + body}
 	for i, b := range invalid {
 		if validateControl(privileged.Request{Method: "PUT", Path: "/request-rewrite/session", Body: []byte(b)}) == nil {
 			t.Errorf("accepted invalid JSON case %d", i)
 		}
 	}
-	changes := []func(*rewritePrepare){func(v *rewritePrepare) { v.OwnerUID = 0 }, func(v *rewritePrepare) { v.OwnerUID = ^uint32(0) }, func(v *rewritePrepare) { v.Generation = strings.Repeat("A", 32) }, func(v *rewritePrepare) { s := "bad"; v.PreviousGeneration = &s }, func(v *rewritePrepare) { v.HandoffAddr = "localhost:43101" }, func(v *rewritePrepare) { v.HandoffAddr = "127.0.0.1:0" }, func(v *rewritePrepare) { v.HandoffAddr = "127.0.0.1:043101" }, func(v *rewritePrepare) { v.HandoffAddr = "0.0.0.0:43101" }, func(v *rewritePrepare) { v.HandoffAddr = "[::1]:43101" }, func(v *rewritePrepare) { v.ChildTransportCert = "/etc/shadow" }, func(v *rewritePrepare) { v.HandoffSecret = v.ReinjectionSecret }, func(v *rewritePrepare) { v.HandoffSecret += "=" }, func(v *rewritePrepare) { v.RuleVersion = "sha256:" + strings.Repeat("A", 64) }, func(v *rewritePrepare) { v.BlockAuthorizedQUIC = false }, func(v *rewritePrepare) { v.Domains = nil }, func(v *rewritePrepare) { v.Domains = []string{"*.com"} }, func(v *rewritePrepare) { v.Domains = []string{"api.service.example", "API.SERVICE.EXAMPLE."} }, func(v *rewritePrepare) { v.Domains = []string{"http://api.service.example"} }, func(v *rewritePrepare) { v.Domains = make([]string, 257) }}
+	changes := []func(*rewritePrepare){func(v *rewritePrepare) { v.OwnerUID = 0 }, func(v *rewritePrepare) { v.OwnerUID = ^uint32(0) }, func(v *rewritePrepare) { v.Generation = strings.Repeat("A", 32) }, func(v *rewritePrepare) { s := "bad"; v.PreviousGeneration = &s }, func(v *rewritePrepare) { v.HandoffAddr = "localhost:43101" }, func(v *rewritePrepare) { v.HandoffAddr = "127.0.0.1:0" }, func(v *rewritePrepare) { v.HandoffAddr = "127.0.0.1:043101" }, func(v *rewritePrepare) { v.HandoffAddr = "0.0.0.0:43101" }, func(v *rewritePrepare) { v.HandoffAddr = "[::1]:43101" }, func(v *rewritePrepare) { v.ChildTransportCert = "/etc/shadow" }, func(v *rewritePrepare) { v.HandoffSecret = v.ReinjectionSecret }, func(v *rewritePrepare) { v.HandoffSecret += "=" }, func(v *rewritePrepare) { v.RuleVersion = "sha256:" + strings.Repeat("A", 64) }, func(v *rewritePrepare) { v.BlockAuthorizedQUIC = false }, func(v *rewritePrepare) { v.InterceptDomains = nil }, func(v *rewritePrepare) { v.InterceptDomains = []string{"*.com"} }, func(v *rewritePrepare) { v.InterceptDomains = []string{"api.service.example", "API.SERVICE.EXAMPLE."} }, func(v *rewritePrepare) { v.InterceptDomains = []string{"http://api.service.example"} }, func(v *rewritePrepare) { v.InterceptDomains = make([]string, 257) }}
 	for i, change := range changes {
 		v := good
 		change(&v)
@@ -100,7 +100,7 @@ func TestRewriteStrictSchemaAndBounds(t *testing.T) {
 			t.Errorf("accepted invalid prepare %d", i)
 		}
 	}
-	for _, b := range []string{`{"version":1,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","enabled":null}`, `{"version":1,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Enabled":true}`, `{"version":1,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","enabled":true,"enabled":false}`, `{"version":1,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`} {
+	for _, b := range []string{`{"version":2,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","enabled":null}`, `{"version":2,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Enabled":true}`, `{"version":2,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","enabled":true,"enabled":false}`, `{"version":2,"generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`} {
 		if validateControl(privileged.Request{Method: "PUT", Path: "/request-rewrite/branch", Body: []byte(b)}) == nil {
 			t.Error("accepted invalid branch")
 		}
@@ -134,7 +134,7 @@ func TestRewriteTrustedOwner(t *testing.T) {
 }
 func TestRewriteResponseProjection(t *testing.T) {
 	req := privileged.Request{Method: "GET", Path: "/request-rewrite/status"}
-	response, e := filterRewriteResponse(req, privileged.Response{OK: true, Status: 200, Body: []byte(`{"version":1,"state":"absent","handoff_secret":"SECRET","engine_transport_cert":"CERT","reinjection_addr":"ADDR","path":"PRIVATE"}`)})
+	response, e := filterRewriteResponse(req, privileged.Response{OK: true, Status: 200, Body: []byte(`{"version":2,"state":"absent","handoff_secret":"SECRET","engine_transport_cert":"CERT","reinjection_addr":"ADDR","path":"PRIVATE"}`)})
 	if e != nil || strings.Contains(string(response.Body), "SECRET") || strings.Contains(string(response.Body), "CERT") || strings.Contains(string(response.Body), "ADDR") || strings.Contains(string(response.Body), "PRIVATE") {
 		t.Fatal("status exposed private metadata")
 	}
@@ -170,5 +170,28 @@ func TestRewriteOwnerBootstrapHelpDiscovery(t *testing.T) {
 	req := privileged.Request{Operation: privileged.Control, Method: "PUT", Path: "/request-rewrite/session", Body: rewriteTestBody(t, rewriteTestPrepare(t))}
 	if _, e := h.Handle(context.Background(), 1000, req); e == nil || !strings.Contains(e.Error(), "rewrite_capability_missing") {
 		t.Fatal("unbound engine did not request upgrade")
+	}
+}
+
+func TestRewriteV2DomainSets(t *testing.T) {
+	v := rewriteTestPrepare(t)
+	v.InterceptDomains = []string{"API.Service.Example.", "*.service.example"}
+	v.TargetDomains = []string{"mirror.service.example", "API.Service.Example.", "*.service.example"}
+	normalized, err := decodeRewritePrepare(rewriteTestBody(t, v))
+	if err != nil || strings.Join(normalized.InterceptDomains, ",") != "*.service.example,api.service.example" || strings.Join(normalized.TargetDomains, ",") != "*.service.example,api.service.example,mirror.service.example" {
+		t.Fatalf("domain normalization failed: %v", err)
+	}
+	v.Version = 1
+	if _, err := decodeRewritePrepare(rewriteTestBody(t, v)); err == nil {
+		t.Fatal("legacy protocol accepted")
+	}
+	v.Version = 2
+	v.TargetDomains = []string{"mirror.service.example"}
+	if _, err := decodeRewritePrepare(rewriteTestBody(t, v)); err == nil {
+		t.Fatal("target set omitted interception domains")
+	}
+	v.TargetDomains = nil
+	if _, err := decodeRewritePrepare(rewriteTestBody(t, v)); err == nil {
+		t.Fatal("null target domains accepted")
 	}
 }

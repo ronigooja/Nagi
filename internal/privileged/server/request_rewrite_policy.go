@@ -18,28 +18,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/privileged"
 	"github.com/ronigooja/Nagi/internal/requestrewrite"
 	"golang.org/x/net/publicsuffix"
+	"sort"
 )
 
 const rewriteControlLimit = 256 << 10
 
 var errRewritePolicy = errors.New("request rewrite controller operation rejected")
 
-type rewritePrepare struct {
-	Version             int      `json:"version"`
-	Generation          string   `json:"generation"`
-	PreviousGeneration  *string  `json:"previous_generation"`
-	OwnerUID            uint32   `json:"owner_uid"`
-	HandoffAddr         string   `json:"handoff_addr"`
-	ChildTransportCert  string   `json:"child_transport_cert"`
-	HandoffSecret       string   `json:"handoff_secret"`
-	ReinjectionSecret   string   `json:"reinjection_secret"`
-	Domains             []string `json:"domains"`
-	RuleVersion         string   `json:"rule_version"`
-	BlockAuthorizedQUIC bool     `json:"block_authorized_quic"`
-}
+type rewritePrepare = control.RewritePrepare
 
 // The control contract contains only flat scalar fields and a string array.
 // Decode each field once, with exact spelling, before typed decoding. This also
@@ -113,36 +103,59 @@ func rewriteCertificateValid(s string) bool {
 }
 func decodeRewritePrepare(data []byte) (rewritePrepare, error) {
 	var v rewritePrepare
-	_, err := rewriteObject(data, "version", "generation", "previous_generation", "owner_uid", "handoff_addr", "child_transport_cert", "handoff_secret", "reinjection_secret", "domains", "rule_version", "block_authorized_quic")
+	_, err := rewriteObject(data, "version", "generation", "previous_generation", "owner_uid", "handoff_addr", "child_transport_cert", "handoff_secret", "reinjection_secret", "intercept_domains", "target_domains", "rule_version", "block_authorized_quic")
 	if err != nil || json.Unmarshal(data, &v) != nil {
 		return v, errRewritePolicy
 	}
 	host, port, e := net.SplitHostPort(v.HandoffAddr)
 	n, pe := strconv.ParseUint(port, 10, 16)
-	if v.Version != 1 || !rewriteHex(v.Generation, 32) || v.PreviousGeneration != nil && !rewriteHex(*v.PreviousGeneration, 32) || v.OwnerUID == 0 || v.OwnerUID == ^uint32(0) || e != nil || host != "127.0.0.1" || pe != nil || n == 0 || strconv.FormatUint(n, 10) != port || !rewriteSecret(v.HandoffSecret) || !rewriteSecret(v.ReinjectionSecret) || v.HandoffSecret == v.ReinjectionSecret || !strings.HasPrefix(v.RuleVersion, "sha256:") || !rewriteHex(strings.TrimPrefix(v.RuleVersion, "sha256:"), 64) || !v.BlockAuthorizedQUIC || !rewriteCertificateValid(v.ChildTransportCert) || len(v.Domains) == 0 || len(v.Domains) > 256 {
+	if v.Version != control.RewriteProtocolVersion || !rewriteHex(v.Generation, 32) || v.PreviousGeneration != nil && !rewriteHex(*v.PreviousGeneration, 32) || v.OwnerUID == 0 || v.OwnerUID == ^uint32(0) || e != nil || host != "127.0.0.1" || pe != nil || n == 0 || strconv.FormatUint(n, 10) != port || !rewriteSecret(v.HandoffSecret) || !rewriteSecret(v.ReinjectionSecret) || v.HandoffSecret == v.ReinjectionSecret || !strings.HasPrefix(v.RuleVersion, "sha256:") || !rewriteHex(strings.TrimPrefix(v.RuleVersion, "sha256:"), 64) || !v.BlockAuthorizedQUIC || !rewriteCertificateValid(v.ChildTransportCert) {
 		return v, errRewritePolicy
 	}
+	var errDomains error
+	v.InterceptDomains, errDomains = rewriteDomainPatterns(v.InterceptDomains, false)
+	if errDomains != nil {
+		return v, errDomains
+	}
+	v.TargetDomains, errDomains = rewriteDomainPatterns(v.TargetDomains, true)
+	if errDomains != nil {
+		return v, errDomains
+	}
+	for _, pattern := range v.InterceptDomains {
+		if i := sort.SearchStrings(v.TargetDomains, pattern); i == len(v.TargetDomains) || v.TargetDomains[i] != pattern {
+			return v, errRewritePolicy
+		}
+	}
+	return v, nil
+}
+func rewriteDomainPatterns(values []string, allowEmpty bool) ([]string, error) {
+	if values == nil || len(values) > 256 || (!allowEmpty && len(values) == 0) {
+		return nil, errRewritePolicy
+	}
+	out := make([]string, 0, len(values))
 	seen := map[string]bool{}
-	for _, s := range v.Domains {
+	for _, s := range values {
 		wild := strings.HasPrefix(s, "*.")
 		host := strings.TrimPrefix(s, "*.")
 		normalized, e := requestrewrite.NormalizeDomain(host)
 		if e != nil {
-			return v, errRewritePolicy
+			return nil, errRewritePolicy
 		}
 		if wild {
 			suffix, _ := publicsuffix.PublicSuffix(normalized)
 			if suffix == normalized {
-				return v, errRewritePolicy
+				return nil, errRewritePolicy
 			}
 			normalized = "*." + normalized
 		}
 		if seen[normalized] {
-			return v, errRewritePolicy
+			return nil, errRewritePolicy
 		}
 		seen[normalized] = true
+		out = append(out, normalized)
 	}
-	return v, nil
+	sort.Strings(out)
+	return out, nil
 }
 func isRewritePath(path string) bool {
 	return path == "/request-rewrite" || strings.HasPrefix(path, "/request-rewrite/")
@@ -178,7 +191,7 @@ func validateRewriteControl(req privileged.Request, u *url.URL) error {
 			Generation string `json:"generation"`
 			Enabled    bool   `json:"enabled"`
 		}
-		if json.Unmarshal(req.Body, &v) == nil && v.Version == 1 && rewriteHex(v.Generation, 32) {
+		if json.Unmarshal(req.Body, &v) == nil && v.Version == control.RewriteProtocolVersion && rewriteHex(v.Generation, 32) {
 			return nil
 		}
 	}

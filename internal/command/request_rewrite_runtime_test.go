@@ -36,7 +36,7 @@ func (f *rewriteFixtureEngine) call(ctx context.Context, method, path string, bo
 	var response any
 	switch {
 	case path == "/request-rewrite/capabilities":
-		response = map[string]any{"versions": []int{1}, "tun_only": true, "original_context": true, "reinjection": true, "quic_domain_block": true, "max_contexts": 1024, "max_streams_per_context": 64, "context_idle_seconds": 60, "context_max_seconds": 3600}
+		response = map[string]any{"versions": []int{2}, "tun_only": true, "original_context": true, "reinjection": true, "quic_domain_block": true, "max_contexts": 1024, "max_streams_per_context": 64, "context_idle_seconds": 60, "context_max_seconds": 3600}
 	case path == "/request-rewrite/status":
 		if f.failStatus {
 			return errors.New("fixture credential must not be echoed")
@@ -68,7 +68,7 @@ func (f *rewriteFixtureEngine) call(ctx context.Context, method, path string, bo
 			if f.failPublish {
 				return &control.APIError{Status: 409, Message: "fixture reject"}
 			}
-			f.active = rewriteEngineStatus{Version: 1, Generation: request.Generation, EngineEpoch: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", State: "active", BranchEnabled: true, TUNRunning: true, RuleVersion: f.candidate["rule_version"].(string)}
+			f.active = rewriteEngineStatus{Version: 2, Generation: request.Generation, EngineEpoch: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", State: "active", BranchEnabled: true, TUNRunning: true, RuleVersion: f.candidate["rule_version"].(string)}
 		} else {
 			f.active.State = "draining"
 			f.active.BranchEnabled = false
@@ -82,7 +82,7 @@ func (f *rewriteFixtureEngine) call(ctx context.Context, method, path string, bo
 			if f.active.BranchEnabled {
 				return errors.New("active delete")
 			}
-			f.active = rewriteEngineStatus{Version: 1, State: "absent", TUNRunning: true}
+			f.active = rewriteEngineStatus{Version: 2, State: "absent", TUNRunning: true}
 		}
 		f.candidate = nil
 		response = map[string]bool{"closed": true}
@@ -146,7 +146,7 @@ func rewriteCoordinatorFixture(t *testing.T) (nagiruntime.Paths, *rewriteFixture
 		return 12346, "fixture-start-identity", nil
 	}
 	rewriteTrustAssessment = func([]byte) string { return "trusted" }
-	engine := &rewriteFixtureEngine{active: rewriteEngineStatus{Version: 1, State: "absent", TUNRunning: true}}
+	engine := &rewriteFixtureEngine{active: rewriteEngineStatus{Version: 2, State: "absent", TUNRunning: true}}
 	rewriteClient = func(nagiruntime.Paths) (*control.Client, error) { return control.NewWithBridge(engine.call, nil), nil }
 	children := []*rewriteFixtureChild{}
 	rewriteStartChild = func(_ context.Context, _ string, opt child.ChildOptions) (managedRewriteChild, error) {
@@ -167,7 +167,7 @@ func rewriteCoordinatorFixture(t *testing.T) (nagiruntime.Paths, *rewriteFixture
 		if path == "/shutdown" {
 			return child.Status{}, nil
 		}
-		return child.Status{Version: 1, Generation: generation, RuleVersion: engine.active.RuleVersion, Ready: true}, nil
+		return child.Status{Version: 2, Generation: generation, RuleVersion: engine.active.RuleVersion, Ready: true}, nil
 	}
 	return paths, engine, &children
 }
@@ -175,7 +175,7 @@ func rewriteEnabledFixture(t *testing.T) *rewrite.Snapshot {
 	t.Helper()
 	d := rewrite.Empty().Document()
 	d.Enabled = true
-	d.Domains = []rewrite.Domain{{ID: "api", Pattern: "api.service.example"}}
+	d.Rules = []rewrite.Rule{{ID: "api", Enabled: true, Stage: rewrite.StageRequest, Match: rewrite.Match{Domain: "api.service.example"}, OnError: "skip", RedirectConsent: []rewrite.Consent{}, Operations: []rewrite.Operation{{Op: "header_set", Name: "X-Fixture", Value: json.RawMessage(`"fixture"`)}}}}
 	s, e := rewrite.Compile(d)
 	if e != nil {
 		t.Fatal(e)

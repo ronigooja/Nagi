@@ -80,7 +80,7 @@ func readRewriteRun(paths nagiruntime.Paths) (rewriteRun, error) {
 	var run rewriteRun
 	dec := json.NewDecoder(strings.NewReader(string(data)))
 	dec.DisallowUnknownFields()
-	if dec.Decode(&run) != nil || run.Version != 1 || !rewriteGeneration(run.Generation) || (run.Backend != userBackend && run.Backend != privilegedBackend) || run.PID <= 0 || run.OwnerUID <= 0 || run.StartIdentity == "" || run.Previous != nil && run.Previous.Previous != nil {
+	if dec.Decode(&run) != nil || run.Version != 2 || !rewriteGeneration(run.Generation) || (run.Backend != userBackend && run.Backend != privilegedBackend) || run.PID <= 0 || run.OwnerUID <= 0 || run.StartIdentity == "" || run.Previous != nil && run.Previous.Previous != nil {
 		return run, rewriteFailure("rewrite_storage")
 	}
 	var extra any
@@ -199,7 +199,7 @@ func rewriteSupervisorReady(paths nagiruntime.Paths, generation string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	status, e := child.Control(ctx, rewriteSupervisorSocket(paths, generation), "GET", "/status", generation)
-	return e == nil && status.Version == 1 && status.Generation == generation && status.Ready
+	return e == nil && status.Version == 2 && status.Generation == generation && status.Ready
 }
 
 // A generation supervisor is independent of menu/window/CLI lifetimes. It
@@ -252,7 +252,7 @@ func runRewriteSupervisor(generation string) int {
 			w.WriteHeader(400)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(child.Status{Version: 1, Generation: generation, Ready: true})
+		_ = json.NewEncoder(w).Encode(child.Status{Version: 2, Generation: generation, Ready: true})
 	})}
 	go server.Serve(listener)
 	defer server.Close()

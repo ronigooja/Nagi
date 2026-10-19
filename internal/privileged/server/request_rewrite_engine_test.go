@@ -87,7 +87,7 @@ func TestRewriteRealRestrictedOwnerAndReload(t *testing.T) {
 			if owner > 0 && (len(flags) != 1 || flags[0] != "--request-rewrite-owner-uid=1000") || owner == 0 && len(flags) != 0 {
 				t.Fatal("incorrect trusted owner bootstrap argument")
 			}
-			snapshot, e := domain.Compile(domain.Document{Version: 1, Rules: []domain.Rule{}, Domains: []domain.Domain{{ID: "api", Pattern: "api.service.example"}}})
+			snapshot, e := domain.Compile(domain.Document{Version: 2, Rules: []domain.Rule{{ID: "api", Enabled: true, Stage: domain.StageRequest, Match: domain.Match{Domain: "api.service.example"}, OnError: "skip", RedirectConsent: []domain.Consent{}, Operations: []domain.Operation{{Op: "header_set", Name: "X-Fixture", Value: json.RawMessage(`"fixture"`)}}}}, Scripts: []domain.Script{}})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -101,7 +101,8 @@ func TestRewriteRealRestrictedOwnerAndReload(t *testing.T) {
 			spec.HandoffAddr = announcement.HandoffAddr
 			spec.ChildTransportCert = announcement.ChildTransportCert
 			spec.RuleVersion = announcement.RuleVersion
-			spec.Domains = []string{"api.service.example"}
+			spec.InterceptDomains = []string{"api.service.example"}
+			spec.TargetDomains = []string{"api.service.example"}
 			request := privileged.Request{Operation: privileged.Control, Method: "PUT", Path: "/request-rewrite/session", Body: rewriteTestBody(t, spec)}
 			if owner == 0 {
 				response, e = sendControl(ctx, h.controllerPath(), request)
@@ -144,7 +145,7 @@ func TestRewriteRealRestrictedOwnerAndReload(t *testing.T) {
 					t.Errorf("service: %v", e)
 				}
 			}()
-			probe := privileged.Request{Operation: privileged.Control, Method: "POST", Path: "/request-rewrite/probe", Body: rewriteTestBody(t, map[string]any{"version": 1, "generation": spec.Generation})}
+			probe := privileged.Request{Operation: privileged.Control, Method: "POST", Path: "/request-rewrite/probe", Body: rewriteTestBody(t, map[string]any{"version": 2, "generation": spec.Generation})}
 			response, e = h.Handle(ctx, owner, probe)
 			if e != nil || !response.OK || !strings.Contains(string(response.Body), `"ready":true`) {
 				t.Fatalf("mTLS synthetic probe: HTTP %d, %v", response.Status, e)
