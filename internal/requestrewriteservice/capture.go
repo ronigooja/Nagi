@@ -1,10 +1,12 @@
 package requestrewriteservice
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -16,6 +18,7 @@ import (
 )
 
 type captureKey struct{}
+type captureConnectionKey struct{}
 
 func validateCaptureConfiguration(c Configuration) error {
 	if c.Capture == nil {
@@ -66,6 +69,10 @@ func (s *Service) captureIdentity(value string) (*capture.Identity, error) {
 	if err != nil || base64.RawURLEncoding.EncodeToString(b) != value || !uniqueJSON(b) || !exactKeys(b, reflect.TypeOf(capture.Identity{})) {
 		return nil, errAuth
 	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(b, &fields) != nil || len(fields) != 7 {
+		return nil, errAuth
+	}
 	var identity capture.Identity
 	d := json.NewDecoder(bytes.NewReader(b))
 	d.DisallowUnknownFields()
@@ -108,6 +115,7 @@ func (s *Service) beginCapture(cc *connectionContext, req *http.Request, kind, p
 	p := *s.capturePolicy
 	sink := s.captureSink
 	limit := s.config.BodyLimit
+	generation := s.config.Generation
 	s.mu.Unlock()
 	if p.SessionID != cc.identity.SessionID {
 		return nil
@@ -121,7 +129,7 @@ func (s *Service) beginCapture(cc *connectionContext, req *http.Request, kind, p
 	if err != nil {
 		return nil
 	}
-	c := &captureRecord{service: s, sink: sink, policy: p, limit: int64(limit), record: capture.Record{ID: rid, SessionID: p.SessionID, ParentID: parent, Kind: kind, Stage: stage, Sequence: sequence, Generation: s.config.Generation, RuleVersion: s.snapshot.Version(), Identity: identity, Started: time.Now(), RuleIDs: []string{}, Snapshots: map[string]capture.Snapshot{}}}
+	c := &captureRecord{service: s, sink: sink, policy: p, limit: int64(limit), record: capture.Record{ID: rid, SessionID: p.SessionID, ParentID: parent, Kind: kind, Stage: stage, Sequence: sequence, Generation: generation, RuleVersion: s.snapshot.Version(), Identity: identity, Started: time.Now(), RuleIDs: []string{}, Snapshots: map[string]capture.Snapshot{}}}
 	if kind == "http" {
 		c.record.Snapshots["request_original"] = requestSnapshot(req)
 	}
@@ -203,6 +211,7 @@ func (c *captureRecord) body(name string, body io.ReadCloser, trailers func() ht
 
 type captureBody struct {
 	io.ReadCloser
+	mu       sync.Mutex
 	record   *captureRecord
 	name     string
 	trailers func() http.Header
@@ -226,35 +235,40 @@ func (b *captureBody) Read(p []byte) (int, error) {
 	return n, err
 }
 func (b *captureBody) append(p []byte) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	offset := b.bytes
+	b.bytes += int64(len(p))
+	remaining := b.record.limit + 1 - offset
+	if remaining <= 0 {
+		return
+	}
+	if int64(len(p)) > remaining {
+		p = p[:int(remaining)]
+	}
 	for len(p) > 0 {
 		n := len(p)
 		if n > capture.MaxChunk {
 			n = capture.MaxChunk
 		}
-		// Send only the bounded prefix and one overflow byte to mark truncation.
-		remaining := b.record.limit + 1 - b.bytes
-		if remaining <= 0 {
-			return
-		}
-		if int64(n) > remaining {
-			n = int(remaining)
-		}
-		if !b.cutoff && !b.record.offer(capture.Event{Type: "body", Snapshot: b.name, Data: p[:n]}) {
+		if !b.cutoff && !b.record.offer(capture.Event{Type: "body", Snapshot: b.name, Offset: offset, Data: p[:n]}) {
 			b.cutoff = true
 		}
-		b.bytes += int64(n)
+		offset += int64(n)
 		p = p[n:]
 	}
 }
 func (b *captureBody) finish(state string) {
 	b.once.Do(func() {
+		b.mu.Lock()
+		defer b.mu.Unlock()
 		if b.cutoff {
 			state = "cutoff"
 		}
 		if b.bytes > b.record.limit {
 			state = "truncated"
 		}
-		b.record.offer(capture.Event{Type: "finish", Snapshot: b.name, State: state, Trailers: b.trailers()})
+		b.record.offer(capture.Event{Type: "finish", Snapshot: b.name, State: state, BodySize: b.bytes, Trailers: b.trailers()})
 	})
 }
 func (b *captureBody) Close() error { err := b.ReadCloser.Close(); b.finish("cutoff"); return err }
@@ -308,4 +322,19 @@ func (r *captureReader) Read(p []byte) (int, error) {
 }
 func captureFinish(name string) capture.Event {
 	return capture.Event{Type: "finish", Snapshot: name, State: "complete"}
+}
+
+type captureUpgradeWriter struct {
+	http.ResponseWriter
+	record *captureRecord
+}
+
+func (w captureUpgradeWriter) WriteHeader(status int) {
+	w.record.response("response_actual", &http.Response{StatusCode: status, Header: w.Header()})
+	w.record.offer(captureFinish("response_actual"))
+	w.record.complete("upgraded", "", 0)
+	w.ResponseWriter.WriteHeader(status)
+}
+func (w captureUpgradeWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return (flushingWriter{w.ResponseWriter}).Hijack()
 }

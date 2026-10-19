@@ -87,7 +87,7 @@ func transformCode(err error) string {
 }
 
 func (s *Service) transformRequest(req *http.Request, wire net.Conn, upgrade bool) (domain.Result, error) {
-	if cap, _ := req.Context().Value(captureKey{}).(*captureRecord); cap != nil && !s.snapshot.Authorized(req.URL.Hostname()) {
+	if cc, _ := req.Context().Value(captureConnectionKey{}).(*connectionContext); cc != nil && cc.identity != nil && !s.snapshot.Authorized(req.URL.Hostname()) && cc.authorizedRequest(req, req.URL.Scheme) {
 		return domain.Result{Request: req, Outcome: "unchanged", RuleVersion: s.snapshot.Version()}, nil
 	}
 	ctx, cancel := context.WithTimeout(req.Context(), s.transformTimeout)

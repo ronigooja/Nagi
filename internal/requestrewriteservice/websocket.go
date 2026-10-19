@@ -53,10 +53,7 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 		return
 	}
 	outgoing := result.Request.WithContext(req.Context())
-	if cap != nil {
-		cap.requestActual(outgoing, result.RuleIDs, result.Outcome)
-		outgoing.Body = cap.body("request_actual", outgoing.Body, func() http.Header { return outgoing.Trailer })
-	}
+
 	// Dial creates its own empty handshake body; release any buffered transaction.
 	if outgoing.Body != nil {
 		_ = outgoing.Body.Close()
@@ -72,6 +69,10 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 	var rejected *http.Response
 	var originalHandshake *http.Response
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: controlledRoundTripper(func(r *http.Request) (*http.Response, error) {
+		if cap != nil {
+			cap.requestActual(r, result.RuleIDs, result.Outcome)
+			r.Body = cap.body("request_actual", r.Body, func() http.Header { return r.Trailer })
+		}
 		response, err := cc.roundTrip(r)
 		if err != nil {
 			return nil, err
@@ -132,11 +133,7 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 		writeOriginResponse(w, req, fixedResponse(req, transformCode(err)))
 		return
 	}
-	if cap != nil {
-		cap.response("response_actual", response)
-		cap.offer(captureFinish("response_actual"))
-		cap.complete("upgraded", "", 0)
-	}
+
 	stripHeaders(response.Header)
 	for k, values := range response.Header {
 		switch strings.ToLower(k) {
@@ -149,7 +146,11 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 	if p := upstream.Subprotocol(); p != "" {
 		protocols = append(protocols, p)
 	}
-	downstream, err := websocket.Accept(w, req, &websocket.AcceptOptions{Subprotocols: protocols, CompressionMode: websocket.CompressionNoContextTakeover, InsecureSkipVerify: true})
+	var upgradeWriter http.ResponseWriter = w
+	if cap != nil {
+		upgradeWriter = captureUpgradeWriter{ResponseWriter: w, record: cap}
+	}
+	downstream, err := websocket.Accept(upgradeWriter, req, &websocket.AcceptOptions{Subprotocols: protocols, CompressionMode: websocket.CompressionNoContextTakeover, InsecureSkipVerify: true})
 	if err != nil {
 		return
 	}

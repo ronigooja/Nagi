@@ -331,7 +331,9 @@ func (s *Service) heartbeat() {
 func (s *Service) sendHeartbeat(sequence uint64) {
 	ctx, cancel := context.WithTimeout(s.ctx, time.Second)
 	defer cancel()
+	s.mu.Lock()
 	c := s.config
+	s.mu.Unlock()
 	raw, e := (&net.Dialer{}).DialContext(ctx, "tcp4", c.ReinjectionAddr)
 	if e != nil {
 		return

@@ -97,13 +97,13 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		if req.Method == http.MethodConnect || req.ProtoMajor > 1 && req.Header.Get("Upgrade") != "" {
 			return req, fixedResponse(req, "rewrite_invalid")
 		}
-		stripHeaders(req.Header)
 		cap := s.beginCapture(cc, req, "http", "", "", 0)
 		req = req.WithContext(context.WithValue(req.Context(), captureKey{}, cap))
 		state := &exchangeState{original: req.Clone(req.Context()), capture: cap}
 		if cap != nil {
 			req.Body = cap.body("request_original", req.Body, func() http.Header { return req.Trailer })
 		}
+		stripHeaders(req.Header)
 		pctx.UserData = state
 		result, e := s.transformRequest(req, wire, req.Header.Get("Upgrade") != "")
 		if e != nil {
@@ -150,7 +150,8 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		}
 		if state.capture != nil {
 			state.capture.response("response_original", resp)
-			resp.Body = state.capture.body("response_original", resp.Body, func() http.Header { return resp.Trailer })
+			originalResponse := resp
+			resp.Body = state.capture.body("response_original", resp.Body, func() http.Header { return originalResponse.Trailer })
 		}
 		originalHandshake := *resp
 		originalHandshake.Header = resp.Header.Clone()
@@ -183,6 +184,7 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		return resp
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		req = req.WithContext(context.WithValue(req.Context(), captureConnectionKey{}, cc))
 		if req.Method == http.MethodConnect {
 			http.Error(w, "rewrite_invalid", 502)
 			return

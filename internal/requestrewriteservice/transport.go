@@ -226,7 +226,9 @@ func (c *connectionContext) dial(ctx context.Context, target string, probe bool)
 		return nil, errLimit
 	}
 	s := c.service
+	s.mu.Lock()
 	cfg := s.config
+	s.mu.Unlock()
 	deadline := time.Now().Add(5 * time.Second)
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
