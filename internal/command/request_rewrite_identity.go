@@ -45,13 +45,66 @@ var rewriteProcessIdentity = func(pid int) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	data, e := exec.CommandContext(ctx, "/bin/ps", "-p", strconv.Itoa(pid), "-o", "lstart=", "-o", "uid=").Output()
-	if e != nil || len(data) > 256 {
-		return "", rewriteFailure("rewrite_auth")
+	return rewritePSProcessIdentity(ctx, pid, func(pid int) error {
+		return syscall.Kill(pid, 0)
+	}, func(ctx context.Context, pid int) ([]byte, error) {
+		cmd := exec.CommandContext(ctx, "/bin/ps", "-p", strconv.Itoa(pid), "-o", "lstart=", "-o", "uid=")
+		cmd.Env = append(os.Environ(), "LC_ALL=C")
+		return cmd.Output()
+	})
+}
+
+// A failed ps lookup alone cannot distinguish an exited process from a lookup
+// failure. Signal zero probes existence without sending a signal; only ESRCH
+// proves disappearance. Neither this probe nor the recorded identity authorizes
+// signaling a PID, which could have been reused.
+func rewritePSProcessIdentity(ctx context.Context, pid int, probe func(int) error, read func(context.Context, int) ([]byte, error)) (string, error) {
+	unknown := func() (string, error) { return "", rewriteFailure("rewrite_auth") }
+	if pid <= 0 || ctx.Err() != nil {
+		return unknown()
+	}
+	check := func() error {
+		err := probe(pid)
+		if ctx.Err() != nil {
+			return rewriteFailure("rewrite_auth")
+		}
+		if errors.Is(err, syscall.ESRCH) {
+			return os.ErrNotExist
+		}
+		return err
+	}
+	if err := check(); err != nil && !errors.Is(err, syscall.EPERM) {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", os.ErrNotExist
+		}
+		return unknown()
+	}
+	// EPERM proves no disappearance: an ordinary UID may still read ps
+	// identity for the privileged backend's root-owned engine.
+	data, err := read(ctx, pid)
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return unknown()
+	}
+	if err != nil {
+		// The process may exit between the existence probe and ps. Recheck
+		// only after a failed lookup, never infer death from ps's exit code.
+		if errors.Is(check(), os.ErrNotExist) {
+			return "", os.ErrNotExist
+		}
+		return unknown()
+	}
+	if len(data) > 256 {
+		return unknown()
 	}
 	fields := strings.Fields(string(data))
-	if len(fields) < 6 {
-		return "", rewriteFailure("rewrite_auth")
+	if len(fields) != 6 {
+		return unknown()
+	}
+	if _, err := time.Parse("Mon Jan 2 15:04:05 2006", strings.Join(fields[:5], " ")); err != nil {
+		return unknown()
+	}
+	if _, err := strconv.ParseUint(fields[5], 10, 32); err != nil {
+		return unknown()
 	}
 	return "darwin:" + strings.Join(fields, " "), nil
 }
