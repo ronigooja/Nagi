@@ -54,6 +54,7 @@ import AppKit
     }
     private let groupIcons = GroupIconLoader()
     private lazy var connectionsWindow = ConnectionsWindowController(model: model.connections)
+    private lazy var requestRewriteWindow = RequestRewriteWindowController(model: model.requestRewrite)
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var pulse: Timer?
@@ -343,6 +344,15 @@ import AppKit
             item.representedObject = option.rawValue
         }
         add("Connections…", action: #selector(showConnections))
+        let rewriteMenu = NSMenu()
+        let rewrite = model.requestRewrite
+        disabled(rewrite.stale ? "State unavailable or stale" : (rewrite.status?.menuTitle ?? "Status unavailable"), to: rewriteMenu)
+        let rewriteEnabled = rewrite.status?.intent == true
+        add(rewriteEnabled ? "Disable Request Rewrite" : "Enable Request Rewrite…",
+            action: #selector(toggleRequestRewrite), checked: rewriteEnabled,
+            enabled: rewriteEnabled ? rewrite.canOperate : rewrite.canEnable, to: rewriteMenu)
+        add("Request Rewrite…", action: #selector(showRequestRewrite), to: rewriteMenu)
+        addSubmenu("Request Rewrite", rewriteMenu)
         addSubmenu("Display", displayMenu)
         let startupMenu = NSMenu()
         add("Open menu bar app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
@@ -789,6 +799,20 @@ import AppKit
         if alert.runModal() == .alertSecondButtonReturn { updateNagi() }
     }
     @objc private func showConnections() { connectionsWindow.present() }
+    @objc private func showRequestRewrite() { requestRewriteWindow.present() }
+    @objc private func toggleRequestRewrite() {
+        let rewrite = model.requestRewrite
+        let enabled = rewrite.status?.intent == true
+        guard enabled ? rewrite.canOperate : rewrite.canEnable else { return }
+        if !enabled {
+            let alert = NSAlert()
+            alert.messageText = "Enable Request Rewrite?"
+            alert.informativeText = "Intercept only explicitly authorized domains using this profile's rules and trusted local CA. TUN must actually be running. Existing connections may be interrupted."
+            alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Enable Rewrite")
+            guard alert.runModal() == .alertSecondButtonReturn else { return }
+        }
+        Task { _ = await rewrite.perform([enabled ? "disable" : "enable"]) }
+    }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func updateNagi() {
         guard !model.busy else { return }

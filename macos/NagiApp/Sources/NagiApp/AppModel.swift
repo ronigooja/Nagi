@@ -144,6 +144,19 @@ enum EngineState { case starting, running, stopped, unavailable }
     var onTrafficChange: (() -> Void)?
     private let cli: NagiCLIClient
     let connections: ConnectionsModel
+    lazy var requestRewrite: RequestRewriteModel = {
+        let rewrite = RequestRewriteModel(cli: cli)
+        rewrite.submit = { [weak self] arguments, input in
+            guard let self else { throw CancellationError() }
+            return try await self.executeRewrite(arguments, input: input)
+        }
+        rewrite.export = { [weak self] arguments in
+            guard let self else { throw CancellationError() }
+            return try await self.exportRewrite(arguments)
+        }
+        rewrite.onStatusChange = { [weak self] in self?.notify() }
+        return rewrite
+    }()
     private let watchDelay: (Int, Bool) -> UInt64
     private var refreshTask: Task<Void, Never>?
     private struct RefreshScope: OptionSet {
@@ -186,15 +199,18 @@ enum EngineState { case starting, running, stopped, unavailable }
     private var settingsGeneration = 0
     private var lastSample = Date.distantPast
     private var streamStartedAt = Date.distantPast
-    private var sleeping = false { didSet { connections.setSuspended(sleeping || quitting) } }
+    private var sleeping = false { didSet { connections.setSuspended(sleeping || quitting); requestRewrite.setSuspended(sleeping || quitting) } }
     private var quitting = false {
         didSet {
             connections.setSuspended(sleeping || quitting)
+            requestRewrite.setSuspended(sleeping || quitting)
             connections.setOperationBlocked(busy || quitting)
+            requestRewrite.setBlocked(busy || quitting)
         }
     }
     private(set) var busy = false { didSet {
         connections.setOperationBlocked(busy || quitting)
+        requestRewrite.setBlocked(busy || quitting)
         notify()
         if !busy, !pendingRefresh.isEmpty, !sleeping, !quitting {
             Task { _ = await requestRefresh([], force: false) }
@@ -347,6 +363,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         var scope = scope
         var subscriptionsRefreshed = true
         if scope.contains(.status) {
+            requestRewrite.refreshStatus()
             do {
                 let value = try await runCommand(["status"])
                 guard valid() else { return false }
@@ -831,11 +848,29 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
     func clearSubscriptionKey(_ name: String) { perform(["subscription", "key", name, "clear"]) }
     func setSubscriptionKey(_ name: String, file: String) { perform(["subscription", "key", name, file]) }
-    private func waitForConnectionsOperation() async {
+    func executeRewrite(_ arguments: [String], input: Data?) async throws -> JSONValue {
+        guard !busy && !quitting else { throw RewriteFormError.invalid("Another operation is in progress.") }
+        busy = true; applyingSetting = true; settingsGeneration += 1
+        defer { settingsGeneration += 1; applyingSetting = false; busy = false }
+        await waitForConnectionsOperation(skipRewriteOperation: true)
+        return try await cli.rewrite(arguments, input: input)
+    }
+    func exportRewrite(_ arguments: [String]) async throws -> Data {
+        guard !busy && !quitting else { throw RewriteFormError.invalid("Another operation is in progress.") }
+        busy = true
+        defer { busy = false }
+        await waitForConnectionsOperation(skipRewriteOperation: true)
+        return try await cli.rewriteExport(arguments)
+    }
+    private func waitForConnectionsOperation(skipRewriteOperation: Bool = false) async {
         // busy is acquired synchronously before reaching this wait, so new
         // close requests cannot slip in while an earlier close drains.
         while connections.operationInProgress { try? await Task.sleep(nanoseconds: 20_000_000) }
         await connections.waitForCancelledRead()
+        if !skipRewriteOperation {
+            while requestRewrite.operationInProgress { try? await Task.sleep(nanoseconds: 20_000_000) }
+        }
+        await requestRewrite.waitForCancelledRead()
     }
     func quit(completion: @escaping (Bool) -> Void) {
         guard !quitting else { return }
@@ -843,8 +878,9 @@ enum EngineState { case starting, running, stopped, unavailable }
         cancelRefresh()
         quitErrorMessage = nil
         Task {
-            while busy || connections.operationInProgress { try? await Task.sleep(nanoseconds: 100_000_000) }
+            while busy || connections.operationInProgress || requestRewrite.operationInProgress { try? await Task.sleep(nanoseconds: 100_000_000) }
             await connections.waitForCancelledRead()
+            await requestRewrite.waitForCancelledRead()
             busy = true
             do {
                 _ = try await runCommand(["quit"])

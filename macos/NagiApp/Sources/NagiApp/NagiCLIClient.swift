@@ -39,6 +39,70 @@ struct NagiCLIClient {
         } onCancel: { holder.stop() }
     }
 
+    /// Rewrite values travel only over stdin; malformed responses never echo stderr.
+    func rewrite(_ arguments: [String], input: Data? = nil) async throws -> JSONValue {
+        let bytes = try await rewriteTransport(["--json", "request-rewrite"] + arguments, input: input)
+        guard let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: bytes) else {
+            throw CLIError.invalidJSON("The request rewrite CLI returned an invalid response.")
+        }
+        guard envelope.ok, let data = envelope.data else {
+            throw CLIError.command(envelope.error?.code ?? "request_rewrite_error",
+                                   envelope.error?.message ?? "Request rewrite operation failed. Refresh status before retrying.")
+        }
+        return data
+    }
+
+    /// Explicit exports deliberately omit --json. Never used for ordinary refresh.
+    func rewriteExport(_ arguments: [String]) async throws -> Data {
+        try await rewriteTransport(["request-rewrite"] + arguments, input: nil)
+    }
+
+    private func rewriteTransport(_ arguments: [String], input: Data?) async throws -> Data {
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw CLIError.missingCLI(executable.path) }
+        guard (input?.count ?? 0) <= 12 * 1_048_576 else { throw CLIError.outputTooLarge(12 * 1_048_576) }
+        let holder = ProcessHolder()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let process = Process()
+                        process.executableURL = executable; process.arguments = arguments
+                        let stdout = Pipe(), stderr = Pipe(), stdin = Pipe()
+                        process.standardOutput = stdout; process.standardError = stderr; process.standardInput = stdin
+                        let out = try CommandOutputReader(stdout.fileHandleForReading, limit: 16 * 1_048_576)
+                        let err = try CommandOutputReader(stderr.fileHandleForReading)
+                        let writer = try CommandInputWriter(stdin.fileHandleForWriting, bytes: input ?? Data())
+                        defer {
+                            writer.finish(); out.finish(); err.finish()
+                            stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
+                            stdin.fileHandleForReading.closeFile()
+                            process.terminationHandler = nil
+                        }
+                        process.terminationHandler = { _ in holder.didExit() }
+                        try holder.start(process)
+                        stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
+                        stdin.fileHandleForReading.closeFile()
+                        holder.waitForExit(timeout: timeout)
+                        writer.finish(); out.finish(); err.finish()
+                        if holder.timedOut { throw CLIError.timeout }
+                        if holder.cancelled { throw CancellationError() }
+                        let (output, overflow) = out.snapshot(), (error, errorOverflow) = err.snapshot()
+                        guard !overflow && !errorOverflow else { throw CLIError.outputTooLarge(16 * 1_048_576) }
+                        if process.terminationStatus != 0 {
+                            // Only the CLI's structured sanitized message may reach ordinary UI.
+                            if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: error), let detail = envelope.error {
+                                throw CLIError.command(detail.code, detail.message)
+                            }
+                            throw CLIError.command("request_rewrite_error", "Request rewrite operation failed. Refresh status before retrying.")
+                        }
+                        guard !writer.failed else { throw CLIError.launch("Could not submit the complete request rewrite input.") }
+                        continuation.resume(returning: output)
+                    } catch { continuation.resume(throwing: error) }
+                }
+            }
+        } onCancel: { holder.stop() }
+    }
+
     func trafficStream(_ sample: @escaping (JSONValue) -> Void) throws -> TrafficStream {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw CLIError.missingCLI(executable.path)
@@ -442,4 +506,51 @@ indirect enum JSONValue: Decodable {
     var string: String? { if case .stringValue(let value) = self { return value }; return nil }
     var bool: Bool? { if case .boolValue(let value) = self { return value }; return nil }
     var int64: Int64? { if case .numberValue(let value) = self, value.isFinite, value >= 0, value < Double(Int64.max) { return Int64(value) }; return nil }
+}
+
+/// Nonblocking writes keep a child that refuses stdin from trapping a worker.
+/// F_SETNOSIGPIPE prevents an early child exit from terminating the App.
+private final class CommandInputWriter: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "nagi.cli.input")
+    private let handle: FileHandle
+    private let source: DispatchSourceWrite
+    private var bytes: Data
+    private var offset = 0
+    private var closed = false
+    private var writeFailed = false
+    private let closedSignal = DispatchGroup()
+    var failed: Bool { queue.sync { writeFailed } }
+    init(_ handle: FileHandle, bytes: Data) throws {
+        self.handle = handle; self.bytes = bytes
+        let fd = handle.fileDescriptor
+        let flags = Darwin.fcntl(fd, F_GETFL)
+        guard flags >= 0, Darwin.fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0,
+              Darwin.fcntl(fd, F_SETNOSIGPIPE, 1) >= 0 else {
+            throw CLIError.launch("Could not prepare CLI input pipe.")
+        }
+        source = DispatchSource.makeWriteSource(fileDescriptor: fd, queue: queue)
+        source.setEventHandler { [weak self] in self?.writeAvailable() }
+        closedSignal.enter()
+        source.setCancelHandler { [closedSignal] in handle.closeFile(); closedSignal.leave() }
+        source.resume()
+    }
+    private func writeAvailable() {
+        guard !closed else { return }
+        var budget = 262_144
+        while offset < bytes.count && budget > 0 {
+            let count = bytes.withUnsafeBytes { raw in
+                Darwin.write(handle.fileDescriptor, raw.baseAddress!.advanced(by: offset), min(bytes.count - offset, budget))
+            }
+            if count > 0 { offset += count; budget -= count }
+            else if count < 0 && errno == EINTR { continue }
+            else if count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) { return }
+            else { writeFailed = true; close(); return }
+        }
+        if offset == bytes.count { close() }
+    }
+    private func close() { closed = true; bytes.removeAll(); source.cancel() }
+    func finish() {
+        queue.sync { if !closed { if offset < bytes.count { writeFailed = true }; close() } }
+        closedSignal.wait()
+    }
 }
