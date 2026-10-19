@@ -139,6 +139,11 @@ func rewriteStatusFor(ctx context.Context, paths nagiruntime.Paths, name string)
 		out.LastError = &code
 		return out, nil
 	}
+	if state.Version != control.RewriteProtocolVersion {
+		code := "rewrite_capability_missing"
+		out.LastError = &code
+		return out, nil
+	}
 	out.TUNRunning = &state.TUNRunning
 	out.ProtocolVersion = &state.Version
 	out.Generation = state.Generation
@@ -352,6 +357,9 @@ func rewritePrerequisites(ctx context.Context, paths nagiruntime.Paths, snapshot
 	var current rewriteEngineStatus
 	if client.Get(ctx, "/request-rewrite/status", &current) != nil {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_unavailable")
+	}
+	if current.Version != control.RewriteProtocolVersion {
+		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_capability_missing")
 	}
 	if !current.TUNRunning {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_tun_required")

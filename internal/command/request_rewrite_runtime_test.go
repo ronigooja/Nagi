@@ -595,3 +595,26 @@ func TestRewriteEnableCLIReportsPrerequisiteRecovery(t *testing.T) {
 		})
 	}
 }
+
+func TestRewriteCoordinatorIdleSkipsActivationPrerequisites(t *testing.T) {
+	paths, engine, children := rewriteCoordinatorFixture(t)
+	engine.active.TUNRunning = false
+	rewriteTrustAssessment = func([]byte) string { return "untrusted" }
+	d := rewrite.Empty().Document()
+	d.Enabled = true
+	idle, err := rewrite.Compile(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rewriteActivate(context.Background(), paths, "work", idle); err != nil {
+		t.Fatal(err)
+	}
+	if len(*children) != 0 || engine.candidate != nil || engine.active.BranchEnabled {
+		t.Fatal("idle document activated a rewrite session")
+	}
+	for _, call := range engine.calls {
+		if strings.Contains(call, "capabilities") || strings.Contains(call, "session") || strings.Contains(call, "probe") {
+			t.Fatalf("idle activation required engine capabilities: %s", call)
+		}
+	}
+}
