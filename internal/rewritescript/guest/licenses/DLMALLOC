@@ -1,0 +1,8 @@
+This is a version (aka dlmalloc) of malloc/free/realloc written by
+Doug Lea and released to the public domain, as explained at
+http://creativecommons.org/publicdomain/zero/1.0/
+
+Version 2.8.6 Wed Aug 29 06:57:58 2012 Doug Lea
+
+Source notice: wasi-libc 3f7eb4c7d6ede4dde3c4bffa6ed14e8d656fe93f,
+dlmalloc/src/malloc.c, lines 1–8.
