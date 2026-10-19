@@ -11,30 +11,30 @@ import AppKit
 enum RewriteLabels {
     static func stage(_ value: String) -> String {
         switch value {
-        case "request": return "Request"
-        case "response": return "Response"
-        case "exchange": return "Request & Response"
-        case "websocket_client": return "WebSocket · Client → Server"
-        case "websocket_server": return "WebSocket · Server → Client"
+        case "request": return L10n.text("app.ui.request")
+        case "response": return L10n.text("app.ui.response")
+        case "exchange": return L10n.text("app.ui.request_response")
+        case "websocket_client": return L10n.text("app.ui.websocket_client_server")
+        case "websocket_server": return L10n.text("app.ui.websocket_server_client")
         default: return value
         }
     }
     static func operation(_ value: String) -> String {
         switch value {
-        case "header_set": return "Set header"
-        case "header_append": return "Append header"
-        case "header_delete": return "Delete header"
-        case "url_set": return "Change URL"
-        case "method_set": return "Change method"
-        case "status_set": return "Change status"
-        case "json_set": return "Set JSON value"
-        case "json_delete": return "Delete JSON value"
-        case "body_set": return "Replace body"
-        case "text_replace": return "Replace text"
-        case "regex_replace": return "Replace regular expression"
-        case "trailer_set": return "Set trailer"
-        case "trailer_delete": return "Delete trailer"
-        case "script": return "Run script"
+        case "header_set": return L10n.text("app.ui.set_header")
+        case "header_append": return L10n.text("app.ui.append_header")
+        case "header_delete": return L10n.text("app.ui.delete_header")
+        case "url_set": return L10n.text("app.ui.change_url")
+        case "method_set": return L10n.text("app.ui.change_method")
+        case "status_set": return L10n.text("app.ui.change_status")
+        case "json_set": return L10n.text("app.ui.set_json_value")
+        case "json_delete": return L10n.text("app.ui.delete_json_value")
+        case "body_set": return L10n.text("app.ui.replace_body")
+        case "text_replace": return L10n.text("app.ui.replace_text")
+        case "regex_replace": return L10n.text("app.ui.replace_regular_expression")
+        case "trailer_set": return L10n.text("app.ui.set_trailer")
+        case "trailer_delete": return L10n.text("app.ui.delete_trailer")
+        case "script": return L10n.text("app.ui.run_script")
         default: return value
         }
     }
@@ -49,7 +49,7 @@ private struct RewriteField: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(verbatim: label).font(.caption).foregroundColor(.secondary)
             TextField(prompt, text: $text).accessibilityLabel(label)
         }
     }
@@ -60,8 +60,8 @@ private struct RewriteHelp: View {
     @State private var showing = false
     var body: some View {
         Button { showing.toggle() } label: { Image(systemName: "questionmark.circle") }
-            .accessibilityLabel("Help")
-            .popover(isPresented: $showing) { Text(text).padding().frame(width: 360, alignment: .leading) }
+            .accessibilityLabel(L10n.text("app.ui.help"))
+            .popover(isPresented: $showing) { Text(verbatim: text).padding().frame(width: 360, alignment: .leading) }
     }
 }
 
@@ -80,44 +80,44 @@ private struct RewriteHelp: View {
         VStack(alignment: .leading, spacing: 12) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    GroupBox("Rule") {
+                    GroupBox(L10n.text("app.ui.rule")) {
                         VStack(alignment: .leading, spacing: 10) {
-                            RewriteField("Rule name", text: $draft.id).disabled(originalID != nil)
+                            RewriteField(L10n.text("app.ui.rule_name"), text: $draft.id).disabled(originalID != nil)
                             HStack {
-                                Picker("Apply to", selection: $draft.stage) { ForEach(RewriteRuleDraft.stages, id: \.self) { Text(RewriteLabels.stage($0)).tag($0) } }
-                                Toggle("Enabled", isOn: $draft.enabled)
+                                Picker(L10n.text("app.ui.apply_to"), selection: $draft.stage) { ForEach(RewriteRuleDraft.stages, id: \.self) { Text(verbatim: RewriteLabels.stage($0)).tag($0) } }
+                                Toggle(L10n.text("app.ui.enabled"), isOn: $draft.enabled)
                             }
                         }.padding(6)
                     }
                     matchEditor
-                    GroupBox("Operations") {
+                    GroupBox(L10n.text("app.ui.operations")) {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(draft.operations.indices, id: \.self) { index in
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack {
-                                        Text("Operation \(index + 1)").bold(); Spacer()
+                                        Text(verbatim: L10n.format("app.ui.operation", String(describing: index + 1))).bold(); Spacer()
                                         Button { draft.operations.swapAt(index, index - 1) } label: { Image(systemName: "arrow.up") }
-                                            .disabled(index == 0).help("Move operation up").accessibilityLabel("Move operation up")
+                                            .disabled(index == 0).help(L10n.text("app.ui.move_operation_up")).accessibilityLabel(L10n.text("app.ui.move_operation_up"))
                                         Button { draft.operations.swapAt(index, index + 1) } label: { Image(systemName: "arrow.down") }
-                                            .disabled(index + 1 == draft.operations.count).help("Move operation down").accessibilityLabel("Move operation down")
-                                        Button("Remove") { draft.operations.remove(at: index) }
+                                            .disabled(index + 1 == draft.operations.count).help(L10n.text("app.ui.move_operation_down")).accessibilityLabel(L10n.text("app.ui.move_operation_down"))
+                                        Button(L10n.text("app.ui.remove")) { draft.operations.remove(at: index) }
                                     }
                                     RewriteOperationEditor(draft: $draft.operations[index], stage: draft.stage)
                                 }.padding(8).background(Color.secondary.opacity(0.07)).cornerRadius(6)
                             }
-                            Button("Add Operation") { draft.operations.append(RewriteOperationDraft()) }
+                            Button(L10n.text("app.ui.add_operation")) { draft.operations.append(RewriteOperationDraft()) }
                         }.padding(6)
                     }
                     if draft.stage == "request" || !draft.consent.isEmpty { consentEditor }
                     optionsEditor
                 }
             }
-            if let error = localError ?? presentation.model.error { Text(error).foregroundColor(.red).fixedSize(horizontal: false, vertical: true) }
+            if let error = localError ?? presentation.model.error { Text(verbatim: error).foregroundColor(.red).fixedSize(horizontal: false, vertical: true) }
             HStack {
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                RewriteHelp(text: "All match conditions apply to the original message. A wildcard domain excludes its apex. Operations run in list order. Changing the URL scheme, host or port requires an allowed destination; path and query edits do not. Cancel discards the draft.")
+                Button(L10n.text("app.ui.cancel")) { dismiss() }.keyboardShortcut(.cancelAction)
+                RewriteHelp(text: L10n.text("app.ui.all_match_conditions_apply_to_the_original"))
                 Spacer()
-                Button("Save Rule") { submit() }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
+                Button(L10n.text("app.ui.save_rule")) { submit() }.keyboardShortcut(.defaultAction).help(L10n.format("app.ui.save_to_profile", String(describing: profile)))
             }
         }.padding(22).frame(width: size.width, height: size.height)
             .nativeFormControls()
@@ -134,57 +134,57 @@ private struct RewriteHelp: View {
         draft.stage == "request" && draft.operations.contains { $0.kind == "url_set" && ["scheme", "host", "port"].contains($0.component) }
     }
     private var matchEditor: some View {
-        GroupBox("Match Conditions") {
+        GroupBox(L10n.text("app.ui.match_conditions")) {
             VStack(alignment: .leading, spacing: 8) {
-                RewriteField("Domain", text: $draft.domain, prompt: "api.service.example or *.service.example")
+                RewriteField(L10n.text("app.ui.domain"), text: $draft.domain, prompt: L10n.text("app.rewrite.domain_example"))
                 HStack(alignment: .top) {
-                    RewriteField("Methods", text: $draft.methods, prompt: "Any").frame(width: 160)
-                    RewriteField("Path prefix", text: $draft.path, prompt: "Any")
+                    RewriteField(L10n.text("app.ui.methods"), text: $draft.methods, prompt: L10n.text("app.ui.any")).frame(width: 160)
+                    RewriteField(L10n.text("app.ui.path_prefix"), text: $draft.path, prompt: L10n.text("app.ui.any"))
                 }
-                DisclosureGroup("Additional Conditions", isExpanded: $showingConditions) {
+                DisclosureGroup(L10n.text("app.ui.additional_conditions"), isExpanded: $showingConditions) {
                     VStack(alignment: .leading, spacing: 10) {
-                        RewriteField("Path expression", text: $draft.pathRegex, prompt: "Any").help("Go/RE2 expression over the escaped path.")
-                        RewritePredicateEditor(label: "Query parameters", text: $draft.query)
-                        RewritePredicateEditor(label: "Request headers", text: $draft.headers)
+                        RewriteField(L10n.text("app.ui.path_expression"), text: $draft.pathRegex, prompt: L10n.text("app.ui.any")).help(L10n.text("app.ui.go_re2_expression_over_the_escaped_path"))
+                        RewritePredicateEditor(label: L10n.text("app.ui.query_parameters"), text: $draft.query)
+                        RewritePredicateEditor(label: L10n.text("app.ui.request_headers"), text: $draft.headers)
                         if draft.stage != "request" {
-                            RewriteField("Status codes", text: $draft.statusCodes, prompt: "Any")
-                            RewriteField("Content types", text: $draft.contentTypes, prompt: "Any")
-                            RewritePredicateEditor(label: "Response / handshake headers", text: $draft.responseHeaders)
+                            RewriteField(L10n.text("app.ui.status_codes"), text: $draft.statusCodes, prompt: L10n.text("app.ui.any"))
+                            RewriteField(L10n.text("app.ui.content_types"), text: $draft.contentTypes, prompt: L10n.text("app.ui.any"))
+                            RewritePredicateEditor(label: L10n.text("app.ui.response_handshake_headers"), text: $draft.responseHeaders)
                         }
-                        if draft.stage.hasPrefix("websocket_") { RewriteField("Message types", text: $draft.messageTypes, prompt: "text, binary") }
+                        if draft.stage.hasPrefix("websocket_") { RewriteField(L10n.text("app.ui.message_types"), text: $draft.messageTypes, prompt: "text, binary") }
                     }.padding(.top, 8)
                 }
             }.padding(6)
         }
     }
     private var optionsEditor: some View {
-        DisclosureGroup("Advanced Settings", isExpanded: $showingOptions) {
+        DisclosureGroup(L10n.text("app.ui.advanced_settings"), isExpanded: $showingOptions) {
             VStack(alignment: .leading, spacing: 10) {
-                Picker("Partial content", selection: $draft.rangeMode) {
-                    Text("Preserve fragment length").tag("fragment")
-                    Text("Use full representation").tag("full")
+                Picker(L10n.text("app.ui.partial_content"), selection: $draft.rangeMode) {
+                    Text(verbatim: L10n.text("app.ui.preserve_fragment_length")).tag("fragment")
+                    Text(verbatim: L10n.text("app.ui.use_full_representation")).tag("full")
                 }
-                Picker("If an operation fails", selection: $draft.onError) {
-                    Text("Block").tag("block")
-                    Text("Forward original").tag("forward_original")
-                }.help("Forward original discards uncommitted changes for this stage.")
+                Picker(L10n.text("app.ui.if_an_operation_fails"), selection: $draft.onError) {
+                    Text(verbatim: L10n.text("app.ui.block")).tag("block")
+                    Text(verbatim: L10n.text("app.ui.forward_original")).tag("forward_original")
+                }.help(L10n.text("app.ui.forward_original_discards_uncommitted_changes_for_this"))
             }.padding(.top, 8)
         }.padding(6)
     }
     private var consentEditor: some View {
-        DisclosureGroup("Allowed Destinations", isExpanded: $showingDestinations) {
+        DisclosureGroup(L10n.text("app.ui.allowed_destinations"), isExpanded: $showingDestinations) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(draft.consent.indices, id: \.self) { index in
                     VStack(alignment: .leading) {
-                        HStack { Text("Destination \(index + 1)").bold(); Spacer(); Button("Remove") { draft.consent.remove(at: index) } }
-                        RewriteField("Domain", text: $draft.consent[index].domain)
+                        HStack { Text(verbatim: L10n.format("app.ui.destination", String(describing: index + 1))).bold(); Spacer(); Button(L10n.text("app.ui.remove")) { draft.consent.remove(at: index) } }
+                        RewriteField(L10n.text("app.ui.domain"), text: $draft.consent[index].domain)
                         HStack {
-                            RewriteField("Schemes", text: $draft.consent[index].schemes, prompt: "https")
-                            RewriteField("Ports", text: $draft.consent[index].ports, prompt: "443")
+                            RewriteField(L10n.text("app.ui.schemes"), text: $draft.consent[index].schemes, prompt: "https")
+                            RewriteField(L10n.text("app.ui.ports"), text: $draft.consent[index].ports, prompt: "443")
                         }
                     }
                 }
-                Button("Add Destination") { draft.consent.append(RewriteConsentDraft()) }.disabled(draft.stage != "request")
+                Button(L10n.text("app.ui.add_destination")) { draft.consent.append(RewriteConsentDraft()) }.disabled(draft.stage != "request")
             }.padding(6)
         }.padding(6)
     }
@@ -208,10 +208,10 @@ private struct RewritePredicateEditor: View {
     @Binding var text: String
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(verbatim: label).font(.caption).foregroundColor(.secondary)
             TextEditor(text: $text).font(.system(.body, design: .monospaced)).frame(height: 55)
                 .nativeTextSurface()
-                .accessibilityLabel(label).help("JSON object mapping names to string arrays, for example {\"X-Demo\":[\"example\"]}. Leave blank to match any value.")
+                .accessibilityLabel(label).help(L10n.text("app.ui.json_object_mapping_names_to_string_arrays"))
         }
     }
 }
@@ -221,32 +221,32 @@ struct RewriteOperationEditor: View {
     let stage: String
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker("Operation", selection: $draft.kind) { ForEach(RewriteOperationDraft.kinds, id: \.self) { Text(RewriteLabels.operation($0)).tag($0) } }
-            if draft.kind.hasPrefix("header_") || draft.kind.hasPrefix("trailer_") { RewriteField(draft.kind.hasPrefix("header_") ? "Header name" : "Trailer name", text: $draft.name) }
+            Picker(L10n.text("app.ui.operation_2"), selection: $draft.kind) { ForEach(RewriteOperationDraft.kinds, id: \.self) { Text(verbatim: RewriteLabels.operation($0)).tag($0) } }
+            if draft.kind.hasPrefix("header_") || draft.kind.hasPrefix("trailer_") { RewriteField(draft.kind.hasPrefix("header_") ? L10n.text("app.ui.header_name") : L10n.text("app.ui.trailer_name"), text: $draft.name) }
             if draft.kind == "url_set" {
-                Picker("URL component", selection: $draft.component) { ForEach(["scheme", "host", "port", "path", "query"], id: \.self) { Text($0).tag($0) } }
+                Picker(L10n.text("app.ui.url_component"), selection: $draft.component) { ForEach(["scheme", "host", "port", "path", "query"], id: \.self) { Text(verbatim: L10n.protocolLabel($0)).tag($0) } }
             }
-            if draft.kind.hasPrefix("json_") { RewriteField("JSON Pointer", text: $draft.pointer).help("RFC 6901 path to the JSON value; leave blank to select the root.") }
+            if draft.kind.hasPrefix("json_") { RewriteField(L10n.text("app.ui.json_pointer"), text: $draft.pointer).help(L10n.text("app.ui.rfc_6901_path_to_the_json_value")) }
             if ["json_set", "body_set"].contains(draft.kind) {
-                Text(draft.kind == "json_set" ? "JSON value" : "Replacement body").font(.caption)
+                Text(verbatim: draft.kind == "json_set" ? L10n.text("app.ui.json_value") : L10n.text("app.ui.replacement_body")).font(.caption)
                 TextEditor(text: $draft.value).font(.system(.body, design: .monospaced)).frame(minHeight: 70)
                     .nativeTextSurface()
-                    .accessibilityLabel(draft.kind == "json_set" ? "JSON value" : "Replacement body")
+                    .accessibilityLabel(draft.kind == "json_set" ? L10n.text("app.ui.json_value") : L10n.text("app.ui.replacement_body"))
             } else if ["header_set", "header_append", "trailer_set", "url_set", "method_set", "status_set"].contains(draft.kind) {
-                RewriteField(draft.kind == "status_set" ? "Status (200–599)" : "Value", text: $draft.value)
+                RewriteField(draft.kind == "status_set" ? L10n.text("app.ui.status_200_599") : L10n.text("app.ui.value"), text: $draft.value)
             }
             if draft.kind == "body_set" {
-                Picker("Body encoding", selection: $draft.encoding) { Text("UTF-8").tag("text"); Text("Base64").tag("base64") }
+                Picker(L10n.text("app.ui.body_encoding"), selection: $draft.encoding) { Text(verbatim: "UTF-8").tag("text"); Text(verbatim: "Base64").tag("base64") }
             }
             if ["text_replace", "regex_replace"].contains(draft.kind) {
-                RewriteField(draft.kind == "regex_replace" ? "Go/RE2 pattern" : "Find", text: $draft.pattern)
-                RewriteField("Replace with", text: $draft.replacement)
-                Toggle("Replace all occurrences", isOn: $draft.all)
+                RewriteField(draft.kind == "regex_replace" ? L10n.text("app.ui.go_re2_pattern") : L10n.text("app.ui.find"), text: $draft.pattern)
+                RewriteField(L10n.text("app.ui.replace_with"), text: $draft.replacement)
+                Toggle(L10n.text("app.ui.replace_all_occurrences"), isOn: $draft.all)
             }
-            if draft.kind == "script" { RewriteField("Script name", text: $draft.script) }
+            if draft.kind == "script" { RewriteField(L10n.text("app.ui.script_name"), text: $draft.script) }
             if stage.hasPrefix("websocket_") && ["body_set", "json_set", "json_delete", "text_replace", "regex_replace", "script"].contains(draft.kind) {
-                Picker("Message type after operation", selection: $draft.messageType) {
-                    Text("Preserve type").tag(""); Text("Text").tag("text"); Text("Binary").tag("binary")
+                Picker(L10n.text("app.ui.message_type_after_operation"), selection: $draft.messageType) {
+                    Text(verbatim: L10n.text("app.ui.preserve_type")).tag(""); Text(verbatim: L10n.text("app.ui.text")).tag("text"); Text(verbatim: L10n.text("app.ui.binary")).tag("binary")
                 }
             }
         }
@@ -263,18 +263,18 @@ struct RewriteOperationEditor: View {
     var body: some View {
         let size = RewriteEditorLayout.size(width: 780, height: 620)
         VStack(alignment: .leading, spacing: 12) {
-            RewriteField("Script name", text: $draft.id).disabled(originalID != nil)
-            Picker("Body access", selection: $draft.bodyAccess) { Text("Metadata only").tag("none"); Text("Buffered body (up to 8 MiB)").tag("buffer") }
-            Text("JavaScript").font(.caption).foregroundColor(.secondary)
+            RewriteField(L10n.text("app.ui.script_name"), text: $draft.id).disabled(originalID != nil)
+            Picker(L10n.text("app.ui.body_access"), selection: $draft.bodyAccess) { Text(verbatim: L10n.text("app.ui.metadata_only")).tag("none"); Text(verbatim: L10n.text("app.ui.buffered_body_up_to_8_mib")).tag("buffer") }
+            Text(verbatim: "JavaScript").font(.caption).foregroundColor(.secondary)
             TextEditor(text: $draft.source).font(.system(.body, design: .monospaced))
                 .nativeTextSurface()
-                .accessibilityLabel("JavaScript source")
-            if let error = localError ?? presentation.model.error { Text(error).foregroundColor(.red) }
+                .accessibilityLabel(L10n.text("app.ui.javascript_source"))
+            if let error = localError ?? presentation.model.error { Text(verbatim: error).foregroundColor(.red) }
             HStack {
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                RewriteHelp(text: "Define synchronous transform(input). Return {action: 'unchanged'}, {action: 'block'}, or {action: 'replace', message: {...}}. Scripts run only through a rule's Run script operation, without network or file access. Source limit: 64 KiB.")
+                Button(L10n.text("app.ui.cancel")) { dismiss() }.keyboardShortcut(.cancelAction)
+                RewriteHelp(text: L10n.text("app.ui.define_synchronous_transform_input_return_action_unchanged"))
                 Spacer()
-                Button("Save Script") {
+                Button(L10n.text("app.ui.save_script")) {
                     do {
                         let bytes = try draft.json(); localError = nil
                         let args = originalID.map { ["scripts", "update", $0, "-"] } ?? ["scripts", "add", "-"]
@@ -286,7 +286,7 @@ struct RewriteOperationEditor: View {
                             }
                         }
                     } catch { localError = error.localizedDescription }
-                }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
+                }.keyboardShortcut(.defaultAction).help(L10n.format("app.ui.save_to_profile", String(describing: profile)))
             }
         }.padding(22).frame(width: size.width, height: size.height)
             .nativeFormControls()
@@ -303,7 +303,7 @@ struct RewritePreviewDraft {
     private func headerJSON(_ text: String) throws -> RewriteJSON {
         var fields: [String: [RewriteJSON]] = [:]
         for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
-            guard let separator = line.firstIndex(of: ":") else { throw RewriteFormError.invalid("Enter headers or trailers as Name: value, one per line.") }
+            guard let separator = line.firstIndex(of: ":") else { throw RewriteFormError.invalid(L10n.text("app.ui.enter_headers_or_trailers_as_name_value")) }
             let name = String(line[..<separator]).trimmingCharacters(in: .whitespaces)
             let value = String(line[line.index(after: separator)...]).trimmingCharacters(in: .whitespaces)
             fields[name, default: []].append(.string(value))
@@ -311,22 +311,22 @@ struct RewritePreviewDraft {
         return .object(fields.mapValues(RewriteJSON.array))
     }
     private func bodyJSON(_ text: String, encoding: String) throws -> RewriteJSON {
-        guard text.utf8.count <= 12 * 1_048_576 else { throw RewriteFormError.invalid("The encoded preview body exceeds 12 MiB.") }
+        guard text.utf8.count <= 12 * 1_048_576 else { throw RewriteFormError.invalid(L10n.text("app.ui.the_encoded_preview_body_exceeds_12_mib")) }
         let bytes: Data
         if encoding == "base64" {
-            guard let decoded = Data(base64Encoded: text) else { throw RewriteFormError.invalid("Enter valid base64 body data.") }; bytes = decoded
+            guard let decoded = Data(base64Encoded: text) else { throw RewriteFormError.invalid(L10n.text("app.ui.enter_valid_base64_body_data")) }; bytes = decoded
         } else { bytes = Data(text.utf8) }
-        guard bytes.count <= 8 * 1_048_576 else { throw RewriteFormError.invalid("The decoded preview body exceeds 8 MiB.") }
+        guard bytes.count <= 8 * 1_048_576 else { throw RewriteFormError.invalid(L10n.text("app.ui.the_decoded_preview_body_exceeds_8_mib")) }
         return .string(bytes.base64EncodedString())
     }
     func data() throws -> Data {
-        guard let number = Int(port), (1...65535).contains(number) else { throw RewriteFormError.invalid("Enter a port from 1 through 65535.") }
+        guard let number = Int(port), (1...65535).contains(number) else { throw RewriteFormError.invalid(L10n.text("app.ui.enter_a_port_from_1_through_65535")) }
         var request: [String: RewriteJSON] = ["scheme": .string(scheme), "host": .string(host), "port": .scalar(String(number)), "method": .string(method),
             "path": .string(path), "query": .string(query), "headers": try headerJSON(headers), "body_base64": try bodyJSON(body, encoding: bodyEncoding)]
         if !trailers.isEmpty { request["trailers"] = try headerJSON(trailers) }
         var envelope: [String: RewriteJSON] = ["stage": .string(stage), "request": .object(request)]
         if stage != "request" {
-            guard let status = Int(responseStatus), (100...599).contains(status) else { throw RewriteFormError.invalid("Enter a response status from 100 through 599.") }
+            guard let status = Int(responseStatus), (100...599).contains(status) else { throw RewriteFormError.invalid(L10n.text("app.ui.enter_a_response_status_from_100_through")) }
             var response: [String: RewriteJSON] = ["status": .scalar(String(status)), "headers": try headerJSON(responseHeaders), "body_base64": try bodyJSON(responseBody, encoding: responseBodyEncoding)]
             if !responseTrailers.isEmpty { response["trailers"] = try headerJSON(responseTrailers) }
             envelope["response"] = .object(response)
@@ -335,7 +335,7 @@ struct RewritePreviewDraft {
             envelope["message"] = .object(["type": .string(messageType), "body_base64": try bodyJSON(messageBody, encoding: messageBodyEncoding)])
         }
         let input = RewriteJSON.object(envelope).data
-        guard input.count <= 24 * 1_048_576 else { throw RewriteFormError.invalid("The preview envelope exceeds 24 MiB.") }
+        guard input.count <= 24 * 1_048_576 else { throw RewriteFormError.invalid(L10n.text("app.ui.the_preview_envelope_exceeds_24_mib")) }
         return input
     }
 }
@@ -348,14 +348,14 @@ struct RewritePreviewDraft {
         VStack(alignment: .leading, spacing: 10) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Picker("Apply to", selection: $draft.stage) { ForEach(RewritePreviewDraft.stages, id: \.self) { Text(RewriteLabels.stage($0)).tag($0) } }
+                    Picker(L10n.text("app.ui.apply_to"), selection: $draft.stage) { ForEach(RewritePreviewDraft.stages, id: \.self) { Text(verbatim: RewriteLabels.stage($0)).tag($0) } }
                         .onChange(of: draft.stage) { stage in if stage.hasPrefix("websocket_") { draft.responseStatus = "101" } }
                     requestForm
                     if draft.stage != "request" { responseForm }
                     if draft.stage.hasPrefix("websocket_") {
-                        GroupBox("WebSocket message") {
+                        GroupBox(L10n.text("app.ui.websocket_message")) {
                             VStack(alignment: .leading) {
-                                Picker("Type", selection: $draft.messageType) { Text("Text").tag("text"); Text("Binary").tag("binary") }
+                                Picker(L10n.text("app.ui.type"), selection: $draft.messageType) { Text(verbatim: L10n.text("app.ui.text")).tag("text"); Text(verbatim: L10n.text("app.ui.binary")).tag("binary") }
                                 RewritePreviewBodyEditor(bodyText: $draft.messageBody, encoding: $draft.messageBodyEncoding)
                             }.padding(6)
                         }
@@ -363,50 +363,50 @@ struct RewritePreviewDraft {
                 }
             }.frame(minHeight: 200, idealHeight: 320, maxHeight: 360)
             HStack {
-                Button("Run Preview") {
+                Button(L10n.text("app.ui.run_preview")) {
                     do {
                         let data = try draft.data(); localError = nil
                         Task { _ = await presentation.model.perform(["preview", "-"], input: data, profile: presentation.model.status?.profile) }
                     } catch { localError = error.localizedDescription }
                 }.disabled(!presentation.model.canOperate || presentation.model.status?.profile == nil)
-                Button("Preview File…") { pickFixture() }
+                Button(L10n.text("app.ui.preview_file")) { pickFixture() }
                     .disabled(!presentation.model.canOperate || presentation.model.status?.profile == nil)
-                RewriteHelp(text: "Preview applies saved rules to the original request, response or WebSocket message locally. It sends no network request and saves no changes. Headers and trailers use one Name: value pair per line. Choose Base64 for binary bodies.")
+                RewriteHelp(text: L10n.text("app.ui.preview_applies_saved_rules_to_the_original"))
                 Spacer()
-                Button("Clear Result") { presentation.model.clearPreview() }.disabled(presentation.model.preview == nil)
+                Button(L10n.text("app.ui.clear_result")) { presentation.model.clearPreview() }.disabled(presentation.model.preview == nil)
             }
-            if let error = localError { Text(error).foregroundColor(.red) }
+            if let error = localError { Text(verbatim: error).foregroundColor(.red) }
             ScrollView {
-                Text(presentation.model.preview ?? "No preview result")
+                Text(verbatim: presentation.model.preview ?? L10n.text("app.ui.no_preview_result"))
                     .font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxHeight: .infinity).padding(8).background(Color.secondary.opacity(0.06))
         }.padding().nativeFormControls()
     }
     private var requestForm: some View {
-        GroupBox("Original request") {
+        GroupBox(L10n.text("app.ui.original_request")) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .bottom) {
-                    Picker("Scheme", selection: $draft.scheme) { Text("https").tag("https"); Text("http").tag("http") }.frame(width: 150)
-                    RewriteField("Host", text: $draft.host)
-                    RewriteField("Port", text: $draft.port).frame(width: 70)
-                    RewriteField("Method", text: $draft.method).frame(width: 90)
+                    Picker(L10n.text("app.ui.scheme"), selection: $draft.scheme) { Text(verbatim: "https").tag("https"); Text(verbatim: "http").tag("http") }.frame(width: 150)
+                    RewriteField(L10n.text("app.ui.host"), text: $draft.host)
+                    RewriteField(L10n.text("app.ui.port"), text: $draft.port).frame(width: 70)
+                    RewriteField(L10n.text("app.ui.method"), text: $draft.method).frame(width: 90)
                 }
-                HStack { RewriteField("Path", text: $draft.path); RewriteField("Query", text: $draft.query).help("Raw query without the leading question mark.") }
+                HStack { RewriteField(L10n.text("app.ui.path"), text: $draft.path); RewriteField(L10n.text("app.ui.query"), text: $draft.query).help(L10n.text("app.ui.raw_query_without_the_leading_question_mark")) }
                 HStack {
-                    RewritePreviewHeaderEditor(label: "Headers", text: $draft.headers)
-                    RewritePreviewHeaderEditor(label: "Trailers", text: $draft.trailers)
+                    RewritePreviewHeaderEditor(label: L10n.text("app.ui.headers"), text: $draft.headers)
+                    RewritePreviewHeaderEditor(label: L10n.text("app.ui.trailers"), text: $draft.trailers)
                 }
                 RewritePreviewBodyEditor(bodyText: $draft.body, encoding: $draft.bodyEncoding)
             }.padding(6)
         }
     }
     private var responseForm: some View {
-        GroupBox(draft.stage.hasPrefix("websocket_") ? "Original handshake response (status 101)" : "Original response") {
+        GroupBox(draft.stage.hasPrefix("websocket_") ? L10n.text("app.ui.original_handshake_response_status_101") : L10n.text("app.ui.original_response")) {
             VStack(alignment: .leading, spacing: 6) {
-                RewriteField("Status", text: $draft.responseStatus)
+                RewriteField(L10n.text("app.ui.status"), text: $draft.responseStatus)
                 HStack {
-                    RewritePreviewHeaderEditor(label: "Headers", text: $draft.responseHeaders)
-                    RewritePreviewHeaderEditor(label: "Trailers", text: $draft.responseTrailers)
+                    RewritePreviewHeaderEditor(label: L10n.text("app.ui.headers"), text: $draft.responseHeaders)
+                    RewritePreviewHeaderEditor(label: L10n.text("app.ui.trailers"), text: $draft.responseTrailers)
                 }
                 RewritePreviewBodyEditor(bodyText: $draft.responseBody, encoding: $draft.responseBodyEncoding)
             }.padding(6)
@@ -414,7 +414,7 @@ struct RewritePreviewDraft {
     }
     private func pickFixture() {
         let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
-        panel.message = "Choose a private preview JSON file."
+        panel.message = L10n.text("app.ui.choose_a_private_preview_json_file")
         if panel.runModal() == .OK, let file = panel.url {
             Task { _ = await presentation.model.perform(["preview", file.path], profile: presentation.model.status?.profile) }
         }
@@ -425,10 +425,10 @@ private struct RewritePreviewHeaderEditor: View {
     @Binding var text: String
     var body: some View {
         VStack(alignment: .leading) {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(verbatim: label).font(.caption).foregroundColor(.secondary)
             TextEditor(text: $text).font(.system(.body, design: .monospaced)).frame(height: 55)
                 .nativeTextSurface()
-                .accessibilityLabel(label).help("One Name: value pair per line.")
+                .accessibilityLabel(label).help(L10n.text("app.ui.one_name_value_pair_per_line"))
         }
     }
 }
@@ -437,10 +437,10 @@ private struct RewritePreviewBodyEditor: View {
     @Binding var encoding: String
     var body: some View {
         VStack(alignment: .leading) {
-            Picker("Body input", selection: $encoding) { Text("UTF-8").tag("utf8"); Text("Base64 binary").tag("base64") }
+            Picker(L10n.text("app.ui.body_input"), selection: $encoding) { Text(verbatim: "UTF-8").tag("utf8"); Text(verbatim: L10n.text("app.ui.base64_binary")).tag("base64") }
             TextEditor(text: $bodyText).font(.system(.body, design: .monospaced)).frame(height: 65)
                 .nativeTextSurface()
-                .accessibilityLabel("Body")
+                .accessibilityLabel(L10n.text("app.ui.body"))
         }
     }
 }

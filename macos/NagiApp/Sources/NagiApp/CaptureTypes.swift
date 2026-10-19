@@ -134,18 +134,23 @@ struct CaptureFieldSelection: Sendable {
 }
 
 /// Formatting and potentially large body work stay outside the main actor.
-enum CaptureBodyFormat: String, CaseIterable { case raw = "Raw", json = "JSON", binary = "Hex", diff = "Before / After" }
+enum CaptureBodyFormat: String, CaseIterable {
+    case raw = "Raw", json = "JSON", binary = "Hex", diff = "Before / After"
+    var title: String {
+        switch self { case .raw: return L10n.text("app.ui.raw"); case .json: return "JSON"; case .binary: return L10n.text("app.ui.hex"); case .diff: return L10n.text("app.ui.before_after") }
+    }
+}
 func captureBodyText(_ data: Data, format: CaptureBodyFormat, before: Data? = nil) -> String {
     switch format {
-    case .raw: return String(data: data, encoding: .utf8) ?? "Binary body · \(data.count) bytes. Select Hex to inspect."
+    case .raw: return String(data: data, encoding: .utf8) ?? L10n.format("app.ui.binary_body_bytes_select_hex_to_inspect", String(describing: data.count))
     case .json:
-        guard let object = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]), let formatted = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .fragmentsAllowed]), let text = String(data: formatted, encoding: .utf8) else { return "Body is not valid JSON.\n" + (String(data: data, encoding: .utf8) ?? "") }
+        guard let object = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]), let formatted = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .fragmentsAllowed]), let text = String(data: formatted, encoding: .utf8) else { return L10n.text("app.ui.body_is_not_valid_json_n") + (String(data: data, encoding: .utf8) ?? "") }
         return text
     case .binary:
         return stride(from: 0, to: data.count, by: 16).map { offset in String(format: "%08x  ", offset) + data[offset..<min(offset + 16, data.count)].map { String(format: "%02x", $0) }.joined(separator: " ") }.joined(separator: "\n")
     case .diff:
-        guard let before else { return "The corresponding original snapshot is unavailable." }
-        if before == data { return "No body changes.\n" + captureBodyText(data, format: .raw) }
+        guard let before else { return L10n.text("app.ui.the_corresponding_original_snapshot_is_unavailable") }
+        if before == data { return L10n.text("app.ui.no_body_changes_n") + captureBodyText(data, format: .raw) }
         let old = captureBodyText(before, format: .raw).components(separatedBy: "\n")
         let new = captureBodyText(data, format: .raw).components(separatedBy: "\n")
         // A linear prefix/suffix diff stays responsive even for multi-MiB streams.

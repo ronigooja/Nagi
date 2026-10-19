@@ -67,13 +67,13 @@ import AppKit
     private let table = NSTableView()
     private let scroll = NSScrollView()
     private let search = NSSearchField()
-    private let countLabel = NSTextField(labelWithString: "0 / 0 connections")
-    private let updatedLabel = NSTextField(labelWithString: "Not updated yet")
+    private let countLabel = NSTextField(labelWithString: L10n.text("app.ui.0_0_connections"))
+    private let updatedLabel = NSTextField(labelWithString: L10n.text("app.ui.not_updated_yet"))
     private let statusLabel = NSTextField(wrappingLabelWithString: "")
     private let detail = NSTextView()
-    private let refreshButton = NSButton(title: "Refresh", target: nil, action: nil)
-    private let closeButton = NSButton(title: "Close Connection", target: nil, action: nil)
-    private let closeAllButton = NSButton(title: "Close All Connections…", target: nil, action: nil)
+    private let refreshButton = NSButton(title: L10n.text("app.ui.refresh"), target: nil, action: nil)
+    private let closeButton = NSButton(title: L10n.text("app.ui.close_connection"), target: nil, action: nil)
+    private let closeAllButton = NSButton(title: L10n.text("app.ui.close_all_connections"), target: nil, action: nil)
     private var rows: [Connection] = []
     private var renderedRowsRevision: UInt64?
     private var topPinnedDuringRefresh = false
@@ -93,7 +93,7 @@ import AppKit
         let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 700),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = "Nagi Connections"
+        window.title = L10n.text("app.ui.nagi_connections")
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
@@ -123,10 +123,10 @@ import AppKit
         guard let content = window?.contentView else { return }
         NativeControlStyle.configure(search)
         for button in [refreshButton, closeButton, closeAllButton] { NativeControlStyle.configure(button) }
-        search.placeholderString = "Search domain, IP, process, proxy chain, or ID"
+        search.placeholderString = L10n.text("app.ui.search_domain_ip_process_proxy_chain_or")
         search.delegate = self
         search.sendsSearchStringImmediately = true
-        search.setAccessibilityLabel("Search connections")
+        search.setAccessibilityLabel(L10n.text("app.ui.search_connections"))
         refreshButton.target = self; refreshButton.action = #selector(refresh)
         closeButton.target = self; closeButton.action = #selector(closeSelected)
         closeAllButton.target = self; closeAllButton.action = #selector(closeAll)
@@ -147,11 +147,11 @@ import AppKit
         table.allowsEmptySelection = true
         table.rowHeight = 25
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-        table.setAccessibilityLabel("Active connections")
+        table.setAccessibilityLabel(L10n.text("app.ui.active_connections"))
         let columns: [(ConnectionSortColumn, String, CGFloat)] = [
-            (.destination, "Destination", 250), (.process, "Process", 150), (.network, "Protocol", 75),
-            (.chains, "Proxy Chain", 235), (.upload, "Uploaded (cumulative)", 140),
-            (.download, "Downloaded (cumulative)", 150)
+            (.destination, L10n.text("app.ui.destination_2"), 250), (.process, L10n.text("app.ui.process"), 150), (.network, L10n.text("app.ui.protocol"), 75),
+            (.chains, L10n.text("app.ui.proxy_chain"), 235), (.upload, L10n.text("app.ui.uploaded_cumulative"), 140),
+            (.download, L10n.text("app.ui.downloaded_cumulative"), 150)
         ]
         for (key, title, width) in columns {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(key.rawValue))
@@ -177,7 +177,7 @@ import AppKit
         detail.textContainer?.widthTracksTextView = true
         detail.isVerticallyResizable = true; detail.isHorizontallyResizable = false
         detail.autoresizingMask = [.width]
-        detail.setAccessibilityLabel("Connection details")
+        detail.setAccessibilityLabel(L10n.text("app.ui.connection_details"))
         let detailScroll = NSScrollView()
         detailScroll.documentView = detail; detailScroll.hasVerticalScroller = true
         detailScroll.borderType = .bezelBorder
@@ -185,14 +185,14 @@ import AppKit
         preferredDetailHeight.priority = .defaultHigh
         preferredDetailHeight.isActive = true
         detailScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 60).isActive = true
-        let detailsTitle = NSTextField(labelWithString: "Connection Details")
+        let detailsTitle = NSTextField(labelWithString: L10n.text("app.ui.connection_details_2"))
         detailsTitle.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
         let actions = NSStackView(views: [closeButton, closeAllButton, NSView(), updatedLabel])
         actions.orientation = .horizontal; actions.spacing = 12
         actions.alignment = .firstBaseline
         statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusLabel.maximumNumberOfLines = 3
-        let sampling = NSTextField(labelWithString: "Snapshots refresh once a second. Connections shorter than one second may not appear.")
+        let sampling = NSTextField(labelWithString: L10n.text("app.ui.snapshots_refresh_once_a_second_connections_shorter"))
         sampling.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         sampling.textColor = .secondaryLabelColor
         let stack = NSStackView(views: [toolbar, scroll, detailsTitle, detailScroll, actions, statusLabel, sampling])
@@ -267,21 +267,21 @@ import AppKit
             }
         }
         updatingTable = false
-        countLabel.stringValue = "\(rows.count) / \(model.connections.count) connections"
-        updatedLabel.stringValue = model.lastUpdated.map { "Updated \(Self.timeFormatter.string(from: $0))" } ?? "Not updated yet"
+        countLabel.stringValue = L10n.format("app.connections.count", Int64(rows.count), Int64(model.connections.count))
+        updatedLabel.stringValue = model.lastUpdated.map { L10n.format("app.ui.updated", String(describing: Self.timeFormatter.string(from: $0))) } ?? L10n.text("app.ui.not_updated_yet")
         refreshButton.isEnabled = !model.isRefreshing && !model.operationInProgress
         closeButton.isEnabled = model.canClose && model.selectedConnection != nil
         closeAllButton.isEnabled = model.canClose && !model.connections.isEmpty
         renderDetails()
         let stateMessage: String
         switch model.state {
-        case .idle: stateMessage = "Open the window to load active connections."
-        case .loading: stateMessage = "Loading connections…"
-        case .fresh: stateMessage = model.connections.isEmpty ? "No active connections." : ""
-        case .stale: stateMessage = "Displayed connections are stale. Close actions are unavailable until a refresh succeeds."
-        case .stopped: stateMessage = "Engine stopped. Use Retry Start from the Nagi menu to load connections."
-        case .unavailable: stateMessage = "Engine status unavailable. Waiting for status to recover."
-        case .tooLarge: stateMessage = "Connection list too large to load. Automatic refresh is paused; use Refresh to retry."
+        case .idle: stateMessage = L10n.text("app.ui.open_the_window_to_load_active_connections")
+        case .loading: stateMessage = L10n.text("app.ui.loading_connections")
+        case .fresh: stateMessage = model.connections.isEmpty ? L10n.text("app.ui.no_active_connections") : ""
+        case .stale: stateMessage = L10n.text("app.ui.displayed_connections_are_stale_close_actions_are")
+        case .stopped: stateMessage = L10n.text("app.ui.engine_stopped_use_retry_start_from_the")
+        case .unavailable: stateMessage = L10n.text("app.ui.engine_status_unavailable_waiting_for_status_to")
+        case .tooLarge: stateMessage = L10n.text("app.ui.connection_list_too_large_to_load_automatic")
         }
         statusLabel.stringValue = [stateMessage, model.errorMessage, model.operationMessage]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
@@ -295,25 +295,27 @@ import AppKit
 
     private func renderDetails() {
         guard let connection = model.selectedConnection else {
-            detail.string = model.selectionDisappearMessage ?? "Select a connection to inspect its details."
+            detail.string = model.selectionDisappearMessage ?? L10n.text("app.ui.select_a_connection_to_inspect_its_details")
             return
         }
-        detail.string = """
-        Source: \(connection.source)
-        Destination: \(connection.destination)
-        Destination IP: \(connection.destinationIP)
-        Process: \(connection.process)
-        Process Path: \(connection.processPath)
-        Protocol: \(connection.network)    Inbound: \(connection.inbound)
-        Rule: \(connection.rule)    Rule Payload: \(connection.rulePayload)
-        Proxy Chain: \(connection.chain)
-        Uploaded (cumulative): \(Self.bytes(connection.upload))    Downloaded (cumulative): \(Self.bytes(connection.download))
-        ID: \(connection.id)
-        """
+        detail.string = L10n.format("app.connections.details",
+            String(describing: connection.source),
+            String(describing: connection.destination),
+            String(describing: connection.destinationIP),
+            String(describing: connection.process),
+            String(describing: connection.processPath),
+            String(describing: connection.network),
+            String(describing: connection.inbound),
+            String(describing: connection.rule),
+            String(describing: connection.rulePayload),
+            String(describing: connection.chain),
+            String(describing: Self.bytes(connection.upload)),
+            String(describing: Self.bytes(connection.download)),
+            String(describing: connection.id))
     }
 
     private static func bytes(_ value: Int64?) -> String {
-        guard let value else { return "unknown" }
+        guard let value else { return L10n.text("app.state.unknown") }
         return MenuAppDelegate.subscriptionBytes(value)
     }
 
@@ -378,11 +380,11 @@ import AppKit
 
     static func closeAllConfirmation() -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = "Close All Connections?"
-        alert.informativeText = "This closes all current mihomo connections, including connections outside this search. Applications may reconnect automatically."
+        alert.messageText = L10n.text("app.ui.close_all_connections_2")
+        alert.informativeText = L10n.text("app.ui.this_closes_all_current_mihomo_connections_including")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Close All Connections")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.text("app.ui.close_all_connections_3"))
+        alert.addButton(withTitle: L10n.text("app.ui.cancel"))
         return alert
     }
     private func updateVisibility() {

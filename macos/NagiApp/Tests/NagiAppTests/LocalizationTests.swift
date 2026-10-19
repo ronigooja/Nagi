@@ -54,6 +54,14 @@ final class LocalizationTests: XCTestCase {
         XCTAssertNotNil(installed.url(forResource: "NagiMenuTemplate", withExtension: "pdf"))
         let english = try XCTUnwrap(Bundle(url: installed.bundleURL.appendingPathComponent("en.lproj")))
         XCTAssertEqual(L10n.text("app.cancel", bundle: english), "Cancel")
+        let chinese = try XCTUnwrap(Bundle(url: installed.bundleURL.appendingPathComponent("zh-hans.lproj")))
+        XCTAssertEqual(L10n.text("app.ui.save_rule", bundle: english), "Save Rule")
+        XCTAssertEqual(L10n.text("app.ui.save_rule", bundle: chinese), "保存规则")
+        XCTAssertEqual(L10n.format("app.capture.records_count", Int64(2), bundle: english), "2 records")
+        XCTAssertEqual(L10n.format("app.capture.records_count", Int64(2), bundle: chinese), "2 条记录")
+        XCTAssertNotNil(installed.url(forResource: "MessageSignatures", withExtension: "json"))
+        XCTAssertEqual(MessageDescriptor(id: "cli.language.duplicate").render(original: "original", bundle: english), "--lang may be specified only once.")
+        XCTAssertEqual(MessageDescriptor(id: "cli.language.duplicate").render(original: "original", bundle: chinese), "--lang 只能指定一次。")
     }
 
     func testNativeCatalogueAndNamedArgumentsAcrossLanguages() throws {

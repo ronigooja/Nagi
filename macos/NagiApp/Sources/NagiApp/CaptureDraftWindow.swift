@@ -13,7 +13,7 @@ import SwiftUI
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 840, height: 740), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init(window: window)
         titleObservation = model.$profile.sink { [weak window] profile in
-            window?.title = profile.map { "Create Rule · \($0)" } ?? "Create Rule"
+            window?.title = profile.map { L10n.format("app.ui.create_rule", String(describing: $0)) } ?? L10n.text("app.ui.create_rule_2")
         }
         window.isReleasedWhenClosed = false; window.delegate = self
         let content = NSHostingView(rootView: CaptureDraftView(model: model, close: { [weak self] in self?.close() }))
@@ -46,11 +46,11 @@ import SwiftUI
                     ruleOptions
                 }.padding(2)
             }.disabled(model.working || model.saved || model.baseRuleVersion == nil)
-            if let error = model.error { Text(error).foregroundColor(.red).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
+            if let error = model.error { Text(verbatim: error).foregroundColor(.red).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
             if model.saved {
-                Text("Rule saved to \(model.profile ?? "profile").").foregroundColor(.secondary)
+                Text(verbatim: L10n.format("app.ui.rule_saved_to", String(describing: model.profile ?? L10n.text("app.profile.fallback_name")))).foregroundColor(.secondary)
             } else if let notice = model.notice {
-                Text(notice).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(verbatim: notice).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Divider()
             actions
@@ -63,28 +63,28 @@ import SwiftUI
             .sheet(isPresented: $showingPreview) { CaptureDraftPreviewView(model: model) }
     }
     private var ruleForm: some View {
-        GroupBox("Rule") {
+        GroupBox(L10n.text("app.ui.rule")) {
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
                 GridRow {
-                    Text("Rule name").gridColumnAlignment(.trailing)
-                    TextField("Name", text: $model.rule.id).labelsHidden()
-                        .accessibilityLabel("Rule name").help("Unique rule identifier within the destination profile.")
+                    Text(verbatim: L10n.text("app.ui.rule_name")).gridColumnAlignment(.trailing)
+                    TextField(L10n.text("app.ui.name"), text: $model.rule.id).labelsHidden()
+                        .accessibilityLabel(L10n.text("app.ui.rule_name")).help(L10n.text("app.ui.unique_rule_identifier_within_the_destination_profile"))
                 }
                 GridRow {
-                    Text("Apply to")
-                    Picker("Apply to", selection: $model.rule.stage) {
+                    Text(verbatim: L10n.text("app.ui.apply_to"))
+                    Picker(L10n.text("app.ui.apply_to"), selection: $model.rule.stage) {
                         ForEach(model.context.record.kind == "websocket" ? [model.context.record.stage ?? "websocket_client"] : ["request", "response"], id: \.self) {
-                            Text(stageName($0)).tag($0)
+                            Text(verbatim: stageName($0)).tag($0)
                         }
                     }.labelsHidden()
                 }
                 GridRow {
-                    Text("Rule order")
-                    Picker("Rule order", selection: $model.position) {
+                    Text(verbatim: L10n.text("app.ui.rule_order"))
+                    Picker(L10n.text("app.ui.rule_order"), selection: $model.position) {
                         ForEach(model.orderedRules.indices, id: \.self) { index in
-                            Text("Before \(model.orderedRules[index])").tag(String(index))
+                            Text(verbatim: L10n.format("app.ui.before", String(describing: model.orderedRules[index]))).tag(String(index))
                         }
-                        Text("At end").tag(String(model.orderedRules.count))
+                        Text(verbatim: L10n.text("app.ui.at_end")).tag(String(model.orderedRules.count))
                     }.labelsHidden()
                 }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
@@ -92,66 +92,66 @@ import SwiftUI
     }
     private func stageName(_ stage: String) -> String {
         switch stage {
-        case "request": return "Request"
-        case "response": return "Response"
-        case "websocket_client": return "WebSocket · Client → Server"
-        case "websocket_server": return "WebSocket · Server → Client"
+        case "request": return L10n.text("app.ui.request")
+        case "response": return L10n.text("app.ui.response")
+        case "websocket_client": return L10n.text("app.ui.websocket_client_server")
+        case "websocket_server": return L10n.text("app.ui.websocket_server_client")
         default: return stage
         }
     }
     private var ruleOptions: some View {
-        DisclosureGroup("Advanced Settings", isExpanded: $showingRuleOptions) {
+        DisclosureGroup(L10n.text("app.ui.advanced_settings"), isExpanded: $showingRuleOptions) {
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
                 GridRow {
-                    Text("If an operation fails").gridColumnAlignment(.trailing)
-                    Picker("If an operation fails", selection: $model.rule.onError) {
-                        Text("Block").tag("block"); Text("Forward original").tag("forward_original")
+                    Text(verbatim: L10n.text("app.ui.if_an_operation_fails")).gridColumnAlignment(.trailing)
+                    Picker(L10n.text("app.ui.if_an_operation_fails"), selection: $model.rule.onError) {
+                        Text(verbatim: L10n.text("app.ui.block")).tag("block"); Text(verbatim: L10n.text("app.ui.forward_original")).tag("forward_original")
                     }.labelsHidden()
                 }
                 GridRow {
-                    Text("Partial content")
-                    Picker("Partial content", selection: $model.rule.rangeMode) {
-                        Text("Preserve fragment length").tag("fragment"); Text("Use full representation").tag("full")
-                    }.labelsHidden().help("Controls how rewrites handle HTTP range responses.")
+                    Text(verbatim: L10n.text("app.ui.partial_content"))
+                    Picker(L10n.text("app.ui.partial_content"), selection: $model.rule.rangeMode) {
+                        Text(verbatim: L10n.text("app.ui.preserve_fragment_length")).tag("fragment"); Text(verbatim: L10n.text("app.ui.use_full_representation")).tag("full")
+                    }.labelsHidden().help(L10n.text("app.ui.controls_how_rewrites_handle_http_range_responses"))
                 }
             }.padding(.top, 10)
         }.padding(8)
     }
     private var matchForm: some View {
-        GroupBox("Match Conditions") {
+        GroupBox(L10n.text("app.ui.match_conditions")) {
             VStack(alignment: .leading, spacing: 12) {
-                CaptureDraftField("Domain", text: $model.rule.domain, prompt: "api.example.com")
-                    .help("A domain or explicit wildcard, such as *.example.com.")
+                CaptureDraftField(L10n.text("app.ui.domain"), text: $model.rule.domain, prompt: "api.example.com")
+                    .help(L10n.text("app.ui.a_domain_or_explicit_wildcard_such_as"))
                 HStack(alignment: .top, spacing: 12) {
-                    CaptureDraftField("Methods", text: $model.rule.methods, prompt: "Any").frame(width: 160)
-                        .help("Comma-separated HTTP methods. Leave blank to match any method.")
-                    CaptureDraftField("Path prefix", text: $model.rule.path, prompt: "Any")
-                        .help("Matches the escaped URL path prefix.")
+                    CaptureDraftField(L10n.text("app.ui.methods"), text: $model.rule.methods, prompt: L10n.text("app.ui.any")).frame(width: 160)
+                        .help(L10n.text("app.ui.comma_separated_http_methods_leave_blank_to"))
+                    CaptureDraftField(L10n.text("app.ui.path_prefix"), text: $model.rule.path, prompt: L10n.text("app.ui.any"))
+                        .help(L10n.text("app.ui.matches_the_escaped_url_path_prefix"))
                 }
-                CaptureDraftField("Path expression", text: $model.rule.pathRegex, prompt: "Any")
-                    .help("Go RE2 regular expression matched against the escaped URL path. Combined with the path prefix when both are set.")
+                CaptureDraftField(L10n.text("app.ui.path_expression"), text: $model.rule.pathRegex, prompt: L10n.text("app.ui.any"))
+                    .help(L10n.text("app.ui.go_re2_regular_expression_matched_against_the"))
                 DisclosureGroup(isExpanded: $showingMatchOptions) {
                     VStack(alignment: .leading, spacing: 10) {
-                        predicate("Query parameters", text: $model.rule.query)
-                        predicate("Request headers", text: $model.rule.headers)
+                        predicate(L10n.text("app.ui.query_parameters"), text: $model.rule.query)
+                        predicate(L10n.text("app.ui.request_headers"), text: $model.rule.headers)
                         if model.rule.stage != "request" {
                             HStack(alignment: .top, spacing: 12) {
-                                CaptureDraftField("Status codes", text: $model.rule.statusCodes, prompt: "Any")
-                                    .help("Comma-separated original HTTP status codes, from 100 through 599.")
-                                CaptureDraftField("Content types", text: $model.rule.contentTypes, prompt: "Any")
-                                    .help("Comma-separated content types.")
+                                CaptureDraftField(L10n.text("app.ui.status_codes"), text: $model.rule.statusCodes, prompt: L10n.text("app.ui.any"))
+                                    .help(L10n.text("app.ui.comma_separated_original_http_status_codes_from"))
+                                CaptureDraftField(L10n.text("app.ui.content_types"), text: $model.rule.contentTypes, prompt: L10n.text("app.ui.any"))
+                                    .help(L10n.text("app.ui.comma_separated_content_types"))
                             }
-                            predicate("Response / handshake headers", text: $model.rule.responseHeaders)
+                            predicate(L10n.text("app.ui.response_handshake_headers"), text: $model.rule.responseHeaders)
                         }
                         if model.rule.stage.hasPrefix("websocket_") {
-                            CaptureDraftField("Message types", text: $model.rule.messageTypes, prompt: "Any")
-                                .help("Comma-separated types: text, binary.")
+                            CaptureDraftField(L10n.text("app.ui.message_types"), text: $model.rule.messageTypes, prompt: L10n.text("app.ui.any"))
+                                .help(L10n.text("app.ui.comma_separated_types_text_binary"))
                         }
                     }.padding(.top, 10)
                 } label: {
                     HStack {
-                        Text("More Conditions")
-                        if activeMatchOptions > 0 { Text("\(activeMatchOptions) active").foregroundColor(.secondary) }
+                        Text(verbatim: L10n.text("app.ui.more_conditions"))
+                        if activeMatchOptions > 0 { Text(verbatim: L10n.format("app.ui.active", String(describing: activeMatchOptions))).foregroundColor(.secondary) }
                     }
                 }
             }.padding(8)
@@ -165,31 +165,31 @@ import SwiftUI
     }
     private func predicate(_ label: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(verbatim: label).font(.caption).foregroundColor(.secondary)
             TextEditor(text: text).font(.system(.body, design: .monospaced)).frame(height: 64)
                 .nativeTextSurface()
                 .accessibilityLabel(label)
-        }.help("JSON object mapping names to arrays of values, for example {\"X-Example\":[\"value\"]}. Leave blank to match any value.")
+        }.help(L10n.text("app.ui.json_object_mapping_names_to_arrays_of"))
     }
     private var operationForm: some View {
-        GroupBox("Operations") {
+        GroupBox(L10n.text("app.ui.operations")) {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(model.rule.operations.indices, id: \.self) { index in
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("\(index + 1)").font(.caption.monospacedDigit()).foregroundColor(.secondary)
+                            Text(verbatim: "\(index + 1)").font(.caption.monospacedDigit()).foregroundColor(.secondary)
                             Spacer()
                             Button { model.rule.operations.swapAt(index, index - 1) } label: { Image(systemName: "arrow.up") }
-                                .disabled(index == 0).accessibilityLabel("Move capture operation \(index + 1) up").help("Move up")
+                                .disabled(index == 0).accessibilityLabel(L10n.format("app.ui.move_capture_operation_up", String(describing: index + 1))).help(L10n.text("app.ui.move_up"))
                             Button { model.rule.operations.swapAt(index, index + 1) } label: { Image(systemName: "arrow.down") }
-                                .disabled(index + 1 == model.rule.operations.count).accessibilityLabel("Move capture operation \(index + 1) down").help("Move down")
-                            Button("Remove") { model.rule.operations.remove(at: index) }.accessibilityLabel("Remove capture operation \(index + 1)")
+                                .disabled(index + 1 == model.rule.operations.count).accessibilityLabel(L10n.format("app.ui.move_capture_operation_down", String(describing: index + 1))).help(L10n.text("app.ui.move_down"))
+                            Button(L10n.text("app.ui.remove")) { model.rule.operations.remove(at: index) }.accessibilityLabel(L10n.format("app.ui.remove_capture_operation", String(describing: index + 1)))
                         }
                         CaptureOperationEditor(draft: $model.rule.operations[index], stage: model.rule.stage)
                     }.padding(8).background(Color.secondary.opacity(0.06)).cornerRadius(6)
                 }
-                if model.rule.operations.isEmpty { Text("No operations").foregroundColor(.secondary) }
-                Button("Add Operation") { model.rule.operations.append(RewriteOperationDraft()) }.accessibilityLabel("Add capture rule operation")
+                if model.rule.operations.isEmpty { Text(verbatim: L10n.text("app.ui.no_operations")).foregroundColor(.secondary) }
+                Button(L10n.text("app.ui.add_operation")) { model.rule.operations.append(RewriteOperationDraft()) }.accessibilityLabel(L10n.text("app.ui.add_capture_rule_operation"))
             }.padding(8)
         }
     }
@@ -203,45 +203,45 @@ import SwiftUI
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(model.rule.consent.indices, id: \.self) { index in
                     HStack(alignment: .bottom, spacing: 10) {
-                        CaptureDraftField("Domain", text: $model.rule.consent[index].domain, prompt: "api.example.com")
-                        CaptureDraftField("Schemes", text: $model.rule.consent[index].schemes, prompt: "https").frame(width: 110)
-                        CaptureDraftField("Ports", text: $model.rule.consent[index].ports, prompt: "443").frame(width: 90)
-                        Button("Remove") { model.rule.consent.remove(at: index) }.accessibilityLabel("Remove allowed destination \(index + 1)")
+                        CaptureDraftField(L10n.text("app.ui.domain"), text: $model.rule.consent[index].domain, prompt: "api.example.com")
+                        CaptureDraftField(L10n.text("app.ui.schemes"), text: $model.rule.consent[index].schemes, prompt: "https").frame(width: 110)
+                        CaptureDraftField(L10n.text("app.ui.ports"), text: $model.rule.consent[index].ports, prompt: "443").frame(width: 90)
+                        Button(L10n.text("app.ui.remove")) { model.rule.consent.remove(at: index) }.accessibilityLabel(L10n.format("app.ui.remove_allowed_destination", String(describing: index + 1)))
                     }
                 }
-                Button("Add Allowed Destination") { model.rule.consent.append(RewriteConsentDraft()) }.disabled(model.rule.stage != "request")
+                Button(L10n.text("app.ui.add_allowed_destination")) { model.rule.consent.append(RewriteConsentDraft()) }.disabled(model.rule.stage != "request")
             }.padding(.top, 10)
         } label: {
             HStack {
-                Text("Allowed Destinations")
-                if !model.rule.consent.isEmpty { Text("\(model.rule.consent.count)").foregroundColor(.secondary) }
-                else if needsDestinationConsent { Text("Required").foregroundColor(.secondary) }
+                Text(verbatim: L10n.text("app.ui.allowed_destinations"))
+                if !model.rule.consent.isEmpty { Text(verbatim: "\(model.rule.consent.count)").foregroundColor(.secondary) }
+                else if needsDestinationConsent { Text(verbatim: L10n.text("app.ui.required")).foregroundColor(.secondary) }
             }
-        }.padding(8).help("Changing a request's scheme, host or port requires explicit authorization for the replacement destination.")
+        }.padding(8).help(L10n.text("app.ui.changing_a_request_s_scheme_host_or"))
     }
     private var actions: some View {
         HStack(spacing: 12) {
-            Button(model.saved ? "Close" : "Cancel") { close() }.keyboardShortcut(.cancelAction).disabled(model.saving)
+            Button(model.saved ? L10n.text("app.ui.close") : L10n.text("app.ui.cancel")) { close() }.keyboardShortcut(.cancelAction).disabled(model.saving)
             Button { showingHelp.toggle() } label: { Image(systemName: "questionmark.circle") }
-                .buttonStyle(.plain).accessibilityLabel("Help with capture rules")
+                .buttonStyle(.plain).accessibilityLabel(L10n.text("app.ui.help_with_capture_rules"))
                 .popover(isPresented: $showingHelp) { helpContent }
             if model.working { ProgressView().controlSize(.small) }
             Spacer()
             if !model.saved {
-                Toggle("Enable on save", isOn: $model.enable).disabled(!model.ready)
-                Button("Preview…") { showingPreview = true }.disabled(!model.ready || !model.canPreview)
-                    .help("Preview the complete rule chain locally without saving or sending a network request.")
-                Button("Save Rule") { Task { await model.save() } }.keyboardShortcut(.defaultAction)
+                Toggle(L10n.text("app.ui.enable_on_save"), isOn: $model.enable).disabled(!model.ready)
+                Button(L10n.text("app.ui.preview")) { showingPreview = true }.disabled(!model.ready || !model.canPreview)
+                    .help(L10n.text("app.ui.preview_the_complete_rule_chain_locally_without"))
+                Button(L10n.text("app.ui.save_rule")) { Task { await model.save() } }.keyboardShortcut(.defaultAction)
                     .disabled(!model.ready || model.rule.operations.isEmpty)
             }
         }
     }
     private var helpContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Capture Rules").font(.headline)
-            Text("The profile in the window title is the save destination. Saving adds this rule at the selected position. Enable on save controls this rule; global rewrite activation is unchanged.")
-            Text("Match conditions use original captured metadata. More Conditions shows how many additional filters are active. Hover over fields for accepted formats.")
-            Text("Preview temporarily enables the candidate and runs the complete ordered rule chain locally, without saving or sending a network request. Original content, credentials and bodies appear directly; keep them private.")
+            Text(verbatim: L10n.text("app.ui.capture_rules")).font(.headline)
+            Text(verbatim: L10n.text("app.ui.the_profile_in_the_window_title_is"))
+            Text(verbatim: L10n.text("app.ui.match_conditions_use_original_captured_metadata_more"))
+            Text(verbatim: L10n.text("app.ui.preview_temporarily_enables_the_candidate_and_runs"))
         }.font(.callout).padding(16).frame(width: 380)
     }
 }
@@ -255,7 +255,7 @@ private struct CaptureDraftField: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(verbatim: label).font(.caption).foregroundColor(.secondary)
             TextField(prompt, text: $text).accessibilityLabel(label)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -265,52 +265,52 @@ private struct CaptureOperationEditor: View {
     @Binding var draft: RewriteOperationDraft
     let stage: String
     private let names = [
-        "header_set": "Set Header", "header_append": "Append Header", "header_delete": "Delete Header",
-        "url_set": "Change URL", "method_set": "Change Method", "status_set": "Change Status Code",
-        "json_set": "Set JSON Value", "json_delete": "Delete JSON Value", "body_set": "Replace Body",
-        "text_replace": "Replace Text", "regex_replace": "Replace with Regular Expression",
-        "trailer_set": "Set Trailer", "trailer_delete": "Delete Trailer", "script": "Run Script"
+        "header_set": L10n.text("app.ui.set_header_2"), "header_append": L10n.text("app.ui.append_header_2"), "header_delete": L10n.text("app.ui.delete_header_2"),
+        "url_set": L10n.text("app.ui.change_url"), "method_set": L10n.text("app.ui.change_method_2"), "status_set": L10n.text("app.ui.change_status_code"),
+        "json_set": L10n.text("app.ui.set_json_value_2"), "json_delete": L10n.text("app.ui.delete_json_value_2"), "body_set": L10n.text("app.ui.replace_body_2"),
+        "text_replace": L10n.text("app.ui.replace_text_2"), "regex_replace": L10n.text("app.ui.replace_with_regular_expression"),
+        "trailer_set": L10n.text("app.ui.set_trailer_2"), "trailer_delete": L10n.text("app.ui.delete_trailer_2"), "script": L10n.text("app.ui.run_script_2")
     ]
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Picker("Action", selection: $draft.kind) {
-                ForEach(RewriteOperationDraft.kinds, id: \.self) { Text(names[$0] ?? $0).tag($0) }
+            Picker(L10n.text("app.operation.action"), selection: $draft.kind) {
+                ForEach(RewriteOperationDraft.kinds, id: \.self) { Text(verbatim: names[$0] ?? $0).tag($0) }
             }
             if draft.kind.hasPrefix("header_") || draft.kind.hasPrefix("trailer_") {
-                CaptureDraftField(draft.kind.hasPrefix("header_") ? "Header name" : "Trailer name", text: $draft.name)
+                CaptureDraftField(draft.kind.hasPrefix("header_") ? L10n.text("app.ui.header_name") : L10n.text("app.ui.trailer_name"), text: $draft.name)
             }
             if draft.kind == "url_set" {
-                Picker("URL component", selection: $draft.component) {
-                    ForEach(["scheme", "host", "port", "path", "query"], id: \.self) { Text($0.capitalized).tag($0) }
+                Picker(L10n.text("app.ui.url_component"), selection: $draft.component) {
+                    ForEach(["scheme", "host", "port", "path", "query"], id: \.self) { Text(verbatim: L10n.protocolLabel($0)).tag($0) }
                 }
             }
             if draft.kind.hasPrefix("json_") {
-                CaptureDraftField("JSON pointer", text: $draft.pointer).help("RFC 6901 pointer, such as /items/0/name. An empty pointer selects the root value.")
+                CaptureDraftField("JSON pointer", text: $draft.pointer).help(L10n.text("app.ui.rfc_6901_pointer_such_as_items_0"))
             }
             if ["json_set", "body_set"].contains(draft.kind) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(draft.kind == "json_set" ? "JSON value" : "Replacement body").font(.caption).foregroundColor(.secondary)
+                    Text(verbatim: draft.kind == "json_set" ? L10n.text("app.ui.json_value") : L10n.text("app.ui.replacement_body")).font(.caption).foregroundColor(.secondary)
                     TextEditor(text: $draft.value).font(.system(.body, design: .monospaced)).frame(height: 120)
                         .nativeTextSurface()
-                        .accessibilityLabel(draft.kind == "json_set" ? "JSON value" : "Replacement body")
+                        .accessibilityLabel(draft.kind == "json_set" ? L10n.text("app.ui.json_value") : L10n.text("app.ui.replacement_body"))
                 }
             } else if ["header_set", "header_append", "trailer_set", "url_set", "method_set", "status_set"].contains(draft.kind) {
-                CaptureDraftField(draft.kind == "status_set" ? "Status code" : "Value", text: $draft.value)
-                    .help(draft.kind == "status_set" ? "HTTP status code from 200 through 599." : "Replacement value.")
+                CaptureDraftField(draft.kind == "status_set" ? L10n.text("app.ui.status_code") : L10n.text("app.ui.value"), text: $draft.value)
+                    .help(draft.kind == "status_set" ? L10n.text("app.ui.http_status_code_from_200_through_599") : L10n.text("app.ui.replacement_value"))
             }
             if draft.kind == "body_set" {
-                Picker("Body encoding", selection: $draft.encoding) { Text("UTF-8").tag("text"); Text("Base64").tag("base64") }
+                Picker(L10n.text("app.ui.body_encoding"), selection: $draft.encoding) { Text(verbatim: "UTF-8").tag("text"); Text(verbatim: "Base64").tag("base64") }
             }
             if ["text_replace", "regex_replace"].contains(draft.kind) {
-                CaptureDraftField(draft.kind == "regex_replace" ? "Regular expression" : "Find", text: $draft.pattern)
-                    .help(draft.kind == "regex_replace" ? "Go RE2 regular expression." : "Literal text to replace.")
-                CaptureDraftField("Replace with", text: $draft.replacement)
-                Toggle("Replace all occurrences", isOn: $draft.all)
+                CaptureDraftField(draft.kind == "regex_replace" ? L10n.text("app.operation.regular_expression") : L10n.text("app.ui.find"), text: $draft.pattern)
+                    .help(draft.kind == "regex_replace" ? L10n.text("app.ui.go_re2_regular_expression") : L10n.text("app.ui.literal_text_to_replace"))
+                CaptureDraftField(L10n.text("app.ui.replace_with"), text: $draft.replacement)
+                Toggle(L10n.text("app.ui.replace_all_occurrences"), isOn: $draft.all)
             }
-            if draft.kind == "script" { CaptureDraftField("Saved script", text: $draft.script) }
+            if draft.kind == "script" { CaptureDraftField(L10n.text("app.ui.saved_script"), text: $draft.script) }
             if stage.hasPrefix("websocket_") && ["body_set", "json_set", "json_delete", "text_replace", "regex_replace", "script"].contains(draft.kind) {
-                Picker("Result message type", selection: $draft.messageType) {
-                    Text("Preserve type").tag(""); Text("Text").tag("text"); Text("Binary").tag("binary")
+                Picker(L10n.text("app.ui.result_message_type"), selection: $draft.messageType) {
+                    Text(verbatim: L10n.text("app.ui.preserve_type")).tag(""); Text(verbatim: L10n.text("app.ui.text")).tag("text"); Text(verbatim: L10n.text("app.ui.binary")).tag("binary")
                 }
             }
         }
@@ -320,46 +320,52 @@ private struct CaptureOperationEditor: View {
 @MainActor private struct CaptureDraftPreviewView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var model: CaptureDraftModel
-    @State private var previewTab = "Before / After"
+    private enum PreviewTab: CaseIterable {
+        case comparison, diff, raw
+        var title: String {
+            switch self { case .comparison: return L10n.text("app.ui.before_after"); case .diff: return L10n.text("app.ui.diff"); case .raw: return L10n.text("app.ui.raw_result") }
+        }
+    }
+    @State private var previewTab = PreviewTab.comparison
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Preview display", selection: $previewTab) {
-                ForEach(["Before / After", "Diff", "Raw Result"], id: \.self) { Text($0).tag($0) }
+            Picker(L10n.text("app.ui.preview_display"), selection: $previewTab) {
+                ForEach(PreviewTab.allCases, id: \.self) { Text(verbatim: $0.title).tag($0) }
             }.pickerStyle(.segmented)
             Group {
-                if previewTab == "Before / After" {
+                if previewTab == .comparison {
                     HStack(alignment: .top, spacing: 12) {
-                        previewText("Original", model.beforeText)
+                        previewText(L10n.text("app.ui.original"), model.beforeText)
                         Divider()
-                        previewText("Result", model.previewResult == nil ? "No preview result." : model.afterText)
+                        previewText(L10n.text("app.ui.result"), model.previewResult == nil ? L10n.text("app.ui.no_preview_result_2") : model.afterText)
                     }
                 } else {
-                    previewText(previewTab, resultText)
+                    previewText(previewTab.title, resultText)
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            if let error = model.error { Text(error).foregroundColor(.red).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
+            if let error = model.error { Text(verbatim: error).foregroundColor(.red).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
             Divider()
             HStack {
-                Text("Offline Preview").font(.caption).foregroundColor(.secondary)
+                Text(verbatim: L10n.text("app.ui.offline_preview")).font(.caption).foregroundColor(.secondary)
                 if model.working { ProgressView().controlSize(.small) }
                 Spacer()
-                Button("Update Preview") { Task { await model.preview() } }.disabled(!model.ready || !model.canPreview)
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("app.ui.update_preview")) { Task { await model.preview() } }.disabled(!model.ready || !model.canPreview)
+                Button(L10n.text("app.ui.done")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
         }.padding(20).frame(minWidth: 680, idealWidth: 800, minHeight: 460, idealHeight: 560)
             .nativeFormControls()
             .task { await model.preview() }
     }
     private var resultText: String {
-        guard let result = model.previewResult else { return "No preview result." }
-        return previewTab == "Diff" ? model.diffText : result.text
+        guard let result = model.previewResult else { return L10n.text("app.ui.no_preview_result_2") }
+        return previewTab == .diff ? model.diffText : result.text
     }
     private func previewText(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption.bold())
+            Text(verbatim: title).font(.caption.bold())
             ScrollView([.horizontal, .vertical]) {
-                Text(value).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-            }.frame(maxWidth: .infinity, maxHeight: .infinity).accessibilityLabel(title + " capture preview")
+                Text(verbatim: value).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity).accessibilityLabel(title + L10n.text("app.ui.capture_preview"))
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -39,7 +39,7 @@ private struct NativeDisclosureGroupStyle: DisclosureGroupStyle {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityValue(configuration.isExpanded ? L10n.text("app.ui.expanded") : L10n.text("app.ui.collapsed"))
             if configuration.isExpanded {
                 configuration.content.padding(.leading, 18)
             }

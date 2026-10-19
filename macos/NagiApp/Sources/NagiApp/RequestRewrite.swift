@@ -74,7 +74,7 @@ indirect enum RewriteJSON: Equatable {
 enum RewriteFormError: LocalizedError {
     case invalidJSON, invalid(String)
     var errorDescription: String? {
-        switch self { case .invalidJSON: return "Enter one valid JSON value. Values have not been submitted."
+        switch self { case .invalidJSON: return L10n.text("app.ui.enter_one_valid_json_value_values_have")
         case .invalid(let text): return text }
     }
 }
@@ -90,9 +90,9 @@ struct RewriteRuleSummary: Equatable {
     let id: String; let enabled: Bool; let stage: String; let domain: String; let methods: [String]; let path: String; let onError: String; let kinds: [String]
     init?(_ value: JSONValue) {
         guard let id = value["id"]?.string, let enabled = value["enabled"]?.bool, let stage = value["stage"]?.string else { return nil }
-        self.id = id; self.enabled = enabled; self.stage = stage; domain = value["match"]?["domain"]?.string ?? "unknown"
+        self.id = id; self.enabled = enabled; self.stage = stage; domain = value["match"]?["domain"]?.string ?? L10n.text("app.state.unknown")
         methods = value["match"]?["methods"]?.array.compactMap(\.string) ?? []
-        path = value["match"]?["path_prefix"]?.string ?? "Any path"; onError = value["on_error"]?.string ?? "unknown"
+        path = value["match"]?["path_prefix"]?.string ?? L10n.text("app.ui.any_path"); onError = value["on_error"]?.string ?? "unknown"
         kinds = value["operations"]?.array.compactMap { $0.string ?? $0["op"]?.string } ?? []
     }
 }
@@ -103,23 +103,28 @@ struct RewriteStatus {
     var actual: String { value["actual"]?.string ?? "unavailable" }
     var tunRunning: Bool? { value["tun_running"]?.bool }
     var canEnable: Bool { tunRunning == true }
-    var menuTitle: String { "Request Rewrite · \(actual.capitalized)" }
-    var recovery: String { value["recovery"]?.string ?? value["recovery_command"]?.string ?? "Use the CLI for diagnostics and advanced recovery." }
-    static func bool(_ value: Bool?) -> String { value.map { $0 ? "Yes" : "No" } ?? "unknown" }
+    var menuTitle: String { L10n.format("app.ui.request_rewrite", String(describing: L10n.protocolLabel(actual))) }
+    var recovery: String { value["recovery"]?.displayString ?? value["recovery_command"]?.string ?? L10n.text("app.ui.use_the_cli_for_diagnostics_and_advanced") }
+    static func bool(_ value: Bool?) -> String { value.map { $0 ? L10n.text("app.ui.yes") : L10n.text("app.ui.no") } ?? L10n.text("app.state.unknown") }
     var detail: String {
         let ca = value["ca"]
-        return """
-        Profile: \(profile ?? "unknown")    Enabled intent: \(Self.bool(intent))
-        Actual: \(actual)    TUN running: \(Self.bool(tunRunning))    Rewrite service running: \(Self.bool(value["service_running"]?.bool))
-        Config schema: \(value["config_version"]?.int64.map(String.init) ?? "unknown")
-        Backend: \(value["backend"]?.string ?? "unknown")    Protocol: \(value["protocol_version"]?.int64.map(String.init) ?? "unknown")
-        Configured version: \(value["configured_rule_version"]?.string ?? "unknown")
-        Active version: \(value["active_rule_version"]?.string ?? "unknown")
-        Generation: \(value["generation"]?.string ?? "unknown")    Engine epoch: \(value["engine_epoch"]?.string ?? "unknown")
-        CA: \(ca?["state"]?.string ?? "unknown")    Trust: \(ca?["trust"]?.string ?? "unknown")
-        Last error: \(value["last_error"]?.string ?? "none reported")
-        \(recovery)
-        """
+        return L10n.format("app.rewrite.details",
+            String(describing: profile ?? L10n.text("app.state.unknown")),
+            String(describing: Self.bool(intent)),
+            String(describing: L10n.protocolLabel(actual)),
+            String(describing: Self.bool(tunRunning)),
+            String(describing: Self.bool(value["service_running"]?.bool)),
+            String(describing: value["config_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown")),
+            String(describing: value["backend"]?.string ?? L10n.text("app.state.unknown")),
+            String(describing: value["protocol_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown")),
+            String(describing: value["configured_rule_version"]?.string ?? L10n.text("app.state.unknown")),
+            String(describing: value["active_rule_version"]?.string ?? L10n.text("app.state.unknown")),
+            String(describing: value["generation"]?.string ?? L10n.text("app.state.unknown")),
+            String(describing: value["engine_epoch"]?.string ?? L10n.text("app.state.unknown")),
+            String(describing: L10n.protocolLabel(ca?["state"]?.string ?? L10n.text("app.state.unknown"))),
+            String(describing: L10n.protocolLabel(ca?["trust"]?.string ?? L10n.text("app.state.unknown"))),
+            String(describing: value["last_error"]?.displayString ?? L10n.text("app.state.none_reported")),
+            String(describing: recovery))
     }
 }
 
@@ -147,11 +152,11 @@ struct RewriteOperationDraft {
             fields["pattern"] = .string(pattern); fields["replacement"] = .string(replacement); fields["all"] = .scalar(all ? "true" : "false")
         case "script": fields["script"] = .string(script)
         case "method_set", "status_set": break
-        default: throw RewriteFormError.invalid("Choose a supported operation.")
+        default: throw RewriteFormError.invalid(L10n.text("app.rewrite.supported_operation"))
         }
         if kind == "json_set" { fields["value"] = try RewriteJSON.parse(Data(value.utf8)) }
         else if kind == "status_set" {
-            guard let status = Int(value), (200...599).contains(status) else { throw RewriteFormError.invalid("Enter a response status from 200 through 599.") }
+            guard let status = Int(value), (200...599).contains(status) else { throw RewriteFormError.invalid(L10n.text("app.rewrite.response_status_range")) }
             fields["value"] = .scalar(String(status))
         } else if ["header_set", "header_append", "trailer_set", "url_set", "method_set", "body_set"].contains(kind) { fields["value"] = .string(value) }
         if !messageType.isEmpty { fields["message_type"] = .string(messageType) }
@@ -165,8 +170,8 @@ struct RewriteScriptDraft {
         id = node["id"]?.string ?? ""; bodyAccess = node["body_access"]?.string ?? "none"; source = node["source"]?.string ?? ""
     }
     func json() throws -> Data {
-        guard !id.isEmpty, !source.isEmpty else { throw RewriteFormError.invalid("Enter a script ID and source.") }
-        guard source.utf8.count <= 65_536 else { throw RewriteFormError.invalid("The script source exceeds 64 KiB.") }
+        guard !id.isEmpty, !source.isEmpty else { throw RewriteFormError.invalid(L10n.text("app.ui.enter_a_script_id_and_source")) }
+        guard source.utf8.count <= 65_536 else { throw RewriteFormError.invalid(L10n.text("app.ui.the_script_source_exceeds_64_kib")) }
         return RewriteJSON.object(["id": .string(id), "body_access": .string(bodyAccess), "source": .string(source)]).data
     }
 }
@@ -179,7 +184,7 @@ struct RewriteConsentDraft {
     }
     func json() throws -> RewriteJSON {
         let portStrings = rewriteTokens(ports)
-        guard !portStrings.isEmpty, portStrings.allSatisfy({ Int($0).map { (1...65535).contains($0) } == true }) else { throw RewriteFormError.invalid("Destination consent needs explicit ports from 1 through 65535.") }
+        guard !portStrings.isEmpty, portStrings.allSatisfy({ Int($0).map { (1...65535).contains($0) } == true }) else { throw RewriteFormError.invalid(L10n.text("app.ui.destination_consent_needs_explicit_ports_from_1")) }
         return .object(["domain": .string(domain), "schemes": .array(rewriteTokens(schemes).map(RewriteJSON.string)), "ports": .array(portStrings.map { .scalar(String(Int($0)!)) })])
     }
 }
@@ -204,7 +209,7 @@ struct RewriteRuleDraft {
         consent = node["redirect_consent"]?.array.map(RewriteConsentDraft.init) ?? []
     }
     func json() throws -> Data {
-        guard !id.isEmpty, !domain.isEmpty, !operations.isEmpty else { throw RewriteFormError.invalid("Enter an ID, match domain, and at least one operation.") }
+        guard !id.isEmpty, !domain.isEmpty, !operations.isEmpty else { throw RewriteFormError.invalid(L10n.text("app.ui.enter_an_id_match_domain_and_at")) }
         var match: [String: RewriteJSON] = ["domain": .string(domain)]
         for (key,text) in [("methods",methods),("content_types",contentTypes),("message_types",messageTypes)] {
             let values = rewriteTokens(text)
@@ -216,18 +221,18 @@ struct RewriteRuleDraft {
             let value = try RewriteJSON.parse(Data(text.utf8))
             guard case .object(let pairs) = value, pairs.values.allSatisfy({ node in
                 if case .array(let values) = node { return values.allSatisfy { $0.string != nil } }; return false
-            }) else { throw RewriteFormError.invalid("Match predicates require a JSON object mapping names to string arrays.") }
+            }) else { throw RewriteFormError.invalid(L10n.text("app.ui.match_predicates_require_a_json_object_mapping")) }
             match[key] = value
         }
         let codes = rewriteTokens(statusCodes)
         if !codes.isEmpty {
-            guard codes.allSatisfy({ Int($0).map { (100...599).contains($0) } == true }) else { throw RewriteFormError.invalid("Enter status codes from 100 through 599.") }
+            guard codes.allSatisfy({ Int($0).map { (100...599).contains($0) } == true }) else { throw RewriteFormError.invalid(L10n.text("app.ui.enter_status_codes_from_100_through_599")) }
             match["status_codes"] = .array(codes.map { .scalar(String(Int($0)!)) })
         }
         let node = RewriteJSON.object(["id": .string(id), "enabled": .scalar(enabled ? "true" : "false"), "stage": .string(stage), "range_mode": .string(rangeMode),
             "match": .object(match), "on_error": .string(onError), "redirect_consent": .array(try consent.map { try $0.json() }), "operations": .array(try operations.map { try $0.json() })])
         let data = node.data
-        guard data.count <= 1_048_576 else { throw RewriteFormError.invalid("The rule exceeds the CLI's 1 MiB document input limit.") }
+        guard data.count <= 1_048_576 else { throw RewriteFormError.invalid(L10n.text("app.ui.the_rule_exceeds_the_cli_s_1")) }
         return data
     }
 }

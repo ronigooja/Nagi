@@ -13,29 +13,29 @@ import AppKit
         let mainMenu = NSMenu()
         let appItem = NSMenuItem(title: "Nagi", action: nil, keyEquivalent: "")
         let appMenu = NSMenu(title: "Nagi")
-        appMenu.addItem(withTitle: "Quit Nagi", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L10n.text("app.ui.quit_nagi"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         mainMenu.addItem(appItem)
 
         // Accessory apps still need a main menu to route editing shortcuts to
         // the focused field editor, including while an NSAlert runs modally.
-        let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
-        let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        let editItem = NSMenuItem(title: L10n.text("app.ui.edit"), action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: L10n.text("app.ui.edit"))
+        editMenu.addItem(withTitle: L10n.text("app.ui.undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: L10n.text("app.ui.redo"), action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: L10n.text("app.ui.cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: L10n.text("app.ui.copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: L10n.text("app.ui.paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: L10n.text("app.ui.select_all"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         // Leave targets nil so AppKit uses the responder chain.
         editItem.submenu = editMenu
         mainMenu.addItem(editItem)
-        let windowItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
-        let windowMenu = NSMenu(title: "Window")
-        windowMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        let windowItem = NSMenuItem(title: L10n.text("app.ui.window"), action: nil, keyEquivalent: "")
+        let windowMenu = NSMenu(title: L10n.text("app.ui.window"))
+        windowMenu.addItem(withTitle: L10n.text("app.ui.close_window"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowMenu.addItem(withTitle: L10n.text("app.ui.minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowItem.submenu = windowMenu
         mainMenu.addItem(windowItem)
         return mainMenu
@@ -136,9 +136,9 @@ import AppKit
         case .starting: state = "starting"
         case .running: state = "running"
         case .stopped: state = "stopped"
-        case .unavailable: state = "status unavailable"
+        case .unavailable: state = L10n.text("app.ui.status_unavailable_3")
         }
-        button.setAccessibilityLabel(model.applyingSetting ? "Nagi, applying setting" : "Nagi \(state), \(model.accessibilityTraffic)")
+        button.setAccessibilityLabel(model.applyingSetting ? L10n.text("app.ui.nagi_applying_setting") : L10n.format("app.ui.nagi", String(describing: L10n.protocolLabel(state)), String(describing: model.accessibilityTraffic)))
     }
 
     func menuShouldOpen(_ menu: NSMenu) -> Bool { !model.busy }
@@ -172,17 +172,17 @@ import AppKit
                                    tunEnabled: Bool, tunAdapter: String?) -> NSMenuItem {
         let engineState: String
         switch state {
-        case .starting: engineState = "Starting…"
-        case .running: engineState = "Running"
-        case .stopped: engineState = "Stopped"
-        case .unavailable: engineState = "Status unavailable"
+        case .starting: engineState = L10n.text("app.ui.starting")
+        case .running: engineState = L10n.text("app.ui.running")
+        case .stopped: engineState = L10n.text("app.ui.stopped")
+        case .unavailable: engineState = L10n.text("app.ui.status_unavailable_2")
         }
         var errors = errors
         if tunEnabled && tunAdapter != "up" {
-            errors.append("TUN adapter: \(tunAdapter ?? "unknown") · Check logs in CLI")
+            errors.append(L10n.format("app.ui.tun_adapter_check_logs_in_cli", String(describing: tunAdapter.map { L10n.protocolLabel($0) } ?? L10n.text("app.tun.unknown"))))
         }
-        let title = !errors.isEmpty ? "Nagi · Error"
-            : (notice != nil ? "Nagi · Info" : "Nagi · \(engineState)")
+        let title = !errors.isEmpty ? L10n.text("app.ui.nagi_error")
+            : (notice != nil ? L10n.text("app.ui.nagi_info") : L10n.format("app.ui.nagi_2", String(describing: engineState)))
         let status = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         guard !errors.isEmpty || notice != nil else {
             status.isEnabled = false
@@ -191,7 +191,7 @@ import AppKit
         let font = NSFont.menuFont(ofSize: 0)
         let symbolName = errors.isEmpty ? "info.circle" : "exclamationmark.triangle"
         let iconSize: CGFloat = 14
-        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: errors.isEmpty ? "Info" : "Error")?
+        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: errors.isEmpty ? L10n.text("app.ui.info") : L10n.text("app.ui.error"))?
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: font.pointSize, weight: .regular)) {
             symbol.size = NSSize(width: iconSize, height: iconSize)
             let attachment = NSTextAttachment()
@@ -239,29 +239,29 @@ import AppKit
             errors: [model.quitErrorMessage, model.errorMessage].compactMap { $0 },
             notice: model.notice, tunEnabled: model.tun == true, tunAdapter: model.tunAdapter))
         if model.state != .running {
-            add("Retry Start", action: #selector(retryStart), enabled: !model.busy)
+            add(L10n.text("app.ui.retry_start"), action: #selector(retryStart), enabled: !model.busy)
         }
         menu.addItem(.separator())
-        add("System Proxy", command: ["system-proxy", model.systemProxy == true ? "disable" : "enable"],
+        add(L10n.text("app.ui.system_proxy"), command: ["system-proxy", model.systemProxy == true ? "disable" : "enable"],
             checked: model.systemProxy == true, enabled: model.state == .running && model.systemProxy != nil && !model.busy)
         add("TUN", command: ["tun", model.tun == true ? "disable" : "enable"],
             checked: model.tun == true, enabled: model.state == .running && model.tun != nil && !model.busy)
         let modeMenu = NSMenu()
         for value in ["rule", "global", "direct"] {
-            add(value.capitalized, command: ["mode", value], checked: model.mode == value,
+            add(L10n.protocolLabel(value), command: ["mode", value], checked: model.mode == value,
                 enabled: model.state == .running && !model.busy, to: modeMenu)
         }
         modeMenu.addItem(.separator())
         if let mode = model.mode {
-            add("Save Current Mode as Default", command: ["mode", "save", mode],
+            add(L10n.text("app.ui.save_current_mode_as_default"), command: ["mode", "save", mode],
                 enabled: model.state == .running && !model.busy, to: modeMenu)
         } else {
-            disabled("Current mode unavailable", to: modeMenu)
+            disabled(L10n.text("app.ui.current_mode_unavailable"), to: modeMenu)
         }
-        addSubmenu("Mode", modeMenu, enabled: model.state == .running)
+        addSubmenu(L10n.text("app.ui.mode"), modeMenu, enabled: model.state == .running)
 
         let groupsMenu = NSMenu()
-        if model.groups.allSatisfy(\.hidden) { disabled("No visible proxy groups", to: groupsMenu) }
+        if model.groups.allSatisfy(\.hidden) { disabled(L10n.text("app.ui.no_visible_proxy_groups"), to: groupsMenu) }
         for group in model.groups {
             if group.hidden { continue }
             let choices = makeGroupMenu(group)
@@ -280,62 +280,62 @@ import AppKit
                 }
             }
         }
-        addSubmenu("Proxy Groups", groupsMenu, enabled: model.state == .running)
+        addSubmenu(L10n.text("app.ui.proxy_groups"), groupsMenu, enabled: model.state == .running)
         menu.addItem(.separator())
 
-        addSubmenu("Profiles", makeProfilesMenu(), enabled: !model.profiles.isEmpty)
+        addSubmenu(L10n.text("app.ui.profiles"), makeProfilesMenu(), enabled: !model.profiles.isEmpty)
 
         let subscriptionMenu = NSMenu()
-        add("Add and Apply Subscription…", action: #selector(addAndApplySubscription), enabled: !model.busy, to: subscriptionMenu)
-        if model.subscriptions.isEmpty { disabled("No saved subscriptions", to: subscriptionMenu) }
+        add(L10n.text("app.ui.add_and_apply_subscription"), action: #selector(addAndApplySubscription), enabled: !model.busy, to: subscriptionMenu)
+        if model.subscriptions.isEmpty { disabled(L10n.text("app.ui.no_saved_subscriptions"), to: subscriptionMenu) }
         else { subscriptionMenu.addItem(.separator()) }
         for subscription in model.subscriptions {
             let actions = NSMenu()
             disabled(Self.quotaLabel(subscription), to: actions)
-            if let expiry = subscription.expiresAt { disabled("Expires: \(Self.subscriptionTime(expiry))", to: actions) }
-            let nextUpdate = subscription.scheduleSeconds == 0 ? "Next update: off" :
-                (subscription.schedulerRunning ? (subscription.nextDue.map { "Next update: \(Self.subscriptionTime($0))" } ?? "Next update: pending") : "Next update: scheduler not running")
+            if let expiry = subscription.expiresAt { disabled(L10n.format("app.ui.expires", String(describing: Self.subscriptionTime(expiry))), to: actions) }
+            let nextUpdate = subscription.scheduleSeconds == 0 ? L10n.text("app.ui.next_update_off") :
+                (subscription.schedulerRunning ? (subscription.nextDue.map { L10n.format("app.ui.next_update", String(describing: Self.subscriptionTime($0))) } ?? L10n.text("app.ui.next_update_pending")) : L10n.text("app.ui.next_update_scheduler_not_running"))
             disabled(nextUpdate, to: actions)
-            if let pause = subscription.pauseReason { disabled("Auto-apply paused: \(pause)", to: actions) }
-            if let stage = subscription.lastFailureStage { disabled("Last failure: \(stage)/\(subscription.lastFailureReason ?? "unknown")", to: actions) }
+            if let pause = subscription.pauseReason { disabled(L10n.format("app.ui.auto_apply_paused", String(describing: L10n.protocolLabel(pause))), to: actions) }
+            if let stage = subscription.lastFailureStage { disabled(L10n.format("app.ui.last_failure", String(describing: L10n.protocolLabel(stage)), String(describing: subscription.lastFailureReason ?? L10n.text("app.state.unknown"))), to: actions) }
             actions.addItem(.separator())
-            let updateAndApply = add("Update and Apply", action: #selector(updateAndApplySubscription(_:)),
+            let updateAndApply = add(L10n.text("app.ui.update_and_apply"), action: #selector(updateAndApplySubscription(_:)),
                                      enabled: !model.busy, to: actions)
             updateAndApply.representedObject = subscription.name
-            add("Update Settings…", action: #selector(subscriptionUpdateSettings(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
-            add("Latency Check Settings…", action: #selector(subscriptionLatencySettings(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
+            add(L10n.text("app.ui.update_settings_2"), action: #selector(subscriptionUpdateSettings(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
+            add(L10n.text("app.ui.latency_check_settings_2"), action: #selector(subscriptionLatencySettings(_:)), enabled: !model.busy, to: actions).representedObject = subscription.name
             actions.addItem(.separator())
-            let delete = add("Delete Subscription…", action: #selector(deleteSubscription(_:)),
+            let delete = add(L10n.text("app.ui.delete_subscription"), action: #selector(deleteSubscription(_:)),
                              enabled: !model.busy, to: actions)
             delete.representedObject = subscription.name
             addSubmenu(subscription.name, actions, to: subscriptionMenu)
         }
-        addSubmenu("Subscriptions", subscriptionMenu)
+        addSubmenu(L10n.text("app.ui.subscriptions"), subscriptionMenu)
         let providersMenu = NSMenu()
-        add("Add Provider…", action: #selector(addProvider), enabled: !model.busy, to: providersMenu)
+        add(L10n.text("app.ui.add_provider"), action: #selector(addProvider), enabled: !model.busy, to: providersMenu)
         providersMenu.addItem(.separator())
-        if model.providersUnavailable { disabled("Proxy providers unavailable", to: providersMenu) }
-        else if model.providers.isEmpty { disabled("No proxy providers", to: providersMenu) }
+        if model.providersUnavailable { disabled(L10n.text("app.ui.proxy_providers_unavailable_2"), to: providersMenu) }
+        else if model.providers.isEmpty { disabled(L10n.text("app.ui.no_proxy_providers"), to: providersMenu) }
         for provider in model.providers {
             let actions = NSMenu()
-            disabled("\(provider.type) · \(provider.nodes.count) nodes", to: actions)
+            disabled("\(provider.type) · \(L10n.format("app.provider.nodes_count", Int64(provider.nodes.count)))", to: actions)
             actions.addItem(.separator())
-            add("Update Provider", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
+            add(L10n.text("app.ui.update_provider"), command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
             let tests = NSMenu()
-            add("All Nodes", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: tests)
+            add(L10n.text("app.ui.all_nodes"), command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: tests)
             if !provider.testableNodes.isEmpty { tests.addItem(.separator()) }
             for node in provider.testableNodes {
-                let item = add("\(node) · \(provider.nodeDelays[node]?.label ?? "Untested")", command: ["proxy", "test", "provider", provider.name, node], enabled: model.state == .running && !model.busy, to: tests)
+                let item = add("\(node) · \(provider.nodeDelays[node]?.label ?? L10n.text("app.ui.untested"))", command: ["proxy", "test", "provider", provider.name, node], enabled: model.state == .running && !model.busy, to: tests)
                 item.toolTip = (provider.nodeDelays[node] ?? NodeDelay()).detail
             }
-            addSubmenu("Test Latency", tests, enabled: model.state == .running && !model.busy, to: actions)
-            add("Update Settings…", action: #selector(providerUpdateSettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
-            add("Latency Check Settings…", action: #selector(providerLatencySettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
+            addSubmenu(L10n.text("app.ui.test_latency"), tests, enabled: model.state == .running && !model.busy, to: actions)
+            add(L10n.text("app.ui.update_settings_2"), action: #selector(providerUpdateSettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
+            add(L10n.text("app.ui.latency_check_settings_2"), action: #selector(providerLatencySettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
             actions.addItem(.separator())
-            add("Delete Provider", command: provider.removeCommand, enabled: !model.busy, to: actions)
+            add(L10n.text("app.ui.delete_provider"), command: provider.removeCommand, enabled: !model.busy, to: actions)
             addSubmenu(provider.name, actions, to: providersMenu)
         }
-        addSubmenu("Proxy Providers", providersMenu, enabled: !model.busy)
+        addSubmenu(L10n.text("app.ui.proxy_providers"), providersMenu, enabled: !model.busy)
         menu.addItem(.separator())
 
         let displayMenu = NSMenu()
@@ -343,57 +343,57 @@ import AppKit
             let item = add(option.title, action: #selector(setDisplay(_:)), checked: model.display == option, to: displayMenu)
             item.representedObject = option.rawValue
         }
-        add("Connections…", action: #selector(showConnections))
-        add("Request Capture…", action: #selector(showCapture))
+        add(L10n.text("app.ui.connections_2"), action: #selector(showConnections))
+        add(L10n.text("app.ui.request_capture"), action: #selector(showCapture))
         if let capture = model.capture.status, ["recording", "paused"].contains(capture.state) {
-            disabled("Capture · " + capture.state.capitalized, to: menu)
-            add("Stop Capture", action: #selector(stopCapture), enabled: model.capture.canOperate)
+            disabled(L10n.text("app.capture.menu_summary") + L10n.protocolLabel(capture.state), to: menu)
+            add(L10n.text("app.ui.stop_capture"), action: #selector(stopCapture), enabled: model.capture.canOperate)
         }
         let rewriteMenu = NSMenu()
         let rewrite = model.requestRewrite
-        disabled(rewrite.stale ? "State unavailable or stale" : (rewrite.status?.menuTitle ?? "Status unavailable"), to: rewriteMenu)
+        disabled(rewrite.stale ? L10n.text("app.ui.state_unavailable_or_stale") : (rewrite.status?.menuTitle ?? L10n.text("app.ui.status_unavailable_2")), to: rewriteMenu)
         let rewriteEnabled = rewrite.status?.intent == true
-        add(rewriteEnabled ? "Disable Request Rewrite" : "Enable Request Rewrite…",
+        add(rewriteEnabled ? L10n.text("app.ui.disable_request_rewrite") : L10n.text("app.ui.enable_request_rewrite_2"),
             action: #selector(toggleRequestRewrite), checked: rewriteEnabled,
             enabled: rewriteEnabled ? rewrite.canOperate : rewrite.canEnable, to: rewriteMenu)
-        add("Request Rewrite…", action: #selector(showRequestRewrite), to: rewriteMenu)
-        addSubmenu("Request Rewrite", rewriteMenu)
+        add(L10n.text("app.ui.request_rewrite_2"), action: #selector(showRequestRewrite), to: rewriteMenu)
+        addSubmenu(L10n.text("app.ui.request_rewrite_3"), rewriteMenu)
         menu.addItem(.separator())
-        addSubmenu("Display", displayMenu)
+        addSubmenu(L10n.text("app.ui.display"), displayMenu)
         let startupMenu = NSMenu()
-        add("Open menu bar app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
+        add(L10n.text("app.ui.open_menu_bar_app_at_login"), action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
         let startupCommand = model.serviceInstalled == true ? ["service", "uninstall"] : ["service", "install"]
-        add("Run engine at login", command: startupCommand,
+        add(L10n.text("app.ui.run_engine_at_login"), command: startupCommand,
             checked: model.serviceInstalled == true, enabled: model.serviceInstalled != nil && !model.busy, to: startupMenu)
-        if model.serviceInstalled == nil { disabled("Engine service status unavailable", to: startupMenu) }
-        addSubmenu("Login", startupMenu)
+        if model.serviceInstalled == nil { disabled(L10n.text("app.ui.engine_service_status_unavailable"), to: startupMenu) }
+        addSubmenu(L10n.text("app.ui.login"), startupMenu)
         menu.addItem(.separator())
-        add("Help", action: #selector(openHelp))
-        add("About Nagi", action: #selector(showAbout))
-        add("Quit Nagi", action: #selector(quit), enabled: !model.busy)
+        add(L10n.text("app.ui.help"), action: #selector(openHelp))
+        add(L10n.text("app.ui.about_nagi"), action: #selector(showAbout))
+        add(L10n.text("app.ui.quit_nagi"), action: #selector(quit), enabled: !model.busy)
     }
 
     func makeProfilesMenu() -> NSMenu {
         let profileMenu = NSMenu()
-        if model.profiles.isEmpty { disabled("No profiles", to: profileMenu) }
+        if model.profiles.isEmpty { disabled(L10n.text("app.ui.no_profiles"), to: profileMenu) }
         for name in model.profiles {
             add(name, command: ["profile", "use", name], checked: model.profile == name,
                 enabled: !model.busy, to: profileMenu)
         }
         profileMenu.addItem(.separator())
-        add("Apply Default Runtime Settings to Current Profile", action: #selector(applyDefaultOverride),
+        add(L10n.text("app.ui.apply_default_runtime_settings_to_current_profile"), action: #selector(applyDefaultOverride),
             checked: model.defaultOverrideApplied == true,
             enabled: !model.busy && model.defaultOverrideApplied != nil, to: profileMenu)
         let managementMenu = NSMenu()
         let ordinaryProfiles = model.profiles.filter { $0 != "default" }
-        if ordinaryProfiles.isEmpty { disabled("No personal profiles", to: managementMenu) }
+        if ordinaryProfiles.isEmpty { disabled(L10n.text("app.ui.no_personal_profiles"), to: managementMenu) }
         for name in ordinaryProfiles {
-            let deleteTitle = "Delete “\(name)”…" + (model.profile == name ? " (Switch profiles first)" : "")
+            let deleteTitle = L10n.format("app.ui.delete", String(describing: name)) + (model.profile == name ? L10n.text("app.ui.switch_profiles_first") : "")
             add(deleteTitle, action: #selector(deleteProfile(_:)),
                 enabled: !model.busy && model.deletableProfiles.contains(name),
                 to: managementMenu).representedObject = name
         }
-        addSubmenu("Manage Profiles", managementMenu, enabled: !model.busy, to: profileMenu)
+        addSubmenu(L10n.text("app.ui.manage_profiles"), managementMenu, enabled: !model.busy, to: profileMenu)
         return profileMenu
     }
 
@@ -417,14 +417,14 @@ import AppKit
         return item
     }
     static func quotaLabel(_ sub: Subscription) -> String {
-        guard sub.total > 0 else { return "Quota: unknown" }
+        guard sub.total > 0 else { return L10n.text("app.ui.quota_unknown") }
         let (sum, overflow) = max(0, sub.upload).addingReportingOverflow(max(0, sub.download))
         let used = overflow ? Int64.max : sum
         let available = max(0, sub.total - used)
-        return "Quota: \(subscriptionBytes(available)) available / \(subscriptionBytes(sub.total)) total (\(subscriptionBytes(sub.upload)) uploaded, \(subscriptionBytes(sub.download)) downloaded)"
+        return L10n.format("app.ui.quota_available_total_uploaded_downloaded", String(describing: subscriptionBytes(available)), String(describing: subscriptionBytes(sub.total)), String(describing: subscriptionBytes(sub.upload)), String(describing: subscriptionBytes(sub.download)))
     }
     static func subscriptionBytes(_ bytes: Int64) -> String {
-        guard bytes >= 0 else { return "unknown" }
+        guard bytes >= 0 else { return L10n.text("app.state.unknown") }
         guard bytes >= 1024 else { return "\(bytes) B" }
         let units = ["KiB", "MiB", "GiB", "TiB", "PiB", "EiB"]
         var value = Double(bytes) / 1024
@@ -445,8 +445,8 @@ import AppKit
         let choices = NSMenu()
         let automatic = group.automatic
         if automatic {
-            disabled(group.fixed.map { "Fixed: \($0)" } ?? "Automatic: \(group.selected)", to: choices)
-            if let status = group.selectedStatus, status != "available" { disabled("Selection: \(status)", to: choices) }
+            disabled(group.fixed.map { L10n.format("app.ui.fixed", String(describing: $0)) } ?? L10n.format("app.ui.automatic", String(describing: group.selected)), to: choices)
+            if let status = group.selectedStatus, status != "available" { disabled(L10n.format("app.ui.selection", String(describing: L10n.protocolLabel(status))), to: choices) }
             choices.addItem(.separator())
         }
         if group.selectable {
@@ -457,7 +457,7 @@ import AppKit
                 item.toolTip = group.nodeDetail(node)
             }
         } else {
-            disabled("\(group.kind) · \(group.selected)", to: choices)
+            disabled("\(L10n.protocolLabel(group.kind)) · \(group.selected)", to: choices)
             if !group.nodes.isEmpty { choices.addItem(.separator()) }
             for node in group.nodes {
                 let item = NSMenuItem(title: group.nodeTitle(node), action: nil, keyEquivalent: "")
@@ -469,25 +469,25 @@ import AppKit
         }
         if let restoreCommand = group.restoreAutomaticCommand {
             choices.addItem(.separator())
-            let automatic = add("Restore Automatic Selection", command: restoreCommand,
+            let automatic = add(L10n.text("app.ui.restore_automatic_selection"), command: restoreCommand,
                 enabled: !model.busy, to: choices)
-            automatic.toolTip = "Clear the fixed choice through mihomo"
+            automatic.toolTip = L10n.text("app.ui.clear_the_fixed_choice_through_mihomo")
         }
-        if group.nodes.isEmpty { disabled("No nodes in this group", to: choices) }
+        if group.nodes.isEmpty { disabled(L10n.text("app.ui.no_nodes_in_this_group"), to: choices) }
         choices.addItem(.separator())
         let test = add(group.testTitle, command: group.testCommand,
                        enabled: !model.busy && group.hasLatencyCandidates, to: choices)
         if group.nodes.isEmpty {
-            test.toolTip = "No nodes in this group."
+            test.toolTip = L10n.text("app.ui.no_nodes_in_this_group_2")
         } else {
-            test.toolTip = group.hasLatencyCandidates ? group.testExplanation : "Reject actions have no latency to test."
+            test.toolTip = group.hasLatencyCandidates ? group.testExplanation : L10n.text("app.ui.reject_actions_have_no_latency_to_test")
         }
         let singleTests = NSMenu()
         for node in group.testableNodes {
             let item = add(group.nodeTitle(node), command: ["proxy", "test", "group", group.name, node], enabled: !model.busy, to: singleTests)
-            item.toolTip = (group.nodeDetail(node) ?? "") + "\nTests only this node; keeps the group selection."
+            item.toolTip = (group.nodeDetail(node) ?? "") + L10n.text("app.ui.ntests_only_this_node_keeps_the_group")
         }
-        addSubmenu("Test Single Node", singleTests, enabled: !group.testableNodes.isEmpty, to: choices)
+        addSubmenu(L10n.text("app.ui.test_single_node"), singleTests, enabled: !group.testableNodes.isEmpty, to: choices)
         return choices
     }
 
@@ -553,16 +553,16 @@ import AppKit
             return
         }
         let alert = NSAlert()
-        alert.messageText = "Choose DNS Proxy Group"
-        alert.informativeText = "Primary DNS queries will follow the group's selected proxy node."
+        alert.messageText = L10n.text("app.ui.choose_dns_proxy_group")
+        alert.informativeText = L10n.text("app.ui.primary_dns_queries_will_follow_the_group")
         let popup = NSPopUpButton(frame: .zero, pullsDown: false)
         NativeControlStyle.configure(popup)
         popup.addItems(withTitles: model.dnsProxyGroups)
         popup.setFrameSize(NSSize(width: 320, height: popup.intrinsicContentSize.height))
         if !model.dnsProxyGroup.isEmpty, let index = model.dnsProxyGroups.firstIndex(of: model.dnsProxyGroup) { popup.selectItem(at: index) }
         alert.accessoryView = popup
-        alert.addButton(withTitle: "Apply")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.text("app.ui.apply"))
+        alert.addButton(withTitle: L10n.text("app.ui.cancel"))
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn, let group = popup.selectedItem?.title {
             model.applyDefaultOverrideToCurrentProfile(group: group)
@@ -575,18 +575,18 @@ import AppKit
     @objc private func addProvider() {
         guard !model.busy else { return }
         let alert = NSAlert()
-        alert.messageText = "Add Provider"
-        let instructions = "Add an HTTP(S) provider to the selected profile. A new group does not change routing."
+        alert.messageText = L10n.text("app.ui.add_provider_2")
+        let instructions = L10n.text("app.ui.add_an_http_s_provider_to_the")
         alert.informativeText = instructions
-        alert.addButton(withTitle: "Add Provider")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.text("app.ui.add_provider_2"))
+        alert.addButton(withTitle: L10n.text("app.ui.cancel"))
         let nameField = NSTextField()
-        nameField.placeholderString = "Provider name"
+        nameField.placeholderString = L10n.text("app.ui.provider_name")
         let urlField = NSTextField()
         urlField.placeholderString = "https://example.com/provider.yaml"
         let groupField = NSComboBox()
         groupField.isEditable = true
-        groupField.placeholderString = "Existing or new group name"
+        groupField.placeholderString = L10n.text("app.ui.existing_or_new_group_name")
         groupField.addItems(withObjectValues: model.groups.filter {
             ["selector", "urltest", "fallback", "loadbalance"].contains($0.kind.lowercased())
         }.map(\.name))
@@ -595,10 +595,10 @@ import AppKit
         intervalField.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
         intervalField.stringValue = "3600"
         let testURLField = NSTextField()
-        testURLField.placeholderString = "Optional; blank inherits configuration"
+        testURLField.placeholderString = L10n.text("app.ui.optional_blank_inherits_configuration")
         let accessory = NativeControlStyle.form([
-            ("Name", nameField), ("URL", urlField), ("Group", groupField),
-            ("Update (s)", intervalField), ("Test URL", testURLField)
+            (L10n.text("app.ui.name"), nameField), ("URL", urlField), (L10n.text("app.ui.group"), groupField),
+            (L10n.text("app.ui.update_s"), intervalField), (L10n.text("app.ui.test_url"), testURLField)
         ])
         alert.accessoryView = accessory
         alert.window.initialFirstResponder = nameField
@@ -610,19 +610,19 @@ import AppKit
                 let url = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 let group = groupField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard name.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil else {
-                    alert.informativeText = "Name must be 1–128 ASCII letters, numbers, underscores, or hyphens."
+                    alert.informativeText = L10n.text("app.ui.name_must_be_1_128_ascii_letters")
                     alert.window.initialFirstResponder = nameField
                     continue
                 }
                 guard let components = URLComponents(string: url),
                       ["http", "https"].contains(components.scheme?.lowercased() ?? ""),
                       components.host?.isEmpty == false else {
-                    alert.informativeText = "Enter a valid HTTP or HTTPS URL."
+                    alert.informativeText = L10n.text("app.ui.enter_a_valid_http_or_https_url")
                     alert.window.initialFirstResponder = urlField
                     continue
                 }
                 guard components.user == nil && components.password == nil && components.fragment == nil else {
-                    alert.informativeText = "Use an HTTP or HTTPS URL without a username, password, or fragment."
+                    alert.informativeText = L10n.text("app.ui.use_an_http_or_https_url_without")
                     alert.window.initialFirstResponder = urlField
                     continue
                 }
@@ -630,19 +630,19 @@ import AppKit
                       group.unicodeScalars.allSatisfy({ scalar in
                           !CharacterSet.controlCharacters.contains(scalar) && !CharacterSet.newlines.contains(scalar)
                       }) else {
-                    alert.informativeText = "Choose an existing group or enter a printable group name of at most 128 UTF-8 bytes. Spaces inside the name are allowed."
+                    alert.informativeText = L10n.text("app.ui.choose_an_existing_group_or_enter_a")
                     alert.window.initialFirstResponder = groupField
                     continue
                 }
                 let updateInterval = intervalField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard Self.validUpdateInterval(updateInterval) else {
-                    alert.informativeText = "Update interval must be 1–31536000 seconds, or off."
+                    alert.informativeText = L10n.text("app.ui.update_interval_must_be_1_31536000_seconds_2")
                     alert.window.initialFirstResponder = intervalField
                     continue
                 }
                 let testURL = testURLField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard testURL.isEmpty || Self.validTestURL(testURL) else {
-                    alert.informativeText = "Test URL must be HTTP(S), without credentials or a fragment."
+                    alert.informativeText = L10n.text("app.ui.test_url_must_be_http_s_without")
                     alert.window.initialFirstResponder = testURLField; continue
                 }
                 if let error = await model.addProvider(name, url: url, group: group,
@@ -657,24 +657,24 @@ import AppKit
     }
     @objc private func addAndApplySubscription() {
         let alert = NSAlert()
-        alert.messageText = "Add and Apply Subscription"
-        alert.informativeText = "Downloads and applies the subscription without starting the engine. Keeps local settings and nodes; clears saved selections."
-        alert.addButton(withTitle: "Add and Apply")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = L10n.text("app.ui.add_and_apply_subscription_2")
+        alert.informativeText = L10n.text("app.ui.downloads_and_applies_the_subscription_without_starting")
+        alert.addButton(withTitle: L10n.text("app.ui.add_and_apply"))
+        alert.addButton(withTitle: L10n.text("app.ui.cancel"))
 
         let nameField = NSTextField()
-        nameField.placeholderString = "Subscription name"
+        nameField.placeholderString = L10n.text("app.ui.subscription_name")
         let urlField = NSTextField()
         urlField.placeholderString = "https://example.com/subscription"
         let scheduleField = NSComboBox()
         scheduleField.isEditable = true
         scheduleField.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
-        scheduleField.stringValue = "3600"; scheduleField.placeholderString = "Seconds, or off"
+        scheduleField.stringValue = "3600"; scheduleField.placeholderString = L10n.text("app.ui.seconds_or_off")
         let testURLField = NSTextField()
-        testURLField.placeholderString = "Optional; blank inherits configuration"
+        testURLField.placeholderString = L10n.text("app.ui.optional_blank_inherits_configuration")
         let accessory = NativeControlStyle.form([
-            ("Name", nameField), ("URL", urlField),
-            ("Update (s)", scheduleField), ("Test URL", testURLField)
+            (L10n.text("app.ui.name"), nameField), ("URL", urlField),
+            (L10n.text("app.ui.update_s"), scheduleField), (L10n.text("app.ui.test_url"), testURLField)
         ])
         alert.accessoryView = accessory
         alert.window.initialFirstResponder = nameField
@@ -684,35 +684,35 @@ import AppKit
             let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             let url = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard name.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil else {
-                alert.informativeText = "Name must be 1–128 ASCII letters, numbers, underscores, or hyphens."
+                alert.informativeText = L10n.text("app.ui.name_must_be_1_128_ascii_letters")
                 alert.window.initialFirstResponder = nameField
                 continue
             }
             guard !model.subscriptions.contains(where: { $0.name == name }) else {
-                alert.informativeText = "A subscription with this name already exists. Choose another name."
+                alert.informativeText = L10n.text("app.ui.a_subscription_with_this_name_already_exists")
                 alert.window.initialFirstResponder = nameField
                 continue
             }
             guard let components = URLComponents(string: url),
                   ["http", "https"].contains(components.scheme?.lowercased() ?? ""),
                   components.host?.isEmpty == false else {
-                alert.informativeText = "Enter a valid HTTP or HTTPS URL."
+                alert.informativeText = L10n.text("app.ui.enter_a_valid_http_or_https_url")
                 alert.window.initialFirstResponder = urlField
                 continue
             }
             guard components.user == nil && components.password == nil else {
-                alert.informativeText = "Remove the username and password from the URL."
+                alert.informativeText = L10n.text("app.ui.remove_the_username_and_password_from_the")
                 alert.window.initialFirstResponder = urlField
                 continue
             }
             let schedule = scheduleField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard Self.validUpdateInterval(schedule) else {
-                alert.informativeText = "Update interval must be 1–31536000 seconds, or off."
+                alert.informativeText = L10n.text("app.ui.update_interval_must_be_1_31536000_seconds_2")
                 alert.window.initialFirstResponder = scheduleField; continue
             }
             let testURL = testURLField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard testURL.isEmpty || Self.validTestURL(testURL) else {
-                alert.informativeText = "Test URL must be HTTP(S), without credentials or a fragment."
+                alert.informativeText = L10n.text("app.ui.test_url_must_be_http_s_without")
                 alert.window.initialFirstResponder = testURLField; continue
             }
             model.addAndApplySubscription(name, url: url, schedule: schedule, testURL: testURL)
@@ -721,11 +721,11 @@ import AppKit
     }
     static func profileDeletionConfirmation(_ name: String) -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = "Delete profile “\(name)”?"
-        alert.informativeText = "This permanently deletes its configuration, backups, local overrides and settings, and saved proxy choices, and disconnects its subscription associations. Subscription records and cached downloads are kept."
+        alert.messageText = L10n.format("app.ui.delete_profile", String(describing: name))
+        alert.informativeText = L10n.text("app.ui.this_permanently_deletes_its_configuration_backups_local")
         alert.alertStyle = .warning
-        let delete = alert.addButton(withTitle: "Delete Profile")
-        let cancel = alert.addButton(withTitle: "Cancel")
+        let delete = alert.addButton(withTitle: L10n.text("app.ui.delete_profile_2"))
+        let cancel = alert.addButton(withTitle: L10n.text("app.ui.cancel"))
         let window = alert.window
         // NSAlert normally assigns Return to its first button. Keep deletion explicit.
         delete.keyEquivalent = ""
@@ -747,11 +747,11 @@ import AppKit
     @objc private func deleteSubscription(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         let alert = NSAlert()
-        alert.messageText = "Delete subscription “\(name)”?"
-        alert.informativeText = "This removes the subscription record and cached download. Any profile already applied from this subscription is kept."
+        alert.messageText = L10n.format("app.ui.delete_subscription_2", String(describing: name))
+        alert.informativeText = L10n.text("app.ui.this_removes_the_subscription_record_and_cached")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Delete Subscription")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.text("app.ui.delete_subscription_3"))
+        alert.addButton(withTitle: L10n.text("app.ui.cancel"))
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn { model.removeSubscription(name) }
     }
@@ -766,15 +766,15 @@ import AppKit
     @objc private func showAbout() {
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.window.title = "About Nagi"
+        alert.window.title = L10n.text("app.ui.about_nagi")
         alert.messageText = "Nagi"
         alert.icon = NSApp.applicationIconImage
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        alert.informativeText = "\(version.map { "Version \($0)" } ?? "Version unavailable")\n\nA menu bar proxy client for macOS."
-        alert.addButton(withTitle: "Close")
-        let updateButton = alert.addButton(withTitle: "Update")
+        alert.informativeText = L10n.format("app.ui.n_na_menu_bar_proxy_client_for", String(describing: version.map { L10n.format("app.about.version", String(describing: $0)) } ?? L10n.text("app.about.version_unavailable")))
+        alert.addButton(withTitle: L10n.text("app.ui.close"))
+        let updateButton = alert.addButton(withTitle: L10n.text("app.ui.update"))
         updateButton.isEnabled = !model.busy
-        updateButton.toolTip = "Updates Nagi and reopens this app."
+        updateButton.toolTip = L10n.text("app.ui.updates_nagi_and_reopens_this_app")
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertSecondButtonReturn { updateNagi() }
     }
@@ -788,9 +788,9 @@ import AppKit
         guard enabled ? rewrite.canOperate : rewrite.canEnable else { return }
         if !enabled {
             let alert = NSAlert()
-            alert.messageText = "Enable Request Rewrite?"
-            alert.informativeText = "Intercept domains selected by enabled rules using this profile and trusted local CA. Without enabled rules, intent is saved as idle; otherwise TUN must be running. Existing connections may be interrupted."
-            alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Enable Rewrite")
+            alert.messageText = L10n.text("app.ui.enable_request_rewrite")
+            alert.informativeText = L10n.text("app.ui.intercept_domains_selected_by_enabled_rules_using")
+            alert.addButton(withTitle: L10n.text("app.ui.cancel")); alert.addButton(withTitle: L10n.text("app.ui.enable_rewrite"))
             guard alert.runModal() == .alertSecondButtonReturn else { return }
         }
         Task { _ = await rewrite.perform([enabled ? "disable" : "enable"]) }
@@ -800,8 +800,8 @@ import AppKit
         guard !model.busy else { return }
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "Update Nagi"
-        alert.informativeText = "After authorization, Nagi will close automatically, finish updating in the background, and reopen."
+        alert.messageText = L10n.text("app.ui.update_nagi")
+        alert.informativeText = L10n.text("app.ui.after_authorization_nagi_will_close_automatically_finish")
         alert.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
@@ -844,10 +844,10 @@ private final class MenuTimestampFormatter: @unchecked Sendable {
         // Fractions do not affect minute precision; accept Go's nanoseconds too.
         guard let match = expression.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
               let seconds = Range(match.range(at: 1), in: raw),
-              let zone = Range(match.range(at: 2), in: raw) else { return "unknown" }
+              let zone = Range(match.range(at: 2), in: raw) else { return L10n.text("app.state.unknown") }
         lock.lock()
         defer { lock.unlock() }
-        guard let date = parser.date(from: String(raw[seconds]) + String(raw[zone])) else { return "unknown" }
+        guard let date = parser.date(from: String(raw[seconds]) + String(raw[zone])) else { return L10n.text("app.state.unknown") }
         if display.timeZone != timeZone { display.timeZone = timeZone }
         return display.string(from: date)
     }

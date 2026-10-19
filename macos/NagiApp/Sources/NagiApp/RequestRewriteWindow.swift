@@ -21,12 +21,12 @@ import SwiftUI
         let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = "Nagi Request Rewrite"; window.minSize = NSSize(width: 850, height: 620)
+        window.title = L10n.text("app.ui.nagi_request_rewrite"); window.minSize = NSSize(width: 850, height: 620)
         window.isReleasedWhenClosed = false; window.delegate = self
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
         let presentation = RewritePresentation(model)
         titleObservation = presentation.$revision.sink { [weak window, weak model] _ in
-            window?.title = model?.status?.profile.map { "Nagi Request Rewrite · \($0)" } ?? "Nagi Request Rewrite"
+            window?.title = model?.status?.profile.map { L10n.format("app.ui.nagi_request_rewrite_2", String(describing: $0)) } ?? L10n.text("app.ui.nagi_request_rewrite")
         }
         let content = NSHostingView(rootView: RequestRewriteView(presentation: presentation))
         // AppKit owns the frame; tab contents must not publish window size constraints.
@@ -109,42 +109,42 @@ private struct RewriteEditorSession: Identifiable {
     private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label(model.stale ? "Status unavailable" : (model.status?.actual.capitalized ?? "Unknown"),
+                Label(model.stale ? L10n.text("app.ui.status_unavailable_2") : (model.status.map { L10n.protocolLabel($0.actual) } ?? L10n.text("app.ui.unknown")),
                     systemImage: model.stale ? "exclamationmark.triangle" : "circle.fill")
                     .foregroundColor(model.stale ? .orange : .secondary)
                 Spacer()
                 if model.isReading || model.operationInProgress || loadingEditor { ProgressView().controlSize(.small) }
-                Button("Refresh") { model.refresh() }.disabled(model.isReading || !model.canOperate)
-                Button(model.status?.intent == true ? "Disable Rewrite" : "Enable Rewrite") { toggle() }
+                Button(L10n.text("app.ui.refresh")) { model.refresh() }.disabled(model.isReading || !model.canOperate)
+                Button(model.status?.intent == true ? L10n.text("app.ui.disable_rewrite") : L10n.text("app.ui.enable_rewrite")) { toggle() }
                     .disabled(model.status?.intent == true ? !model.canOperate : !model.canEnable)
                 Button { showingHelp.toggle() } label: { Image(systemName: "questionmark.circle") }
-                    .accessibilityLabel("Request rewrite help")
+                    .accessibilityLabel(L10n.text("app.ui.request_rewrite_help"))
                     .popover(isPresented: $showingHelp) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Enabled rules select the domains to intercept and run in list order within each stage. With no enabled rules, rewriting stays idle.")
-                            Text("Activation requires running TUN, a compatible engine and a trusted local CA. Configure the CA in Certificate & Trust.")
-                            Text("Certificate pinning, client certificates, ECH and separate application trust stores can prevent interception. Local preview sends no network requests.")
-                            Text("Closing this window leaves rewriting running.")
+                            Text(verbatim: L10n.text("app.ui.enabled_rules_select_the_domains_to_intercept"))
+                            Text(verbatim: L10n.text("app.ui.activation_requires_running_tun_a_compatible_engine"))
+                            Text(verbatim: L10n.text("app.ui.certificate_pinning_client_certificates_ech_and_separate"))
+                            Text(verbatim: L10n.text("app.ui.closing_this_window_leaves_rewriting_running"))
                         }.padding().frame(width: 360)
                     }
             }
             TabView(selection: $page) {
-                rulesPage.tabItem { Text("Rules") }.tag(0)
-                scriptsPage.tabItem { Text("Scripts") }.tag(1)
-                statusPage.tabItem { Text("Status") }.tag(2)
-                RewritePreviewView(presentation: presentation).tabItem { Text("Local Preview") }.tag(3)
-                caPage.tabItem { Text("Certificate & Trust") }.tag(4)
+                rulesPage.tabItem { Text(verbatim: L10n.text("app.ui.rules")) }.tag(0)
+                scriptsPage.tabItem { Text(verbatim: L10n.text("app.ui.scripts")) }.tag(1)
+                statusPage.tabItem { Text(verbatim: L10n.text("app.ui.status")) }.tag(2)
+                RewritePreviewView(presentation: presentation).tabItem { Text(verbatim: L10n.text("app.ui.local_preview")) }.tag(3)
+                caPage.tabItem { Text(verbatim: L10n.text("app.ui.certificate_trust")) }.tag(4)
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
             if localError != nil || model.error != nil || model.notice != nil {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
-                        if let message = localError ?? model.error { Text(message).foregroundColor(.red).textSelection(.enabled) }
-                        if let notice = model.notice { Text(notice).foregroundColor(.secondary).textSelection(.enabled) }
+                        if let message = localError ?? model.error { Text(verbatim: message).foregroundColor(.red).textSelection(.enabled) }
+                        if let notice = model.notice { Text(verbatim: notice).foregroundColor(.secondary).textSelection(.enabled) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(maxHeight: 80)
             }
             HStack {
-                Text(model.updated.map { "Updated \(Self.time($0))" } ?? "Not updated yet").font(.caption).foregroundColor(.secondary)
+                Text(verbatim: model.updated.map { L10n.format("app.ui.updated", String(describing: Self.time($0))) } ?? L10n.text("app.ui.not_updated_yet")).font(.caption).foregroundColor(.secondary)
                 Spacer()
             }
         }
@@ -158,42 +158,42 @@ private struct RewriteEditorSession: Identifiable {
             ScrollView {
                 if let status = model.status {
                     VStack(alignment: .leading, spacing: 16) {
-                        GroupBox("Runtime") {
+                        GroupBox(L10n.text("app.ui.runtime")) {
                             VStack(spacing: 10) {
-                                RewriteDetailRow("State", value: status.actual.capitalized)
-                                RewriteDetailRow("Saved enable setting", value: RewriteStatus.bool(status.intent))
+                                RewriteDetailRow(L10n.text("app.ui.state"), value: L10n.protocolLabel(status.actual))
+                                RewriteDetailRow(L10n.text("app.ui.saved_enable_setting"), value: RewriteStatus.bool(status.intent))
                                 RewriteDetailRow("TUN running", value: RewriteStatus.bool(status.tunRunning))
-                                RewriteDetailRow("Rewrite service running", value: RewriteStatus.bool(status.value["service_running"]?.bool))
-                                RewriteDetailRow("Certificate", value: status.value["ca"]?["state"]?.string ?? "unknown")
-                                RewriteDetailRow("Trust", value: status.value["ca"]?["trust"]?.string ?? "unknown")
+                                RewriteDetailRow(L10n.text("app.ui.rewrite_service_running"), value: RewriteStatus.bool(status.value["service_running"]?.bool))
+                                RewriteDetailRow(L10n.text("app.ui.certificate"), value: L10n.protocolLabel(status.value["ca"]?["state"]?.string ?? L10n.text("app.state.unknown")))
+                                RewriteDetailRow(L10n.text("app.ui.trust"), value: L10n.protocolLabel(status.value["ca"]?["trust"]?.string ?? L10n.text("app.state.unknown")))
                             }.padding(8)
                         }
-                        if let error = status.value["last_error"]?.string, !error.isEmpty {
-                            Text(error).foregroundColor(.red).textSelection(.enabled)
+                        if let error = status.value["last_error"]?.displayString, !error.isEmpty {
+                            Text(verbatim: error).foregroundColor(.red).textSelection(.enabled)
                         }
-                        if let recovery = status.value["recovery"]?.string ?? status.value["recovery_command"]?.string, !recovery.isEmpty {
-                            Text(recovery).textSelection(.enabled)
+                        if let recovery = status.value["recovery"]?.displayString ?? status.value["recovery_command"]?.string, !recovery.isEmpty {
+                            Text(verbatim: recovery).textSelection(.enabled)
                         }
-                        DisclosureGroup("Runtime Details") {
+                        DisclosureGroup(L10n.text("app.ui.runtime_details")) {
                             VStack(spacing: 10) {
-                                RewriteDetailRow("Schema", value: status.value["config_version"]?.int64.map(String.init) ?? "unknown")
-                                RewriteDetailRow("Backend", value: status.value["backend"]?.string ?? "unknown")
-                                RewriteDetailRow("Protocol", value: status.value["protocol_version"]?.int64.map(String.init) ?? "unknown")
-                                RewriteDetailRow("Configured version", value: status.value["configured_rule_version"]?.string ?? "unknown")
-                                RewriteDetailRow("Active version", value: status.value["active_rule_version"]?.string ?? "unknown")
-                                RewriteDetailRow("Generation", value: status.value["generation"]?.string ?? "unknown")
-                                RewriteDetailRow("Engine epoch", value: status.value["engine_epoch"]?.string ?? "unknown")
+                                RewriteDetailRow(L10n.text("app.ui.schema"), value: status.value["config_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown"))
+                                RewriteDetailRow(L10n.text("app.ui.backend"), value: status.value["backend"]?.string ?? L10n.text("app.state.unknown"))
+                                RewriteDetailRow(L10n.text("app.ui.protocol"), value: status.value["protocol_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown"))
+                                RewriteDetailRow(L10n.text("app.ui.configured_version"), value: status.value["configured_rule_version"]?.string ?? L10n.text("app.state.unknown"))
+                                RewriteDetailRow(L10n.text("app.ui.active_version"), value: status.value["active_rule_version"]?.string ?? L10n.text("app.state.unknown"))
+                                RewriteDetailRow(L10n.text("app.ui.generation"), value: status.value["generation"]?.string ?? L10n.text("app.state.unknown"))
+                                RewriteDetailRow(L10n.text("app.ui.engine_epoch"), value: status.value["engine_epoch"]?.string ?? L10n.text("app.state.unknown"))
                             }.padding(.top, 10)
                         }
                     }.padding(2)
                 } else {
-                    Text("Status unavailable. Refresh to try again.").foregroundColor(.secondary)
+                    Text(verbatim: L10n.text("app.rewrite.refresh_unavailable")).foregroundColor(.secondary)
                 }
             }
             HStack {
-                Button("Validate Rules") { run(["validate"], profile: model.status?.profile) }
-                Button("Import Rules…") { pickInput(command: "import") }
-                Button("Export Rules…") { saveExport(certificate: false) }
+                Button(L10n.text("app.ui.validate_rules")) { run(["validate"], profile: model.status?.profile) }
+                Button(L10n.text("app.ui.import_rules")) { pickInput(command: "import") }
+                Button(L10n.text("app.ui.export_rules")) { saveExport(certificate: false) }
             }.disabled(!model.canOperate)
         }.padding()
     }
@@ -201,16 +201,16 @@ private struct RewriteEditorSession: Identifiable {
         VStack(alignment: .leading) {
             List(selection: $selectedScript) {
                 ForEach(model.scripts, id: \.id) { item in
-                    HStack { Text(item.id).bold(); Spacer(); Text(item.bodyAccess == "buffer" ? "Buffered body" : "Metadata only").foregroundColor(.secondary) }.tag(item.id)
+                    HStack { Text(verbatim: item.id).bold(); Spacer(); Text(verbatim: item.bodyAccess == "buffer" ? L10n.text("app.ui.buffered_body") : L10n.text("app.ui.metadata_only")).foregroundColor(.secondary) }.tag(item.id)
                 }
             }
-            .overlay { if model.scripts.isEmpty { Text(model.listsFresh ? "No scripts" : "Scripts unavailable").foregroundColor(.secondary).allowsHitTesting(false) } }
+            .overlay { if model.scripts.isEmpty { Text(verbatim: model.listsFresh ? L10n.text("app.ui.no_scripts") : L10n.text("app.ui.scripts_unavailable")).foregroundColor(.secondary).allowsHitTesting(false) } }
             HStack {
-                Button("Add Script…") { if let profile = model.status?.profile { scriptSession = RewriteScriptSession(draft: RewriteScriptDraft(), originalID: nil, profile: profile) } }
-                Button("Edit Script…") { editScript() }.disabled(selectedScript == nil || loadingEditor)
-                Button("Remove…") {
+                Button(L10n.text("app.ui.add_script")) { if let profile = model.status?.profile { scriptSession = RewriteScriptSession(draft: RewriteScriptDraft(), originalID: nil, profile: profile) } }
+                Button(L10n.text("app.ui.edit_script")) { editScript() }.disabled(selectedScript == nil || loadingEditor)
+                Button(L10n.text("app.ui.remove_2")) {
                     guard let id = selectedScript, model.scripts.contains(where: { $0.id == id }), let profile = model.status?.profile,
-                        confirm("Remove Script?", "Remove \(id)? Scripts referenced by rules cannot be removed.", action: "Remove Script") else { return }
+                        confirm(L10n.text("app.ui.remove_script"), L10n.format("app.ui.remove_scripts_referenced_by_rules_cannot_be", String(describing: id)), action: L10n.text("app.ui.remove_script_2")) else { return }
                     run(["scripts", "remove", id], profile: profile)
                 }.disabled(selectedScript == nil)
             }.disabled(!model.canManage)
@@ -221,29 +221,29 @@ private struct RewriteEditorSession: Identifiable {
             List(selection: $selectedRule) {
                 ForEach(Array(model.rules.enumerated()), id: \.element.id) { index, item in
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("\(index + 1). \(item.id) · \(item.enabled ? "Enabled" : "Disabled")").bold()
-                        Text("\(RewriteLabels.stage(item.stage)) · \(item.domain) · \(item.methods.isEmpty ? "Any method" : item.methods.joined(separator: ", ")) · \(item.path)")
-                        Text(item.kinds.map(RewriteLabels.operation).joined(separator: " → ")).font(.caption).foregroundColor(.secondary)
+                        Text(verbatim: "\(index + 1). \(item.id) · \(item.enabled ? L10n.text("app.ui.enabled") : L10n.text("app.state.disabled"))").bold()
+                        Text(verbatim: "\(RewriteLabels.stage(item.stage)) · \(item.domain) · \(item.methods.isEmpty ? L10n.text("app.rewrite.any_method") : item.methods.joined(separator: ", ")) · \(item.path)")
+                        Text(verbatim: item.kinds.map(RewriteLabels.operation).joined(separator: " → ")).font(.caption).foregroundColor(.secondary)
                     }.padding(.vertical, 4).tag(item.id)
                 }
             }
-            .overlay { if model.rules.isEmpty { Text(model.listsFresh ? "No rules" : "Rules unavailable").foregroundColor(.secondary).allowsHitTesting(false) } }
+            .overlay { if model.rules.isEmpty { Text(verbatim: model.listsFresh ? L10n.text("app.ui.no_rules") : L10n.text("app.ui.rules_unavailable")).foregroundColor(.secondary).allowsHitTesting(false) } }
             HStack {
-                Button("Add Rule…") { if let profile = model.status?.profile { ruleSession = RewriteEditorSession(draft: RewriteRuleDraft(), originalID: nil, profile: profile) } }
-                Button("Edit Rule…") { editRule() }.disabled(selectedRule == nil || loadingEditor)
-                Button(selectedSummary?.enabled == true ? "Disable Rule" : "Enable Rule") {
+                Button(L10n.text("app.ui.add_rule")) { if let profile = model.status?.profile { ruleSession = RewriteEditorSession(draft: RewriteRuleDraft(), originalID: nil, profile: profile) } }
+                Button(L10n.text("app.ui.edit_rule")) { editRule() }.disabled(selectedRule == nil || loadingEditor)
+                Button(selectedSummary?.enabled == true ? L10n.text("app.ui.disable_rule") : L10n.text("app.ui.enable_rule")) {
                     guard let item = selectedSummary else { return }
                     run(["rules", item.enabled ? "disable" : "enable", item.id], profile: model.status?.profile)
                 }.disabled(selectedSummary == nil)
-                Button("Remove…") {
-                    guard let item = selectedSummary, confirm("Remove Rule?", "Remove \(item.id) from this profile.", action: "Remove Rule") else { return }
+                Button(L10n.text("app.ui.remove_2")) {
+                    guard let item = selectedSummary, confirm(L10n.text("app.ui.remove_rule"), L10n.format("app.ui.remove_from_this_profile", String(describing: item.id)), action: L10n.text("app.ui.remove_rule_2")) else { return }
                     run(["rules", "remove", item.id], profile: model.status?.profile)
                 }.disabled(selectedSummary == nil)
                 Spacer()
                 Button { moveRule(-1) } label: { Image(systemName: "arrow.up") }
-                    .disabled(!canMove(-1)).help("Move rule up").accessibilityLabel("Move rule up")
+                    .disabled(!canMove(-1)).help(L10n.text("app.ui.move_rule_up")).accessibilityLabel(L10n.text("app.ui.move_rule_up"))
                 Button { moveRule(1) } label: { Image(systemName: "arrow.down") }
-                    .disabled(!canMove(1)).help("Move rule down").accessibilityLabel("Move rule down")
+                    .disabled(!canMove(1)).help(L10n.text("app.ui.move_rule_down")).accessibilityLabel(L10n.text("app.ui.move_rule_down"))
             }.disabled(!model.canManage)
         }.padding()
     }
@@ -260,37 +260,37 @@ private struct RewriteEditorSession: Identifiable {
     private var caPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                GroupBox("Certificate") {
+                GroupBox(L10n.text("app.ui.certificate")) {
                     VStack(spacing: 10) {
-                        RewriteDetailRow("State", value: model.caStatus?["state"]?.string ?? "unknown")
-                        RewriteDetailRow("Trust", value: model.caStatus?["trust"]?.string ?? "unknown")
-                        RewriteDetailRow("Fingerprint", value: model.caStatus?["fingerprint"]?.string ?? "unknown")
-                        RewriteDetailRow("Valid from", value: certificateTime(model.caStatus?["not_before"]?.string))
-                        RewriteDetailRow("Valid until", value: certificateTime(model.caStatus?["not_after"]?.string))
+                        RewriteDetailRow(L10n.text("app.ui.state"), value: L10n.protocolLabel(model.caStatus?["state"]?.string ?? L10n.text("app.state.unknown")))
+                        RewriteDetailRow(L10n.text("app.ui.trust"), value: L10n.protocolLabel(model.caStatus?["trust"]?.string ?? L10n.text("app.state.unknown")))
+                        RewriteDetailRow(L10n.text("app.ui.fingerprint"), value: model.caStatus?["fingerprint"]?.string ?? L10n.text("app.state.unknown"))
+                        RewriteDetailRow(L10n.text("app.ui.valid_from"), value: certificateTime(model.caStatus?["not_before"]?.string))
+                        RewriteDetailRow(L10n.text("app.ui.valid_until"), value: certificateTime(model.caStatus?["not_after"]?.string))
                     }.padding(8)
                 }
                 HStack {
-                    Button("Refresh CA Status") { run(["ca", "status"]) }
-                    Button("Generate Local CA") { run(["ca", "generate"]) }
-                    Button("Export Public Certificate…") { saveExport(certificate: true) }
+                    Button(L10n.text("app.ui.refresh_ca_status")) { run(["ca", "status"]) }
+                    Button(L10n.text("app.ui.generate_local_ca")) { run(["ca", "generate"]) }
+                    Button(L10n.text("app.ui.export_public_certificate")) { saveExport(certificate: true) }
                 }
                 HStack {
-                    Button("Install Login Keychain Trust…") {
-                        if confirm("Trust the Nagi CA?", "Install this CA in your login keychain for request interception. macOS may request authorization. Applications with independent certificate stores need separate configuration.", action: "Install Trust") { run(["ca", "trust", "install"]) }
+                    Button(L10n.text("app.ui.install_login_keychain_trust")) {
+                        if confirm(L10n.text("app.ui.trust_the_nagi_ca"), L10n.text("app.ui.install_this_ca_in_your_login_keychain"), action: L10n.text("app.ui.install_trust")) { run(["ca", "trust", "install"]) }
                     }
-                    Button("Remove Login Keychain Trust…") {
-                        if confirm("Remove Nagi CA Trust?", "Stop rewriting and remove login keychain trust. The enable setting and CA are retained. Re-enable rewriting after restoring trust.", action: "Remove Trust") { run(["ca", "trust", "remove"]) }
+                    Button(L10n.text("app.ui.remove_login_keychain_trust")) {
+                        if confirm(L10n.text("app.ui.remove_nagi_ca_trust"), L10n.text("app.ui.stop_rewriting_and_remove_login_keychain_trust"), action: L10n.text("app.ui.remove_trust")) { run(["ca", "trust", "remove"]) }
                     }
                 }
             }.padding().disabled(!model.canOperate)
         }
     }
     private func certificateTime(_ raw: String?) -> String {
-        guard model.caStatus?["state"]?.string == "generated", let raw, !raw.hasPrefix("0001-"), let date = ISO8601DateFormatter().date(from: raw) else { return "unknown" }; return Self.time(date)
+        guard model.caStatus?["state"]?.string == "generated", let raw, !raw.hasPrefix("0001-"), let date = ISO8601DateFormatter().date(from: raw) else { return L10n.text("app.state.unknown") }; return Self.time(date)
     }
     private func toggle() {
         if model.status?.intent == true { run(["disable"]); return }
-        guard model.canEnable, confirm("Enable Request Rewrite?", "Intercept the domains selected by enabled rules using the current profile and trusted local CA. Without enabled rules, intent is saved as idle. Existing connections may be interrupted when rules activate.", action: "Enable Rewrite") else { return }
+        guard model.canEnable, confirm(L10n.text("app.ui.enable_request_rewrite"), L10n.text("app.ui.intercept_the_domains_selected_by_enabled_rules"), action: L10n.text("app.ui.enable_rewrite")) else { return }
         run(["enable"])
     }
     private func run(_ args: [String], input: Data? = nil, profile: String? = nil) {
@@ -324,12 +324,12 @@ private struct RewriteEditorSession: Identifiable {
     private func pickInput(command: String) {
         guard let profile = model.status?.profile else { return }
         let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
-        panel.message = "Choose a private local JSON document (owner-only permissions). Import replaces the complete document; enabled must be false."
+        panel.message = L10n.text("app.ui.choose_a_private_local_json_document_owner")
         if panel.runModal() == .OK, let file = panel.url { run([command, file.path], profile: profile) }
     }
     private func saveExport(certificate: Bool) {
         let panel = NSSavePanel(); panel.nameFieldStringValue = certificate ? "nagi-ca.pem" : "request-rewrite.json"
-        panel.message = certificate ? "Export only the public certificate. The private key is excluded." : "Sensitive export may contain credentials and complete URL values. Keep this file private."
+        panel.message = certificate ? L10n.text("app.ui.export_only_the_public_certificate_the_private") : L10n.text("app.ui.sensitive_export_may_contain_credentials_and_complete")
         guard panel.runModal() == .OK, let file = panel.url else { return }
         let args = certificate ? ["ca", "export", file.path] : ["export", file.path] + (model.status?.profile.map { ["--profile", $0] } ?? [])
         Task {
@@ -345,8 +345,8 @@ private struct RewriteDetailRow: View {
     init(_ label: String, value: String) { self.label = label; self.value = value }
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            Text(label).foregroundColor(.secondary).frame(width: 160, alignment: .trailing)
-            Text(value).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            Text(verbatim: label).foregroundColor(.secondary).frame(width: 160, alignment: .trailing)
+            Text(verbatim: value).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -354,6 +354,6 @@ private struct RewriteDetailRow: View {
 
 @MainActor private func confirm(_ title: String, _ detail: String, action: String) -> Bool {
     let alert = NSAlert(); alert.messageText = title; alert.informativeText = detail; alert.alertStyle = .warning
-    alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: action)
+    alert.addButton(withTitle: L10n.text("app.ui.cancel")); alert.addButton(withTitle: action)
     return alert.runModal() == .alertSecondButtonReturn
 }

@@ -12,6 +12,10 @@ import Foundation
     private let discover: () async throws -> [CaptureApplication]
     let owner = "macos-" + UUID().uuidString
     private(set) var status: CaptureStatus?
+    private var statusMessages = CLIMessages()
+    var statusRecovery: String? {
+        status?.recovery.map { statusMessages.display($0, at: "/data/status/recovery") }
+    }
     private(set) var records: [CaptureRecord] = []
     private(set) var applications: [CaptureApplication] = []
     private(set) var selectedID: String?
@@ -57,11 +61,11 @@ import Foundation
     }
     func setVisible(_ value: Bool) {
         guard value != visible else { return }
-        if value && !visible { pendingPrerequisiteCheck = true; prerequisiteMessage = "Checking capture prerequisites…"; prerequisitesReady = false }
+        if value && !visible { pendingPrerequisiteCheck = true; prerequisiteMessage = L10n.text("app.ui.checking_capture_prerequisites"); prerequisitesReady = false }
         visible = value; updateActivity()
     }
     func refreshPrerequisites() {
-        pendingPrerequisiteCheck = true; prerequisiteMessage = "Checking capture prerequisites…"; prerequisitesReady = false
+        pendingPrerequisiteCheck = true; prerequisiteMessage = L10n.text("app.ui.checking_capture_prerequisites"); prerequisitesReady = false
         if readTask != nil { pendingRead = true } else { refresh() }
         notify()
     }
@@ -121,11 +125,11 @@ import Foundation
                 do {
                     let check = try await read(["check"], nil)
                     guard let self, !Task.isCancelled, token == self.generation else { self?.finishRead(); return }
-                    self.prerequisiteMessage = check.readiness?.message ?? "Unable to check capture prerequisites. Use Recheck to retry."
+                    self.prerequisiteMessage = check.readiness.map { check.display($0.message, at: "/data/readiness/message") } ?? L10n.text("app.ui.unable_to_check_capture_prerequisites_use_recheck")
                     self.prerequisitesReady = check.readiness?.ready == true
                 } catch {
                     guard let self, !Task.isCancelled, token == self.generation else { self?.finishRead(); return }
-                    self.prerequisiteMessage = "Unable to check capture prerequisites. Use Recheck to retry."
+                    self.prerequisiteMessage = L10n.text("app.ui.unable_to_check_capture_prerequisites_use_recheck")
                     self.prerequisitesReady = false
                 }
                 self?.prerequisiteCheckInProgress = false
@@ -141,7 +145,7 @@ import Foundation
                         let page = try await read(["list", "-"], try JSONSerialization.data(withJSONObject: input))
                         try Task.checkCancellation()
                         all += page.records ?? []; cursor = page.nextCursor ?? ""
-                        guard all.count <= 1000, cursor.isEmpty || seenCursors.insert(cursor).inserted else { throw CLIError.invalidJSON("Capture pagination exceeded its bounds. Refresh to retry.") }
+                        guard all.count <= 1000, cursor.isEmpty || seenCursors.insert(cursor).inserted else { throw CLIError.invalidJSON(L10n.text("app.ui.capture_pagination_exceeded_its_bounds_refresh_to")) }
                     } while !cursor.isEmpty
                     records = await Task.detached(priority: .userInitiated) { all.sorted {
                         if $0.started == $1.started { return $0.id < $1.id }
@@ -151,6 +155,7 @@ import Foundation
                 guard let self, !Task.isCancelled, token == self.generation else { self?.finishRead(); return }
                 if self.status?.sessionID != reply.status?.sessionID { self.select(nil); self.records = [] }
                 self.status = reply.status
+                self.statusMessages = reply.messages
                 if let records {
                     self.records = records
                     if let id = self.selectedID, !records.contains(where: { $0.id == id }) { self.select(nil) }
@@ -159,7 +164,7 @@ import Foundation
                 self.stale = false; self.error = nil; self.onStatusChange?()
             } catch {
                 if let self, !Task.isCancelled, token == self.generation {
-                    self.stale = true; self.error = "Capture unavailable: \(error.localizedDescription)"; self.onStatusChange?()
+                    self.stale = true; self.error = L10n.format("app.ui.capture_unavailable", String(describing: error.localizedDescription)); self.onStatusChange?()
                 }
             }
             self?.finishRead()
@@ -175,7 +180,7 @@ import Foundation
         applicationTask = Task { [weak self, discover] in
             defer { self?.applicationTask = nil }
             do { let apps = try await discover(); guard let self, self.active, !Task.isCancelled else { return }; self.applications = apps; self.notify() }
-            catch { if !Task.isCancelled { self?.error = "Application list unavailable: \(error.localizedDescription)"; self?.notify() } }
+            catch { if !Task.isCancelled { self?.error = L10n.format("app.ui.application_list_unavailable", String(describing: error.localizedDescription)); self?.notify() } }
         }
     }
     func select(_ id: String?) {
@@ -206,7 +211,7 @@ import Foundation
                 if let index = self.records.firstIndex(where: { $0.id == record.id }) { self.records[index] = fresh }
                 self.selectedBody = body; self.bodyText = text
             } catch {
-                if let self, !Task.isCancelled, token == self.detailGeneration { self.error = "Body unavailable: \(error.localizedDescription)" }
+                if let self, !Task.isCancelled, token == self.detailGeneration { self.error = L10n.format("app.ui.body_unavailable", String(describing: error.localizedDescription)) }
             }
             self?.finishDetail()
         }
@@ -221,8 +226,8 @@ import Foundation
         var data = Data(), offset: Int64 = 0
         while true {
             try Task.checkCancellation()
-            guard let chunk = try await read(["body", id, snapshot, String(offset), "262144"], nil).body else { throw CLIError.invalidJSON("Capture body response is missing.") }
-            guard chunk.offset == offset, chunk.nextOffset >= offset, chunk.nextOffset - offset == chunk.data.count else { throw CLIError.invalidJSON("Capture body offsets are invalid.") }
+            guard let chunk = try await read(["body", id, snapshot, String(offset), "262144"], nil).body else { throw CLIError.invalidJSON(L10n.text("app.ui.capture_body_response_is_missing")) }
+            guard chunk.offset == offset, chunk.nextOffset >= offset, chunk.nextOffset - offset == chunk.data.count else { throw CLIError.invalidJSON(L10n.text("app.ui.capture_body_offsets_are_invalid")) }
             data.append(chunk.data)
             guard data.count <= 8 * 1_048_576 else { throw CLIError.outputTooLarge(8 * 1_048_576) }
             if chunk.eof || chunk.nextOffset == offset { return data }
@@ -240,11 +245,11 @@ import Foundation
         await waitForCancelledRead()
         do {
             let reply = try await submit(args, input)
-            status = reply.status ?? status
+            if reply.status != nil { status = reply.status; statusMessages = reply.messages }
             if args.first == "clear" || args.first == "import" || args.first == "start" { records = []; select(nil) }
             operationInProgress = false; updateActivity(); onStatusChange?(); return true
         } catch {
-            self.error = error.localizedDescription + " Refresh before retrying if the result is uncertain."
+            self.error = error.localizedDescription + L10n.text("app.ui.refresh_before_retrying_if_the_result_is")
             operationInProgress = false; updateActivity(); return false
         }
     }
@@ -267,8 +272,12 @@ import Foundation
         guard ownsSession, let id = status?.sessionID, status?.state != "stopped" else { return }
         operationInProgress = true
         defer { operationInProgress = false; notify() }
-        do { status = try await (useGate ? submit : read)(["stop", id], nil).status ?? status; onStatusChange?() }
-        catch { self.error = "Could not stop recording: \(error.localizedDescription)" }
+        do {
+            let reply = try await (useGate ? submit : read)(["stop", id], nil)
+            if reply.status != nil { status = reply.status; statusMessages = reply.messages }
+            onStatusChange?()
+        }
+        catch { self.error = L10n.format("app.ui.could_not_stop_recording", String(describing: error.localizedDescription)) }
         notify()
     }
     func closeWindow() { setVisible(false); Task { await stopOwnedSession() } }

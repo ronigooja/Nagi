@@ -22,11 +22,11 @@ private final class SourceSettingsPanel: NSPanel {
     private var snapshot: JSONValue?
     private let body = NSStackView()
     private let content = NSStackView()
-    private let loadResult = NSTextField(wrappingLabelWithString: "Loading settings…")
-    private let retryLoad = NSButton(title: "Retry Loading", target: nil, action: nil)
-    private let closeButton = NSButton(title: "Close", target: nil, action: nil)
+    private let loadResult = NSTextField(wrappingLabelWithString: L10n.text("app.ui.loading_settings"))
+    private let retryLoad = NSButton(title: L10n.text("app.ui.retry_loading"), target: nil, action: nil)
+    private let closeButton = NSButton(title: L10n.text("app.ui.close"), target: nil, action: nil)
     private let checkContext = NSTextField(wrappingLabelWithString: "")
-    private let automatic = NSButton(checkboxWithTitle: "Automatic updates", target: nil, action: nil)
+    private let automatic = NSButton(checkboxWithTitle: L10n.text("app.ui.automatic_updates"), target: nil, action: nil)
     private let updateChoice = NSPopUpButton(frame: .zero, pullsDown: false)
     private let updateCustom = NSTextField()
     private let intervalMode = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -35,11 +35,12 @@ private final class SourceSettingsPanel: NSPanel {
     private let urlMode = NSPopUpButton(frame: .zero, pullsDown: false)
     private let urlField = NSTextField()
     private let urlReason = NSTextField(wrappingLabelWithString: "")
-    private let restore = NSButton(title: "Restore Original Interval", target: nil, action: nil)
+    private let restore = NSButton(title: L10n.text("app.ui.restore_original_interval"), target: nil, action: nil)
     private let original = NSTextField(wrappingLabelWithString: "")
     private var saves: [SettingsSection: NSButton] = [:]
     private var retries: [SettingsSection: NSButton] = [:]
     private var results: [SettingsSection: NSTextField] = [:]
+    private var validationSections: Set<SettingsSection> = []
     private var progress: [SettingsSection: NSProgressIndicator] = [:]
 
     init(model: AppModel, kind: String, name: String, page: Page) {
@@ -47,7 +48,7 @@ private final class SourceSettingsPanel: NSPanel {
         let panel = SourceSettingsPanel(contentRect: NSRect(x: 0, y: 0, width: 520, height: 620),
             styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: panel)
-        panel.title = "\(page == .update ? "Update Settings" : "Latency Check Settings") · \(name)"
+        panel.title = "\(page == .update ? L10n.text("app.ui.update_settings") : L10n.text("app.ui.latency_check_settings")) · \(name)"
         panel.delegate = self
         panel.requestClose = { [weak self] in self?.requestClose() }
         panel.isReleasedWhenClosed = false
@@ -114,14 +115,14 @@ private final class SourceSettingsPanel: NSPanel {
             view.textColor = .secondaryLabelColor
             view.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         }
-        for (field, name) in [(updateCustom, "Custom update interval in seconds"), (intervalCustom, "Custom check interval in seconds"), (urlField, "Test URL")] {
+        for (field, name) in [(updateCustom, L10n.text("app.ui.custom_update_interval_in_seconds")), (intervalCustom, L10n.text("app.ui.custom_check_interval_in_seconds")), (urlField, L10n.text("app.ui.test_url"))] {
             NativeControlStyle.configure(field)
             field.delegate = self; field.setAccessibilityLabel(name)
-            field.placeholderString = field === urlField ? "Full HTTP(S) URL" : "Seconds (1–31536000)"
+            field.placeholderString = field === urlField ? L10n.text("app.ui.full_http_s_url") : L10n.text("app.ui.seconds_1_31536000")
             if field.superview != nil { field.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
         }
-        for (control, name) in [(updateChoice, "Update interval"), (intervalMode, "Check interval source"),
-                                (intervalChoice, "Check interval"), (urlMode, "Test URL source")] {
+        for (control, name) in [(updateChoice, L10n.text("app.ui.update_interval")), (intervalMode, L10n.text("app.ui.check_interval_source")),
+                                (intervalChoice, L10n.text("app.ui.check_interval")), (urlMode, L10n.text("app.ui.test_url_source"))] {
             NativeControlStyle.configure(control)
             control.setAccessibilityLabel(name)
             if control.superview != nil { control.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
@@ -166,37 +167,37 @@ private final class SourceSettingsPanel: NSPanel {
         let spinner = NSProgressIndicator(); spinner.style = .spinning; spinner.controlSize = .small
         progress[section] = spinner; actions.insertArrangedSubview(spinner, at: 1)
         let result = label("", secondary: true); results[section] = result; add(result)
-        let retry = NSButton(title: "Refresh Saved Values", target: self, action: #selector(retrySection(_:)))
+        let retry = NSButton(title: L10n.text("app.ui.refresh_saved_values"), target: self, action: #selector(retrySection(_:)))
         NativeControlStyle.configure(retry)
         retry.tag = tag(section); retries[section] = retry; add(retry)
     }
     private func buildUpdate() {
-        if kind == "subscription" { automatic.title = "Automatically download and apply" }
+        if kind == "subscription" { automatic.title = L10n.text("app.ui.automatically_download_and_apply") }
         add(automatic)
-        add(label("Update interval", heading: true))
-        updateChoice.addItems(withTitles: ["1 hour", "6 hours", "24 hours", "Custom…"])
+        add(label(L10n.text("app.ui.update_interval"), heading: true))
+        updateChoice.addItems(withTitles: [L10n.text("app.ui.1_hour"), L10n.text("app.ui.6_hours"), L10n.text("app.ui.24_hours"), L10n.text("app.ui.custom")])
         add(updateChoice); add(updateCustom)
         restore.target = self; restore.action = #selector(restoreClicked)
         if kind == "provider" {
             add(original)
             add(restore)
         }
-        sectionFooter(.update, title: "Save")
+        sectionFooter(.update, title: L10n.text("app.ui.save"))
     }
     private func buildLatency() {
         if kind == "provider" { add(checkContext) }
-        add(label("Check interval", heading: true))
-        intervalMode.addItems(withTitles: ["Use inherited settings", "Custom interval"])
-        intervalChoice.addItems(withTitles: ["5 minutes", "10 minutes", "30 minutes", "1 hour", "Custom…"])
+        add(label(L10n.text("app.ui.check_interval"), heading: true))
+        intervalMode.addItems(withTitles: [L10n.text("app.ui.use_inherited_settings"), L10n.text("app.ui.custom_interval")])
+        intervalChoice.addItems(withTitles: [L10n.text("app.ui.5_minutes"), L10n.text("app.ui.10_minutes"), L10n.text("app.ui.30_minutes"), L10n.text("app.ui.1_hour"), L10n.text("app.ui.custom")])
         add(intervalMode); add(intervalChoice); add(intervalCustom)
-        sectionFooter(.interval, title: "Save Interval")
+        sectionFooter(.interval, title: L10n.text("app.ui.save_interval"))
         let divider = NSBox(); divider.boxType = .separator; add(divider)
         divider.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
-        add(label("Test URL", heading: true))
-        urlMode.addItems(withTitles: ["Use inherited settings", "Custom URL"])
+        add(label(L10n.text("app.ui.test_url"), heading: true))
+        urlMode.addItems(withTitles: [L10n.text("app.ui.use_inherited_settings"), L10n.text("app.ui.custom_url")])
         urlMode.autoenablesItems = false
         add(urlMode); add(urlReason); add(urlField)
-        sectionFooter(.url, title: "Save Test URL")
+        sectionFooter(.url, title: L10n.text("app.ui.save_test_url"))
     }
     private func tag(_ section: SettingsSection) -> Int { section == .update ? 0 : section == .interval ? 1 : 2 }
     private func section(_ tag: Int) -> SettingsSection { tag == 0 ? .update : tag == 1 ? .interval : .url }
@@ -235,7 +236,7 @@ private final class SourceSettingsPanel: NSPanel {
             intervalMode.selectItem(at: state.interval.inherited ? 0 : 1)
             intervalChoice.selectItem(at: state.interval.interval.selectedIndex)
             intervalCustom.stringValue = state.interval.inherited
-                ? state.interval.interval.seconds.map { "\($0) seconds" } ?? ""
+                ? state.interval.interval.seconds.map { L10n.format("app.ui.seconds", String(describing: $0)) } ?? ""
                 : state.interval.interval.customText
         }
         if page == .latency && sections.contains(.url) {
@@ -263,13 +264,13 @@ private final class SourceSettingsPanel: NSPanel {
             intervalCustom.isHidden = !state.interval.inherited && state.interval.interval.selectedIndex != state.interval.interval.presets.count
             intervalCustom.placeholderString = state.interval.inherited
                 ? inheritedPlaceholder(snapshot?["inherited_interval_status"]?.string)
-                : "Seconds (1–31536000)"
+                : L10n.text("app.ui.seconds_1_31536000")
             urlMode.isEnabled = editing && !state.pendingRefresh.contains(.url)
             urlMode.item(at: 0)?.isEnabled = state.canResetURL
             urlField.isEnabled = urlMode.isEnabled && !state.urlInherited
-            urlField.placeholderString = state.urlInherited ? inheritedPlaceholder(snapshot?["inherited_url_status"]?.string) : "Full HTTP(S) URL"
+            urlField.placeholderString = state.urlInherited ? inheritedPlaceholder(snapshot?["inherited_url_status"]?.string) : L10n.text("app.ui.full_http_s_url")
             urlReason.isHidden = state.canResetURL
-            urlReason.stringValue = "This source has no original test URL to restore. Enter a replacement URL."
+            urlReason.stringValue = L10n.text("app.ui.this_source_has_no_original_test_url")
         }
         restore.isHidden = kind != "provider" || snapshot?["can_reset"]?.bool != true
         original.isHidden = restore.isHidden
@@ -277,10 +278,11 @@ private final class SourceSettingsPanel: NSPanel {
         saves[.update]?.isEnabled = editing && state.canSaveUpdate
         saves[.interval]?.isEnabled = editing && state.canSaveInterval
         saves[.url]?.isEnabled = editing && state.canSaveURL
-        if editing && state.updateChanged && !state.update.isValid { results[.update]?.stringValue = "Enter an interval from 1 to 31536000 seconds." }
-        if editing && state.intervalChanged && !state.interval.isValid { results[.interval]?.stringValue = "Enter an interval from 1 to 31536000 seconds." }
+        if editing && state.updateChanged && !state.update.isValid { validationSections.insert(.update); results[.update]?.stringValue = L10n.text("app.ui.enter_an_interval_from_1_to_31536000") }
+        if editing && state.intervalChanged && !state.interval.isValid { validationSections.insert(.interval); results[.interval]?.stringValue = L10n.text("app.ui.enter_an_interval_from_1_to_31536000") }
         if editing && state.urlChanged && !state.urlInherited && !SourceSettingsSession.validURL(state.urlText) {
-            results[.url]?.stringValue = "Enter a complete HTTP(S) URL without credentials, whitespace, or a fragment."
+            validationSections.insert(.url)
+            results[.url]?.stringValue = L10n.text("app.ui.enter_a_complete_http_s_url_without")
         }
         for section in [SettingsSection.update, .interval, .url] {
             results[section]?.isHidden = results[section]?.stringValue.isEmpty != false
@@ -295,7 +297,8 @@ private final class SourceSettingsPanel: NSPanel {
 
     @objc private func draftChanged() {
         syncDraft()
-        for result in results.values where result.stringValue.hasPrefix("Enter ") { result.stringValue = "" }
+        for section in validationSections { results[section]?.stringValue = "" }
+        validationSections.removeAll()
         render()
     }
     func controlTextDidBeginEditing(_ obj: Notification) {
@@ -305,12 +308,12 @@ private final class SourceSettingsPanel: NSPanel {
     @objc private func retryInitial() { Task { await loadSettings() } }
     func loadSettings() async {
         guard !loading && !loaded else { return }
-        loading = true; loadResult.stringValue = "Loading settings…"; render()
+        loading = true; loadResult.stringValue = L10n.text("app.ui.loading_settings"); render()
         do {
             if page == .update { try await read(.update, initialize: true) }
             else { try await read(.interval, initialize: true) }
             loaded = true; syncControls(page == .update ? [.update] : [.interval, .url])
-        } catch { loadResult.stringValue = "Settings could not be loaded: \(error.localizedDescription)" }
+        } catch { loadResult.stringValue = L10n.format("app.ui.settings_could_not_be_loaded", String(describing: error.localizedDescription)) }
         loading = false; render()
         if loaded { window?.makeFirstResponder(page == .update ? automatic : intervalMode) }
     }
@@ -322,10 +325,10 @@ private final class SourceSettingsPanel: NSPanel {
                 let value = try await model.providerUpdateSettings(name)
                 snapshot = value
                 guard let currentSeconds = value["interval_seconds"]?.int64 else {
-                    throw CLIError.command("proxy_provider_error", "Provider update interval is unavailable.")
+                    throw CLIError.command("proxy_provider_error", L10n.text("app.ui.provider_update_interval_is_unavailable"))
                 }
                 seconds = currentSeconds
-                original.stringValue = (value["source_interval_seconds"]?.int64).map { "Original cadence: \(Self.cadence($0))" } ?? "Original interval unavailable"
+                original.stringValue = (value["source_interval_seconds"]?.int64).map { L10n.format("app.ui.original_cadence", String(describing: Self.cadence($0))) } ?? L10n.text("app.ui.original_interval_unavailable")
             } else {
                 seconds = try await model.subscriptionUpdateSettings(name)
             }
@@ -335,7 +338,7 @@ private final class SourceSettingsPanel: NSPanel {
             snapshot = value
             let seconds = value["interval_seconds"]?.int64
             if kind == "provider" {
-                checkContext.stringValue = (value["enabled"]?.bool).map { $0 ? "Own checks enabled" : "Own checks disabled" } ?? "Own check state unavailable"
+                checkContext.stringValue = (value["enabled"]?.bool).map { $0 ? L10n.text("app.ui.own_checks_enabled") : L10n.text("app.ui.own_checks_disabled") } ?? L10n.text("app.ui.own_check_state_unavailable")
             }
             if initialize || section == .interval {
                 let inherited = value["source"]?.string != "override"
@@ -361,7 +364,7 @@ private final class SourceSettingsPanel: NSPanel {
     @objc private func restoreClicked() { Task { await save(.update, restore: true) } }
     private func save(_ section: SettingsSection, restore: Bool = false) async {
         guard !loading, !state.pendingRefresh.contains(section), state.begin(section) else { return }
-        results[section]?.stringValue = restore ? "Restoring original interval…" : "Saving…"; render()
+        results[section]?.stringValue = restore ? L10n.text("app.ui.restoring_original_interval") : L10n.text("app.ui.saving"); render()
         let failure: String?
         switch section {
         case .update:
@@ -374,7 +377,7 @@ private final class SourceSettingsPanel: NSPanel {
             failure = await model.saveSourceSetting(["proxy", "healthcheck", "url", state.urlInherited ? "reset" : "set", kind, name] + (state.urlInherited ? [] : [state.urlText]))
         }
         if let failure {
-            state.failed(section); results[section]?.stringValue = "Save failed: \(failure)"; render(); return
+            state.failed(section); results[section]?.stringValue = L10n.format("app.ui.save_failed", String(describing: failure)); render(); return
         }
         state.saveSucceeded(section)
         if section == .url { syncControls([.url]) }
@@ -386,14 +389,14 @@ private final class SourceSettingsPanel: NSPanel {
         Task { await refreshSaved(section, restore: section == .update) }
     }
     private func refreshSaved(_ section: SettingsSection, restore: Bool = false) async {
-        results[section]?.stringValue = "Saved. Refreshing current values…"; render()
+        results[section]?.stringValue = L10n.text("app.ui.saved_refreshing_current_values"); render()
         do {
             try await read(section, restore: restore)
             state.refreshSucceeded(section)
-            results[section]?.stringValue = "Saved."
+            results[section]?.stringValue = L10n.text("app.ui.saved")
         } catch {
             state.failed(section)
-            results[section]?.stringValue = "Saved, but current values could not be refreshed: \(error.localizedDescription). Refresh Saved Values only reads; it will not save again."
+            results[section]?.stringValue = L10n.format("app.ui.saved_but_current_values_could_not_be", String(describing: error.localizedDescription))
         }
         render()
     }
@@ -403,24 +406,24 @@ private final class SourceSettingsPanel: NSPanel {
         guard !loading, state.canClose else { return }
         window?.makeFirstResponder(nil); syncDraft()
         if state.needsDiscardConfirmation {
-            let alert = NSAlert(); alert.messageText = "Discard unsaved changes?"
-            alert.informativeText = "Saved settings are kept. Unsaved changes in this panel will be discarded."
-            alert.addButton(withTitle: "Keep Editing"); alert.addButton(withTitle: "Discard Changes")
+            let alert = NSAlert(); alert.messageText = L10n.text("app.ui.discard_unsaved_changes")
+            alert.informativeText = L10n.text("app.ui.saved_settings_are_kept_unsaved_changes_in")
+            alert.addButton(withTitle: L10n.text("app.ui.keep_editing")); alert.addButton(withTitle: L10n.text("app.ui.discard_changes"))
             guard alert.runModal() == .alertSecondButtonReturn else { return }
         }
         NSApp.stopModal()
     }
     private func inheritedPlaceholder(_ status: String?) -> String {
         switch status {
-        case "mixed": return "Varies by group or provider"
-        case "not_applied": return "Not yet applied"
-        default: return "Inherited value unavailable"
+        case "mixed": return L10n.text("app.ui.varies_by_group_or_provider")
+        case "not_applied": return L10n.text("app.ui.not_yet_applied")
+        default: return L10n.text("app.ui.inherited_value_unavailable")
         }
     }
     private static func cadence(_ seconds: Int64) -> String {
-        if seconds == 0 { return "Manual updates only" }
-        if seconds % 3600 == 0 { return seconds == 3600 ? "Every hour" : "Every \(seconds / 3600) hours" }
-        if seconds % 60 == 0 { return seconds == 60 ? "Every minute" : "Every \(seconds / 60) minutes" }
-        return "every \(seconds) seconds"
+        if seconds == 0 { return L10n.text("app.ui.manual_updates_only") }
+        if seconds % 3600 == 0 { return seconds == 3600 ? L10n.text("app.ui.every_hour") : L10n.format("app.ui.every_hours", String(describing: seconds / 3600)) }
+        if seconds % 60 == 0 { return seconds == 60 ? L10n.text("app.ui.every_minute") : L10n.format("app.ui.every_minutes", String(describing: seconds / 60)) }
+        return L10n.format("app.settings.cadence_seconds", String(describing: seconds))
     }
 }

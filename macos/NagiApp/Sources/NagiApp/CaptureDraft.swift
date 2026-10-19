@@ -115,11 +115,11 @@ struct CaptureDraftIntent {
         defer { working = false }
         do {
             if context.field?.kind == "json", CaptureDraftIntent.jsonValue(context.body, pointer: context.field?.pointer ?? "") == nil {
-                throw RewriteFormError.invalid("The selected JSON pointer does not resolve in the captured body. Choose a valid field before creating a rule.")
+                throw RewriteFormError.invalid(L10n.text("app.ui.the_selected_json_pointer_does_not_resolve"))
             }
             let status = try await execute(["status"])
             guard let name = status["profile"]?.string, let version = status["configured_rule_version"]?.string else {
-                throw RewriteFormError.invalid("The selected profile and rule version are unavailable. Reopen after refreshing Rewrite status.")
+                throw RewriteFormError.invalid(L10n.text("app.ui.the_selected_profile_and_rule_version_are"))
             }
             profile = name
             let rows = try await execute(["rules", "list", "--profile", name])
@@ -127,14 +127,14 @@ struct CaptureDraftIntent {
             let intent = CaptureDraftIntent(context)
             let value = try await execute(["capture", "draft", context.record.id, "-"], try intent.data())
             guard value["base_rule_version"]?.string == version else {
-                throw RewriteFormError.invalid("Rules changed while opening the draft. Close and reopen to use the new version.")
+                throw RewriteFormError.invalid(L10n.text("app.ui.rules_changed_while_opening_the_draft_close"))
             }
             let after = try await execute(["status"])
             guard after["profile"]?.string == name, after["configured_rule_version"]?.string == version else {
-                throw RewriteFormError.invalid("The selected profile or rules changed while opening the draft. Close and reopen.")
+                throw RewriteFormError.invalid(L10n.text("app.ui.the_selected_profile_or_rules_changed_while"))
             }
             let node = try Self.syntax(value)
-            guard let candidate = node["rule"], let index = value["position"]?.int64 else { throw CLIError.invalidJSON("The generated draft is incomplete.") }
+            guard let candidate = node["rule"], let index = value["position"]?.int64 else { throw CLIError.invalidJSON(L10n.text("app.ui.the_generated_draft_is_incomplete")) }
             var draft = RewriteRuleDraft(candidate)
             // JSONValue transports CLI results as Doubles. Keep the original
             // lossless operation input, including exact JSON numeric tokens.
@@ -152,10 +152,10 @@ struct CaptureDraftIntent {
         let stage = context.record.kind == "websocket" ? rule.stage : (context.record.snapshots["response_original"] == nil && rule.stage == "request" ? "request" : "exchange")
         do { fixture = try Self.syntax(await execute(["capture", "fixture", context.record.id, stage])) }
         catch is CancellationError { }
-        catch { notice = "Original content is incomplete or unavailable. Offline preview is unavailable; metadata operations can still be saved." }
+        catch { notice = L10n.text("app.ui.original_content_is_incomplete_or_unavailable_offline") }
     }
     func document() throws -> Data {
-        guard let version = baseRuleVersion, let index = Int(position), index >= 0 else { throw RewriteFormError.invalid("Enter a zero-based insertion position.") }
+        guard let version = baseRuleVersion, let index = Int(position), index >= 0 else { throw RewriteFormError.invalid(L10n.text("app.ui.enter_a_zero_based_insertion_position")) }
         let ruleNode = try RewriteJSON.parse(rule.json())
         var fields: [String: RewriteJSON] = ["base_rule_version": .string(version), "position": .scalar(String(index)), "rule": ruleNode, "enable": .scalar(enable ? "true" : "false")]
         if let fixture { fields["fixture"] = fixture }
@@ -163,12 +163,12 @@ struct CaptureDraftIntent {
     }
     func preview() async {
         guard ready, let profile else { return }
-        guard canPreview else { error = "Original content is incomplete. Preview requires complete original bytes."; return }
+        guard canPreview else { error = L10n.text("app.ui.original_content_is_incomplete_preview_requires_complete"); return }
         working = true; error = nil; previewResult = nil
         defer { working = false }
         do { previewResult = try Self.syntax(await execute(["draft", "preview", "-", "--profile", profile], try document())) }
         catch is CancellationError { }
-        catch { self.error = error.localizedDescription + " Draft retained; no automatic retry." }
+        catch { self.error = error.localizedDescription + L10n.text("app.ui.draft_retained_no_automatic_retry") }
     }
     func save() async {
         guard ready, let profile else { return }
@@ -176,8 +176,8 @@ struct CaptureDraftIntent {
         defer { working = false; saving = false }
         do {
             _ = try await execute(["draft", "save", "-", "--profile", profile], try document())
-            saved = true; notice = "Rule saved to \(profile). Global rewrite intent is unchanged."
-        } catch { self.error = error.localizedDescription + " Draft retained, including its original version. No automatic retry." }
+            saved = true; notice = L10n.format("app.ui.rule_saved_to_global_rewrite_intent_is", String(describing: profile))
+        } catch { self.error = error.localizedDescription + L10n.text("app.ui.draft_retained_including_its_original_version_no") }
     }
     func cancel() { guard !saving else { return }; cancelled = true; call?.cancel(); previewResult = nil }
     static func syntax(_ value: JSONValue) throws -> RewriteJSON {
@@ -186,21 +186,21 @@ struct CaptureDraftIntent {
         case .arrayValue(let items): return .array(try items.map(syntax))
         case .stringValue(let text), .localizedString(let text, _): return .string(text)
         case .numberValue(let number):
-            guard number.isFinite else { throw CLIError.invalidJSON("A draft contains an invalid numeric field.") }
+            guard number.isFinite else { throw CLIError.invalidJSON(L10n.text("app.ui.a_draft_contains_an_invalid_numeric_field")) }
             return .scalar(Int64(exactly: number).map(String.init) ?? String(number))
         case .boolValue(let value): return .scalar(value ? "true" : "false")
         case .null: return .scalar("null")
         }
     }
-    var beforeText: String { fixture.map(Self.fixtureText) ?? "Complete original content unavailable." }
-    var afterText: String { previewResult.map(Self.fixtureText) ?? "Run Offline Preview to see the full ordered result." }
+    var beforeText: String { fixture.map(Self.fixtureText) ?? L10n.text("app.ui.complete_original_content_unavailable") }
+    var afterText: String { previewResult.map(Self.fixtureText) ?? L10n.text("app.ui.run_offline_preview_to_see_the_full") }
     var diffText: String { captureBodyText(Data(afterText.utf8), format: .diff, before: Data(beforeText.utf8)) }
     static func fixtureText(_ node: RewriteJSON) -> String {
         ["request", "response", "message"].compactMap { key -> String? in
             guard let part = node[key] else { return nil }
             var text = key.uppercased() + "\n" + part.text
             if let encoded = part["body_base64"]?.string, let bytes = Data(base64Encoded: encoded) {
-                text += "\nBODY (\(bytes.count) bytes)\n" + (String(data: bytes, encoding: .utf8) ?? captureBodyText(bytes, format: .binary))
+                text += L10n.format("app.capture.body_section", String(describing: bytes.count)) + (String(data: bytes, encoding: .utf8) ?? captureBodyText(bytes, format: .binary))
             }
             return text
         }.joined(separator: "\n\n")

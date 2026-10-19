@@ -82,13 +82,13 @@ enum ConnectionsState: Equatable {
             cancelRead()
             projectionGeneration &+= 1; projectionTask?.cancel(); projectionTask = nil
             connections = []; connectionsByID = [:]; rows = []; rowsRevision &+= 1
-            if selectedID != nil { selectionDisappearMessage = "The selected connection is no longer active." }
+            if selectedID != nil { selectionDisappearMessage = L10n.text("app.ui.the_selected_connection_is_no_longer_active") }
             selectedID = nil; lastUpdated = nil; errorMessage = nil
             automaticRefreshPaused = false; state = .stopped
         } else if value != .running {
             cancelRead()
             state = connections.isEmpty ? .unavailable : .stale
-            errorMessage = value == .starting ? "Waiting for the engine to start." : "Engine status is unavailable. Retry Start or check Nagi status."
+            errorMessage = value == .starting ? L10n.text("app.ui.waiting_for_the_engine_to_start") : L10n.text("app.ui.engine_status_is_unavailable_retry_start_or")
         } else {
             if state == .stopped || state == .unavailable || state == .idle {
                 state = .idle; errorMessage = nil
@@ -226,21 +226,21 @@ enum ConnectionsState: Equatable {
         rows = preparedRows; rowsRevision &+= 1
         if let selectedID, connectionsByID[selectedID] == nil {
             self.selectedID = nil
-            selectionDisappearMessage = "The selected connection is no longer active."
+            selectionDisappearMessage = L10n.text("app.ui.the_selected_connection_is_no_longer_active")
         }
         lastUpdated = now(); errorMessage = nil; automaticRefreshPaused = false; state = .fresh
         notify()
     }
     private func failRead(_ error: Error) {
-        if case CLIError.command("response_too_large", _) = error {
+        if (error as? CLIError)?.commandCode == "response_too_large" {
             state = .tooLarge; automaticRefreshPaused = true
-            errorMessage = "The connection list is too large to load (mihomo response exceeded 4 MiB). Automatic refresh is paused; use Refresh to retry."
+            errorMessage = L10n.text("app.ui.the_connection_list_is_too_large_to")
         } else if case CLIError.outputTooLarge(let limit) = error, limit == 8_388_608 {
             state = .tooLarge; automaticRefreshPaused = true
-            errorMessage = "The connection list is too large to load (CLI output exceeded 8 MiB). Automatic refresh is paused; use Refresh to retry."
+            errorMessage = L10n.text("app.ui.the_connection_list_is_too_large_to_2")
         } else {
             state = .stale
-            errorMessage = "Connection list unavailable: \(error.localizedDescription). Displayed data is stale."
+            errorMessage = L10n.format("app.ui.connection_list_unavailable_displayed_data_is_stale", String(describing: error.localizedDescription))
         }
     }
     private func projectRows() {
@@ -278,9 +278,9 @@ enum ConnectionsState: Equatable {
             await pendingRead?.value
             do {
                 try await execute(arguments)
-                self?.operationMessage = "Close request accepted. Applications may reconnect automatically."
+                self?.operationMessage = L10n.text("app.ui.close_request_accepted_applications_may_reconnect_automatically")
             } catch {
-                self?.operationMessage = "Close request failed: \(error.localizedDescription). The request was not retried."
+                self?.operationMessage = L10n.format("app.ui.close_request_failed_the_request_was_not", String(describing: error.localizedDescription))
             }
             guard let self else { return }
             self.operationInProgress = false; self.operationTask = nil

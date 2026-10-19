@@ -43,10 +43,10 @@ struct NagiCLIClient {
     func rewrite(_ arguments: [String], input: Data? = nil) async throws -> JSONValue {
         let bytes = try await rewriteTransport(["--json", "request-rewrite"] + arguments, input: input, inputLimit: arguments.first == "preview" ? Self.rewritePreviewInputLimit : Self.rewriteDocumentInputLimit, outputLimit: arguments.first == "preview" ? Self.rewritePreviewOutputLimit : Self.rewriteDocumentOutputLimit)
         guard let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: bytes) else {
-            throw CLIError.invalidJSON("The request rewrite CLI returned an invalid response.")
+            throw CLIError.invalidJSON(L10n.text("app.ui.the_request_rewrite_cli_returned_an_invalid"))
         }
         guard envelope.ok, let data = envelope.data else {
-            throw envelope.commandError(fallbackCode: "request_rewrite_error", fallbackMessage: "Request rewrite operation failed. Refresh status before retrying.")
+            throw envelope.commandError(fallbackCode: "request_rewrite_error", fallbackMessage: L10n.text("app.ui.request_rewrite_operation_failed_refresh_status_before"))
         }
         return data
     }
@@ -62,7 +62,7 @@ struct NagiCLIClient {
         return try await Task.detached(priority: .userInitiated) {
             let envelope = try JSONDecoder().decode(CLIEnvelope<CaptureReply>.self, from: bytes)
             guard envelope.ok, let data = envelope.data else {
-                throw envelope.commandError(fallbackCode: "capture_error", fallbackMessage: "Capture operation failed.")
+                throw envelope.commandError(fallbackCode: "capture_error", fallbackMessage: L10n.text("app.ui.capture_operation_failed"))
             }
             return data
         }.value
@@ -116,9 +116,9 @@ struct NagiCLIClient {
                             if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: error), let detail = envelope.error {
                                 throw envelope.commandError(fallbackCode: detail.code, fallbackMessage: detail.message)
                             }
-                            throw CLIError.command("request_rewrite_error", "Request rewrite operation failed. Refresh status before retrying.")
+                            throw CLIError.command("request_rewrite_error", L10n.text("app.ui.request_rewrite_operation_failed_refresh_status_before"))
                         }
-                        guard !writer.failed else { throw CLIError.launch("Could not submit the complete request rewrite input.") }
+                        guard !writer.failed else { throw CLIError.launch(L10n.text("app.ui.could_not_submit_the_complete_request_rewrite")) }
                         continuation.resume(returning: output)
                     } catch { continuation.resume(throwing: error) }
                 }
@@ -170,20 +170,20 @@ struct NagiCLIClient {
         let (err, errOverflow) = errReader.snapshot()
         if stdoutLimit > 1_048_576 {
             if outOverflow { throw CLIError.outputTooLarge(stdoutLimit) }
-            if errOverflow { throw CLIError.invalidJSON("CLI stderr exceeded 1 MiB.") }
+            if errOverflow { throw CLIError.invalidJSON(L10n.text("app.ui.cli_stderr_exceeded_1_mib")) }
         } else if outOverflow || errOverflow {
-            throw CLIError.invalidJSON("CLI output exceeded 1 MiB.")
+            throw CLIError.invalidJSON(L10n.text("app.ui.cli_output_exceeded_1_mib"))
         }
         let responseData = out.isEmpty ? err : out
         guard let response = try? JSONDecoder().decode(CLIEnvelope<Value>.self, from: responseData) else {
             let diagnostic = String(data: err, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw CLIError.invalidJSON(diagnostic?.isEmpty == false ? diagnostic! : "The CLI returned invalid JSON.")
+            throw CLIError.invalidJSON(diagnostic?.isEmpty == false ? diagnostic! : L10n.text("app.ui.the_cli_returned_invalid_json"))
         }
         if response.ok && process.terminationStatus == 0 {
-            guard let data = response.data else { throw CLIError.invalidJSON("The CLI omitted the data field.") }
+            guard let data = response.data else { throw CLIError.invalidJSON(L10n.text("app.ui.the_cli_omitted_the_data_field")) }
             return data
         }
-        throw response.commandError(fallbackCode: "command_failed", fallbackMessage: "The CLI exited with status \(process.terminationStatus).")
+        throw response.commandError(fallbackCode: "command_failed", fallbackMessage: L10n.format("app.ui.the_cli_exited_with_status", String(describing: process.terminationStatus)))
     }
 }
 
@@ -231,7 +231,7 @@ final class SubscriptionWatch: @unchecked Sendable {
             pending.append(chunk)
             while let newline = pending.firstIndex(of: 10) {
                 if newline > 65_536 {
-                    lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock()
+                    lock.lock(); outputError = CLIError.invalidJSON(L10n.text("app.ui.scheduler_line_exceeded_64_kib")); lock.unlock()
                     terminateAfterFailure(); return
                 }
                 let line = Data(pending.prefix(upTo: newline))
@@ -239,7 +239,7 @@ final class SubscriptionWatch: @unchecked Sendable {
                 guard !line.isEmpty else { continue }
                 parse(line, isError: isError)
             }
-            if pending.count > 65_536 { lock.lock(); outputError = CLIError.invalidJSON("Scheduler line exceeded 64 KiB."); lock.unlock(); terminateAfterFailure(); return }
+            if pending.count > 65_536 { lock.lock(); outputError = CLIError.invalidJSON(L10n.text("app.ui.scheduler_line_exceeded_64_kib")); lock.unlock(); terminateAfterFailure(); return }
         }
         if !pending.isEmpty { parse(pending, isError: isError) }
     }
@@ -274,8 +274,8 @@ final class SubscriptionWatch: @unchecked Sendable {
                 else if let command = failure as? CLIError, command.commandCode == "scheduler_already_running" {
                     continuation.resume(returning: .duplicate)
                 } else if let failure { continuation.resume(returning: .failed(failure)) }
-                else if !started { continuation.resume(returning: .failed(CLIError.invalidJSON("Scheduler exited before announcing readiness."))) }
-                else { continuation.resume(returning: .failed(CLIError.invalidJSON("Scheduler exited unexpectedly."))) }
+                else if !started { continuation.resume(returning: .failed(CLIError.invalidJSON(L10n.text("app.ui.scheduler_exited_before_announcing_readiness")))) }
+                else { continuation.resume(returning: .failed(CLIError.invalidJSON(L10n.text("app.ui.scheduler_exited_unexpectedly")))) }
             }
         }
     }
@@ -346,7 +346,7 @@ private final class CommandOutputReader: @unchecked Sendable {
         let descriptor = handle.fileDescriptor
         let flags = Darwin.fcntl(descriptor, F_GETFL)
         guard flags >= 0, Darwin.fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) >= 0 else {
-            throw CLIError.launch("Could not prepare CLI output pipes.")
+            throw CLIError.launch(L10n.text("app.ui.could_not_prepare_cli_output_pipes"))
         }
         source = DispatchSource.makeReadSource(fileDescriptor: descriptor, queue: queue)
         closed.enter()
@@ -440,14 +440,14 @@ final class TrafficStream: @unchecked Sendable {
                     guard !line.isEmpty else { continue }
                     guard let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: line),
                           envelope.ok, let data = envelope.data else {
-                        setFailure(CLIError.invalidJSON("Traffic stream returned an invalid sample."))
+                        setFailure(CLIError.invalidJSON(L10n.text("app.ui.traffic_stream_returned_an_invalid_sample")))
                         invalid = true; stop(); break
                     }
                     DispatchQueue.main.async { sample(data) }
                 }
                 if invalid { break }
                 if pending.count > 65_536 {
-                    setFailure(CLIError.invalidJSON("Traffic sample exceeded 64 KiB."))
+                    setFailure(CLIError.invalidJSON(L10n.text("app.ui.traffic_sample_exceeded_64_kib")))
                     stop(); break
                 }
             }
@@ -486,7 +486,7 @@ final class TrafficStream: @unchecked Sendable {
                     if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: stderr),
                        let error = envelope.error {
                         continuation.resume(throwing: envelope.commandError(fallbackCode: error.code, fallbackMessage: error.message))
-                    } else { continuation.resume(throwing: CLIError.invalidJSON("Traffic stream exited unexpectedly.")) }
+                    } else { continuation.resume(throwing: CLIError.invalidJSON(L10n.text("app.ui.traffic_stream_exited_unexpectedly"))) }
                 }
             }
         } onCancel: { stop() }
@@ -533,14 +533,14 @@ enum CLIError: LocalizedError {
     }
     var errorDescription: String? {
         switch self {
-        case .missingCLI(let path): return "Nagi CLI is missing at \(path). Install the CLI there."
-        case .launch(let reason): return "Could not start Nagi CLI: \(reason)"
-        case .timeout: return "Nagi CLI did not respond before the command timed out."
-        case .invalidJSON(let reason): return "Nagi CLI response error: \(reason)"
+        case .missingCLI(let path): return L10n.format("app.ui.nagi_cli_is_missing_at_install_the", String(describing: path))
+        case .launch(let reason): return L10n.format("app.ui.could_not_start_nagi_cli", String(describing: reason))
+        case .timeout: return L10n.text("app.ui.nagi_cli_did_not_respond_before_the")
+        case .invalidJSON(let reason): return L10n.format("app.ui.nagi_cli_response_error", String(describing: reason))
         case .command(let code, let message): return "\(message) (\(code))"
         case .localizedCommand(let code, let original, let descriptor):
             return "\(descriptor.render(original: original)) (\(code))"
-        case .outputTooLarge(let limit): return "Nagi CLI output exceeded \(limit / 1_048_576) MiB."
+        case .outputTooLarge(let limit): return L10n.format("app.ui.nagi_cli_output_exceeded_mib", String(describing: limit / 1_048_576))
         }
     }
 }
@@ -608,7 +608,7 @@ private final class CommandInputWriter: @unchecked Sendable {
         let flags = Darwin.fcntl(fd, F_GETFL)
         guard flags >= 0, Darwin.fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0,
               Darwin.fcntl(fd, F_SETNOSIGPIPE, 1) >= 0 else {
-            throw CLIError.launch("Could not prepare CLI input pipe.")
+            throw CLIError.launch(L10n.text("app.ui.could_not_prepare_cli_input_pipe"))
         }
         source = DispatchSource.makeWriteSource(fileDescriptor: fd, queue: queue)
         source.setEventHandler { [weak self] in self?.writeAvailable() }

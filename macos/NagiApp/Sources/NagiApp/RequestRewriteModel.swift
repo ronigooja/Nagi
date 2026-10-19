@@ -75,12 +75,12 @@ import Foundation
                     let d = try await read(["scripts", "list", "--profile", profile], nil)
                     let r = try await read(["rules", "list", "--profile", profile], nil)
                     guard case .arrayValue(let ds)? = d["scripts"], case .arrayValue(let rs)? = r["rules"] else {
-                        throw CLIError.invalidJSON("Request rewrite lists are unavailable.")
+                        throw CLIError.invalidJSON(L10n.text("app.ui.request_rewrite_lists_are_unavailable"))
                     }
                     scriptRows = ds.compactMap(RewriteScriptSummary.init)
                     ruleRows = rs.compactMap(RewriteRuleSummary.init)
                     guard scriptRows?.count == ds.count, ruleRows?.count == rs.count else {
-                        throw CLIError.invalidJSON("Request rewrite lists contain unsupported entries.")
+                        throw CLIError.invalidJSON(L10n.text("app.ui.request_rewrite_lists_contain_unsupported_entries"))
                     }
                 }
                 guard let self, token == self.generation, !Task.isCancelled else { self?.finishRead(); return }
@@ -93,7 +93,7 @@ import Foundation
             } catch {
                 if let self, token == self.generation, !Task.isCancelled {
                     self.stale = true; self.listsFresh = false
-                    self.error = "Request Rewrite unavailable: \(error.localizedDescription) Upgrade the matching Nagi CLI and engine if this command or capability is unavailable."
+                    self.error = L10n.format("app.ui.request_rewrite_unavailable_upgrade_the_matching_nagi", String(describing: error.localizedDescription))
                     self.onStatusChange?()
                 }
             }
@@ -110,9 +110,9 @@ import Foundation
     /// The App settings gate executes once. Hiding/closing does not cancel a
     /// mutation already submitted, and never implies rollback.
     func perform(_ arguments: [String], input: Data? = nil, profile: String? = nil) async -> Bool {
-        guard canOperate else { error = "Another operation is in progress."; notify(); return false }
+        guard canOperate else { error = L10n.text("app.ui.another_operation_is_in_progress"); notify(); return false }
         if ["scripts", "rules"].contains(arguments.first ?? ""), !canManage {
-            error = "Refresh the script and rule lists before changing saved entries."; notify(); return false
+            error = L10n.text("app.ui.refresh_the_script_and_rule_lists_before"); notify(); return false
         }
         operationInProgress = true; error = nil; notice = nil
         generation &+= 1; readTask?.cancel(); sensitiveReadTask?.cancel()
@@ -127,13 +127,13 @@ import Foundation
             if arguments.first == "preview" {
                 // Only an explicitly requested preview reveals sensitive values.
                 preview = Self.display(result)
-                notice = "Preview completed."
-            } else { notice = "Operation completed. Refresh status to confirm current activation." }
+                notice = L10n.text("app.ui.preview_completed")
+            } else { notice = L10n.text("app.ui.operation_completed_refresh_status_to_confirm_current") }
             operationInProgress = false
             if visible { refresh() } else { refreshStatus() }
             notify(); return true
         } catch {
-            self.error = error.localizedDescription + " The operation was not retried. Refresh status before resubmitting if runtime state is uncertain."
+            self.error = error.localizedDescription + L10n.text("app.ui.the_operation_was_not_retried_refresh_status")
             operationInProgress = false; stale = true
             notify(); return false
         }
@@ -146,7 +146,7 @@ import Foundation
         RewriteScriptDraft(try await sensitiveEntry(collection: "scripts", id: id, profile: profile))
     }
     private func sensitiveEntry(collection: String, id: String, profile: String) async throws -> RewriteJSON {
-        guard canManage, !sensitiveReadInProgress else { throw RewriteFormError.invalid("Refresh the list or wait for the current operation.") }
+        guard canManage, !sensitiveReadInProgress else { throw RewriteFormError.invalid(L10n.text("app.ui.refresh_the_list_or_wait_for_the")) }
         generation &+= 1; readTask?.cancel()
         await readTask?.value
         guard canManage, !sensitiveReadInProgress else { throw CancellationError() }
@@ -163,18 +163,18 @@ import Foundation
         try Task.checkCancellation()
         guard !suspended, !blocked, visible else { throw CancellationError() }
         let document = try RewriteJSON.parse(bytes)
-        guard let entry = document[collection]?.array.first(where: { $0["id"]?.string == id }) else { throw RewriteFormError.invalid("The selected entry no longer exists. Refresh the list.") }
+        guard let entry = document[collection]?.array.first(where: { $0["id"]?.string == id }) else { throw RewriteFormError.invalid(L10n.text("app.ui.the_selected_entry_no_longer_exists_refresh")) }
         return entry
     }
     func exportFile(_ arguments: [String]) async throws {
-        guard canOperate else { throw RewriteFormError.invalid("Another operation is in progress.") }
+        guard canOperate else { throw RewriteFormError.invalid(L10n.text("app.ui.another_operation_is_in_progress")) }
         operationInProgress = true
         generation &+= 1; readTask?.cancel(); sensitiveReadTask?.cancel()
         await waitForCancelledRead()
         notify()
         defer { operationInProgress = false; notify(); if visible { refresh() } }
         _ = try await export(arguments)
-        notice = "Export completed. Keep the exported file private."
+        notice = L10n.text("app.ui.export_completed_keep_the_exported_file_private")
     }
     static func display(_ value: JSONValue) -> String {
         switch value {

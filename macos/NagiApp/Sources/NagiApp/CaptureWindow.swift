@@ -14,7 +14,7 @@ import SwiftUI
         self.model = model
         let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 740), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = "Nagi Capture"; window.minSize = NSSize(width: 980, height: 650)
+        window.title = L10n.text("app.ui.nagi_capture"); window.minSize = NSSize(width: 980, height: 650)
         window.isReleasedWhenClosed = false; window.delegate = self
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
         let content = NSHostingView(rootView: CaptureView(presentation: CapturePresentation(model)))
@@ -96,20 +96,20 @@ import SwiftUI
             ScrollView(.horizontal) { controls }.fixedSize(horizontal: false, vertical: true)
             if !model.prerequisitesReady, let message = model.prerequisiteMessage {
                 HStack {
-                    Text(message).font(.callout).foregroundColor(.orange).textSelection(.enabled)
+                    Text(verbatim: message).font(.callout).foregroundColor(.orange).textSelection(.enabled)
                     if !model.checkingPrerequisites {
-                        Button("Recheck") { model.refreshPrerequisites() }.disabled(!model.canOperate)
+                        Button(L10n.text("app.ui.recheck")) { model.refreshPrerequisites() }.disabled(!model.canOperate)
                     }
                 }
             }
             ScrollView(.horizontal) { HStack {
-                TextField("Search requests", text: $query)
+                TextField(L10n.text("app.ui.search_requests"), text: $query)
                     .frame(minWidth: 220)
-                    .help("Search original URLs, headers and bodies")
-                Picker("Kind", selection: $kind) { Text("All").tag(""); Text("HTTP").tag("http"); Text("WebSocket").tag("websocket") }.frame(width: 170)
-                TextField("Domain", text: $domain).frame(width: 160)
-                TextField("Process path", text: $process).frame(width: 180)
-                Toggle("Oldest first", isOn: $ascending)
+                    .help(L10n.text("app.ui.search_original_urls_headers_and_bodies"))
+                Picker(L10n.text("app.ui.kind"), selection: $kind) { Text(verbatim: L10n.text("app.ui.all")).tag(""); Text(verbatim: "HTTP").tag("http"); Text(verbatim: "WebSocket").tag("websocket") }.frame(width: 170)
+                TextField(L10n.text("app.ui.domain"), text: $domain).frame(width: 160)
+                TextField(L10n.text("app.ui.process_path"), text: $process).frame(width: 180)
+                Toggle(L10n.text("app.ui.oldest_first"), isOn: $ascending)
             } }.fixedSize(horizontal: false, vertical: true)
                 .onChange(of: query) { _ in filters() }.onChange(of: kind) { _ in filters() }
                 .onChange(of: domain) { _ in filters() }.onChange(of: process) { _ in filters() }.onChange(of: ascending) { _ in filters() }
@@ -118,12 +118,12 @@ import SwiftUI
                 details.frame(minWidth: 380)
             }
             HStack {
-                Text("\(model.records.count) records")
-                if model.stale { Text("Out of date").foregroundColor(.orange) }
+                Text(verbatim: L10n.format("app.capture.records_count", Int64(model.records.count)))
+                if model.stale { Text(verbatim: L10n.text("app.ui.out_of_date")).foregroundColor(.orange) }
                 if let status = model.status {
-                    Text(ByteCountFormatter.string(fromByteCount: status.bytes, countStyle: .file))
-                    if status.dropped > 0 { Text("\(status.dropped) dropped").foregroundColor(.orange) }
-                    if status.truncated > 0 { Text("\(status.truncated) truncated").foregroundColor(.orange) }
+                    Text(verbatim: ByteCountFormatter.string(fromByteCount: status.bytes, countStyle: .file))
+                    if status.dropped > 0 { Text(verbatim: L10n.format("app.capture.dropped_count", Int64(status.dropped))).foregroundColor(.orange) }
+                    if status.truncated > 0 { Text(verbatim: L10n.format("app.capture.truncated_count", Int64(status.truncated))).foregroundColor(.orange) }
                 }
                 Spacer()
                 // Keep the status row the same size between refreshes.
@@ -131,49 +131,49 @@ import SwiftUI
                     if model.isReading || model.readingBody { ProgressView().controlSize(.small) }
                 }.frame(width: 16, height: 16)
             }.font(.caption).foregroundColor(.secondary)
-            if let error = model.error { Text(error).foregroundColor(.red).textSelection(.enabled) }
-            if let status = model.status, let recovery = status.recovery {
-                Text("Recorder: \(status.recorderState ?? "unknown"). \(recovery)").font(.callout).foregroundColor(.orange).textSelection(.enabled)
+            if let error = model.error { Text(verbatim: error).foregroundColor(.red).textSelection(.enabled) }
+            if let status = model.status, let recovery = model.statusRecovery {
+                Text(verbatim: L10n.format("app.ui.recorder", String(describing: L10n.protocolLabel(status.recorderState ?? "unknown")), String(describing: recovery))).font(.callout).foregroundColor(.orange).textSelection(.enabled)
             }
         }.padding()
     }
     private var controls: some View {
         HStack {
-            Button("Start") { Task { await model.start(scope: draftScope, bodyLimit: bodyLimit) } }
+            Button(L10n.text("app.ui.start")) { Task { await model.start(scope: draftScope, bodyLimit: bodyLimit) } }
                 .disabled(!model.canOperate || model.status?.canStartNewSession == false)
-            Button(model.status?.state == "paused" ? "Resume" : "Pause") { Task { await model.mutate(model.status?.state == "paused" ? "resume" : "pause") } }
+            Button(model.status?.state == "paused" ? L10n.text("app.ui.resume") : L10n.text("app.ui.pause")) { Task { await model.mutate(model.status?.state == "paused" ? "resume" : "pause") } }
                 .disabled(!model.canOperate || model.status?.canPauseOrResume != true)
-            Button("Stop") { Task { await model.mutate("stop") } }.disabled(!model.canOperate || model.status?.canStop != true)
+            Button(L10n.text("app.ui.stop")) { Task { await model.mutate("stop") } }.disabled(!model.canOperate || model.status?.canStop != true)
             Divider().frame(height: 16)
             Button { scopePresented.toggle() } label: {
                 HStack(spacing: 4) {
-                    Text("Scope: \(scopeSummary)")
+                    Text(verbatim: L10n.format("app.ui.scope", String(describing: scopeSummary)))
                     Image(systemName: "chevron.down").font(.caption2)
                 }
             }
             .popover(isPresented: $scopePresented, arrowEdge: .bottom) { scope }
-            if model.status?.readOnly == true { Text("Read only").foregroundColor(.secondary) }
+            if model.status?.readOnly == true { Text(verbatim: L10n.text("app.ui.read_only")).foregroundColor(.secondary) }
             else if let status = model.status {
-                Text(status.state.capitalized).foregroundColor(status.state == "recording" ? .red : .secondary)
+                Text(verbatim: L10n.protocolLabel(status.state)).foregroundColor(status.state == "recording" ? .red : .secondary)
             }
             Spacer(minLength: 16)
             if !model.isRecording {
                 Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                    .help("Refresh capture status and records").accessibilityLabel("Refresh").disabled(!model.canOperate)
+                    .help(L10n.text("app.ui.refresh_capture_status_and_records")).accessibilityLabel(L10n.text("app.ui.refresh")).disabled(!model.canOperate)
             }
             Menu {
-                Picker("Body limit", selection: bodyLimitSelection) {
-                    Text("1 MiB").tag(1_048_576); Text("4 MiB").tag(4_194_304); Text("8 MiB").tag(8_388_608)
+                Picker(L10n.text("app.ui.body_limit"), selection: bodyLimitSelection) {
+                    Text(verbatim: "1 MiB").tag(1_048_576); Text(verbatim: "4 MiB").tag(4_194_304); Text(verbatim: "8 MiB").tag(8_388_608)
                 }.disabled(!model.canEditScope)
                 Divider()
-                Button("Import…") { importFile() }.disabled(!model.canOperate || model.status?.canStartNewSession == false)
-                Menu("Export") {
-                    Button("Native Archive…") { exportFile("native") }
+                Button(L10n.text("app.ui.import")) { importFile() }.disabled(!model.canOperate || model.status?.canStartNewSession == false)
+                Menu(L10n.text("app.action.export")) {
+                    Button(L10n.text("app.ui.native_archive")) { exportFile("native") }
                     Button("HAR…") { exportFile("har") }
                 }.disabled(!model.canOperate || model.status == nil)
                 Divider()
-                Button("Clear") { Task { await model.mutate("clear") } }.disabled(!model.canOperate || model.status == nil || model.status?.readOnly == true)
-            } label: { Image(systemName: "ellipsis") }.help("More").accessibilityLabel("More")
+                Button(L10n.text("app.ui.clear")) { Task { await model.mutate("clear") } }.disabled(!model.canOperate || model.status == nil || model.status?.readOnly == true)
+            } label: { Image(systemName: "ellipsis") }.help(L10n.text("app.ui.more")).accessibilityLabel(L10n.text("app.ui.more"))
         }
     }
     private var draftScope: CaptureScope {
@@ -191,20 +191,20 @@ import SwiftUI
                      (value.appPaths.count, "application", "applications")]
             .filter { $0.0 > 0 }
             .map { "\($0.0) \($0.0 == 1 ? $0.1 : $0.2)" }
-        return parts.isEmpty ? "All traffic" : parts.joined(separator: " · ")
+        return parts.isEmpty ? L10n.text("app.ui.all_traffic") : parts.joined(separator: " · ")
     }
     private var scope: some View {
         VStack(alignment: .leading, spacing: 12) {
-            scopeField("Domains", text: $domains, current: displayedScope.domains)
-                .help("One domain pattern per line. Empty matches all domains. Different scope categories combine.")
-            scopeField("Processes", text: $processes, current: displayedScope.processPaths)
-                .help("One exact absolute process path per line")
-            scopeField("Applications", text: $apps, current: displayedScope.appPaths)
-                .help("One absolute .app path per line, including its helper processes")
+            scopeField(L10n.text("app.ui.domains"), text: $domains, current: displayedScope.domains)
+                .help(L10n.text("app.ui.one_domain_pattern_per_line_empty_matches"))
+            scopeField(L10n.text("app.ui.processes"), text: $processes, current: displayedScope.processPaths)
+                .help(L10n.text("app.ui.one_exact_absolute_process_path_per_line"))
+            scopeField(L10n.text("app.ui.applications"), text: $apps, current: displayedScope.appPaths)
+                .help(L10n.text("app.ui.one_absolute_app_path_per_line_including"))
             if model.activeScope == nil {
                 HStack {
-                    Button("Find Applications") { model.discoverApplications() }
-                    Menu("Add Application") {
+                    Button(L10n.text("app.ui.find_applications")) { model.discoverApplications() }
+                    Menu(L10n.text("app.capture.add_application")) {
                         ForEach(model.applications) { app in
                             Button(app.appPath.isEmpty ? app.processPath : app.appPath) {
                                 if app.appPath.isEmpty { processes += (processes.isEmpty ? "" : "\n") + app.processPath }
@@ -215,20 +215,20 @@ import SwiftUI
                 }.disabled(!model.canEditScope)
             }
             if model.activeScope != nil {
-                Text("Stop capture to change the scope.").font(.caption).foregroundColor(.secondary)
+                Text(verbatim: L10n.text("app.ui.stop_capture_to_change_the_scope")).font(.caption).foregroundColor(.secondary)
             }
             HStack {
                 Spacer()
-                Button("Done") { scopePresented = false }.keyboardShortcut(.defaultAction)
+                Button(L10n.text("app.ui.done")) { scopePresented = false }.keyboardShortcut(.defaultAction)
             }
         }.padding(16).frame(width: 420)
     }
     private func scopeField(_ title: String, text: Binding<String>, current: [String]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundColor(.secondary)
+            Text(verbatim: title).font(.caption).foregroundColor(.secondary)
             if model.activeScope != nil {
                 ScrollView {
-                    Text(current.isEmpty ? "All" : current.joined(separator: "\n"))
+                    Text(verbatim: current.isEmpty ? L10n.text("app.ui.all") : current.joined(separator: "\n"))
                         .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
                 }.frame(height: 52)
             } else {
@@ -251,14 +251,14 @@ import SwiftUI
     }
     private func exportFile(_ format: String) {
         let panel = NSSavePanel(); panel.nameFieldStringValue = format == "har" ? "capture.har" : "capture.ndjson"
-        panel.message = "The archive includes original credentials, URLs and bodies. Keep it private."
+        panel.message = L10n.text("app.ui.the_archive_includes_original_credentials_urls_and")
         if panel.runModal() == .OK, let file = panel.url { Task { await model.exportFile(file.path, format: format) } }
     }
 }
 
 func captureMinute(_ raw: String) -> String {
     let parser = ISO8601DateFormatter(); parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    guard let date = parser.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) else { return "unknown" }
+    guard let date = parser.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) else { return L10n.text("app.state.unknown") }
     let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd HH:mm"; return formatter.string(from: date)
 }
 
@@ -271,7 +271,7 @@ func captureMinute(_ raw: String) -> String {
         let view = CaptureSelectableTextView(); view.isEditable = false; view.isSelectable = true
         view.font = .monospacedSystemFont(ofSize: 12, weight: .regular); view.autoresizingMask = [.width]
         view.isRichText = false; view.textContainerInset = NSSize(width: 8, height: 8)
-        view.setAccessibilityLabel("Captured body")
+        view.setAccessibilityLabel(L10n.text("app.ui.captured_body"))
         view.isVerticallyResizable = true; view.isHorizontallyResizable = false
         view.textContainer?.widthTracksTextView = true
         scroll.documentView = view; return scroll
@@ -287,7 +287,7 @@ func captureMinute(_ raw: String) -> String {
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event) ?? NSMenu()
         if selectedRange().length > 0 {
-            menu.addItem(.separator()); let item = NSMenuItem(title: "Create Rule from Selection…", action: #selector(ruleFromSelection), keyEquivalent: ""); item.target = self; menu.addItem(item)
+            menu.addItem(.separator()); let item = NSMenuItem(title: L10n.text("app.ui.create_rule_from_selection"), action: #selector(ruleFromSelection), keyEquivalent: ""); item.target = self; menu.addItem(item)
         }
         return menu
     }

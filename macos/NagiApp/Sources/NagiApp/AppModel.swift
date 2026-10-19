@@ -13,17 +13,17 @@ struct NodeDelay {
         milliseconds = value?["delay_ms"]?.int64
         measuredAt = value?["measured_at"]?.string
         testOrigin = value?["test_url"]?.string
-        reason = (value?["reason"]?.string).flatMap { $0.isEmpty ? nil : $0 }
+        reason = (value?["reason"]?.displayString).flatMap { $0.isEmpty ? nil : $0 }
     }
     var label: String {
         if status == "ok", let milliseconds { return milliseconds == 0 ? "<1 ms" : "\(milliseconds) ms" }
-        if status == "failed" { return "Failed" }
-        return reason == nil ? "Untested" : "Unknown"
+        if status == "failed" { return L10n.text("app.ui.failed") }
+        return reason == nil ? L10n.text("app.ui.untested") : L10n.text("app.ui.unknown")
     }
     var detail: String {
-        let measuredTime = measuredAt.map { MenuAppDelegate.subscriptionTime($0) } ?? "unknown"
-        let measurement = "Latest engine measurement: \(label)\nMeasured at: \(measuredTime)\nTest origin: \(testOrigin ?? "unknown")"
-        return measurement + (reason.map { "\nReason: \($0)" } ?? "")
+        let measuredTime = measuredAt.map { MenuAppDelegate.subscriptionTime($0) } ?? L10n.text("app.state.unknown")
+        let measurement = L10n.format("app.ui.latest_engine_measurement_nmeasured_at_ntest_origin", String(describing: label), String(describing: measuredTime), String(describing: testOrigin ?? L10n.text("app.state.unknown")))
+        return measurement + (reason.map { L10n.format("app.ui.nreason", String(describing: $0)) } ?? "")
     }
     static func parse(_ value: JSONValue?) -> [String: NodeDelay] {
         guard let value, case .objectValue(let entries) = value else { return [:] }
@@ -71,8 +71,8 @@ struct ProxyGroup {
     }
     func nodeTitle(_ node: String) -> String {
         switch NodeInfo.kind(node, in: nodeInfo) {
-        case "node": return "\(node) · \(nodeDelays[node]?.label ?? "Untested")"
-        case "group": return "\(node) · \(nodeInfo[node]?.selectedBuiltin ?? nodeInfo[node]?.selectedDelay?.label ?? "Unknown")"
+        case "node": return "\(node) · \(nodeDelays[node]?.label ?? L10n.text("app.ui.untested"))"
+        case "group": return "\(node) · \(nodeInfo[node]?.selectedBuiltin ?? nodeInfo[node]?.selectedDelay?.label ?? L10n.text("app.ui.unknown"))"
         default: break
         }
         return node
@@ -81,8 +81,8 @@ struct ProxyGroup {
         NodeInfo.kind(node, in: nodeInfo) == "node" ? (nodeDelays[node] ?? NodeDelay()).detail : nil
     }
     var testCommand: [String] { ["proxy", "delays", name] }
-    var testTitle: String { "Test Current Group" }
-    var testExplanation: String { automatic ? "Tests this group, clears its fixed choice and saved choice, and restores automatic selection." : "Tests all nodes in this group; preserves the selected node." }
+    var testTitle: String { L10n.text("app.ui.test_current_group") }
+    var testExplanation: String { automatic ? L10n.text("app.ui.tests_this_group_clears_its_fixed_choice") : L10n.text("app.ui.tests_all_nodes_in_this_group_preserves") }
     var selectable: Bool {
         ["selector", "urltest", "fallback"].contains(kind.lowercased())
     }
@@ -121,8 +121,8 @@ enum TrafficDisplay: String, CaseIterable {
     case both, icon
     var title: String {
         switch self {
-        case .both: return "Traffic rates"
-        case .icon: return "Icon only"
+        case .both: return L10n.text("app.ui.traffic_rates")
+        case .icon: return L10n.text("app.ui.icon_only")
         }
     }
 }
@@ -161,7 +161,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         let capture = CaptureModel(cli: cli)
         capture.submit = { [weak self] arguments, input in
             guard let self else { throw CancellationError() }
-            guard !self.busy && !self.quitting else { throw RewriteFormError.invalid("Another operation is in progress.") }
+            guard !self.busy && !self.quitting else { throw RewriteFormError.invalid(L10n.text("app.ui.another_operation_is_in_progress")) }
             self.busy = true
             defer { self.busy = false }
             await self.waitForConnectionsOperation(skipCaptureOperation: true)
@@ -169,7 +169,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         }
         capture.export = { [weak self] arguments in
             guard let self else { throw CancellationError() }
-            guard !self.busy && !self.quitting else { throw RewriteFormError.invalid("Another operation is in progress.") }
+            guard !self.busy && !self.quitting else { throw RewriteFormError.invalid(L10n.text("app.ui.another_operation_is_in_progress")) }
             self.busy = true
             defer { self.busy = false }
             await self.waitForConnectionsOperation(skipCaptureOperation: true)
@@ -248,10 +248,12 @@ enum EngineState { case starting, running, stopped, unavailable }
     private(set) var state: EngineState = .starting { didSet { connections.setEngineState(state); notify() } }
     // A detached update failure survives ordinary launch and polling results.
     private var updateErrorMessage: String?
+    private enum ErrorOrigin { case operation, status, traffic }
+    private var errorOrigin: ErrorOrigin = .operation
     private var operationErrorMessage: String?
     private(set) var errorMessage: String? {
         get { updateErrorMessage ?? operationErrorMessage }
-        set { operationErrorMessage = newValue; notify() }
+        set { operationErrorMessage = newValue; errorOrigin = .operation; notify() }
     }
     private(set) var quitErrorMessage: String? { didSet { notify() } }
     private(set) var notice: String? { didSet { notify() } }
@@ -286,8 +288,8 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
     var accessibilityTraffic: String {
         guard state == .running, Date().timeIntervalSince(lastSample) < 3.5,
-              let up = uploadBPS, let down = downloadBPS else { return "traffic unavailable" }
-        return "upload \(Self.rate(up).trimmingCharacters(in: .whitespaces)), download \(Self.rate(down).trimmingCharacters(in: .whitespaces))"
+              let up = uploadBPS, let down = downloadBPS else { return L10n.text("app.ui.traffic_unavailable") }
+        return L10n.format("app.ui.upload_download", String(describing: Self.rate(up).trimmingCharacters(in: .whitespaces)), String(describing: Self.rate(down).trimmingCharacters(in: .whitespaces)))
     }
     private static func rate(_ bytes: Int64) -> String {
         let value = Double(max(0, bytes))
@@ -321,7 +323,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         // The CLI owns persistence and consumes the failure once for this launch.
         // An older CLI may not support this read; it must not prevent startup.
         guard let result = try? await runCommand(["app", "update-error"]),
-              let message = result["error"]?.string, !message.isEmpty else { return }
+              let message = result["error"]?.displayString, !message.isEmpty else { return }
         updateErrorMessage = message
         notify()
     }
@@ -335,8 +337,8 @@ enum EngineState { case starting, running, stopped, unavailable }
         defer { settingsGeneration += 1 }
         state = .starting
         do { _ = try await runCommand(["start"]); errorMessage = nil }
-        catch CLIError.command(let code, _) where code == "already_running" { errorMessage = nil }
-        catch { state = .unavailable; errorMessage = "Start failed: \(error.localizedDescription)" }
+        catch let error as CLIError where error.commandCode == "already_running" { errorMessage = nil }
+        catch { state = .unavailable; errorMessage = L10n.format("app.ui.start_failed", String(describing: error.localizedDescription)) }
     }
     func refresh() async {
         var scope: RefreshScope = [.status, .groups, .settings]
@@ -405,13 +407,13 @@ enum EngineState { case starting, running, stopped, unavailable }
                     metadataReadAt.removeValue(forKey: RefreshScope.providers.rawValue)
                 }
                 profile = currentProfile
-                if errorMessage?.hasPrefix("Status unavailable:") == true { errorMessage = nil }
+                if errorOrigin == .status { errorMessage = nil }
                 if state == .running { if trafficTask == nil { startTraffic() } }
                 else { stopTraffic() }
             } catch {
                 guard valid() else { return false }
                 state = .unavailable; stopTraffic()
-                errorMessage = "Status unavailable: \(error.localizedDescription)"
+                errorMessage = L10n.format("app.ui.status_unavailable", String(describing: error.localizedDescription)); errorOrigin = .status
             }
         }
         if scope.contains(.profiles) {
@@ -465,8 +467,8 @@ enum EngineState { case starting, running, stopped, unavailable }
                     return false
                 }
             } else { defaultOverrideApplied = nil }
-            if let problem = value["current_error"]?.string {
-                errorMessage = "Profile selection unavailable: \(problem)"
+            if let problem = value["current_error"]?.displayString {
+                errorMessage = L10n.format("app.ui.profile_selection_unavailable", String(describing: problem))
                 return false
             }
             return true
@@ -490,9 +492,9 @@ enum EngineState { case starting, running, stopped, unavailable }
                     scheduleSeconds: max(0, item["schedule_seconds"]?.int64 ?? 3600),
                     schedulerRunning: schedulerRunning,
                     nextDue: item["next_due"]?.string,
-                    pauseReason: item["pause_reason"]?.string,
+                    pauseReason: item["pause_reason"]?.displayString,
                     lastFailureStage: item["last_failure_stage"]?.string,
-                    lastFailureReason: item["last_failure_reason"]?.string,
+                    lastFailureReason: item["last_failure_reason"]?.displayString,
                     expiresAt: item["expires_at"]?.string,
                     upload: item["upload"]?.int64 ?? 0,
                     download: item["download"]?.int64 ?? 0,
@@ -564,7 +566,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                     guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
                     providers = []
                     providersUnavailable = true
-                    errorMessage = "Proxy providers unavailable: \(error.localizedDescription)"
+                    errorMessage = L10n.format("app.ui.proxy_providers_unavailable", String(describing: error.localizedDescription))
                 }
             }
         } else {
@@ -586,7 +588,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                 settingsGeneration += 1
                 errorMessage = nil
                 if arguments.count == 4, Array(arguments.prefix(3)) == ["proxy", "provider", "update"] {
-                    notice = "Provider “\(arguments[3])” updated."
+                    notice = L10n.format("app.ui.provider_updated", String(describing: arguments[3]))
                 }
                 if arguments.count >= 2 {
                     switch (arguments[0], arguments[1]) {
@@ -603,7 +605,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                         profile = result["current"]?.string
                         await requestRefresh([.profiles, .runtime], force: true)
                     case ("profile", "remove"):
-                        notice = "Profile deleted."
+                        notice = L10n.text("app.ui.profile_deleted")
                         await requestRefresh([.profiles, .subscriptions], force: true)
                     case ("profile", "override"):
                         await requestRefresh([.profiles, .runtime], force: true)
@@ -630,7 +632,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
 
     func healthcheckSettings(kind: String, name: String) async throws -> JSONValue {
-        guard !busy && !quitting else { throw CLIError.command("busy", "Another operation is in progress.") }
+        guard !busy && !quitting else { throw CLIError.command("busy", L10n.text("app.ui.another_operation_is_in_progress")) }
         busy = true
         defer { busy = false }
         await waitForConnectionsOperation()
@@ -638,8 +640,8 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
 
     func saveHealthcheckSettings(kind: String, name: String, seconds: Int64?) async -> String? {
-        guard !busy && !quitting else { return "Another operation is in progress." }
-        if let seconds, !(1...31_536_000).contains(seconds) { return "Test interval must be 1–31536000 seconds." }
+        guard !busy && !quitting else { return L10n.text("app.ui.another_operation_is_in_progress") }
+        if let seconds, !(1...31_536_000).contains(seconds) { return L10n.text("app.ui.test_interval_must_be_1_31536000_seconds") }
         settingsGeneration += 1
         busy = true
         applyingSetting = true
@@ -661,20 +663,20 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
 
     func subscriptionUpdateSettings(_ name: String) async throws -> Int64 {
-        guard !busy && !quitting else { throw CLIError.command("busy", "Another operation is in progress.") }
+        guard !busy && !quitting else { throw CLIError.command("busy", L10n.text("app.ui.another_operation_is_in_progress")) }
         busy = true
         defer { busy = false }
         await waitForConnectionsOperation()
         let value = try await runCommand(["subscription", "list"])
         guard let item = value["subscriptions"]?.array.first(where: { $0["name"]?.string == name }),
               let seconds = item["schedule_seconds"]?.int64 else {
-            throw CLIError.command("subscription_error", "Subscription schedule is unavailable.")
+            throw CLIError.command("subscription_error", L10n.text("app.ui.subscription_schedule_is_unavailable"))
         }
         return seconds
     }
 
     func providerUpdateSettings(_ name: String) async throws -> JSONValue {
-        guard !busy && !quitting else { throw CLIError.command("busy", "Another operation is in progress.") }
+        guard !busy && !quitting else { throw CLIError.command("busy", L10n.text("app.ui.another_operation_is_in_progress")) }
         busy = true
         defer { busy = false }
         await waitForConnectionsOperation()
@@ -682,7 +684,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
 
     func saveSourceSetting(_ arguments: [String]) async -> String? {
-        guard !busy && !quitting else { return "Another operation is in progress." }
+        guard !busy && !quitting else { return L10n.text("app.ui.another_operation_is_in_progress") }
         settingsGeneration += 1
         busy = true
         applyingSetting = true
@@ -704,9 +706,9 @@ enum EngineState { case starting, running, stopped, unavailable }
 
     // Configuration, validation, persistence, and activation remain CLI operations.
     func addProvider(_ name: String, url: String, group: String, intervalSeconds: Int64 = 3600, updateOff: Bool = false, testURL: String = "") async -> String? {
-        guard !busy && !quitting else { return "Another operation is in progress. Try again when it finishes." }
+        guard !busy && !quitting else { return L10n.text("app.ui.another_operation_is_in_progress_try_again") }
         guard updateOff || (1...31_536_000).contains(intervalSeconds) else {
-            return "Update interval must be 1–31536000 seconds."
+            return L10n.text("app.ui.update_interval_must_be_1_31536000_seconds")
         }
         settingsGeneration += 1
         busy = true
@@ -722,8 +724,8 @@ enum EngineState { case starting, running, stopped, unavailable }
             profile = result["profile"]?.string ?? profile
             await requestRefresh([.groups, .providers], force: true)
             notice = result["group_created"]?.bool == true
-                ? "Provider added. New group choices are in Select Node (Proxy Groups). Routing rules are unchanged."
-                : "Provider added. Group choices are in Select Node (Proxy Groups)."
+                ? L10n.text("app.ui.provider_added_new_group_choices_are_in")
+                : L10n.text("app.ui.provider_added_group_choices_are_in_select")
             notify()
             return nil
         } catch {
@@ -731,7 +733,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             // CLI errors are redacted; also protect the form URL against older CLI versions.
             let detail = error.localizedDescription.replacingOccurrences(of: url, with: "<redacted URL>")
                 .replacingOccurrences(of: "(?i)https?://[^\\s<>\"']+", with: "<redacted URL>", options: .regularExpression)
-            let message = "Provider add failed: \(detail)"
+            let message = L10n.format("app.ui.provider_add_failed", String(describing: detail))
             errorMessage = message
             return message
         }
@@ -760,7 +762,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             do {
                 let result = try await runCommand(["update", "--app"])
                 guard result["scheduled"]?.bool == true else {
-                    throw CLIError.invalidJSON("The CLI did not schedule an update.")
+                    throw CLIError.invalidJSON(L10n.text("app.ui.the_cli_did_not_schedule_an_update"))
                 }
                 errorMessage = nil
                 readyToQuit()
@@ -770,7 +772,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                 // between scheduling the updater and quitting the App.
                 busy = false
             } catch {
-                errorMessage = "Update could not start: \(error.localizedDescription)"
+                errorMessage = L10n.format("app.ui.update_could_not_start", String(describing: error.localizedDescription))
                 busy = false
             }
         }
@@ -778,11 +780,11 @@ enum EngineState { case starting, running, stopped, unavailable }
 
     func applyDefaultOverrideToCurrentProfile(group: String? = nil) {
         guard let profile, !profile.isEmpty else {
-            errorMessage = "No current profile is selected."
+            errorMessage = L10n.text("app.ui.no_current_profile_is_selected")
             return
         }
         guard let defaultOverrideApplied else {
-            errorMessage = "Default runtime settings status is unavailable. Try again after refreshing."
+            errorMessage = L10n.text("app.ui.default_runtime_settings_status_is_unavailable_try")
             return
         }
         if defaultOverrideApplied {
@@ -819,7 +821,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                     subscriptions.sort { $0.name < $1.name }
                 } catch {
                     settingsGeneration += 1
-                    errorMessage = "Subscription add failed: \(error.localizedDescription)"
+                    errorMessage = L10n.format("app.ui.subscription_add_failed", String(describing: error.localizedDescription))
                     return
                 }
             }
@@ -829,7 +831,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             } catch {
                 settingsGeneration += 1
                 await requestRefresh(.subscriptions, force: true)
-                let state = url == nil ? "Subscription download failed; apply was not attempted" : "Subscription saved, but download failed; apply was not attempted"
+                let state = url == nil ? L10n.text("app.ui.subscription_download_failed_apply_was_not_attempted") : L10n.text("app.ui.subscription_saved_but_download_failed_apply_was")
                 errorMessage = "\(state): \(error.localizedDescription)"
                 return
             }
@@ -839,12 +841,12 @@ enum EngineState { case starting, running, stopped, unavailable }
                 errorMessage = nil
                 profile = result["profile"]?.string
                 await requestRefresh([.profiles, .runtime, .subscriptions], force: true)
-                notice = "Subscription updated and applied."
+                notice = L10n.text("app.ui.subscription_updated_and_applied")
                 notify()
             } catch {
                 settingsGeneration += 1
                 await requestRefresh(.subscriptions, force: true)
-                errorMessage = "Subscription downloaded, but apply failed; the new cache remains available: \(error.localizedDescription). Retry Update and Apply, or use nagi subscription apply NAME to retry the cache."
+                errorMessage = L10n.format("app.ui.subscription_downloaded_but_apply_failed_the_new", String(describing: error.localizedDescription))
             }
         }
     }
@@ -862,15 +864,15 @@ enum EngineState { case starting, running, stopped, unavailable }
                 settingsGeneration += 1
                 errorMessage = nil
                 subscriptions.removeAll { $0.name == name }
-                notice = "Subscription removed."
+                notice = L10n.text("app.ui.subscription_removed")
             } catch {
                 settingsGeneration += 1
                 let listRefreshed = await requestRefresh(.subscriptions, force: true)
                 let detail = error.localizedDescription
                 if !listRefreshed || subscriptions.contains(where: { $0.name == name }) {
-                    errorMessage = "Subscription removal failed: \(detail)"
+                    errorMessage = L10n.format("app.ui.subscription_removal_failed", String(describing: detail))
                 } else {
-                    errorMessage = "Subscription record removed, but cache cleanup failed: \(detail)"
+                    errorMessage = L10n.format("app.ui.subscription_record_removed_but_cache_cleanup_failed", String(describing: detail))
                 }
             }
         }
@@ -878,14 +880,14 @@ enum EngineState { case starting, running, stopped, unavailable }
     func clearSubscriptionKey(_ name: String) { perform(["subscription", "key", name, "clear"]) }
     func setSubscriptionKey(_ name: String, file: String) { perform(["subscription", "key", name, file]) }
     func executeRewrite(_ arguments: [String], input: Data?) async throws -> JSONValue {
-        guard !busy && !quitting else { throw RewriteFormError.invalid("Another operation is in progress.") }
+        guard !busy && !quitting else { throw RewriteFormError.invalid(L10n.text("app.ui.another_operation_is_in_progress")) }
         busy = true; applyingSetting = true; settingsGeneration += 1
         defer { settingsGeneration += 1; applyingSetting = false; busy = false }
         await waitForConnectionsOperation(skipRewriteOperation: true)
         return try await cli.rewrite(arguments, input: input)
     }
     func exportRewrite(_ arguments: [String]) async throws -> Data {
-        guard !busy && !quitting else { throw RewriteFormError.invalid("Another operation is in progress.") }
+        guard !busy && !quitting else { throw RewriteFormError.invalid(L10n.text("app.ui.another_operation_is_in_progress")) }
         busy = true
         defer { busy = false }
         await waitForConnectionsOperation(skipRewriteOperation: true)
@@ -922,7 +924,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                 busy = false
                 completion(true)
             } catch {
-                quitErrorMessage = "Quit failed: \(error.localizedDescription)"
+                quitErrorMessage = L10n.format("app.ui.quit_failed", String(describing: error.localizedDescription))
                 busy = false; quitting = false
                 completion(false)
             }
@@ -934,7 +936,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             if enabled { try SMAppService.mainApp.register() }
             else { try SMAppService.mainApp.unregister() }
             errorMessage = nil
-        } catch { errorMessage = "App login setting failed: \(error.localizedDescription)" }
+        } catch { errorMessage = L10n.format("app.ui.app_login_setting_failed", String(describing: error.localizedDescription)) }
         notify()
     }
     private func cancelRefresh() {
@@ -969,14 +971,14 @@ enum EngineState { case starting, running, stopped, unavailable }
                             self.uploadBPS = value["upload_bps"]?.int64
                             self.downloadBPS = value["download_bps"]?.int64
                             self.lastSample = Date(); self.onTrafficChange?()
-                            if self.errorMessage?.hasPrefix("Traffic unavailable:") == true { self.errorMessage = nil }
+                            if self.errorOrigin == .traffic { self.errorMessage = nil }
                         }
                     }
                     if generation != trafficGeneration { stream.stop(); break }
                     trafficStream = stream
                     try await stream.wait()
                 } catch {
-                    if !Task.isCancelled && state == .running { errorMessage = "Traffic unavailable: \(error.localizedDescription)" }
+                    if !Task.isCancelled && state == .running { errorMessage = L10n.format("app.ui.traffic_unavailable_2", String(describing: error.localizedDescription)); errorOrigin = .traffic }
                 }
                 if generation == trafficGeneration {
                     trafficStream = nil; uploadBPS = nil; downloadBPS = nil; onTrafficChange?()
@@ -1011,7 +1013,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                     // A login service may own the host. Recheck later so a vanished host is replaced.
                     try? await Task.sleep(nanoseconds: self.watchDelay(self.watchRetry, true))
                 case .failed(let error):
-                    self.errorMessage = "Subscription scheduler unavailable: \(error.localizedDescription)"
+                    self.errorMessage = L10n.format("app.ui.subscription_scheduler_unavailable", String(describing: error.localizedDescription))
                     self.watchRetry = min(self.watchRetry + 1, 5)
                     try? await Task.sleep(nanoseconds: self.watchDelay(self.watchRetry, false))
                 }
@@ -1021,7 +1023,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                 }
             }
         } catch {
-            errorMessage = "Subscription scheduler unavailable: \(error.localizedDescription)"
+            errorMessage = L10n.format("app.ui.subscription_scheduler_unavailable", String(describing: error.localizedDescription))
             watchRetry = min(watchRetry + 1, 5)
             let delay = watchDelay(watchRetry, false)
             subscriptionWatchTask = Task { [weak self] in
