@@ -268,7 +268,9 @@ import AppKit
         for group in model.groups {
             if group.hidden { continue }
             let choices = makeGroupMenu(group)
-            let groupItem = addSubmenu(group.name, choices, to: groupsMenu)
+            let showsSelection = group.selectable && !group.selected.isEmpty
+            let title = showsSelection ? "\(group.name) · \(group.selected)" : group.name
+            let groupItem = addSubmenu(title, choices, to: groupsMenu)
             if let icon = group.icon {
                 groupItem.representedObject = icon
                 let image = groupIcons.image(for: icon) { [weak groupItem] image in
@@ -282,31 +284,6 @@ import AppKit
             }
         }
         addSubmenu("Proxy Groups", groupsMenu, enabled: model.state == .running)
-        let providersMenu = NSMenu()
-        add("Add Provider…", action: #selector(addProvider), enabled: !model.busy, to: providersMenu)
-        providersMenu.addItem(.separator())
-        if model.providersUnavailable { disabled("Proxy providers unavailable", to: providersMenu) }
-        else if model.providers.isEmpty { disabled("No proxy providers", to: providersMenu) }
-        for provider in model.providers {
-            let actions = NSMenu()
-            disabled("\(provider.type) · \(provider.nodes.count) nodes", to: actions)
-            actions.addItem(.separator())
-            add("Update Provider", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
-            let tests = NSMenu()
-            add("All Nodes", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: tests)
-            if !provider.testableNodes.isEmpty { tests.addItem(.separator()) }
-            for node in provider.testableNodes {
-                let item = add("\(node) · \(provider.nodeDelays[node]?.label ?? "Untested")", command: ["proxy", "test", "provider", provider.name, node], enabled: model.state == .running && !model.busy, to: tests)
-                item.toolTip = (provider.nodeDelays[node] ?? NodeDelay()).detail
-            }
-            addSubmenu("Test Latency", tests, enabled: model.state == .running && !model.busy, to: actions)
-            add("Update Settings…", action: #selector(providerUpdateSettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
-            add("Latency Check Settings…", action: #selector(providerLatencySettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
-            actions.addItem(.separator())
-            add("Delete Provider", command: provider.removeCommand, enabled: !model.busy, to: actions)
-            addSubmenu(provider.name, actions, to: providersMenu)
-        }
-        addSubmenu("Proxy Providers", providersMenu, enabled: !model.busy)
         menu.addItem(.separator())
 
         addSubmenu("Profiles", makeProfilesMenu(), enabled: !model.profiles.isEmpty)
@@ -337,6 +314,31 @@ import AppKit
             addSubmenu(subscription.name, actions, to: subscriptionMenu)
         }
         addSubmenu("Subscriptions", subscriptionMenu)
+        let providersMenu = NSMenu()
+        add("Add Provider…", action: #selector(addProvider), enabled: !model.busy, to: providersMenu)
+        providersMenu.addItem(.separator())
+        if model.providersUnavailable { disabled("Proxy providers unavailable", to: providersMenu) }
+        else if model.providers.isEmpty { disabled("No proxy providers", to: providersMenu) }
+        for provider in model.providers {
+            let actions = NSMenu()
+            disabled("\(provider.type) · \(provider.nodes.count) nodes", to: actions)
+            actions.addItem(.separator())
+            add("Update Provider", command: provider.updateCommand, enabled: model.state == .running && !model.busy, to: actions)
+            let tests = NSMenu()
+            add("All Nodes", command: provider.healthcheckCommand, enabled: model.state == .running && !model.busy, to: tests)
+            if !provider.testableNodes.isEmpty { tests.addItem(.separator()) }
+            for node in provider.testableNodes {
+                let item = add("\(node) · \(provider.nodeDelays[node]?.label ?? "Untested")", command: ["proxy", "test", "provider", provider.name, node], enabled: model.state == .running && !model.busy, to: tests)
+                item.toolTip = (provider.nodeDelays[node] ?? NodeDelay()).detail
+            }
+            addSubmenu("Test Latency", tests, enabled: model.state == .running && !model.busy, to: actions)
+            add("Update Settings…", action: #selector(providerUpdateSettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
+            add("Latency Check Settings…", action: #selector(providerLatencySettings(_:)), enabled: !model.busy, to: actions).representedObject = provider.name
+            actions.addItem(.separator())
+            add("Delete Provider", command: provider.removeCommand, enabled: !model.busy, to: actions)
+            addSubmenu(provider.name, actions, to: providersMenu)
+        }
+        addSubmenu("Proxy Providers", providersMenu, enabled: !model.busy)
         menu.addItem(.separator())
 
         let displayMenu = NSMenu()
@@ -345,7 +347,7 @@ import AppKit
             item.representedObject = option.rawValue
         }
         add("Connections…", action: #selector(showConnections))
-        add("Capture…", action: #selector(showCapture))
+        add("Request Capture…", action: #selector(showCapture))
         if let capture = model.capture.status, ["recording", "paused"].contains(capture.state) {
             disabled("Capture · " + capture.state.capitalized, to: menu)
             add("Stop Capture", action: #selector(stopCapture), enabled: model.capture.canOperate)
@@ -359,6 +361,7 @@ import AppKit
             enabled: rewriteEnabled ? rewrite.canOperate : rewrite.canEnable, to: rewriteMenu)
         add("Request Rewrite…", action: #selector(showRequestRewrite), to: rewriteMenu)
         addSubmenu("Request Rewrite", rewriteMenu)
+        menu.addItem(.separator())
         addSubmenu("Display", displayMenu)
         let startupMenu = NSMenu()
         add("Open menu bar app at login", action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
@@ -377,27 +380,23 @@ import AppKit
         let profileMenu = NSMenu()
         if model.profiles.isEmpty { disabled("No profiles", to: profileMenu) }
         for name in model.profiles {
-            if name == "default" {
-                let actions = NSMenu()
-                add("Use Default Profile", action: #selector(switchToDefaultProfile),
-                    checked: model.profile == name, enabled: !model.busy, to: actions)
-                add("Apply Default Runtime Settings to Current Profile", action: #selector(applyDefaultOverride),
-                    checked: model.defaultOverrideApplied == true,
-                    enabled: !model.busy && model.defaultOverrideApplied != nil, to: actions)
-                addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
-            } else {
-                let actions = NSMenu()
-                add("Use", command: ["profile", "use", name], checked: model.profile == name,
-                    enabled: !model.busy, to: actions)
-                let deleteTitle = model.profile == name
-                    ? "Delete… (Switch profiles first)" : "Delete…"
-                add(deleteTitle, action: #selector(deleteProfile(_:)),
-                    enabled: !model.busy && model.deletableProfiles.contains(name),
-                    to: actions).representedObject = name
-                let item = addSubmenu(name, actions, enabled: !model.busy, to: profileMenu)
-                item.state = model.profile == name ? .on : .off
-            }
+            add(name, command: ["profile", "use", name], checked: model.profile == name,
+                enabled: !model.busy, to: profileMenu)
         }
+        profileMenu.addItem(.separator())
+        add("Apply Default Runtime Settings to Current Profile", action: #selector(applyDefaultOverride),
+            checked: model.defaultOverrideApplied == true,
+            enabled: !model.busy && model.defaultOverrideApplied != nil, to: profileMenu)
+        let managementMenu = NSMenu()
+        let ordinaryProfiles = model.profiles.filter { $0 != "default" }
+        if ordinaryProfiles.isEmpty { disabled("No personal profiles", to: managementMenu) }
+        for name in ordinaryProfiles {
+            let deleteTitle = "Delete “\(name)”…" + (model.profile == name ? " (Switch profiles first)" : "")
+            add(deleteTitle, action: #selector(deleteProfile(_:)),
+                enabled: !model.busy && model.deletableProfiles.contains(name),
+                to: managementMenu).representedObject = name
+        }
+        addSubmenu("Manage Profiles", managementMenu, enabled: !model.busy, to: profileMenu)
         return profileMenu
     }
 
@@ -543,7 +542,6 @@ import AppKit
         guard let command = sender.representedObject as? [String] else { return }
         model.perform(command)
     }
-    @objc private func switchToDefaultProfile() { model.switchToDefaultProfile() }
     @objc private func applyDefaultOverride() {
         if model.defaultOverrideApplied == true {
             model.applyDefaultOverrideToCurrentProfile()

@@ -34,7 +34,7 @@ available when prerequisites are unmet.
 
 ## Start and inspect
 
-On macOS, open **Capture…** in the menu bar app. Set domain patterns, exact
+On macOS, open **Request Capture…** in the menu bar app. Set domain patterns, exact
 process paths or outermost `.app` paths, then choose **Start**. **Find
 Applications** lists observed identities; a path may also be entered before the
 application appears. Empty categories impose no restriction. Populated domain,

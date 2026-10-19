@@ -10,6 +10,9 @@ import AppKit
 
         func run(_ arguments: [String]) async throws -> JSONValue {
             calls.append(arguments)
+            if arguments.count == 3 && arguments.prefix(2) == ["profile", "use"] {
+                current = arguments[2]
+            }
             let json: String
             let selected = current.map { "\"\($0)\"" } ?? "null"
             switch arguments {
@@ -41,28 +44,47 @@ import AppKit
         XCTFail("Profile operation did not finish")
     }
 
-    func testProfileSubmenusKeepSelectionAndBindActionsToTheirOwnNames() async throws {
+    func testProfilesSwitchDirectlyAndManagementKeepsDeletionSeparate() async throws {
         _ = NSApplication.shared
         let commands = Commands(), model = commands.model()
         await model.refresh()
         let delegate = MenuAppDelegate(model: model)
         let menu = delegate.makeProfilesMenu()
-        XCTAssertEqual(menu.items.map(\.title), commands.profiles)
+        XCTAssertEqual(Array(menu.items.prefix(commands.profiles.count)).map(\.title), commands.profiles)
         XCTAssertEqual(menu.item(withTitle: "one")?.state, .on)
         XCTAssertEqual(menu.item(withTitle: "two")?.state, .off)
-        let current = try XCTUnwrap(menu.item(withTitle: "one")?.submenu)
-        XCTAssertEqual(current.items.map(\.title), ["Use", "Delete… (Switch profiles first)"])
-        XCTAssertFalse(current.items[1].isEnabled)
-        let defaults = try XCTUnwrap(menu.item(withTitle: "default")?.submenu)
-        XCTAssertEqual(defaults.items.map(\.title), ["Use Default Profile", "Apply Default Runtime Settings to Current Profile"])
+        for name in commands.profiles {
+            let item = try XCTUnwrap(menu.item(withTitle: name))
+            XCTAssertNil(item.submenu)
+            XCTAssertEqual(item.representedObject as? [String], ["profile", "use", name])
+            XCTAssertTrue(item.target === delegate)
+            XCTAssertTrue(item.isEnabled)
+        }
+        XCTAssertTrue(menu.items[commands.profiles.count].isSeparatorItem)
+        let defaults = try XCTUnwrap(menu.item(withTitle: "Apply Default Runtime Settings to Current Profile"))
+        XCTAssertNil(defaults.submenu)
+        XCTAssertTrue(defaults.isEnabled)
+        XCTAssertEqual(defaults.state, .off)
+        let management = try XCTUnwrap(menu.item(withTitle: "Manage Profiles")?.submenu)
+        XCTAssertEqual(management.items.map(\.title), ["Delete “one”… (Switch profiles first)", "Delete “two”…", "Delete “three”…"])
+        XCTAssertFalse(management.items[0].isEnabled)
+        XCTAssertFalse(management.items.contains { $0.representedObject as? String == "default" })
         for name in ["two", "three"] {
-            let actions = try XCTUnwrap(menu.item(withTitle: name)?.submenu)
-            XCTAssertEqual(actions.items.map(\.title), ["Use", "Delete…"])
-            XCTAssertEqual(actions.items[0].representedObject as? [String], ["profile", "use", name])
-            XCTAssertEqual(actions.items[1].representedObject as? String, name)
-            XCTAssertEqual(actions.items[1].action, #selector(MenuAppDelegate.deleteProfile(_:)))
-            XCTAssertTrue(actions.items[1].target === delegate)
-            XCTAssertTrue(actions.items[1].isEnabled)
+            let deletion = try XCTUnwrap(management.item(withTitle: "Delete “\(name)”…"))
+            XCTAssertEqual(deletion.representedObject as? String, name)
+            XCTAssertEqual(deletion.action, #selector(MenuAppDelegate.deleteProfile(_:)))
+            XCTAssertTrue(deletion.target === delegate)
+            XCTAssertTrue(deletion.isEnabled)
+        }
+        XCTAssertFalse(commands.calls.contains { $0.prefix(2) == ["profile", "use"] })
+        for name in ["two", "default"] {
+            let item = try XCTUnwrap(menu.item(withTitle: name))
+            let action = try XCTUnwrap(item.action)
+            XCTAssertTrue(NSApp.sendAction(action, to: item.target, from: item))
+            await waitForCompletion(model)
+            XCTAssertEqual(commands.calls.filter { $0 == ["profile", "use", name] }.count, 1)
+            XCTAssertEqual(model.profile, name)
+            XCTAssertEqual(delegate.makeProfilesMenu().item(withTitle: name)?.state, .on)
         }
     }
 
@@ -87,7 +109,8 @@ import AppKit
         let commands = Commands(), model = commands.model()
         await model.refresh()
         let delegate = MenuAppDelegate(model: model)
-        let item = try XCTUnwrap(delegate.makeProfilesMenu().item(withTitle: "three")?.submenu?.items.last)
+        let management = try XCTUnwrap(delegate.makeProfilesMenu().item(withTitle: "Manage Profiles")?.submenu)
+        let item = try XCTUnwrap(management.item(withTitle: "Delete “three”…"))
         var confirmations = 0
         delegate.confirmProfileDeletion = { alert in
             confirmations += 1
@@ -107,7 +130,7 @@ import AppKit
         XCTAssertEqual(model.profiles, ["default", "one", "two"])
     }
 
-    func testProtectedOrStaleTargetsDoNotEvenOpenConfirmation() async {
+    func testProtectedOrStaleTargetsDoNotEvenOpenConfirmation() async throws {
         _ = NSApplication.shared
         let commands = Commands(), model = commands.model()
         await model.refresh()
@@ -123,8 +146,9 @@ import AppKit
         commands.current = nil
         _ = await model.refreshMenuData()
         let menu = delegate.makeProfilesMenu()
+        let management = try XCTUnwrap(menu.item(withTitle: "Manage Profiles")?.submenu)
         for name in ["one", "two", "three"] {
-            let item = menu.item(withTitle: name)!.submenu!.items[1]
+            let item = management.item(withTitle: "Delete “\(name)”…")!
             XCTAssertFalse(item.isEnabled)
             delegate.deleteProfile(item)
         }
