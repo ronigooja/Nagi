@@ -4,16 +4,17 @@ This record separates v2 software evidence from native platform acceptance and
 release availability. The [design](../design/request-rewrite.md) defines behavior;
 the [CLI reference](../reference/cli.md#tun-request-rewrite) defines public syntax.
 All fixtures use temporary private state, fictitious names and local origins.
-No real OS TUN, system CA trust or installed user service was changed. Capture
-evidence and native source verification added later are recorded separately below.
+The original v2 software checks changed no real OS TUN, system CA trust or
+installed user service. Later capture checks include explicit native TUN/DNS
+transactions and isolated CA trust, with restoration evidence recorded below.
 
 ## Source and environment
 
 The 2026-10-18 verification host is Linux ARM64 with Go 1.26.4, Python 3 and Bash.
-The implementing mihomo commit is
+The original v2 implementing mihomo commit was
 `84369733b97b897a04a70e507183eda22e38e0c6`, published on
 `https://github.com/ronigooja/mihomo.git`, ref `main`, and recorded
-in `engine.lock`. The v2 commit was fast-forwarded into `main`; a subsequent
+in `engine.lock` at that stage. The v2 commit was fast-forwarded into `main`; a subsequent
 fresh fetch returned the identical locked commit and verified source availability.
 Nagi release binaries have not been published for this change.
 
@@ -21,9 +22,9 @@ The Nagi v2 configuration, immutable request/response/message pipeline, fixed
 QuickJS/WASM runner, CLI and terminal menu have software tests. The macOS source
 uses the CLI interface. Swift/framework tooling is unavailable on this Linux host;
 later native compilation and automated-test evidence is recorded in the capture
-section below. Interactive UI, packaging for this capture change, keychain trust
-and TUN/backend acceptance remain **unverified**. Cross-compilation is only Go
-build evidence.
+section below together with App packaging, isolated keychain trust and actual
+TUN/helper checks. Manual App interaction remains **unverified**. Cross-compilation
+is only Go build evidence.
 
 ## Verification ledger
 
@@ -100,7 +101,7 @@ No Nagi tag, release archive or GitHub Release is created by this implementation
 This section records capture-specific evidence separately from the preceding v2
 rewrite ledger. The current [capture design](../design/request-capture.md) and
 [user guide](../guides/request-capture.md) distinguish implemented behavior from
-platform acceptance. The initial capture engine source used for the software checks below is
+platform acceptance. The initial capture engine source used for software checks was
 `da88dc0d710f78a659bc36251b2ab18310aa4ebd`; the final macOS TUN checks use
 `a5df21a6a339a651bb50dca73b30f7679dbd0436`, which also supplies original Darwin
 socket UID attribution. Installation/update availability still
@@ -121,8 +122,8 @@ ordinary user services or traffic settings. The full test and final focused/rele
 logs were retained on the native development host as development artifacts;
 those local paths are not runtime requirements.
 
-For a reproducible capture coordinator check, use the capture engine revision
-above with the repository harness:
+For a reproducible capture coordinator check, use the current engine revision
+from `engine.lock` with the repository harness:
 
 ```sh
 MIHOMO_DIR=/path/to/clean/capture-engine GO=/path/to/go \
@@ -258,3 +259,20 @@ Both older rewrite engine and coordinator scripts passed again against the
 published capture engine source. A preceding rerun failed because the build
 volume had no space available to its ordinary UID; the serial rerun after removal
 of old regenerable build-cache entries passed without source changes.
+
+### Final locked-source regression
+
+With `engine.lock` at `a5df21a6a339a651bb50dca73b30f7679dbd0436`, a fresh
+normal `./scripts/build.sh` fetch/build without `MIHOMO_DIR` passed and the CLI
+reported that exact `mihomo_commit`. The capture coordinator, older rewrite
+engine/coordinator harnesses and both actual Linux TUN/helper variants passed
+again. Focused race checks for capture, service, drafts, command and menu passed,
+as did `go vet ./...`, installer integration, shell syntax, Markdown relative
+paths/anchors and `git diff --check`.
+
+The complete final `go test -p 1 ./...` passed. An initial parallel run failed
+the existing detached-updater lock timing assertion and the 8 MiB guest sample's
+one-second deadline (1.03 seconds). Each case then passed five isolated repeats;
+no cause was established and no production timeout was changed. A prior native
+fixture development run also saw an HTTP/2 flow `INTERNAL_ERROR`; ten focused
+repeats and the subsequent full suite passed without a source change.
