@@ -82,14 +82,22 @@ body limit apply to the next session. Use **Pause**, **Resume**, **Stop** and
 **Clear** to manage the current session. The menu bar also shows the recording
 state and offers **Stop Capture**.
 
-The list includes HTTP exchanges and both WebSocket message directions. Search
-uses original URLs, headers and bodies; kind, domain and process filters narrow
-the list. Sorting and refresh preserve selection by record ID. Select an exchange
-to inspect request/response snapshots, headers, trailers, body collection state,
-matched rules and its WebSocket message timeline. Raw text, formatted JSON, hex
-and before/after body comparisons are available. Header, URL, status and selected
-body text context menus open a quick-rule draft from the selected original field;
-a JSON pointer selects a structured body field. The draft supports the full
+The request table separates **Method**, **Request**, **Status** and **Time**.
+The Request column shows the host above its path/query; hover for the complete
+URL or use **Copy URL**. HTTP Status shows the actual response code, falling
+back to the original response, or Pending/Failed when no code was captured.
+WebSocket rows show message direction and sequence without borrowing the
+handshake's status. Process, start time, matched rules and record IDs appear in
+the detail overview. Search uses original URLs, headers and bodies; kind, domain
+and process filters narrow the table. Refresh retains selection by record ID.
+
+Select a record and snapshot, then choose **Overview**, **Headers** or **Body**.
+Overview shows complete metadata, collection state and related WebSocket
+navigation. Headers has its own scroll area for complete header/trailer values.
+Body gives the remaining height to raw text, formatted JSON, hex or before/after
+comparison, with format and copy controls above it. **JSON Pointer…** on Body
+opens a field-rule popover. Header, URL, method, status and selected body text
+context menus open a quick-rule draft from that field. The draft supports the full
 existing operation set, match predicates, insertion position and enable-on-save.
 Preview runs the existing chain locally against original complete snapshots;
 save uses the CLI version check and activation transaction. A failure or conflict
@@ -115,7 +123,10 @@ and scope popover changes have not been compiled or interactively verified on
 the Linux authoring host; native macOS build, tests and interaction remain pending.
 Actual Linux/macOS TUN and helper fixtures, native trust cleanup and the
 model-to-CLI capture-to-rule chain have verification evidence. Manual menu-bar
-clicks and sleep/wake acceptance remain unverified. See the [capture guide](../../docs/guides/request-capture.md),
+clicks and sleep/wake acceptance remain unverified. The updated table/detail
+layout and its new regression tests also require macOS build, test and
+interactive verification; they were authored and source-reviewed on Linux.
+See the [capture guide](../../docs/guides/request-capture.md),
 [shared design](../../docs/design/request-capture.md) and
 [verification record](../../docs/development/request-rewrite-acceptance.md#capture-verification).
 

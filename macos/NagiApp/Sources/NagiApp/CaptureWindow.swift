@@ -82,7 +82,7 @@ import SwiftUI
     @State private var ascending = false
     @State private var bodyLimit = 1_048_576
     @State private var scopePresented = false
-    @State private var jsonPointer = ""
+    @State private var detailSection = CaptureDetailSection.overview
     private var model: CaptureModel { presentation.model }
     var body: some View {
         // Bound layout proposals to the actual window, including when a raw
@@ -114,8 +114,8 @@ import SwiftUI
                 .onChange(of: query) { _ in filters() }.onChange(of: kind) { _ in filters() }
                 .onChange(of: domain) { _ in filters() }.onChange(of: process) { _ in filters() }.onChange(of: ascending) { _ in filters() }
             HSplitView {
-                recordList.frame(minWidth: 300, idealWidth: 420)
-                details.frame(minWidth: 440)
+                recordList.frame(minWidth: 360, idealWidth: 440)
+                details.frame(minWidth: 380)
             }
             HStack {
                 Text("\(model.records.count) records")
@@ -238,73 +238,13 @@ import SwiftUI
         }.font(.system(.caption, design: .monospaced))
     }
     private var recordList: some View {
-        List(selection: Binding(get: { model.selectedID }, set: { model.select($0) })) {
-            ForEach(model.records) { record in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack { Text(record.kind == "websocket" ? "WS \(record.stage ?? "") #\(record.sequence ?? 0)" : record.original?.method ?? "HTTP").bold(); Spacer(); Text(record.outcome) }
-                    Text(record.title.isEmpty ? record.id : record.title).lineLimit(2)
-                    Text("\(captureMinute(record.started)) · \(record.identity.process) · \(record.durationMS) ms").font(.caption).foregroundColor(.secondary)
-                    if record.parentID != nil { Text("Handshake: \(record.parentID!)").font(.caption2).foregroundColor(.secondary) }
-                }.padding(.leading, record.parentID == nil ? 0 : 14).tag(record.id)
-            }
-        }.listStyle(.inset)
+        CaptureRecordTable(records: model.records, selection: Binding(get: { model.selectedID }, set: { if $0 != model.selectedID { model.select($0) } }))
     }
-    @ViewBuilder private var details: some View {
-        if let record = model.selectedRecord {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(record.title.isEmpty ? record.id : record.title).bold().textSelection(.enabled)
-                    .contextMenu { Button("Copy URL") { copy(record.original?.url ?? "") }; Button("Create Rule from URL…") { model.createRule(field: CaptureFieldSelection(kind: "url", value: record.original?.url, stage: record.stage)) } }
-                Text("\(record.identity.processPath)\n\(record.identity.source) → \(record.identity.destination)\nRules: \((record.ruleIDs ?? []).joined(separator: ", "))\nOutcome: \(record.outcome)\(record.error.map { " · " + $0 } ?? "")\(record.closeCode.map { " · Close " + String($0) } ?? "")").font(.caption).textSelection(.enabled)
-                if record.kind == "http" {
-                    let messages = model.records.filter { $0.parentID == record.id }.sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
-                    if !messages.isEmpty {
-                        ScrollView(.horizontal) { HStack { Text("Messages").font(.caption); ForEach(messages) { message in Button("\(message.stage ?? "") #\(message.sequence ?? 0)") { model.select(message.id) } } } }.frame(height: 28)
-                    }
-                } else if let parent = record.parentID { Button("Show HTTP Handshake") { model.select(parent) } }
-                Picker("Snapshot", selection: Binding(get: { model.selectedSnapshotName }, set: { model.selectSnapshot($0) })) {
-                    ForEach(record.snapshots.keys.sorted(), id: \.self) { Text($0.replacingOccurrences(of: "_", with: " ").capitalized).tag($0) }
-                }
-                if let snapshot = record.snapshots[model.selectedSnapshotName] {
-                    Text("Body: \(snapshot.bodyState) · \(snapshot.captured) captured / \(snapshot.bodySize) bytes\(snapshot.messageType.map { " · " + $0 } ?? "")").font(.caption).foregroundColor(.secondary)
-                    if let method = snapshot.method { Text("Method: \(method)").contextMenu { Button("Create Rule from Method…") { model.createRule(field: CaptureFieldSelection(kind: "method", value: method, stage: record.stage)) } } }
-                    if let query = snapshot.query, !query.isEmpty { Text("Query: \(query)").textSelection(.enabled).contextMenu { Button("Create Rule from Query…") { model.createRule(field: CaptureFieldSelection(kind: "query", value: query, stage: record.stage)) } } }
-                    if let status = snapshot.status { Text("Status: \(status)").contextMenu { Button("Create Rule from Status…") { model.createRule(field: CaptureFieldSelection(kind: "status", value: String(status), stage: record.stage)) } } }
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 3) {
-                            headerRows(snapshot.headers, kind: "header", stage: record.stage)
-                            if snapshot.trailers?.isEmpty == false { Text("Trailers").bold(); headerRows(snapshot.trailers, kind: "trailer", stage: record.stage) }
-                            if model.format == .diff, model.selectedSnapshotName.hasSuffix("_actual"), let original = record.snapshots[model.selectedSnapshotName.replacingOccurrences(of: "_actual", with: "_original")] {
-                                Text("Original headers").bold(); Text(original.headerText).textSelection(.enabled)
-                                Text("Actual headers").bold(); Text(snapshot.headerText).textSelection(.enabled)
-                            }
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    }.font(.system(.caption, design: .monospaced)).frame(maxHeight: 150)
-                }
-                HStack {
-                    Picker("Body", selection: Binding(get: { model.format }, set: { model.setFormat($0) })) { ForEach(CaptureBodyFormat.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.labelsHidden().pickerStyle(.segmented)
-                    Button("Copy Body") { NSPasteboard.general.clearContents(); NSPasteboard.general.setData(model.selectedBody, forType: NSPasteboard.PasteboardType("public.data")); if let text = String(data: model.selectedBody, encoding: .utf8) { NSPasteboard.general.setString(text, forType: .string) } }
-                }
-                CaptureBodyTextView(text: model.bodyText, createRule: { selected in model.createRule(field: CaptureFieldSelection(kind: "text", selectedText: selected, value: selected, stage: record.stage)) })
-                HStack {
-                    TextField("JSON pointer, e.g. /data/name", text: $jsonPointer)
-                    Button("Create JSON Rule…") { model.createRule(field: CaptureFieldSelection(kind: "json", pointer: jsonPointer, stage: record.stage)) }.disabled(jsonPointer.isEmpty)
-                    Button("Create Rule…") { model.createRule() }
-                }.disabled(model.onCreateRule == nil || model.readingBody)
-            }.padding(8)
-        } else { Text("Select a request").foregroundColor(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity) }
-    }
-    private func headerRows(_ fields: [String: [String]]?, kind: String, stage: String?) -> some View {
-        ForEach((fields ?? [:]).keys.sorted(), id: \.self) { key in
-            let value = (fields?[key] ?? []).joined(separator: "\n")
-            Text(key + ": " + value).textSelection(.enabled).contextMenu {
-                Button("Copy") { copy(key + ": " + value) }
-                Button("Create Rule from \(key)…") { model.createRule(field: CaptureFieldSelection(kind: kind, name: key, value: value, stage: stage)) }.disabled(model.onCreateRule == nil)
-            }
-        }
+    private var details: some View {
+        CaptureDetailView(presentation: presentation, section: $detailSection)
     }
     private func lines(_ value: String) -> [String] { value.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
     private func filters() { model.setFilters(query: query, kind: kind, domain: domain, processPath: process, ascending: ascending) }
-    private func copy(_ text: String) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string) }
     private func importFile() {
         let panel = NSOpenPanel(); panel.allowsMultipleSelection = false; panel.canChooseDirectories = false
         if panel.runModal() == .OK, let file = panel.url { Task { await model.perform(["import", file.path]) } }
@@ -326,9 +266,12 @@ func captureMinute(_ raw: String) -> String {
     let text: String
     let createRule: (String) -> Void
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
+        let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = false
+        scroll.autohidesScrollers = true
         let view = CaptureSelectableTextView(); view.isEditable = false; view.isSelectable = true
         view.font = .monospacedSystemFont(ofSize: 12, weight: .regular); view.autoresizingMask = [.width]
+        view.isRichText = false; view.textContainerInset = NSSize(width: 8, height: 8)
+        view.setAccessibilityLabel("Captured body")
         view.isVerticallyResizable = true; view.isHorizontallyResizable = false
         view.textContainer?.widthTracksTextView = true
         scroll.documentView = view; return scroll

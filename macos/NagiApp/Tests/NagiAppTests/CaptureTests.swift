@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import XCTest
 @testable import NagiApp
 
@@ -458,5 +459,165 @@ extension CaptureTests {
         await wait { actions.count > count + 1 && !model.isReading }
         XCTAssertEqual(actions.filter { $0 == "check" }.count, 1)
         model.setVisible(false)
+    }
+}
+
+
+extension CaptureTests {
+    private func displayedRecord(_ edit: (inout [String: Any]) -> Void) throws -> CaptureRecord {
+        var value = try XCTUnwrap(JSONSerialization.jsonObject(with: recordData) as? [String: Any])
+        edit(&value)
+        return try JSONDecoder().decode(CaptureRecord.self, from: JSONSerialization.data(withJSONObject: value))
+    }
+
+    func testHTTPStatusUsesActualResponseWithOriginalFallback() throws {
+        let original: [String: Any] = ["status": 502, "body_state": "complete", "body_size": 0, "captured": 0]
+        let actual: [String: Any] = ["status": 200, "body_state": "complete", "body_size": 0, "captured": 0]
+        for (code, expected) in [(200, 200), (0, 502)] {
+            let record = try displayedRecord { value in
+                var snapshots = value["snapshots"] as! [String: Any]
+                snapshots["response_original"] = original
+                var response = actual; response["status"] = code
+                snapshots["response_actual"] = response
+                value["snapshots"] = snapshots
+            }
+            XCTAssertEqual(CaptureRecordSummary(record: record).statusCode, expected)
+            XCTAssertEqual(CaptureRecordSummary(record: record).statusText, String(expected))
+        }
+        let fallback = try displayedRecord { value in
+            var snapshots = value["snapshots"] as! [String: Any]
+            snapshots["response_original"] = original
+            value["snapshots"] = snapshots
+        }
+        XCTAssertEqual(CaptureRecordSummary(record: fallback).statusCode, 502)
+    }
+
+    func testMissingResponseAndCaptureFailureNeverInventHTTPStatus() throws {
+        let pending = try JSONDecoder().decode(CaptureRecord.self, from: recordData)
+        XCTAssertNil(CaptureRecordSummary(record: pending).statusCode)
+        XCTAssertEqual(CaptureRecordSummary(record: pending).statusText, "Pending")
+        let failed = try displayedRecord { $0["outcome"] = "blocked"; $0["error"] = "request_failed" }
+        XCTAssertNil(CaptureRecordSummary(record: failed).statusCode)
+        XCTAssertEqual(CaptureRecordSummary(record: failed).statusText, "Failed")
+        let interrupted = try displayedRecord { value in
+            var snapshots = value["snapshots"] as! [String: Any]
+            snapshots["response_actual"] = ["status": 200, "body_state": "failed", "body_size": 5, "captured": 2]
+            value["snapshots"] = snapshots
+        }
+        let summary = CaptureRecordSummary(record: interrupted)
+        XCTAssertTrue(summary.failed)
+        XCTAssertEqual(summary.statusText, "200", "Body failure must not overwrite a captured HTTP status")
+    }
+
+    func testWebSocketRowsUseHandshakeAddressAndMessageDirectionWithoutHTTPStatus() throws {
+        let handshake = try JSONDecoder().decode(CaptureRecord.self, from: recordData)
+        for (stage, method, direction) in [("websocket_client", "WS ↑", "Client → Server #3"),
+                                           ("websocket_server", "WS ↓", "Server → Client #3")] {
+            let message = try displayedRecord { value in
+                value["kind"] = "websocket"; value["parent_id"] = handshake.id
+                value["stage"] = stage; value["sequence"] = 3
+                value["snapshots"] = ["message_original": ["message_type": "text", "body_state": "complete", "body_size": 0, "captured": 0]]
+            }
+            let summary = CaptureRecordSummary(record: message, handshake: handshake)
+            XCTAssertEqual(summary.host, "example.invalid")
+            XCTAssertEqual(summary.url, handshake.original?.url)
+            XCTAssertEqual(summary.method, method)
+            XCTAssertEqual(summary.path, direction)
+            XCTAssertNil(summary.statusCode)
+            XCTAssertEqual(summary.statusText, "—")
+            XCTAssertEqual(CaptureRecordSummary(record: message).host, message.identity.destination)
+        }
+    }
+
+    @MainActor func testTableRefreshPreservesSelectionAndScrollPosition() async throws {
+        _ = NSApplication.shared
+        let template = try XCTUnwrap(JSONSerialization.jsonObject(with: recordData) as? [String: Any])
+        let rows = (0..<80).map { index -> [String: Any] in
+            var row = template; row["id"] = String(format: "record-%03d", index); return row
+        }
+        let list = try JSONDecoder().decode(CaptureReply.self, from: JSONSerialization.data(withJSONObject: ["sensitive": true, "records": rows]))
+        let status = try reply(state: "stopped")
+        let emptyBody = try JSONDecoder().decode(CaptureReply.self, from: Data(#"{"sensitive":true,"body":{"data":"","offset":0,"next_offset":0,"eof":true,"state":"complete"}}"#.utf8))
+        let model = CaptureModel(read: { args, _ in
+            if args[0] == "list" { return list }
+            if args[0] == "body" { return emptyBody }
+            return status
+        }, submit: { _, _ in status }, export: { _ in })
+        let controller = CaptureWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
+        controller.present()
+        await wait { !model.isReading }
+        await wait { self.descendants(window.contentView, of: NSTableView.self).contains { $0.numberOfRows == 80 } }
+        let table = try XCTUnwrap(descendants(window.contentView, of: NSTableView.self).first { $0.numberOfRows == 80 })
+        XCTAssertEqual(table.tableColumns.count, 4)
+        XCTAssertGreaterThanOrEqual(table.rect(ofRow: 40).height, 40)
+        table.selectRowIndexes(IndexSet(integer: 40), byExtendingSelection: false)
+        await wait { model.selectedID == "record-040" && !model.readingBody }
+        table.scrollRowToVisible(45)
+        let scroll = try XCTUnwrap(table.enclosingScrollView)
+        let offset = scroll.contentView.bounds.origin
+        XCTAssertGreaterThan(offset.y, 0)
+        model.refresh()
+        await wait { !model.isReading && !model.readingBody }
+        window.contentView?.layoutSubtreeIfNeeded()
+        XCTAssertEqual(model.selectedID, "record-040")
+        XCTAssertEqual(table.selectedRow, 40)
+        XCTAssertEqual(scroll.contentView.bounds.origin.y, offset.y, accuracy: 1)
+    }
+
+    @MainActor func testDetailSectionsKeepLongContentWithinWindowAndGiveBodySpace() async throws {
+        _ = NSApplication.shared
+        let longValue = String(repeating: "fictitious", count: 1000)
+        let record = try displayedRecord { value in
+            var snapshots = value["snapshots"] as! [String: Any]
+            var request = snapshots["request_original"] as! [String: Any]
+            request["path"] = "/" + longValue; request["query"] = "value=" + longValue
+            request["headers"] = ["Authorization": ["Bearer " + longValue]]
+            snapshots["request_original"] = request; value["snapshots"] = snapshots
+            value["error"] = longValue
+        }
+        let list = try JSONDecoder().decode(CaptureReply.self, from: JSONSerialization.data(withJSONObject: [
+            "sensitive": true, "records": [try JSONSerialization.jsonObject(with: JSONEncoder().encode(record))]
+        ]))
+        let status = try reply(state: "stopped")
+        let body = try JSONDecoder().decode(CaptureReply.self, from: Data(#"{"sensitive":true,"body":{"data":"","offset":0,"next_offset":0,"eof":true,"state":"complete"}}"#.utf8))
+        let model = CaptureModel(read: { args, _ in
+            if args[0] == "list" { return list }
+            if args[0] == "body" { return body }
+            return status
+        }, submit: { _, _ in status }, export: { _ in })
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        await wait { !model.isReading }
+        model.select(record.id)
+        await wait { !model.readingBody }
+        let presentation = CapturePresentation(model)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 560), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        for section in CaptureDetailSection.allCases {
+            let host = NSHostingView(rootView: CaptureDetailView(presentation: presentation, section: .constant(section)))
+            host.sizingOptions = []
+            window.contentView = host
+            let frame = window.frame
+            for _ in 0..<5 {
+                host.layoutSubtreeIfNeeded()
+                try await Task.sleep(nanoseconds: 20_000_000)
+            }
+            XCTAssertEqual(window.frame, frame)
+            if section == .body {
+                let text = try XCTUnwrap(descendants(host, of: CaptureSelectableTextView.self).first)
+                let scroll = try XCTUnwrap(text.enclosingScrollView)
+                XCTAssertGreaterThan(scroll.frame.height, 200)
+                XCTAssertLessThanOrEqual(scroll.frame.width, host.bounds.width)
+                XCTAssertFalse(scroll.hasHorizontalScroller)
+            }
+        }
+    }
+
+    @MainActor private func descendants<T: NSView>(_ root: NSView?, of type: T.Type) -> [T] {
+        guard let root else { return [] }
+        return ((root as? T).map { [$0] } ?? []) + root.subviews.flatMap { descendants($0, of: type) }
     }
 }

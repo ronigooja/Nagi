@@ -46,6 +46,13 @@ process and application categories combine with AND; alternatives within each
 category combine with OR. Unknown process identity cannot match a process or
 application restriction.
 
+The App table separates method, host/path, HTTP status and recorded duration.
+Hover over a request or use **Copy URL** for its complete address. Select a record
+and snapshot, then use **Overview** for metadata and WebSocket relationships,
+**Headers** for full headers/trailers, or **Body** for raw/JSON/hex/comparison
+views. **JSON Pointer…** on Body opens the structured-field rule action. The
+[App guide](../../macos/NagiApp/README.md#capture-window) covers these controls.
+
 From the terminal, open `nagi menu`, then **Rewrite & Capture → Request Capture → Start with scope**. All choices use numbers. The menu submits scope and
 body limits to the existing CLI through stdin. It retains form values on failure;
 resubmission is explicit. **Captured records** opens paginated record IDs, then

@@ -168,6 +168,36 @@ session state and records show results, while errors and recovery remain visible
 The footer shows record count, formatted byte size and nonzero loss counters,
 with a fixed-size refresh indicator slot to avoid shifting content.
 
+The record browser uses a four-column native table: **Method**, **Request**,
+**Status** and **Time**. Request cells have two bounded lines for the original
+host and path/query; tooltips and Copy URL retain the complete original URL.
+Method, status and timing stay in aligned columns. HTTP status comes from
+`response_actual`, falling back to `response_original` when necessary. A missing
+status is **Pending**, or **Failed** when capture reports a failure; rewrite
+outcomes are never interpreted as HTTP status codes. A captured code remains
+visible even when subsequent body collection fails; the overview retains error
+and collection details. Status codes use color as a secondary cue: green for
+2xx, orange for 4xx, red for 5xx and neutral for other classes. Zero recorded
+duration displays an em dash. WebSocket messages use WS direction markers and
+sequence numbers; the related handshake supplies their host and URL when
+available, but its HTTP status is never applied to a message. Missing handshake
+metadata falls back to the captured destination. Selection uses stable record
+IDs and table updates do not intentionally reset scrolling.
+
+The resizable split gives the table an initial width around 440 points. Details
+keep a compact request summary and snapshot selector above **Overview**,
+**Headers** and **Body** sections. Overview and headers scroll independently;
+full URLs, process/network identity, minute-precision timestamps, matched rules,
+record IDs, collection state and related WebSocket navigation live in Overview.
+Headers separates field names and complete values, including trailers. Selecting
+Before / After on Body also makes Headers show original and actual headers for
+an actual snapshot when its original exists. Body uses the remaining section
+height for wrapped, selectable text with format and copy controls above it.
+The JSON pointer rule action opens a popover instead of consuming a permanent
+row. The active detail section survives record refresh and selection changes;
+changing records closes the pointer popover and clears its input. Field and body
+context menus continue to derive drafts through the CLI.
+
 AppKit owns the capture window size. The SwiftUI host does not derive window
 minimum, maximum or ideal sizes from capture content; layout is bounded by the
 current content area. The initial outer frame, including its title bar, is at
@@ -175,9 +205,10 @@ most 1100 × 760 points and 90% of the screen's visible width and height. The
 normal 980 × 650 minimum is capped at 80% of the screen's visible width and
 height, leaving room to shrink the window even on smaller screens.
 Action and filter rows scroll horizontally when needed. Reopening an existing
-window preserves its current size. Native resize regression tests cover small
-screens, long URLs/headers and repeated shrinking; execution of these new tests
-and interactive resize acceptance remain unverified on the Linux authoring host.
+window preserves its current size. Native regression tests cover small screens, long URLs/headers, repeated
+shrinking, table selection/scroll retention and detail-section body space. The
+table/detail layout update is source-reviewed on Linux; execution of its Swift
+tests and interactive layout acceptance remain unverified on that host.
 
 The terminal menu is under Rewrite & Capture → Request Capture. It
 uses existing command runners for status, scoped start, application discovery,
