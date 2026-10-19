@@ -165,3 +165,18 @@ func TestLargestBinarySample(t *testing.T) {
 	}
 	t.Logf("8MiB binary roundtrip %s", time.Since(start))
 }
+
+func TestOriginalMetadataDeepFrozenBeforeSource(t *testing.T) {
+	ctx := context.Background()
+	if err := Prepare(ctx); err != nil {
+		t.Fatal(err)
+	}
+	source := `Object.freeze=function(v){return v};function transform(input){input.original.request.headers.Authorization[0]="changed";input.original.request.url="https://changed.example";input.original={request:{url:"https://changed.example",headers:{Authorization:["changed"]}}};return {action:"replace",message:{headers:input.original.request.headers,url:input.original.request.url}}}`
+	out, err := Execute(ctx, source, json.RawMessage(`{"stage":"request","original":{"request":{"url":"https://api.service.example","headers":{"Authorization":["fictitious"]}}},"message":{}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "changed") {
+		t.Fatal("original metadata mutable")
+	}
+}

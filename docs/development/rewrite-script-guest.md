@@ -4,7 +4,7 @@ This document describes the independently tested JavaScript executor in
 `internal/rewritescript`, its resource boundary, and reproduction of the embedded
 WebAssembly artifact. It does not establish live request-rewrite integration or
 platform acceptance. The request-rewrite integration owns message validation,
-request authorization, persistence, activation, and failure policy.
+final target authorization, persistence, activation, and failure policy.
 
 ## Execution contract
 
@@ -35,7 +35,7 @@ JSON-transform functions only. Its five libc WASI imports (`clock_time_get`,
 `fd_close`, `fd_seek`, `fd_write`, and `poll_oneoff`) are host stubs returning
 `ENOTCAPABLE`; they perform no host operation. There is no filesystem mount,
 network, process API, environment, clock, entropy, module downloader, or output
-channel. `Date` and `Math.random` are removed before evaluating source. No
+channel. `Date` and `Math.random` are removed before evaluating source. The original metadata graph is recursively frozen and its input property cannot be replaced before user source is evaluated; working message fields remain mutable. No
 request/body/source/exception/stack information appears in returned errors.
 Only stable `script_*` codes are returned. The caller must continue to apply
 ordinary redaction rules to explicitly viewed or exported scripts and messages,
@@ -54,8 +54,8 @@ The reproducible guest build uses these fixed inputs:
 | --- | --- | --- |
 | QuickJS source archive | `quickjs-2025-09-13-2.tar.xz` | `996c6b5018fc955ad4d06426d0e9cb713685a00c825aa5c0418bd53f7df8b0b4` |
 | Linux ARM64 WASI SDK archive | `wasi-sdk-27.0-arm64-linux.tar.gz` | `4cf4c553c4640e63e780442146f87d83fdff5737f988c06a6e3b2f0228e37665` |
-| Nagi C runner | [`runner.c`](../../internal/rewritescript/guest/runner.c) | `6d081aa5a2d02fb04650016a3662b31fc9c38f1457df7fb8609d7c877cb751d0` |
-| Embedded WASM | `quickjs.wasm` | `5932a32f2d0b0dea7e02a6861852d437ba6e11addf9d6636e52122e1285bf0ba` |
+| Nagi C runner | [`runner.c`](../../internal/rewritescript/guest/runner.c) | `afea689dc3d877a4cb5a994152be5658d62da32515fb021f60bbf8f0decce882` |
+| Embedded WASM | `quickjs.wasm` | `9a3d9c3eacae5405085730c1fe00fa2cf94bea0d29d740c844bfcfb4703fae27` |
 
 The SDK uses Clang 20.1.8, LLVM commit
 `87f0227cb60147a26a1eeb4fb06e3b505e9c7261`, and wasi-libc commit

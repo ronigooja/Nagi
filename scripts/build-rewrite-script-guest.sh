@@ -8,8 +8,8 @@ source_url=https://bellard.org/quickjs/quickjs-2025-09-13-2.tar.xz
 sdk_url=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-27/wasi-sdk-27.0-arm64-linux.tar.gz
 source_sha=996c6b5018fc955ad4d06426d0e9cb713685a00c825aa5c0418bd53f7df8b0b4
 sdk_sha=4cf4c553c4640e63e780442146f87d83fdff5737f988c06a6e3b2f0228e37665
-runner_sha=6d081aa5a2d02fb04650016a3662b31fc9c38f1457df7fb8609d7c877cb751d0
-artifact_sha=5932a32f2d0b0dea7e02a6861852d437ba6e11addf9d6636e52122e1285bf0ba
+runner_sha=afea689dc3d877a4cb5a994152be5658d62da32515fb021f60bbf8f0decce882
+artifact_sha=9a3d9c3eacae5405085730c1fe00fa2cf94bea0d29d740c844bfcfb4703fae27
 if [[ $(uname -s) != Linux || $(uname -m) != aarch64 ]]; then
   echo 'This pinned reproduction toolchain requires Linux ARM64.' >&2
   exit 1

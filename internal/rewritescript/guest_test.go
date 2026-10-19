@@ -10,7 +10,7 @@ import (
 )
 
 func TestPinnedGuestBoundary(t *testing.T) {
-	if got := fmt.Sprintf("%x", sha256.Sum256(wasm)); got != "5932a32f2d0b0dea7e02a6861852d437ba6e11addf9d6636e52122e1285bf0ba" {
+	if got := fmt.Sprintf("%x", sha256.Sum256(wasm)); got != "9a3d9c3eacae5405085730c1fe00fa2cf94bea0d29d740c844bfcfb4703fae27" {
 		t.Fatalf("guest artifact changed: %s", got)
 	}
 	ctx := context.Background()
