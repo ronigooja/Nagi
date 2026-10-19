@@ -341,7 +341,7 @@ func validateCapturePolicy(data []byte) error {
 			if !filepath.IsAbs(p) || filepath.Clean(p) != p || len(p) > 4096 || strings.ContainsAny(p, "\x00\r\n") || seen[p] {
 				return errRewritePolicy
 			}
-			if key == "app_paths" && !strings.HasSuffix(p, ".app") {
+			if key == "app_paths" && (!strings.HasSuffix(p, ".app") || strings.Contains(p, ".app/")) {
 				return errRewritePolicy
 			}
 			seen[p] = true

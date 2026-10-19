@@ -142,14 +142,8 @@ func Serve(ctx context.Context, socket string, ownerUID int) error {
 			return
 		}
 		var q Request
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, (3*DefaultBodyLimit)/2))
-		dec.DisallowUnknownFields()
-		if dec.Decode(&q) != nil {
-			_ = json.NewEncoder(w).Encode(fail("capture_request_invalid"))
-			return
-		}
-		var extra any
-		if dec.Decode(&extra) != io.EOF {
+		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, (3*DefaultBodyLimit)/2))
+		if err != nil || DecodeJSON(data, &q) != nil || r.URL.RawQuery != "" {
 			_ = json.NewEncoder(w).Encode(fail("capture_request_invalid"))
 			return
 		}

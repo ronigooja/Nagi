@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"time"
 )
@@ -109,9 +110,52 @@ func rewriteCapturePrerequisites(ctx context.Context, p nagiruntime.Paths, s *re
 
 var rewriteCaptureControl = child.ControlCapture
 
+func capturePolicyEqual(a, b *capture.Policy) bool {
+	return a != nil && b != nil && a.SessionID == b.SessionID && a.Revision == b.Revision && a.State == b.State && slices.Equal(a.Scope.Domains, b.Scope.Domains) && slices.Equal(a.Scope.ProcessPaths, b.Scope.ProcessPaths) && slices.Equal(a.Scope.AppPaths, b.Scope.AppPaths)
+}
+
+// Status is observational: a recorder's intent alone never proves collection.
+func captureObserved(ctx context.Context, p nagiruntime.Paths, s *capture.Status) *capture.Status {
+	if s == nil || s.ReadOnly || s.SessionID == "" {
+		return s
+	}
+	check := *s
+	uncertain := func() *capture.Status {
+		check.RecorderState = s.State
+		check.State = "uncertain"
+		check.Recovery = "run `nagi rewrite capture stop " + s.SessionID + "` to stop collection and recover the runtime; history is retained"
+		return &check
+	}
+	run, e := readRewriteRun(p)
+	if os.IsNotExist(e) && s.State == "stopped" {
+		return s
+	}
+	if e != nil {
+		return uncertain()
+	}
+	name, ne := rewriteSelected(p)
+	backend, be := readBackend(p)
+	if ne != nil || be != nil || name != s.Profile || backend != s.Backend || run.Profile != s.Profile || run.Backend != s.Backend || run.CaptureSession != s.SessionID {
+		return uncertain()
+	}
+	client, e := rewriteClient(p)
+	if e != nil {
+		return uncertain()
+	}
+	var state rewriteEngineStatus
+	if client.Get(ctx, "/request-rewrite/status", &state) != nil || state.Generation != run.Generation || state.EngineEpoch != run.EngineEpoch || !state.BranchEnabled || !state.TUNRunning || state.State != "active" || !capturePolicyEqual(state.Capture, capturePolicy(s)) {
+		return uncertain()
+	}
+	health, e := rewriteChildControl(ctx, rewriteSocket(p, run.Generation), "GET", "/status", run.Generation)
+	if e != nil || !health.Ready || health.Generation != run.Generation || !capturePolicyEqual(health.Capture, capturePolicy(s)) {
+		return uncertain()
+	}
+	return s
+}
+
 func capturePublish(ctx context.Context, p nagiruntime.Paths, s capture.Status) error {
 	run, e := readRewriteRun(p)
-	if e != nil {
+	if e != nil || run.CaptureSession != s.SessionID {
 		return captureFailure("capture_runtime_unavailable")
 	}
 	client, e := rewriteClient(p)
@@ -119,19 +163,27 @@ func capturePublish(ctx context.Context, p nagiruntime.Paths, s capture.Status) 
 		return captureFailure("capture_runtime_unavailable")
 	}
 	policy := capturePolicy(&s)
-	previous := s.Revision - 1
 	var state rewriteEngineStatus
-	// Identical replay after preparation is intentionally idempotent.
-	if e = client.Put(ctx, "/request-rewrite/capture", control.RewriteCapture{Version: 2, Generation: run.Generation, PreviousRevision: previous, Capture: *policy}, &state); e != nil {
-		return captureFailure("capture_state_uncertain")
+	if e = client.Put(ctx, "/request-rewrite/capture", control.RewriteCapture{Version: 2, Generation: run.Generation, PreviousRevision: s.Revision - 1, Capture: *policy}, &state); e != nil {
+		// A lost response is resolved by a read, never a blind mutation retry.
+		if client.Get(ctx, "/request-rewrite/status", &state) != nil || state.Generation != run.Generation || !capturePolicyEqual(state.Capture, policy) {
+			return captureFailure("capture_state_uncertain")
+		}
 	}
 	if _, e = rewriteCaptureControl(ctx, rewriteSocket(p, run.Generation), run.Generation, *policy); e != nil {
-		return captureFailure("capture_state_uncertain")
+		health, check := rewriteChildControl(ctx, rewriteSocket(p, run.Generation), "GET", "/status", run.Generation)
+		if check != nil || !capturePolicyEqual(health.Capture, policy) {
+			return captureFailure("capture_state_uncertain")
+		}
 	}
 	return nil
 }
+
 func captureLifecycleStop(ctx context.Context, p nagiruntime.Paths) {
 	if s := captureStatus(ctx, p); s != nil && !s.ReadOnly && s.State != "stopped" {
-		_, _ = capture.Call(ctx, captureSocket(p), capture.Request{Action: "stop", SessionID: s.SessionID})
+		r, e := capture.Call(ctx, captureSocket(p), capture.Request{Action: "stop", SessionID: s.SessionID})
+		if e == nil && r.Status != nil {
+			_ = capturePublish(ctx, p, *r.Status)
+		}
 	}
 }

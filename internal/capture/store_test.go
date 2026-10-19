@@ -144,3 +144,13 @@ func TestRejectSymlinkParentAndExistingSocket(t *testing.T) {
 		t.Fatal("replaced existing file")
 	}
 }
+
+func TestStartScopeUsesEngineCompatiblePatternsAndPaths(t *testing.T) {
+	for _, scope := range []Scope{{Domains: []string{"*.com"}}, {Domains: []string{"bad*pattern.example"}}, {Domains: []string{"127.0.0.1"}}, {Domains: []string{"api.example", "API.EXAMPLE"}}, {ProcessPaths: []string{"/tmp/../app"}}, {AppPaths: []string{"/Applications/A.app/Contents/B.app"}}} {
+		s := NewStore()
+		r := s.Handle(Request{Action: "start", Start: &StartOptions{Scope: scope}})
+		if r.Error != "capture_scope_invalid" {
+			t.Fatalf("accepted %#v: %#v", scope, r)
+		}
+	}
+}

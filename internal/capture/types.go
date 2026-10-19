@@ -41,19 +41,21 @@ type StartOptions struct {
 	BodyLimit int    `json:"body_limit,omitempty"`
 }
 type Status struct {
-	SessionID string `json:"session_id"`
-	Revision  uint64 `json:"revision"`
-	State     string `json:"state"`
-	Profile   string `json:"profile"`
-	Backend   string `json:"backend"`
-	Owner     string `json:"owner"`
-	Scope     Scope  `json:"scope"`
-	BodyLimit int    `json:"body_limit"`
-	Records   int    `json:"records"`
-	Bytes     int64  `json:"bytes"`
-	Dropped   uint64 `json:"dropped"`
-	Truncated uint64 `json:"truncated"`
-	ReadOnly  bool   `json:"read_only"`
+	RecorderState string `json:"recorder_state,omitempty"`
+	Recovery      string `json:"recovery,omitempty"`
+	SessionID     string `json:"session_id"`
+	Revision      uint64 `json:"revision"`
+	State         string `json:"state"`
+	Profile       string `json:"profile"`
+	Backend       string `json:"backend"`
+	Owner         string `json:"owner"`
+	Scope         Scope  `json:"scope"`
+	BodyLimit     int    `json:"body_limit"`
+	Records       int    `json:"records"`
+	Bytes         int64  `json:"bytes"`
+	Dropped       uint64 `json:"dropped"`
+	Truncated     uint64 `json:"truncated"`
+	ReadOnly      bool   `json:"read_only"`
 }
 type Snapshot struct {
 	Scheme      string              `json:"scheme,omitempty"`

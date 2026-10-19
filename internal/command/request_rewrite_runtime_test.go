@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/capture"
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/profile"
 	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
@@ -69,6 +70,10 @@ func (f *rewriteFixtureEngine) call(ctx context.Context, method, path string, bo
 				return &control.APIError{Status: 409, Message: "fixture reject"}
 			}
 			f.active = rewriteEngineStatus{Version: 2, Generation: request.Generation, EngineEpoch: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", State: "active", BranchEnabled: true, TUNRunning: true, RuleVersion: f.candidate["rule_version"].(string)}
+			if policy, ok := f.candidate["capture"]; ok {
+				b, _ := json.Marshal(policy)
+				_ = json.Unmarshal(b, &f.active.Capture)
+			}
 		} else {
 			f.active.State = "draining"
 			f.active.BranchEnabled = false
@@ -167,7 +172,13 @@ func rewriteCoordinatorFixture(t *testing.T) (nagiruntime.Paths, *rewriteFixture
 		if path == "/shutdown" {
 			return child.Status{}, nil
 		}
-		return child.Status{Version: 2, Generation: generation, RuleVersion: engine.active.RuleVersion, Ready: true}, nil
+		var policy *capture.Policy
+		for _, c := range children {
+			if c.configured.Generation == generation {
+				policy = c.configured.Capture
+			}
+		}
+		return child.Status{Capture: policy, Version: 2, Generation: generation, RuleVersion: engine.active.RuleVersion, Ready: true}, nil
 	}
 	return paths, engine, &children
 }

@@ -302,6 +302,7 @@ func rewriteSupervisorTick(paths nagiruntime.Paths, generation string) (bool, er
 		defer cancel()
 		backend, e := readBackend(paths)
 		if e != nil || backend != run.Backend {
+			captureLifecycleStop(ctx, paths)
 			_, _ = rewriteChildControl(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
 			return nil, rewriteFailure("rewrite_state_uncertain")
 		}
@@ -373,6 +374,7 @@ func rewriteSupervisorTick(paths nagiruntime.Paths, generation string) (bool, er
 		}
 		selected, e := rewriteSelected(paths)
 		if e != nil || selected != run.Profile {
+			captureLifecycleStop(ctx, paths)
 			_, _ = rewriteChildControl(ctx, rewriteSocket(paths, generation), "POST", "/drain", generation)
 			return nil, rewriteFailure("rewrite_state_uncertain")
 		}

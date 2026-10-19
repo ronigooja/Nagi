@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/ronigooja/Nagi/internal/capture"
 	"github.com/ronigooja/Nagi/internal/control"
 	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
@@ -176,6 +177,7 @@ func TestCaptureStartPauseResumeStopKeepGenerationAndHistory(t *testing.T) {
 	var policies []capture.Policy
 	rewriteCaptureControl = func(ctx context.Context, socket, generation string, policy capture.Policy) (child.Status, error) {
 		policies = append(policies, policy)
+		(*children)[len(*children)-1].configured.Capture = &policy
 		return child.Status{Generation: generation, Ready: true}, nil
 	}
 	rewriteClient = func(nagiruntime.Paths) (*control.Client, error) {
@@ -186,6 +188,8 @@ func TestCaptureStartPauseResumeStopKeepGenerationAndHistory(t *testing.T) {
 			}
 			if path == "/request-rewrite/capture" {
 				engine.calls = append(engine.calls, "PUT "+path)
+				policy := body.(control.RewriteCapture).Capture
+				engine.active.Capture = &policy
 				return nil
 			}
 			return engine.call(ctx, method, path, body, out)
@@ -212,5 +216,137 @@ func TestCaptureStartPauseResumeStopKeepGenerationAndHistory(t *testing.T) {
 	}
 	if len(policies) != 4 || policies[3].State != "stopped" || policies[3].Revision != 4 {
 		t.Fatal(policies)
+	}
+}
+
+func captureCoordinatorTest(t *testing.T) (nagiruntime.Paths, *rewriteFixtureEngine, *[]*rewriteFixtureChild) {
+	p, engine, children := rewriteCoordinatorFixture(t)
+	startTestCaptureRecorder(t, p)
+	old := rewriteCaptureControl
+	t.Cleanup(func() { rewriteCaptureControl = old })
+	rewriteCaptureControl = func(_ context.Context, _ string, generation string, policy capture.Policy) (child.Status, error) {
+		(*children)[len(*children)-1].configured.Capture = &policy
+		return child.Status{Generation: generation, Ready: true, Capture: &policy}, nil
+	}
+	rewriteClient = func(nagiruntime.Paths) (*control.Client, error) {
+		return control.NewWithBridge(func(ctx context.Context, method, path string, body, out any) error {
+			if path == "/request-rewrite/capabilities" {
+				b, _ := json.Marshal(control.RewriteCapabilities{Versions: []int{2}, CaptureProtocol: 1, TUNOnly: true, OriginalContext: true, Reinjection: true, QUIC: true, MaxContexts: 1024, MaxStreams: 64, ContextIdle: 60, ContextMax: 3600})
+				return json.Unmarshal(b, out)
+			}
+			if path == "/request-rewrite/capture" {
+				engine.calls = append(engine.calls, "PUT "+path)
+				policy := body.(control.RewriteCapture).Capture
+				engine.active.Capture = &policy
+				b, _ := json.Marshal(engine.active)
+				return json.Unmarshal(b, out)
+			}
+			return engine.call(ctx, method, path, body, out)
+		}, nil), nil
+	}
+	return p, engine, children
+}
+
+func TestCaptureStatusRequiresAllRuntimeEvidence(t *testing.T) {
+	p, engine, children := captureCoordinatorTest(t)
+	v := rewriteAliasOK(t, "rewrite", "", "capture", "start")
+	session := v["status"].(map[string]any)["session_id"].(string)
+	original := engine.active
+	for _, change := range []func(){func() { engine.active.TUNRunning = false }, func() { engine.active.BranchEnabled = false }, func() { engine.active.Capture = nil }, func() { engine.active.EngineEpoch = "changed" }, func() { engine.active.State = "blocked" }, func() { (*children)[0].configured.Capture = nil }} {
+		engine.active = original
+		(*children)[0].configured.Capture = original.Capture
+		change()
+		r := rewriteAliasOK(t, "rewrite", "", "capture", "status")["status"].(map[string]any)
+		if r["state"] != "uncertain" || r["recorder_state"] != "recording" {
+			t.Fatal(r)
+		}
+		code, _, err := rewriteCLIRun(t, "", "--json", "rewrite", "capture", "pause", session)
+		if code != 1 || !strings.Contains(err, "capture_state_uncertain") {
+			t.Fatal(code, err)
+		}
+	}
+	engine.active = original
+	(*children)[0].configured.Capture = original.Capture
+	if captureObserved(context.Background(), p, captureStatus(context.Background(), p)).State != "recording" {
+		t.Fatal("coherent runtime not recording")
+	}
+}
+
+func TestCapturePartialPublishHasExplicitStopRecovery(t *testing.T) {
+	p, engine, children := captureCoordinatorTest(t)
+	v := rewriteAliasOK(t, "rewrite", "", "capture", "start")
+	session := v["status"].(map[string]any)["session_id"].(string)
+	rewriteCaptureControl = func(context.Context, string, string, capture.Policy) (child.Status, error) {
+		return child.Status{}, errors.New("fixture failure")
+	}
+	code, _, err := rewriteCLIRun(t, "", "--json", "rewrite", "capture", "pause", session)
+	if code != 1 || !strings.Contains(err, "capture_state_uncertain") {
+		t.Fatal(code, err)
+	}
+	if engine.active.Capture.State != "paused" || (*children)[0].configured.Capture.State != "recording" {
+		t.Fatal("fixture did not diverge")
+	}
+	if captureObserved(context.Background(), p, captureStatus(context.Background(), p)).State != "uncertain" {
+		t.Fatal("false status")
+	}
+	stopped := rewriteAliasOK(t, "rewrite", "", "capture", "stop", session)["status"].(map[string]any)
+	if stopped["state"] != "stopped" || engine.active.BranchEnabled {
+		t.Fatal(stopped, engine.active)
+	}
+	if _, e := readRewriteRun(p); !os.IsNotExist(e) {
+		t.Fatal("runtime not retired", e)
+	}
+}
+
+func TestCaptureOptionsRejectDuplicateKeysBeforeMutation(t *testing.T) {
+	p := isolatedTestPaths(t, t.TempDir())
+	startTestCaptureRecorder(t, p)
+	for _, input := range []string{`{"query":"one","query":"two"}`, `{"limit":10,"limit":20}`} {
+		code, _, err := rewriteCLIRun(t, input, "--json", "rewrite", "capture", "list", "-")
+		if code != 1 || !strings.Contains(err, "capture_options_invalid") {
+			t.Fatal(code, err)
+		}
+	}
+}
+
+func TestCaptureLostPolicyAcknowledgmentsUseReadEvidence(t *testing.T) {
+	p, _, _ := captureCoordinatorTest(t)
+	v := rewriteAliasOK(t, "rewrite", "", "capture", "start")
+	session := v["status"].(map[string]any)["session_id"].(string)
+	originalClient := rewriteClient
+	puts := 0
+	rewriteClient = func(p nagiruntime.Paths) (*control.Client, error) {
+		base, e := originalClient(p)
+		if e != nil {
+			return nil, e
+		}
+		return control.NewWithBridge(func(ctx context.Context, method, path string, body, out any) error {
+			if method == "PUT" {
+				err := base.Put(ctx, path, body, out)
+				if path == "/request-rewrite/capture" {
+					puts++
+					return errors.New("lost engine acknowledgment")
+				}
+				return err
+			}
+			return base.Get(ctx, path, out)
+		}, nil), nil
+	}
+	originalControl := rewriteCaptureControl
+	calls := 0
+	rewriteCaptureControl = func(ctx context.Context, socket, generation string, policy capture.Policy) (child.Status, error) {
+		_, e := originalControl(ctx, socket, generation, policy)
+		if e != nil {
+			return child.Status{}, e
+		}
+		calls++
+		return child.Status{}, errors.New("lost child acknowledgment")
+	}
+	rewriteAliasOK(t, "rewrite", "", "capture", "pause", session)
+	if puts != 1 || calls != 1 {
+		t.Fatal("policy mutation retried", puts, calls)
+	}
+	if captureObserved(context.Background(), p, captureStatus(context.Background(), p)).State != "paused" {
+		t.Fatal("lost successful acknowledgments not reconciled")
 	}
 }

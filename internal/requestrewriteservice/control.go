@@ -19,6 +19,7 @@ import (
 )
 
 type Status struct {
+	Capture     *capture.Policy `json:"capture,omitempty"`
 	Version     int             `json:"version"`
 	Generation  string          `json:"generation"`
 	RuleVersion string          `json:"rule_version"`
@@ -31,7 +32,15 @@ type Status struct {
 func (s *Service) Status() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return Status{2, s.config.Generation, s.snapshot.Version(), s.configured && !s.closing && !s.draining, len(s.contexts), nil, s.counters}
+	var policy *capture.Policy
+	if s.capturePolicy != nil {
+		p := *s.capturePolicy
+		p.Scope.Domains = append([]string{}, p.Scope.Domains...)
+		p.Scope.ProcessPaths = append([]string{}, p.Scope.ProcessPaths...)
+		p.Scope.AppPaths = append([]string{}, p.Scope.AppPaths...)
+		policy = &p
+	}
+	return Status{Capture: policy, Version: 2, Generation: s.config.Generation, RuleVersion: s.snapshot.Version(), Ready: s.configured && !s.closing && !s.draining, Contexts: len(s.contexts), Counters: s.counters}
 }
 
 type peerKey struct{}

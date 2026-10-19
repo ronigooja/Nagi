@@ -789,7 +789,15 @@ starts TUN, generates a CA, or installs trust. Rules may remain globally disable
 capture suppresses their transformations while retaining the configured rule
 version. Initial attachment creates a rule generation; pause, resume and stop
 update capture policy without replacing the generation or terminating open
-streams. Rule changes retain recorder history. Profile/backend changes and
+streams when all runtime components agree. If a policy update fails, the command
+reports uncertainty without retrying the mutation. `status` compares recorder
+state with the selected profile/backend, engine generation/epoch, active branch,
+TUN state and child policy. A mismatch reports `state: "uncertain"`, preserves the
+recorder state in `recorder_state`, and supplies `recovery`. Pause/resume reject
+this state. `stop SESSION` stops local collection and tears down an uncertain
+runtime generation while retaining history; explicitly re-enable rewrite after
+recovery if needed. Failed initial attachment also attempts runtime teardown.
+Rule changes retain recorder history. Profile/backend changes and
 TUN/engine exit stop collection; engine restart does not resume it.
 
 Start reads an optional JSON object from a private file or stdin:
@@ -805,7 +813,9 @@ mean unrestricted capture. Populated categories are ANDed; entries within a
 category are ORed. Process paths match exactly. Application paths name outermost
 macOS `.app` directories and include their helpers. Unknown process identity
 does not match process/application restrictions. Domain patterns use rewrite
-syntax. The body limit defaults to 1 MiB per snapshot and is at most 8 MiB.
+syntax. Scope categories contain at most 256 distinct entries. Paths must be
+absolute and clean; nested `.app` paths are rejected. Start/list JSON rejects
+duplicate keys, unknown fields and trailing values. The body limit defaults to 1 MiB per snapshot and is at most 8 MiB.
 
 Starting a session authorizes its original content reads. These commands show
 complete URLs, query/header/trailer values and bodies, including credentials;
@@ -819,7 +829,8 @@ memory-only history.
 `status`, state mutations, list/show/body and import return `capture.Reply` under
 `data`: `sensitive`, optional `status`, `records`, `record`, `body`, and
 `next_cursor`. Status includes session/revision/state, profile/backend/owner,
-scope/body limit, record/byte/drop/truncation counts and `read_only`. Lists and
+scope/body limit, record/byte/drop/truncation counts and `read_only`; uncertain
+runtime observations also include `recorder_state` and `recovery`. Lists and
 show omit body bytes while preserving all original metadata values. Human
 output uses minute precision for record timestamps; JSON retains timestamp
 formats. `apps` returns `{apps:[{process,process_path,app_path}],sensitive:true}`

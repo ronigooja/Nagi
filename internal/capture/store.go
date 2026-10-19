@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
+	"golang.org/x/net/publicsuffix"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -555,23 +557,41 @@ func (b *bodyData) contains(query string) bool {
 	return false
 }
 func normalizeScope(scope *Scope) bool {
+	if len(scope.Domains) > 256 || len(scope.ProcessPaths) > 256 || len(scope.AppPaths) > 256 {
+		return false
+	}
+	seen := map[string]bool{}
 	for i, domain := range scope.Domains {
-		d := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(domain), "."))
-		if d == "" || len(d) > 253 || strings.ContainsAny(d, "/:@?# \\ ") {
+		wild := strings.HasPrefix(domain, "*.")
+		base := strings.TrimPrefix(domain, "*.")
+		d, e := rewrite.NormalizeDomain(base)
+		if e != nil {
 			return false
 		}
+		if wild {
+			suffix, _ := publicsuffix.PublicSuffix(d)
+			if suffix == d || !strings.Contains(d, ".") {
+				return false
+			}
+			d = "*." + d
+		}
+		if seen[d] {
+			return false
+		}
+		seen[d] = true
 		scope.Domains[i] = d
 	}
 	for _, paths := range [][]string{scope.ProcessPaths, scope.AppPaths} {
-		for i, p := range paths {
-			if !filepath.IsAbs(p) || strings.IndexFunc(p, unicode.IsControl) >= 0 {
+		seen := map[string]bool{}
+		for _, p := range paths {
+			if !filepath.IsAbs(p) || filepath.Clean(p) != p || len(p) > 4096 || strings.IndexFunc(p, unicode.IsControl) >= 0 || seen[p] {
 				return false
 			}
-			paths[i] = filepath.Clean(p)
+			seen[p] = true
 		}
 	}
 	for _, p := range scope.AppPaths {
-		if !strings.HasSuffix(p, ".app") {
+		if !strings.HasSuffix(p, ".app") || strings.Contains(p, ".app/") {
 			return false
 		}
 	}

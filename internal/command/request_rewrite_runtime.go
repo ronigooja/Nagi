@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/capture"
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/profile"
 	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
@@ -41,16 +42,17 @@ type RewriteStatus struct {
 }
 
 type rewriteEngineStatus struct {
-	Version            int     `json:"version"`
-	Generation         string  `json:"generation"`
-	EngineEpoch        string  `json:"engine_epoch"`
-	State              string  `json:"state"`
-	BranchEnabled      bool    `json:"branch_enabled"`
-	TUNRunning         bool    `json:"tun_running"`
-	RuleVersion        string  `json:"rule_version"`
-	PreparedGeneration string  `json:"prepared_generation"`
-	Contexts           int     `json:"contexts"`
-	LastError          *string `json:"last_error"`
+	Capture            *capture.Policy `json:"capture,omitempty"`
+	Version            int             `json:"version"`
+	Generation         string          `json:"generation"`
+	EngineEpoch        string          `json:"engine_epoch"`
+	State              string          `json:"state"`
+	BranchEnabled      bool            `json:"branch_enabled"`
+	TUNRunning         bool            `json:"tun_running"`
+	RuleVersion        string          `json:"rule_version"`
+	PreparedGeneration string          `json:"prepared_generation"`
+	Contexts           int             `json:"contexts"`
+	LastError          *string         `json:"last_error"`
 }
 
 type rewriteRun struct {

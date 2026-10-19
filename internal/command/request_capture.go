@@ -106,10 +106,17 @@ func captureCommand(ctx context.Context, o rewriteArguments, p nagiruntime.Paths
 	data, _ := ctx.Value(rewriteInputKey{}).([]byte)
 	q := capture.Request{Action: action}
 	switch action {
+	case "status":
+		r, e := captureCall(ctx, p, q)
+		if e != nil {
+			return nil, e
+		}
+		r.Status = captureObserved(ctx, p, r.Status)
+		return output.CaptureResult{Value: r}, nil
 	case "start":
 		options := capture.StartOptions{Owner: "cli"}
 		if len(data) > 0 {
-			if rewriteStrictJSON(data, &options) != nil {
+			if capture.DecodeJSON(data, &options) != nil {
 				return nil, captureFailure("capture_options_invalid")
 			}
 		}
@@ -141,16 +148,35 @@ func captureCommand(ctx context.Context, o rewriteArguments, p nagiruntime.Paths
 			return nil, e
 		}
 		if e = rewriteActivate(ctx, p, name, snapshot); e != nil {
-			_, _ = capture.Call(ctx, captureSocket(p), capture.Request{Action: "stop", SessionID: r.Status.SessionID})
+			captureLifecycleStop(ctx, p)
+			// An uncertain activation may already own an engine generation.
+			_ = rewriteTeardown(context.WithoutCancel(ctx), p)
 			return nil, e
 		}
 		if e = capturePublish(ctx, p, *r.Status); e != nil {
-			_, _ = capture.Call(ctx, captureSocket(p), capture.Request{Action: "stop", SessionID: r.Status.SessionID})
+			captureLifecycleStop(ctx, p)
+			// An uncertain activation may already own an engine generation.
+			_ = rewriteTeardown(context.WithoutCancel(ctx), p)
 			return nil, e
 		}
 		return output.CaptureResult{Value: r}, nil
 	case "pause", "resume", "stop":
-		if action == "resume" {
+		before := captureStatus(ctx, p)
+		if before == nil || before.SessionID != o.values[0] {
+			return nil, captureFailure("capture_session_mismatch")
+		}
+		observed := captureObserved(ctx, p, before)
+		if observed.State == "uncertain" {
+			if action != "stop" {
+				return nil, captureFailure("capture_state_uncertain; stop this session to recover")
+			}
+			captureLifecycleStop(ctx, p)
+			if e := rewriteTeardown(ctx, p); e != nil {
+				return nil, e
+			}
+			return output.CaptureResult{Value: capture.Reply{Sensitive: true, Status: captureStatus(ctx, p)}}, nil
+		}
+		if action == "pause" || action == "resume" {
 			name, e := rewriteSelected(p)
 			if e != nil {
 				return nil, captureFailure("capture_profile_required")
@@ -171,8 +197,10 @@ func captureCommand(ctx context.Context, o rewriteArguments, p nagiruntime.Paths
 		if e != nil {
 			return nil, e
 		}
-		if e = capturePublish(ctx, p, *r.Status); e != nil {
-			return nil, e
+		if before.State != "stopped" {
+			if e = capturePublish(ctx, p, *r.Status); e != nil {
+				return nil, e
+			}
 		}
 		return output.CaptureResult{Value: r}, nil
 	case "clear":
@@ -180,7 +208,7 @@ func captureCommand(ctx context.Context, o rewriteArguments, p nagiruntime.Paths
 	case "list":
 		if len(data) > 0 {
 			q.List = &capture.ListOptions{}
-			if rewriteStrictJSON(data, q.List) != nil {
+			if capture.DecodeJSON(data, q.List) != nil {
 				return nil, captureFailure("capture_options_invalid")
 			}
 		}
