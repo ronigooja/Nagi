@@ -69,6 +69,31 @@ import SwiftUI
         XCTAssertEqual(tabs.numberOfTabViewItems, 5)
         for index in 0..<tabs.numberOfTabViewItems {
             tabs.selectTabViewItem(at: index)
+            if index == 3 {
+                let previewFrame = window.frame
+                for _ in 0..<5 {
+                    host.layoutSubtreeIfNeeded()
+                    try await Task.sleep(nanoseconds: 20_000_000)
+                }
+                func findPreviewSplit(_ view: NSView) -> NSSplitView? {
+                    if let split = view as? NSSplitView, !split.isVertical { return split }
+                    return view.subviews.lazy.compactMap { findPreviewSplit($0) }.first
+                }
+                let split = try XCTUnwrap(findPreviewSplit(host))
+                XCTAssertEqual(split.arrangedSubviews.count, 2)
+                let input = split.arrangedSubviews[0]
+                let result = split.arrangedSubviews[1]
+                XCTAssertGreaterThan(input.frame.height, result.frame.height)
+                let dividerPosition = split.bounds.height * 0.45
+                split.setPosition(dividerPosition, ofDividerAt: 0)
+                for _ in 0..<5 {
+                    host.layoutSubtreeIfNeeded()
+                    try await Task.sleep(nanoseconds: 20_000_000)
+                }
+                XCTAssertEqual(input.frame.height, dividerPosition, accuracy: 3)
+                XCTAssertGreaterThan(result.frame.height, 0)
+                XCTAssertEqual(window.frame, previewFrame)
+            }
             for size in [window.minSize, initial.size, window.minSize] {
                 window.setFrame(NSRect(origin: initial.origin, size: size), display: true)
                 for _ in 0..<5 {

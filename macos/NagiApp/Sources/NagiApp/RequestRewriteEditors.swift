@@ -346,22 +346,21 @@ struct RewritePreviewDraft {
     @State private var localError: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    Picker(L10n.text("app.ui.apply_to"), selection: $draft.stage) { ForEach(RewritePreviewDraft.stages, id: \.self) { Text(verbatim: RewriteLabels.stage($0)).tag($0) } }
-                        .onChange(of: draft.stage) { stage in if stage.hasPrefix("websocket_") { draft.responseStatus = "101" } }
-                    requestForm
-                    if draft.stage != "request" { responseForm }
-                    if draft.stage.hasPrefix("websocket_") {
-                        GroupBox(L10n.text("app.ui.websocket_message")) {
-                            VStack(alignment: .leading) {
-                                Picker(L10n.text("app.ui.type"), selection: $draft.messageType) { Text(verbatim: L10n.text("app.ui.text")).tag("text"); Text(verbatim: L10n.text("app.ui.binary")).tag("binary") }
-                                RewritePreviewBodyEditor(bodyText: $draft.messageBody, encoding: $draft.messageBodyEncoding)
-                            }.padding(6)
-                        }
+            GeometryReader { geometry in
+                VSplitView {
+                    inputForm
+                        .frame(minHeight: min(160, geometry.size.height * 0.5),
+                            idealHeight: geometry.size.height * 0.75, maxHeight: .infinity)
+                    ScrollView {
+                        Text(verbatim: presentation.model.preview ?? L10n.text("app.ui.no_preview_result"))
+                            .font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .padding(8).background(Color.secondary.opacity(0.06))
+                    .frame(minHeight: min(60, geometry.size.height * 0.2),
+                        idealHeight: geometry.size.height * 0.25, maxHeight: .infinity)
                 }
-            }.frame(minHeight: 200, idealHeight: 320, maxHeight: 360)
+            }
             HStack {
                 Button(L10n.text("app.ui.run_preview")) {
                     do {
@@ -376,11 +375,25 @@ struct RewritePreviewDraft {
                 Button(L10n.text("app.ui.clear_result")) { presentation.model.clearPreview() }.disabled(presentation.model.preview == nil)
             }
             if let error = localError { Text(verbatim: error).foregroundColor(.red) }
-            ScrollView {
-                Text(verbatim: presentation.model.preview ?? L10n.text("app.ui.no_preview_result"))
-                    .font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-            }.frame(maxHeight: .infinity).padding(8).background(Color.secondary.opacity(0.06))
         }.padding().nativeFormControls()
+    }
+    private var inputForm: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                Picker(L10n.text("app.ui.apply_to"), selection: $draft.stage) { ForEach(RewritePreviewDraft.stages, id: \.self) { Text(verbatim: RewriteLabels.stage($0)).tag($0) } }
+                    .onChange(of: draft.stage) { stage in if stage.hasPrefix("websocket_") { draft.responseStatus = "101" } }
+                requestForm
+                if draft.stage != "request" { responseForm }
+                if draft.stage.hasPrefix("websocket_") {
+                    GroupBox(L10n.text("app.ui.websocket_message")) {
+                        VStack(alignment: .leading) {
+                            Picker(L10n.text("app.ui.type"), selection: $draft.messageType) { Text(verbatim: L10n.text("app.ui.text")).tag("text"); Text(verbatim: L10n.text("app.ui.binary")).tag("binary") }
+                            RewritePreviewBodyEditor(bodyText: $draft.messageBody, encoding: $draft.messageBodyEncoding)
+                        }.padding(6)
+                    }
+                }
+            }
+        }
     }
     private var requestForm: some View {
         GroupBox(L10n.text("app.ui.original_request")) {
@@ -438,7 +451,7 @@ private struct RewritePreviewBodyEditor: View {
     var body: some View {
         VStack(alignment: .leading) {
             Picker(L10n.text("app.ui.body_input"), selection: $encoding) { Text(verbatim: "UTF-8").tag("utf8"); Text(verbatim: L10n.text("app.ui.base64_binary")).tag("base64") }
-            TextEditor(text: $bodyText).font(.system(.body, design: .monospaced)).frame(height: 65)
+            TextEditor(text: $bodyText).font(.system(.body, design: .monospaced)).frame(height: 180)
                 .nativeTextSurface()
                 .accessibilityLabel(L10n.text("app.ui.body"))
         }
