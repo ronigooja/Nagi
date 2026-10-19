@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"net"
 	"net/http"
@@ -35,7 +35,7 @@ type APIError struct {
 // traffic requests use their own per-sample limit instead.
 const MaxResponseBytes = 4 << 20
 
-var ErrResponseTooLarge = errors.New("mihomo response exceeds the 4 MiB limit")
+var ErrResponseTooLarge = i18n.Errorf("backend.control.mihomo_response_exceeds_the_4_mib_limit", "mihomo response exceeds the 4 MiB limit")
 
 func (e *APIError) Error() string { return fmt.Sprintf("mihomo API %d: %s", e.Status, e.Message) }
 
@@ -72,7 +72,7 @@ func (c *Client) Delete(ctx context.Context, path string, out any) error {
 
 func (c *Client) request(ctx context.Context, method, path string, body, out any) error {
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
-		return errors.New("invalid mihomo API path")
+		return i18n.Errorf("backend.control.invalid_mihomo_api_path", "invalid mihomo API path")
 	}
 	if c.requestFunc != nil {
 		return c.requestFunc(ctx, method, path, body, out)
@@ -94,14 +94,14 @@ func (c *Client) request(ctx context.Context, method, path string, body, out any
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("mihomo control unavailable: %w", err)
+		return i18n.Errorf("backend.control.mihomo_control_unavailable_w", "mihomo control unavailable: %w", err)
 	}
 	defer resp.Body.Close()
 	// Read one extra byte to distinguish the exact boundary from truncation.
 	// Check the entire response even when the caller does not decode a body.
 	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponseBytes+1))
 	if err != nil {
-		return fmt.Errorf("read mihomo response: %w", err)
+		return i18n.Errorf("backend.control.read_mihomo_response_w", "read mihomo response: %w", err)
 	}
 	if len(data) > MaxResponseBytes {
 		return ErrResponseTooLarge
@@ -124,7 +124,7 @@ func (c *Client) request(ctx context.Context, method, path string, body, out any
 	}
 	if out != nil && resp.StatusCode != http.StatusNoContent {
 		if err := json.NewDecoder(limited).Decode(out); err != nil {
-			return fmt.Errorf("decode mihomo response: %w", err)
+			return i18n.Errorf("backend.control.decode_mihomo_response_w", "decode mihomo response: %w", err)
 		}
 	}
 	return nil

@@ -1,7 +1,10 @@
 // Package capture owns bounded, explicitly authorized original traffic records.
 package capture
 
-import "time"
+import (
+	"github.com/ronigooja/Nagi/internal/i18n"
+	"time"
+)
 
 const (
 	ProtocolVersion  = 1
@@ -41,21 +44,22 @@ type StartOptions struct {
 	BodyLimit int    `json:"body_limit,omitempty"`
 }
 type Status struct {
-	RecorderState string `json:"recorder_state,omitempty"`
-	Recovery      string `json:"recovery,omitempty"`
-	SessionID     string `json:"session_id"`
-	Revision      uint64 `json:"revision"`
-	State         string `json:"state"`
-	Profile       string `json:"profile"`
-	Backend       string `json:"backend"`
-	Owner         string `json:"owner"`
-	Scope         Scope  `json:"scope"`
-	BodyLimit     int    `json:"body_limit"`
-	Records       int    `json:"records"`
-	Bytes         int64  `json:"bytes"`
-	Dropped       uint64 `json:"dropped"`
-	Truncated     uint64 `json:"truncated"`
-	ReadOnly      bool   `json:"read_only"`
+	Messages      map[string]i18n.Descriptor `json:"-"`
+	RecorderState string                     `json:"recorder_state,omitempty"`
+	Recovery      string                     `json:"recovery,omitempty"`
+	SessionID     string                     `json:"session_id"`
+	Revision      uint64                     `json:"revision"`
+	State         string                     `json:"state"`
+	Profile       string                     `json:"profile"`
+	Backend       string                     `json:"backend"`
+	Owner         string                     `json:"owner"`
+	Scope         Scope                      `json:"scope"`
+	BodyLimit     int                        `json:"body_limit"`
+	Records       int                        `json:"records"`
+	Bytes         int64                      `json:"bytes"`
+	Dropped       uint64                     `json:"dropped"`
+	Truncated     uint64                     `json:"truncated"`
+	ReadOnly      bool                       `json:"read_only"`
 }
 type Snapshot struct {
 	Scheme      string              `json:"scheme,omitempty"`
@@ -136,9 +140,10 @@ type Request struct {
 
 // Readiness reports only the first unmet prerequisite, without starting a recorder.
 type Readiness struct {
-	Ready   bool   `json:"ready"`
-	Code    string `json:"code,omitempty"`
-	Message string `json:"message"`
+	Messages map[string]i18n.Descriptor `json:"-"`
+	Ready    bool                       `json:"ready"`
+	Code     string                     `json:"code,omitempty"`
+	Message  string                     `json:"message"`
 }
 
 type Reply struct {

@@ -1,8 +1,7 @@
 package runtimecontrol
 
 import (
-	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -12,10 +11,10 @@ func ValidMode(mode string) bool { return mode == "rule" || mode == "global" || 
 func Mode(data []byte) (string, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return "", errors.New("selected profile is invalid YAML")
+		return "", i18n.Errorf("backend.runtimecontrol.selected_profile_is_invalid_yaml", "selected profile is invalid YAML")
 	}
 	if len(root.Content) == 0 || root.Content[0].Kind != yaml.MappingNode {
-		return "", errors.New("selected profile must be a YAML mapping")
+		return "", i18n.Errorf("backend.runtimecontrol.selected_profile_must_be_a_yaml_mapping", "selected profile must be a YAML mapping")
 	}
 	for _, line := range strings.Split(string(data), "\n") {
 		if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
@@ -27,7 +26,7 @@ func Mode(data []byte) (string, error) {
 		}
 		mode := strings.ToLower(strings.Trim(strings.TrimSpace(strings.SplitN(value, "#", 2)[0]), "'\""))
 		if !ValidMode(mode) {
-			return "", fmt.Errorf("invalid mode in selected profile: %q", mode)
+			return "", i18n.Errorf("backend.runtimecontrol.invalid_mode_in_selected_profile_q", "invalid mode in selected profile: %q", mode)
 		}
 		return mode, nil
 	}
@@ -35,7 +34,7 @@ func Mode(data []byte) (string, error) {
 }
 func SetMode(data []byte, mode string) ([]byte, error) {
 	if !ValidMode(mode) {
-		return nil, errors.New("mode must be rule, global, or direct")
+		return nil, i18n.Errorf("backend.runtimecontrol.mode_must_be_rule_global_or_direct", "mode must be rule, global, or direct")
 	}
 	if _, err := Mode(data); err != nil {
 		return nil, err

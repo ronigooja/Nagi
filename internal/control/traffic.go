@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"net/http"
 )
@@ -30,7 +30,7 @@ func (c *Client) WatchTraffic(ctx context.Context, receive func(TrafficSample) e
 	client := &http.Client{Transport: c.http.Transport}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("mihomo control unavailable: %w", err)
+		return i18n.Errorf("backend.control.mihomo_control_unavailable_w", "mihomo control unavailable: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -61,12 +61,12 @@ func (c *Client) WatchTraffic(ctx context.Context, receive func(TrafficSample) e
 				return ctx.Err()
 			}
 			if errors.Is(err, io.EOF) {
-				return errors.New("mihomo traffic stream ended; check whether mihomo is running")
+				return i18n.Errorf("backend.control.mihomo_traffic_stream_ended_check_whether_mihomo_is_running", "mihomo traffic stream ended; check whether mihomo is running")
 			}
-			return fmt.Errorf("decode mihomo traffic stream: %w", err)
+			return i18n.Errorf("backend.control.decode_mihomo_traffic_stream_w", "decode mihomo traffic stream: %w", err)
 		}
 		if raw.Up == nil || raw.Down == nil || raw.UpTotal == nil || raw.DownTotal == nil || *raw.Up < 0 || *raw.Down < 0 || *raw.UpTotal < 0 || *raw.DownTotal < 0 {
-			return errors.New("mihomo traffic stream contains missing or negative counters")
+			return i18n.Errorf("backend.control.mihomo_traffic_stream_contains_missing_or_negative_counters", "mihomo traffic stream contains missing or negative counters")
 		}
 		if err := receive(TrafficSample{UploadBPS: *raw.Up, DownloadBPS: *raw.Down, UploadTotal: *raw.UpTotal, DownloadTotal: *raw.DownTotal}); err != nil {
 			return err

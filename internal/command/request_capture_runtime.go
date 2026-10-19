@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/ronigooja/Nagi/internal/capture"
 	"github.com/ronigooja/Nagi/internal/control"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
 	child "github.com/ronigooja/Nagi/internal/requestrewriteservice"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
@@ -116,6 +117,7 @@ func captureObserved(ctx context.Context, p nagiruntime.Paths, s *capture.Status
 		check.RecorderState = s.State
 		check.State = "uncertain"
 		check.Recovery = "run `nagi rewrite capture stop " + s.SessionID + "` to stop collection and recover the runtime; history is retained"
+		check.Messages = map[string]i18n.Descriptor{"/recovery": {ID: "backend.capture.recovery.stop", Args: map[string]any{"session": s.SessionID}}}
 		return &check
 	}
 	run, e := readRewriteRun(p)

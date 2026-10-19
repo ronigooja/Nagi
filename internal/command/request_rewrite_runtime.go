@@ -25,22 +25,23 @@ import (
 // RewriteStatus reports evidence separately from persisted intent. No endpoint,
 // transport credential or application content is included in this interface.
 type RewriteStatus struct {
-	ConfigVersion         int                    `json:"config_version"`
-	Profile               string                 `json:"profile"`
-	EnabledIntent         bool                   `json:"enabled_intent"`
-	Actual                string                 `json:"actual"`
-	ConfiguredRuleVersion string                 `json:"configured_rule_version"`
-	ActiveRuleVersion     string                 `json:"active_rule_version,omitempty"`
-	Generation            string                 `json:"generation,omitempty"`
-	EngineEpoch           string                 `json:"engine_epoch,omitempty"`
-	TUNRunning            *bool                  `json:"tun_running"`
-	Backend               string                 `json:"backend"`
-	ServiceRunning        *bool                  `json:"service_running"`
-	ProtocolVersion       *int                   `json:"protocol_version"`
-	CA                    rewrite.CAStatus       `json:"ca"`
-	LastError             *string                `json:"last_error"`
-	Recovery              string                 `json:"recovery,omitempty"`
-	Counters              *child.RewriteCounters `json:"counters,omitempty"`
+	Messages              map[string]i18n.Descriptor `json:"-"`
+	ConfigVersion         int                        `json:"config_version"`
+	Profile               string                     `json:"profile"`
+	EnabledIntent         bool                       `json:"enabled_intent"`
+	Actual                string                     `json:"actual"`
+	ConfiguredRuleVersion string                     `json:"configured_rule_version"`
+	ActiveRuleVersion     string                     `json:"active_rule_version,omitempty"`
+	Generation            string                     `json:"generation,omitempty"`
+	EngineEpoch           string                     `json:"engine_epoch,omitempty"`
+	TUNRunning            *bool                      `json:"tun_running"`
+	Backend               string                     `json:"backend"`
+	ServiceRunning        *bool                      `json:"service_running"`
+	ProtocolVersion       *int                       `json:"protocol_version"`
+	CA                    rewrite.CAStatus           `json:"ca"`
+	LastError             *string                    `json:"last_error"`
+	Recovery              string                     `json:"recovery,omitempty"`
+	Counters              *child.RewriteCounters     `json:"counters,omitempty"`
 }
 
 type rewriteEngineStatus struct {
@@ -92,7 +93,7 @@ func rewriteFailure(code string) error {
 		id = "cli.rewrite.failure.trust_required"
 		next = "run `nagi request-rewrite ca trust install`; on Linux export the public CA and use your distribution/application trust settings"
 	}
-	return fail("request_rewrite_error", i18n.NewMessage(id, map[string]any{"code": code}, fmt.Sprintf("%s; %s", code, next), nil))
+	return &operationReason{code: code, cause: fail("request_rewrite_error", i18n.NewMessage(id, map[string]any{"code": code}, fmt.Sprintf("%s; %s", code, next), nil))}
 }
 func rewriteDomainError(err error) error {
 	if err == nil {
@@ -147,6 +148,7 @@ func rewriteStatusFor(ctx context.Context, paths nagiruntime.Paths, name string)
 		if errors.As(err, &api) && api.Status == 404 {
 			code = "rewrite_capability_missing"
 			out.Recovery = "Build the reviewed development engine: docs/development/build-and-test.md#request-rewrite-coordinator"
+			out.Messages = map[string]i18n.Descriptor{"/recovery": {ID: "backend.rewrite.recovery.build_engine"}}
 		}
 		out.LastError = &code
 		return out, nil

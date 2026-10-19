@@ -1,0 +1,176 @@
+{
+  "backend.capture.readiness.a_valid_capture_ca_is_missing_generate_the_rewrite_ca_before_starting_": {},
+  "backend.capture.readiness.cannot_confirm_engine_state_check_engine_status_before_capturing": {},
+  "backend.capture.readiness.cannot_reach_the_engine_start_nagi_and_check_engine_status_before_capt": {},
+  "backend.capture.readiness.capture_requires_nagi_to_run_as_your_ordinary_user_not_root": {},
+  "backend.capture.readiness.ready_to_capture": {},
+  "backend.capture.readiness.select_a_profile_before_starting_capture": {},
+  "backend.capture.readiness.the_capture_ca_is_not_confirmed_trusted_establish_certificate_trust_be": {},
+  "backend.capture.readiness.the_engine_does_not_provide_the_required_rewrite_capability_a_matching": {},
+  "backend.capture.readiness.the_engine_does_not_support_request_capture_a_matching_engine_update_i": {},
+  "backend.capture.readiness.tun_is_not_running_enable_tun_before_starting_capture": {},
+  "backend.capture.readiness.unable_to_check_capture_prerequisites_reopen_or_refresh_to_retry": {},
+  "backend.capture.recovery.stop": {
+    "session": "string"
+  },
+  "backend.control.decode_mihomo_response_w": {
+    "arg0": "string"
+  },
+  "backend.control.decode_mihomo_traffic_stream_w": {
+    "arg0": "string"
+  },
+  "backend.control.invalid_mihomo_api_path": {},
+  "backend.control.mihomo_control_unavailable_w": {
+    "arg0": "string"
+  },
+  "backend.control.mihomo_response_exceeds_the_4_mib_limit": {},
+  "backend.control.mihomo_traffic_stream_contains_missing_or_negative_counters": {},
+  "backend.control.mihomo_traffic_stream_ended_check_whether_mihomo_is_running": {},
+  "backend.control.read_mihomo_response_w": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.a_proxy_listener_bind_address_is_not_loopback_lan_exposure_is_enabled_revie": {},
+  "backend.diagnostic.allow_lan_is_enabled_proxy_listeners_may_be_reachable_from_the_lan": {},
+  "backend.diagnostic.cannot_inspect_permissions_check_owner_access": {},
+  "backend.diagnostic.cannot_inspect_s_v_check_directory_permissions": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "backend.diagnostic.cannot_read_the_nagi_pid_file_check_runtime_directory_permissions": {},
+  "backend.diagnostic.default_profile_is_missing_run_nagi_start_to_create_it_or_import_a_profile": {},
+  "backend.diagnostic.diagnostic_export_path_must_be_an_absolute_path": {},
+  "backend.diagnostic.external_controller_is_exposed_beyond_loopback_use_the_private_unix_socket_": {},
+  "backend.diagnostic.listener_d_is_configured_but_not_reachable_on_loopback": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.listener_is_reachable_on_loopback_port_d": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.mihomo_configuration_is_unavailable_start_mihomo_before_checking_listeners_": {},
+  "backend.diagnostic.mihomo_dns_configuration_is_unavailable": {},
+  "backend.diagnostic.mihomo_dns_is_disabled_system_dns_may_bypass_proxy_policy": {},
+  "backend.diagnostic.mihomo_dns_is_enabled": {},
+  "backend.diagnostic.mihomo_executable_is_available_at_s": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.mihomo_executable_s_is_unavailable_install_it_or_set_nagi_mihomo_bin_to_a_u": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.mihomo_pid_exists_but_its_unix_socket_api_is_unavailable_inspect_nagi_logs_": {},
+  "backend.diagnostic.mihomo_unix_socket_api_responds_proxy_connectivity_was_not_checked": {},
+  "backend.diagnostic.nagi_pid_file_is_invalid_inspect_runtime_files_and_nagi_status": {},
+  "backend.diagnostic.name.config_directory": {},
+  "backend.diagnostic.name.config_permissions": {},
+  "backend.diagnostic.name.configuration": {},
+  "backend.diagnostic.name.control_api": {},
+  "backend.diagnostic.name.controller_exposure": {},
+  "backend.diagnostic.name.data_directory": {},
+  "backend.diagnostic.name.dns": {},
+  "backend.diagnostic.name.listener_exposure": {},
+  "backend.diagnostic.name.mihomo_executable": {},
+  "backend.diagnostic.name.process": {},
+  "backend.diagnostic.name.runtime_directory": {},
+  "backend.diagnostic.name.runtime_permissions": {},
+  "backend.diagnostic.name.selected_profile": {},
+  "backend.diagnostic.name.socket_permissions": {},
+  "backend.diagnostic.name.state_directory": {},
+  "backend.diagnostic.no_control_socket_is_present_start_mihomo_to_check_api_reachability": {},
+  "backend.diagnostic.no_nagi_pid_file_is_present_mihomo_appears_stopped_run_nagi_start_when_read": {},
+  "backend.diagnostic.no_non_loopback_external_controller_exposure_was_reported": {},
+  "backend.diagnostic.owner_only_permissions_are_set": {},
+  "backend.diagnostic.pid_d_exists_process_identity_is_not_verified": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.pid_d_is_stale_inspect_nagi_logs_and_nagi_status": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.privileged_mihomo_is_stopped_run_nagi_start_when_ready": {},
+  "backend.diagnostic.privileged_mihomo_pid_d_is_reported_by_the_helper": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.proxy_listeners_are_configured_for_local_access": {},
+  "backend.diagnostic.s_does_not_exist_yet_run_nagi_start_after_configuring_mihomo": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.s_is_accessible_to_group_or_other_users_restrict_it_to_owner_permissions": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.s_is_available": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.s_is_not_a_directory_move_the_conflicting_file_and_retry": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.s_lacks_owner_read_or_search_permission_fix_its_permissions": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.selected_profile_s_cannot_be_read_check_its_file_and_permissions": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.selected_profile_s_is_missing_import_it_with_nagi_profile_import_s_file_or_": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "backend.diagnostic.selected_profile_s_is_readable": {
+    "arg0": "string"
+  },
+  "backend.diagnostic.selected_profile_setting_is_unreadable_or_invalid_inspect_settings_yaml_and": {},
+  "backend.diagnostic.unix_control_socket_is_accessible_beyond_the_owner_restart_nagi_after_fixin": {},
+  "backend.diagnostic.unix_control_socket_is_owner_only": {},
+  "backend.diagnostic.unix_socket_api_is_unavailable_start_mihomo_to_check_it": {},
+  "backend.proxy.ambiguous_node_ownership": {},
+  "backend.proxy.cannot_read_proxy_providers_from_mihomo": {},
+  "backend.proxy.cannot_resolve_proxy_node_ownership": {},
+  "backend.proxy.connection_id_required": {},
+  "backend.proxy.connection_not_found_run_nagi_connections_list_to_see_current_ids": {},
+  "backend.proxy.effective_profile_is_invalid_yaml": {},
+  "backend.proxy.effective_profile_unavailable_inspect_the_selected_profile_before_testing": {},
+  "backend.proxy.effective_profile_unavailable_inspect_the_selected_profile_or_supply_explicit_ur": {},
+  "backend.proxy.group_contains_a_node_with_ambiguous_ownership_test_a_specific_provider_node_ins": {},
+  "backend.proxy.group_is_not_automatic_choose_a_urltest_or_fallback_group": {},
+  "backend.proxy.group_missing_from_effective_profile": {},
+  "backend.proxy.invalid_mode_q": {
+    "arg0": "string"
+  },
+  "backend.proxy.invalid_saved_proxy_selections": {},
+  "backend.proxy.latency_test_completed_but_its_configured_availability_result_could_not_be_verif": {},
+  "backend.proxy.latency_test_failed_the_configured_availability_check": {},
+  "backend.proxy.latency_test_requires_an_individual_proxy_node": {},
+  "backend.proxy.mihomo_control_client_does_not_support_configuration_updates": {},
+  "backend.proxy.mihomo_control_client_does_not_support_delete": {},
+  "backend.proxy.mihomo_control_client_does_not_support_deleting_connections": {},
+  "backend.proxy.mihomo_returned_an_invalid_mode": {},
+  "backend.proxy.node_is_unavailable_or_was_removed_from_the_proxy_group_run_nagi_proxy_show_grou": {},
+  "backend.proxy.node_ownership_unavailable_or_ambiguous": {},
+  "backend.proxy.node_unavailable_or_ownership_ambiguous_inspect_the_group_or_provider_before_tes": {},
+  "backend.proxy.profile_group_and_node_required": {},
+  "backend.proxy.provider_missing_from_effective_profile": {},
+  "backend.proxy.proxy_control_client_unavailable": {},
+  "backend.proxy.proxy_group_and_node_required": {},
+  "backend.proxy.proxy_group_not_found": {},
+  "backend.proxy.proxy_group_required": {},
+  "backend.proxy.proxy_node_belongs_to_multiple_providers_choose_a_unique_node_name": {},
+  "backend.proxy.proxy_node_required": {},
+  "backend.proxy.proxy_provider_healthcheck_failed_inspect_mihomo_logs": {},
+  "backend.proxy.proxy_provider_not_found_run_nagi_proxy_providers": {},
+  "backend.proxy.proxy_provider_update_failed_inspect_mihomo_logs": {},
+  "backend.proxy.saved_proxy_selections_could_not_be_applied_s_check_nagi_proxy_groups_and_retry_": {
+    "arg0": "string"
+  },
+  "backend.proxy.timeout_must_be_an_integer_from_1_to_30000_milliseconds": {},
+  "backend.proxy.url_must_be_an_absolute_http_s_url_without_userinfo": {},
+  "backend.rewrite.recovery.build_engine": {},
+  "backend.runtime.could_not_create_tailscale_state_directory": {},
+  "backend.runtime.could_not_open_tailscale_state_root": {},
+  "backend.runtime.could_not_secure_tailscale_state_directory": {},
+  "backend.runtime.incomplete_runtime_paths": {},
+  "backend.runtime.tailscale_state_directory_has_unexpected_ownership": {},
+  "backend.runtime.tailscale_state_root_must_be_absolute": {},
+  "backend.runtime.unsafe_tailscale_state_directory": {},
+  "backend.runtimecontrol.invalid_mode_in_selected_profile_q": {
+    "arg0": "string"
+  },
+  "backend.runtimecontrol.mode_must_be_rule_global_or_direct": {},
+  "backend.runtimecontrol.selected_profile_is_invalid_yaml": {},
+  "backend.runtimecontrol.selected_profile_must_be_a_yaml_mapping": {}
+}

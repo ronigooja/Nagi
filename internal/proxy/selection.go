@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -33,7 +33,7 @@ func (s SelectionStore) ApplyDefaults(profile string, data []byte) ([]byte, bool
 	}
 	var doc map[string]any
 	if err := yaml.Unmarshal(data, &doc); err != nil || doc == nil {
-		return nil, false, errors.New("effective profile is invalid YAML")
+		return nil, false, i18n.Errorf("backend.proxy.effective_profile_is_invalid_yaml", "effective profile is invalid YAML")
 	}
 	groups, _ := doc["proxy-groups"].([]any)
 	changed := false
@@ -98,7 +98,7 @@ func (s SelectionStore) read() (map[string]map[string]string, error) {
 	}
 	var all map[string]map[string]string
 	if err := json.Unmarshal(data, &all); err != nil {
-		return nil, errors.New("invalid saved proxy selections")
+		return nil, i18n.Errorf("backend.proxy.invalid_saved_proxy_selections", "invalid saved proxy selections")
 	}
 	if all == nil {
 		all = map[string]map[string]string{}
@@ -107,7 +107,7 @@ func (s SelectionStore) read() (map[string]map[string]string, error) {
 }
 func (s SelectionStore) Save(profile, group, node string) error {
 	if profile == "" || group == "" || node == "" {
-		return errors.New("profile, group, and node required")
+		return i18n.Errorf("backend.proxy.profile_group_and_node_required", "profile, group, and node required")
 	}
 	all, err := s.read()
 	if err != nil {
@@ -264,7 +264,7 @@ func (s SelectionStore) Restore(ctx context.Context, profile string, service *Se
 		result.Restored = append(result.Restored, group+" -> "+node)
 	}
 	if len(result.Failed) > 0 {
-		return result, fmt.Errorf("saved proxy selections could not be applied (%s); check `nagi proxy groups` and retry `nagi proxy restore`", strings.Join(result.Failed, ", "))
+		return result, i18n.Errorf("backend.proxy.saved_proxy_selections_could_not_be_applied_s_check_nagi_proxy_groups_and_retry_", "saved proxy selections could not be applied (%s); check `nagi proxy groups` and retry `nagi proxy restore`", strings.Join(result.Failed, ", "))
 	}
 	return result, nil
 }

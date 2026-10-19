@@ -2,7 +2,7 @@
 package runtime
 
 import (
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -63,7 +63,7 @@ func xdg(key, fallback string) string {
 
 func (p Paths) EnsureRuntime() error {
 	if p.RuntimeDir == "" || p.SocketPath == "" || p.PIDPath == "" || p.LockPath == "" || p.LogPath == "" {
-		return fmt.Errorf("incomplete runtime paths")
+		return i18n.Errorf("backend.runtime.incomplete_runtime_paths", "incomplete runtime paths")
 	}
 	for _, dir := range []string{p.RuntimeDir, filepath.Dir(p.LogPath)} {
 		if err := os.MkdirAll(dir, 0700); err != nil {

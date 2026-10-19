@@ -3,7 +3,7 @@ package proxy
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net/url"
 	"sort"
 )
@@ -22,7 +22,7 @@ type Provider struct {
 
 func (s *Service) Providers(ctx context.Context) ([]Provider, error) {
 	if s == nil || s.Client == nil {
-		return nil, errors.New("proxy control client unavailable")
+		return nil, i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	var response struct {
 		Providers map[string]struct {
@@ -35,7 +35,7 @@ func (s *Service) Providers(ctx context.Context) ([]Provider, error) {
 		} `json:"providers"`
 	}
 	if err := s.Client.Get(ctx, "/providers/proxies", &response); err != nil {
-		return nil, errors.New("cannot read proxy providers from mihomo")
+		return nil, i18n.Errorf("backend.proxy.cannot_read_proxy_providers_from_mihomo", "cannot read proxy providers from mihomo")
 	}
 	result := make([]Provider, 0, len(response.Providers))
 	for name, raw := range response.Providers {
@@ -72,7 +72,7 @@ func (s *Service) Provider(ctx context.Context, name string) (Provider, error) {
 			return provider, nil
 		}
 	}
-	return Provider{}, errors.New("proxy provider not found; run `nagi proxy providers`")
+	return Provider{}, i18n.Errorf("backend.proxy.proxy_provider_not_found_run_nagi_proxy_providers", "proxy provider not found; run `nagi proxy providers`")
 }
 
 func (s *Service) providerForNode(ctx context.Context, node string) (string, bool, error) {
@@ -95,13 +95,13 @@ func (s *Service) providerForNode(ctx context.Context, node string) (string, boo
 		Proxies map[string]json.RawMessage `json:"proxies"`
 	}
 	if err := s.Client.Get(ctx, "/proxies", &top); err != nil {
-		return "", false, errors.New("cannot resolve proxy node ownership")
+		return "", false, i18n.Errorf("backend.proxy.cannot_resolve_proxy_node_ownership", "cannot resolve proxy node ownership")
 	}
 	if _, ok := top.Proxies[node]; ok {
 		return "", false, nil
 	}
 	if len(matches) > 1 {
-		return "", false, errors.New("proxy node belongs to multiple providers; choose a unique node name")
+		return "", false, i18n.Errorf("backend.proxy.proxy_node_belongs_to_multiple_providers_choose_a_unique_node_name", "proxy node belongs to multiple providers; choose a unique node name")
 	}
 	return matches[0], true, nil
 }
@@ -111,7 +111,7 @@ func (s *Service) ProviderUpdate(ctx context.Context, name string) error {
 		return err
 	}
 	if err := s.Client.Put(ctx, "/providers/proxies/"+url.PathEscape(name), nil, nil); err != nil {
-		return errors.New("proxy provider update failed; inspect mihomo logs")
+		return i18n.Errorf("backend.proxy.proxy_provider_update_failed_inspect_mihomo_logs", "proxy provider update failed; inspect mihomo logs")
 	}
 	return nil
 }
@@ -121,7 +121,7 @@ func (s *Service) ProviderHealthcheck(ctx context.Context, name string) error {
 		return err
 	}
 	if err := s.Client.Get(ctx, "/providers/proxies/"+url.PathEscape(name)+"/healthcheck", nil); err != nil {
-		return errors.New("proxy provider healthcheck failed; inspect mihomo logs")
+		return i18n.Errorf("backend.proxy.proxy_provider_healthcheck_failed_inspect_mihomo_logs", "proxy provider healthcheck failed; inspect mihomo logs")
 	}
 	return nil
 }

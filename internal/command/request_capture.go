@@ -22,7 +22,7 @@ type captureInputKey struct{}
 type captureOutputKey struct{}
 
 func captureFailure(code string) error {
-	return fail("capture_error", messageError("cli.error.request_capture.s_run_nagi_rewrite_capture_status", "%s; run `nagi rewrite capture status`", code))
+	return &operationReason{code: code, cause: fail("capture_error", messageError("cli.error.request_capture.s_run_nagi_rewrite_capture_status", "%s; run `nagi rewrite capture status`", code))}
 }
 func validateCaptureArguments(o rewriteArguments) error {
 	if o.profile != "" {

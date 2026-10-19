@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"context"
-	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net/url"
 	"sort"
 	"strconv"
@@ -98,7 +98,7 @@ func (s *Service) conditions(kind, name string) (checkConfig, error) {
 }
 func (s *Service) GroupTestConditions(name string) (string, int, error) {
 	if s.requireConfig && s.config == nil {
-		return "", 0, errors.New("effective profile unavailable; inspect the selected profile or supply explicit URL and timeout")
+		return "", 0, i18n.Errorf("backend.proxy.effective_profile_unavailable_inspect_the_selected_profile_or_supply_explicit_ur", "effective profile unavailable; inspect the selected profile or supply explicit URL and timeout")
 	}
 	c, e := s.conditions("group", name)
 	return c.URL, int(c.Timeout), e
@@ -107,15 +107,15 @@ func (s *Service) GroupTestConditions(name string) (string, int, error) {
 // TestNode resolves identity before sending a native measurement request.
 func (s *Service) TestNode(ctx context.Context, kind, owner, name string) (DelayResult, error) {
 	if s.config == nil {
-		return DelayResult{}, errors.New("effective profile unavailable; inspect the selected profile before testing")
+		return DelayResult{}, i18n.Errorf("backend.proxy.effective_profile_unavailable_inspect_the_selected_profile_before_testing", "effective profile unavailable; inspect the selected profile before testing")
 	}
 	if kind == "group" {
 		if _, ok := s.groupConfig(owner); !ok {
-			return DelayResult{}, errors.New("group missing from effective profile")
+			return DelayResult{}, i18n.Errorf("backend.proxy.group_missing_from_effective_profile", "group missing from effective profile")
 		}
 	} else {
 		if _, ok := s.config.Providers[owner]; !ok {
-			return DelayResult{}, errors.New("provider missing from effective profile")
+			return DelayResult{}, i18n.Errorf("backend.proxy.provider_missing_from_effective_profile", "provider missing from effective profile")
 		}
 	}
 	var p proxyHistory
@@ -129,7 +129,7 @@ func (s *Service) TestNode(ctx context.Context, kind, owner, name string) (Delay
 		for _, n := range r.providerNodes(ctx, s)[owner] {
 			if n.Name == name {
 				if ok {
-					return DelayResult{}, errors.New("ambiguous node ownership")
+					return DelayResult{}, i18n.Errorf("backend.proxy.ambiguous_node_ownership", "ambiguous node ownership")
 				}
 				p = n
 				ok = true
@@ -139,7 +139,7 @@ func (s *Service) TestNode(ctx context.Context, kind, owner, name string) (Delay
 	} else {
 		g, exists := r.top[owner]
 		if !exists || len(g.All) == 0 {
-			return DelayResult{}, errors.New("proxy group not found")
+			return DelayResult{}, i18n.Errorf("backend.proxy.proxy_group_not_found", "proxy group not found")
 		}
 		member := false
 		for _, n := range g.All {
@@ -152,10 +152,10 @@ func (s *Service) TestNode(ctx context.Context, kind, owner, name string) (Delay
 		}
 	}
 	if !ok {
-		return DelayResult{}, errors.New("node unavailable or ownership ambiguous; inspect the group or provider before testing")
+		return DelayResult{}, i18n.Errorf("backend.proxy.node_unavailable_or_ownership_ambiguous_inspect_the_group_or_provider_before_tes", "node unavailable or ownership ambiguous; inspect the group or provider before testing")
 	}
 	if scopedNodeKind(name, p, provider) != "node" {
-		return DelayResult{}, errors.New("latency test requires an individual proxy node")
+		return DelayResult{}, i18n.Errorf("backend.proxy.latency_test_requires_an_individual_proxy_node", "latency test requires an individual proxy node")
 	}
 	c, err := s.conditions(kind, owner)
 	if err != nil {
@@ -186,7 +186,7 @@ func (s *Service) delayResolved(ctx context.Context, name, provider string, c ch
 		fresh := latestURLTime(after, c.URL).After(latestURLTime(before, c.URL)) && !latestURLTime(after, c.URL).Before(started.Add(-time.Second))
 		if readErr == nil && exists && fresh && state.Alive != nil {
 			if !*state.Alive {
-				return result, errors.New("latency test failed the configured availability check")
+				return result, i18n.Errorf("backend.proxy.latency_test_failed_the_configured_availability_check", "latency test failed the configured availability check")
 			}
 			if len(state.History) > 0 {
 				result.DelayMS = state.History[len(state.History)-1].Delay
@@ -196,7 +196,7 @@ func (s *Service) delayResolved(ctx context.Context, name, provider string, c ch
 		if err != nil {
 			return result, err
 		}
-		return result, errors.New("latency test completed but its configured availability result could not be verified")
+		return result, i18n.Errorf("backend.proxy.latency_test_completed_but_its_configured_availability_result_could_not_be_verif", "latency test completed but its configured availability result could not be verified")
 	}
 
 	result.DelayMS = response.Delay
@@ -232,7 +232,7 @@ func (s *Service) scopedHistory(ctx context.Context, name, provider string) (pro
 		}
 	}
 	if count != 1 {
-		return after, errors.New("node ownership unavailable or ambiguous")
+		return after, i18n.Errorf("backend.proxy.node_ownership_unavailable_or_ambiguous", "node ownership unavailable or ambiguous")
 	}
 	return after, nil
 }

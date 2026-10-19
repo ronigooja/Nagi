@@ -3,7 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net/url"
 	"sort"
 	"strconv"
@@ -54,10 +54,10 @@ type Connection struct {
 func (s *Service) Connection(ctx context.Context, id string) (Connection, error) {
 	var result Connection
 	if s == nil || s.Client == nil {
-		return result, errors.New("proxy control client unavailable")
+		return result, i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	if strings.TrimSpace(id) == "" {
-		return result, errors.New("connection ID required")
+		return result, i18n.Errorf("backend.proxy.connection_id_required", "connection ID required")
 	}
 	connections, err := s.Connections(ctx)
 	if err != nil {
@@ -68,7 +68,7 @@ func (s *Service) Connection(ctx context.Context, id string) (Connection, error)
 			return connection, nil
 		}
 	}
-	return result, errors.New("connection not found; run `nagi connections list` to see current IDs")
+	return result, i18n.Errorf("backend.proxy.connection_not_found_run_nagi_connections_list_to_see_current_ids", "connection not found; run `nagi connections list` to see current IDs")
 }
 
 type DelayResult struct {
@@ -127,7 +127,7 @@ func (s *Service) DelaysKnown(ctx context.Context, g Group, target string, timeo
 		for _, name := range g.All {
 			p, provider, ok := reader.resolve(ctx, s, g.Name, name)
 			if !ok {
-				return result, DelayNotSent, errors.New("group contains a node with ambiguous ownership; test a specific provider node instead")
+				return result, DelayNotSent, i18n.Errorf("backend.proxy.group_contains_a_node_with_ambiguous_ownership_test_a_specific_provider_node_ins", "group contains a node with ambiguous ownership; test a specific provider node instead")
 			}
 			kind := scopedNodeKind(name, p, provider)
 			if kind == "builtin" && (name == "REJECT" || name == "REJECT-DROP") {
@@ -215,10 +215,10 @@ func (s *Service) Search(ctx context.Context, query string) ([]Group, error) {
 func (s *Service) Delay(ctx context.Context, name, target string, timeoutMS int) (DelayResult, error) {
 	var result DelayResult
 	if s == nil || s.Client == nil {
-		return result, errors.New("proxy control client unavailable")
+		return result, i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	if strings.TrimSpace(name) == "" {
-		return result, errors.New("proxy node required")
+		return result, i18n.Errorf("backend.proxy.proxy_node_required", "proxy node required")
 	}
 	if err := validateDelay(target, timeoutMS); err != nil {
 		return result, err
@@ -234,10 +234,10 @@ func (s *Service) Delay(ctx context.Context, name, target string, timeoutMS int)
 func validateDelay(target string, timeoutMS int) error {
 	parsed, err := url.Parse(target)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
-		return errors.New("URL must be an absolute HTTP(S) URL without userinfo")
+		return i18n.Errorf("backend.proxy.url_must_be_an_absolute_http_s_url_without_userinfo", "URL must be an absolute HTTP(S) URL without userinfo")
 	}
 	if timeoutMS < 1 || timeoutMS > 30000 {
-		return errors.New("timeout must be an integer from 1 to 30000 milliseconds")
+		return i18n.Errorf("backend.proxy.timeout_must_be_an_integer_from_1_to_30000_milliseconds", "timeout must be an integer from 1 to 30000 milliseconds")
 	}
 	return nil
 }
@@ -257,13 +257,13 @@ func (s *Service) Auto(ctx context.Context, group string) error {
 		return err
 	}
 	if g.Type != "URLTest" && g.Type != "Fallback" {
-		return errors.New("group is not automatic; choose a URLTest or Fallback group")
+		return i18n.Errorf("backend.proxy.group_is_not_automatic_choose_a_urltest_or_fallback_group", "group is not automatic; choose a URLTest or Fallback group")
 	}
 	c, ok := s.Client.(interface {
 		Delete(context.Context, string, any) error
 	})
 	if !ok {
-		return errors.New("mihomo control client does not support DELETE")
+		return i18n.Errorf("backend.proxy.mihomo_control_client_does_not_support_delete", "mihomo control client does not support DELETE")
 	}
 	return c.Delete(ctx, "/proxies/"+url.PathEscape(group), nil)
 }
@@ -272,7 +272,7 @@ func (s *Service) Groups(ctx context.Context) ([]Group, error)      { return s.g
 func (s *Service) GroupsState(ctx context.Context) ([]Group, error) { return s.groups(ctx, false) }
 func (s *Service) groups(ctx context.Context, delays bool) ([]Group, error) {
 	if s == nil || s.Client == nil {
-		return nil, errors.New("proxy control client unavailable")
+		return nil, i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	reader, err := s.historyReader(ctx)
 	if err != nil {
@@ -320,10 +320,10 @@ func (s *Service) ShowState(ctx context.Context, group string) (Group, error) {
 func (s *Service) show(ctx context.Context, group string, delays bool) (Group, error) {
 	var result Group
 	if s == nil || s.Client == nil {
-		return result, errors.New("proxy control client unavailable")
+		return result, i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	if group == "" {
-		return result, errors.New("proxy group required")
+		return result, i18n.Errorf("backend.proxy.proxy_group_required", "proxy group required")
 	}
 	var raw struct {
 		Group
@@ -367,7 +367,7 @@ func selectedStatus(g Group) string {
 
 func (s *Service) Select(ctx context.Context, group, node string) error {
 	if node == "" {
-		return errors.New("proxy node required")
+		return i18n.Errorf("backend.proxy.proxy_node_required", "proxy node required")
 	}
 	g, err := s.ShowState(ctx, group)
 	if err != nil {
@@ -399,10 +399,10 @@ func (s *Service) SelectKnown(ctx context.Context, g Group, node string) (bool, 
 
 func (s *Service) selectKnown(ctx context.Context, g Group, node string, skipCurrent bool) (bool, error) {
 	if s == nil || s.Client == nil {
-		return false, errors.New("proxy control client unavailable")
+		return false, i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	if g.Name == "" || node == "" {
-		return false, errors.New("proxy group and node required")
+		return false, i18n.Errorf("backend.proxy.proxy_group_and_node_required", "proxy group and node required")
 	}
 	found := false
 	for _, candidate := range g.All {
@@ -412,7 +412,7 @@ func (s *Service) selectKnown(ctx context.Context, g Group, node string, skipCur
 		}
 	}
 	if !found {
-		return false, errors.New("node is unavailable or was removed from the proxy group; run `nagi proxy show GROUP` to see current nodes")
+		return false, i18n.Errorf("backend.proxy.node_is_unavailable_or_was_removed_from_the_proxy_group_run_nagi_proxy_show_grou", "node is unavailable or was removed from the proxy group; run `nagi proxy show GROUP` to see current nodes")
 	}
 	if skipCurrent && g.LiveSelection() == node {
 		return false, nil
@@ -425,7 +425,7 @@ func (s *Service) selectKnown(ctx context.Context, g Group, node string, skipCur
 
 func (s *Service) Connections(ctx context.Context) ([]Connection, error) {
 	if s == nil || s.Client == nil {
-		return nil, errors.New("proxy control client unavailable")
+		return nil, i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	var response struct {
 		Connections []Connection `json:"connections"`
@@ -441,16 +441,16 @@ func (s *Service) Connections(ctx context.Context) ([]Connection, error) {
 
 func (s *Service) Close(ctx context.Context, id string) error {
 	if s == nil || s.Client == nil {
-		return errors.New("proxy control client unavailable")
+		return i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	if strings.TrimSpace(id) == "" {
-		return errors.New("connection ID required")
+		return i18n.Errorf("backend.proxy.connection_id_required", "connection ID required")
 	}
 	c, ok := s.Client.(interface {
 		Delete(context.Context, string, any) error
 	})
 	if !ok {
-		return errors.New("mihomo control client does not support deleting connections")
+		return i18n.Errorf("backend.proxy.mihomo_control_client_does_not_support_deleting_connections", "mihomo control client does not support deleting connections")
 	}
 	path := "/connections/" + url.PathEscape(id)
 	return c.Delete(ctx, path, nil)
@@ -458,20 +458,20 @@ func (s *Service) Close(ctx context.Context, id string) error {
 
 func (s *Service) CloseAll(ctx context.Context) error {
 	if s == nil || s.Client == nil {
-		return errors.New("proxy control client unavailable")
+		return i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	c, ok := s.Client.(interface {
 		Delete(context.Context, string, any) error
 	})
 	if !ok {
-		return errors.New("mihomo control client does not support deleting connections")
+		return i18n.Errorf("backend.proxy.mihomo_control_client_does_not_support_deleting_connections", "mihomo control client does not support deleting connections")
 	}
 	return c.Delete(ctx, "/connections", nil)
 }
 
 func (s *Service) Mode(ctx context.Context, mode *string) (map[string]any, error) {
 	if s == nil || s.Client == nil {
-		return nil, errors.New("proxy control client unavailable")
+		return nil, i18n.Errorf("backend.proxy.proxy_control_client_unavailable", "proxy control client unavailable")
 	}
 	if mode == nil {
 		var cfg map[string]any
@@ -480,18 +480,18 @@ func (s *Service) Mode(ctx context.Context, mode *string) (map[string]any, error
 		}
 		value, _ := cfg["mode"].(string)
 		if value != "rule" && value != "global" && value != "direct" {
-			return nil, errors.New("mihomo returned an invalid mode")
+			return nil, i18n.Errorf("backend.proxy.mihomo_returned_an_invalid_mode", "mihomo returned an invalid mode")
 		}
 		return map[string]any{"mode": value}, nil
 	}
 	if _, ok := map[string]bool{"rule": true, "global": true, "direct": true}[*mode]; !ok {
-		return nil, fmt.Errorf("invalid mode %q", *mode)
+		return nil, i18n.Errorf("backend.proxy.invalid_mode_q", "invalid mode %q", *mode)
 	}
 	c, ok := s.Client.(interface {
 		Patch(context.Context, string, any, any) error
 	})
 	if !ok {
-		return nil, errors.New("mihomo control client does not support configuration updates")
+		return nil, i18n.Errorf("backend.proxy.mihomo_control_client_does_not_support_configuration_updates", "mihomo control client does not support configuration updates")
 	}
 	if err := c.Patch(ctx, "/configs", map[string]string{"mode": *mode}, nil); err != nil {
 		return nil, err

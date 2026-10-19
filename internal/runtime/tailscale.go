@@ -3,7 +3,7 @@ package runtime
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
@@ -32,11 +32,11 @@ func TailscaleStatePath(root, profile, node, controlURL string) (string, error) 
 	path := TailscaleStateName(root, profile, node, controlURL)
 
 	if !filepath.IsAbs(path) {
-		return "", errors.New("Tailscale state root must be absolute")
+		return "", i18n.Errorf("backend.runtime.tailscale_state_root_must_be_absolute", "Tailscale state root must be absolute")
 	}
 	fd, err := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return "", errors.New("could not open Tailscale state root")
+		return "", i18n.Errorf("backend.runtime.could_not_open_tailscale_state_root", "could not open Tailscale state root")
 	}
 	defer func() { _ = unix.Close(fd) }()
 	current := string(filepath.Separator)
@@ -45,22 +45,22 @@ func TailscaleStatePath(root, profile, node, controlURL string) (string, error) 
 		next, e := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if e == unix.ENOENT {
 			if e = unix.Mkdirat(fd, part, 0700); e != nil {
-				return "", errors.New("could not create Tailscale state directory")
+				return "", i18n.Errorf("backend.runtime.could_not_create_tailscale_state_directory", "could not create Tailscale state directory")
 			}
 			next, e = unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		}
 		if e != nil {
-			return "", errors.New("unsafe Tailscale state directory")
+			return "", i18n.Errorf("backend.runtime.unsafe_tailscale_state_directory", "unsafe Tailscale state directory")
 		}
 		_ = unix.Close(fd)
 		fd = next
 		if current == root || current == filepath.Join(root, ".tailscale-state") || current == path {
 			var stat unix.Stat_t
 			if unix.Fstat(fd, &stat) != nil || stat.Uid != uint32(os.Geteuid()) {
-				return "", errors.New("Tailscale state directory has unexpected ownership")
+				return "", i18n.Errorf("backend.runtime.tailscale_state_directory_has_unexpected_ownership", "Tailscale state directory has unexpected ownership")
 			}
 			if unix.Fchmod(fd, 0700) != nil {
-				return "", errors.New("could not secure Tailscale state directory")
+				return "", i18n.Errorf("backend.runtime.could_not_secure_tailscale_state_directory", "could not secure Tailscale state directory")
 			}
 		}
 	}
