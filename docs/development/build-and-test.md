@@ -45,7 +45,7 @@ The tag-triggered [release workflow](../../.github/workflows/release.yml) runs r
 
 `make release` cross compiles Nagi and mihomo into `dist/linux-amd64`, `dist/linux-arm64`, `dist/darwin-amd64`, and `dist/darwin-arm64`, then creates the fixed-name archives and `dist/SHA256SUMS` consumed by the online installer. On macOS it also uses `lipo` to make `dist/darwin-universal`. Set `APPLE_SIGN_IDENTITY` to sign both universal executables only when signing is desired; signing is not required for release packaging. With a configured notarytool keychain profile, set `APPLE_NOTARY_PROFILE` to zip and notarize them only when that distribution path is desired. Run `make build app` before `make release` to include the unsigned App in the archive matching the host architecture. Versioning, tag checks, artifact review, and release notes are defined in [Release process](release.md).
 
-The current lock points at a commit available on the configured fork's `main` branch and includes the `--check-json`, restricted configuration policy, activation ID, age decryption, `dns.resolve-proxy-destinations`, destination rule testing, and restricted Tailscale state/lifecycle and request-rewrite v2 interfaces used by Nagi. Publish engine changes to the declared repository and ref before updating `engine.lock`, then verify the pinned commit is reachable from a fresh fetch of that ref. A successful build with `MIHOMO_DIR` alone does not establish remote availability. A dedicated `nagi/meta` branch and upstream synchronization policy in the original plan have not yet been established in the mihomo repository.
+The current lock points at a commit available on the configured fork's `nagi/request-capture` branch and includes the `--check-json`, restricted configuration policy, activation ID, age decryption, `dns.resolve-proxy-destinations`, destination rule testing, restricted Tailscale state/lifecycle, request-rewrite v2 and capture protocol 1 interfaces used by Nagi. Publish engine changes to the declared repository and ref before updating `engine.lock`, then verify the pinned commit is reachable from a fresh fetch of that ref. A successful build with `MIHOMO_DIR` alone does not establish remote availability. A dedicated `nagi/meta` branch and upstream synchronization policy in the original plan have not yet been established in the mihomo repository.
 
 ## Rule test acceptance
 
@@ -114,7 +114,7 @@ The matching engine shares identical node measurements across group schedulers a
 
 ## Private request rewrite service
 
-The private service requires Go 1.24.0 or newer, goproxy v1.9.2, coder/websocket v1.8.14, Brotli v1.1.1, klauspost/compress v1.17.9 and wazero v1.10.1. The [fixed QuickJS/WASM artifact](rewrite-script-guest.md) builds reproducibly with its pinned source/toolchain and licenses; ordinary Go builds embed it without downloading a compiler. The shared `scripts/build.sh` check applies to CLI and release builds; `go.mod`/`go.sum` lock transitive versions. `go mod verify` checks the downloaded module contents. The public CLI, lifecycle coordinator and platform trust interfaces are implemented. Terminal menu forms are implemented and verified on Linux. Native macOS controls have a source implementation, with Swift build/tests, packaging and native trust/TUN/UI acceptance unverified. The [verification matrix](request-rewrite-acceptance.md) records the combined checks and remaining release gates.
+The private service requires Go 1.24.0 or newer, goproxy v1.9.2, coder/websocket v1.8.14, Brotli v1.1.1, klauspost/compress v1.17.9 and wazero v1.10.1. The [fixed QuickJS/WASM artifact](rewrite-script-guest.md) builds reproducibly with its pinned source/toolchain and licenses; ordinary Go builds embed it without downloading a compiler. The shared `scripts/build.sh` check applies to CLI and release builds; `go.mod`/`go.sum` lock transitive versions. `go mod verify` checks the downloaded module contents. The public CLI, lifecycle coordinator and platform trust interfaces are implemented. Terminal menu forms are implemented and verified on Linux. Native macOS controls passed Swift tests, release compilation and App packaging; platform trust, TUN and interactive acceptance have separate gates. The [verification matrix](request-rewrite-acceptance.md) records the combined checks and remaining release gates.
 
 Run focused race checks with an isolated test environment:
 
@@ -125,7 +125,7 @@ go mod verify
 
 The child fixture exercises a real subprocess under an ordinary UID. On Linux when tests run as root, it drops the fixture to UID/GID 65534; the production root-child guard remains enabled. All CA material and sockets are throwaway and no OS trust is installed.
 
-For the opt-in real engine integration, supply a clean tracked checkout at reviewed commit `84369733b97b897a04a70e507183eda22e38e0c6`:
+For the opt-in real engine integration, supply a clean tracked checkout at reviewed commit `da88dc0d710f78a659bc36251b2ab18310aa4ebd`:
 
 ```sh
 GO=/path/to/go MIHOMO_DIR=/path/to/committed-engine ./scripts/test-request-rewrite-engine.sh
@@ -139,7 +139,7 @@ Native macOS peer-credential runtime behavior, real TUN/process capture, platfor
 
 ## Request rewrite coordinator
 
-The CLI/coordinator uses published mihomo commit `84369733b97b897a04a70e507183eda22e38e0c6`, including restricted immutable owner binding. `engine.lock` records this commit on `https://github.com/ronigooja/mihomo.git`, ref `main`. A fresh remote checkout and the matching locked build were verified on 2026-10-18. This publishes engine source, not Nagi release binaries: ordinary installation and `nagi update` require a matching Nagi release. Older engines return an actionable capability error for rewrite enable.
+The CLI/coordinator uses published mihomo commit `da88dc0d710f78a659bc36251b2ab18310aa4ebd`, including restricted immutable owner binding and capture protocol 1. `engine.lock` records this commit on `https://github.com/ronigooja/mihomo.git`, ref `nagi/request-capture`. A fresh remote checkout and the matching locked build were verified on 2026-10-18. This publishes engine source, not Nagi release binaries: ordinary installation and `nagi update` require a matching Nagi release. Older engines return an actionable capability error for rewrite or capture activation.
 
 Build the matching source pair through the locked path, without a local checkout override:
 

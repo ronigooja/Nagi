@@ -193,7 +193,9 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 	defer cancel()
 	runtimeDir := "/run"
 	if runtime.GOOS == "darwin" {
-		runtimeDir = "/private/var/run"
+		// /private/var/run is group-writable on macOS and deliberately
+		// rejected by the helper's root-controlled-ancestor requirement.
+		runtimeDir = "/private/var"
 	}
 	socketDir, err := os.MkdirTemp(runtimeDir, "nagi-native-")
 	if err != nil {

@@ -102,14 +102,17 @@ rewrite ledger. The current [capture design](../design/request-capture.md) and
 [user guide](../guides/request-capture.md) distinguish implemented behavior from
 platform acceptance. The capture engine source used for these checks is
 `da88dc0d710f78a659bc36251b2ab18310aa4ebd`; installation/update availability still
-requires a matching Nagi and engine release.
+requires a matching Nagi and engine release. This commit is published on the
+declared fork's `nagi/request-capture` branch. A fresh depth-one fetch confirmed
+the exact commit before advancing `engine.lock`; the default locked build without
+`MIHOMO_DIR` passed and reported this commit as `mihomo_commit`.
 
 | Layer | Evidence and limits |
 | --- | --- |
 | Terminal menu | `go test ./internal/menu` and `go test -race ./internal/menu` pass. Capture journeys cover private stdin scope, failed-form retention and EOF/cancel discard, observed/uncertain status and stop recovery, raw Authorization/Cookie/query/body display with minute timestamps and Enter pause, cursor batches and stale-read clearing, fixture/body access, archive allowlisting and versioned quick-rule save conflicts without automatic retry. |
 | CLI/runtime | Recorder, service, capture draft and command tests exercise bounded original records and body states, streaming archives, strict JSON/scope, reconciliation and uncertain-session recovery. Runtime integration evidence is supplied by the ordinary-UID coordinator fixture described below. |
 | Native App source | An isolated ARM64 macOS 14 checkout with Apple Swift 6.0.3 passed `swift test` (182 tests, zero failures) and `swift build -c release`. After the final RFC 6901 invalid-index correction, the focused 12-test capture-draft suite and release build passed again. Tests cover transport/stdin/raw values, window-owned session lifetime, cancellation, operation ordering, insertion/enable, exact matching, profile/version binding, incomplete originals, preview and save conflicts. These are automated source/model checks. |
-| Outstanding native acceptance | Actual OS TUN routing and process attribution, certificate trust and application stores, privileged-helper capture, real application HTTP/HTTPS and both WebSocket directions, interactive App behavior, sleep/wake and sustained resource measurement still require native acceptance. |
+| Outstanding native acceptance | macOS actual TUN/helper and app-bundle attribution, certificate trust and application stores, interactive App behavior, sleep/wake and sustained resource measurement still require native acceptance. Linux actual TUN/helper evidence is recorded below. |
 
 The native source checks used an isolated development checkout and touched no
 ordinary user services or traffic settings. The full test and final focused/release
@@ -136,3 +139,76 @@ it does not prove OS route installation, root-helper policy or application trust
 Run the [native and release gates](#native-and-release-gates), adding App and
 terminal capture start/scope/apps/list/show/body/clear/import/export/fixture and
 quick-rule preview/save journeys, before claiming platform delivery complete.
+
+### Integrated checks
+
+The integrated capture/menu/App source, including fixed-length body completion,
+bounded body allocation, live WebSocket parent retention and uncertain-state
+recovery controls, passed `go test ./...`, installer integration, and focused
+race checks for capture, requestrewriteservice, command and menu packages. The
+actual-engine coordinator fixture above passed again on this combined source.
+
+On ARM64 macOS 14.8.9 with Apple Swift 6.0.3, the integrated source passed all
+185 Swift tests (one explicit opt-in CLI test skipped), release compilation and
+`make build app`. An opt-in rerun of that skipped test against a real isolated
+CLI and imported fictitious archive passed: raw Authorization field selection,
+editable draft preparation, offline preview and atomic rule save through actual
+subprocess stdin. This is native model/CLI evidence; it does not establish
+interactive accessibility or live-network activation. Reproduce this offline
+flow on macOS with matching CLI and source fixture binaries:
+
+```sh
+python3 scripts/test-request-capture-native-ui.py \
+  /path/to/nagi /path/to/capture-engine-fixture macos/NagiApp --offline
+```
+
+The same harness's live variant explicitly adds a freshly generated isolated CA
+to the current user's login keychain, then removes its trust/certificate and
+verifies the fingerprint is absent during cleanup. Its initial SSH run was
+blocked by `SecTrustSettingsSetTrustSettings`: no interactive authorization was
+available. That run removed the temporary certificate and verified cleanup;
+trust acceptance remains pending an authorized local session. System Events
+reported UI automation disabled, so interactive menu-bar acceptance remains
+pending. No accessibility permission was changed by these checks.
+
+### Actual Linux TUN and root helper
+
+The integrated `scripts/test-request-capture-native-linux.sh` passed both
+capture-only and rewrite-coexistence variants in disposable network namespaces.
+It refuses the initial network namespace, creates an actual OS TUN, and runs a
+restricted root mihomo behind an isolated helper Unix socket. The helper checks
+the ordinary child's kernel peer UID, the trusted binary and source allowlist;
+the original source PID/path/UID is obtained from actual sockets. Only fictitious
+local origins and documentation-address routes are used. The recorder and rewrite
+service run as ordinary UID 65534. HTTPS trusts an isolated generated CA through
+the child process's certificate roots, without changing the host trust store.
+
+Verified cases: HTTP/HTTPS original credentials and bodies, both WebSocket
+directions with retained HTTP parent records, exact process inclusion/exclusion,
+unknown macOS bundle exclusion on Linux, revision updates, and paused capture.
+The coexistence variant additionally proves that existing rewrite rules still
+execute when capture is paused or its process scope excludes the request.
+These checks do not exercise the complete CLI supervisor or installed daemon;
+the separate coordinator fixture covers CLI lifecycle using synthetic TUN input.
+
+```sh
+NAGI_CAPTURE_NATIVE_ENGINE=/path/to/reviewed-mihomo GO=/path/to/go \
+  bash scripts/test-request-capture-native-linux.sh
+```
+
+The portable helper fixture was also attempted on native macOS. Its temporary
+socket must use root-controlled `/private/var`; `/private/var/run` is group
+writable on this host and correctly fails the helper's ancestor check. With the
+safe socket path, helper start reached the real TUN DNS prerequisite and rejected
+the fixture's disabled DNS with `TUN DNS requires running mihomo DNS enabled`.
+The macOS helper automatically manages network-service DNS during TUN startup;
+this test did not enable DNS takeover of ordinary services. The fixture uses a
+distinct `198.19.255.1/24` fake-IP range and only `198.51.100.1/32` routing. Its
+processes and temporary state were removed after failure; the test destination
+returned to the host's original default route. This is a recorded blocked
+acceptance attempt, not a macOS TUN/helper pass.
+
+Both older rewrite engine and coordinator scripts passed again against the
+published capture engine source. A preceding rerun failed because the build
+volume had no space available to its ordinary UID; the serial rerun after removal
+of old regenerable build-cache entries passed without source changes.
