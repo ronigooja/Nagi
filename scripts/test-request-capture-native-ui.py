@@ -29,6 +29,7 @@ runtime = root / "Library/Application Support/Nagi/runtime"
 public = root / "public.pem"
 fingerprint = None
 trusted = False
+completed = False
 
 def run(*args, data=None, raw=False):
     result = subprocess.run([cli] + ([] if raw else ["--json"]) + list(args),
@@ -53,7 +54,9 @@ try:
     config.write_text("mixed-port: 0\nlog-level: silent\nfind-process-mode: off\n"
         "tun: {enable: false}\ndns: {enable: false}\nrules: ['MATCH,DIRECT']\n")
     config.chmod(0o600)
-    run("profile", "import", "work", str(config))
+    profiles = run("profile", "list")
+    if "work" not in json.dumps(profiles):
+        run("profile", "import", "work", str(config))
     run("profile", "use", "work")
     if offline:
         # Deliberately imported fictitious content: this path proves native
@@ -94,7 +97,11 @@ try:
         trusted = True
         assert run("rewrite", "ca", "status")["trust"] == "trusted"
         run("start")
-        run("rewrite", "capture", "start")
+        try:
+            run("rewrite", "capture", "start")
+        except Exception:
+            print("Activation evidence:", json.dumps(run("rewrite", "status")), flush=True)
+            raise
         assert traffic()["rewrite"] == ""
         rows = []
         for _ in range(60):
@@ -119,12 +126,14 @@ try:
     print("Native Swift raw field -> editable draft -> offline preview -> atomic save passed" +
         (" (imported offline archive; no network activation)." if offline else
          " -> actual CLI activation -> changed real HTTP request (synthetic TUN)."))
+    completed = True
 finally:
     try:
         run("quit")
     except Exception:
         pass
-    if fingerprint:
+    retain = not completed and bool(os.environ.get("NAGI_CAPTURE_ACCEPTANCE_HOME"))
+    if fingerprint and not retain:
         # Remove trust even if add-trusted-cert failed after a partial mutation.
         subprocess.run(["/usr/bin/security", "remove-trusted-cert", str(public)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
@@ -133,4 +142,7 @@ finally:
         check = subprocess.run(["/usr/bin/security", "find-certificate", "-a", "-Z", str(keychain)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
         assert fingerprint.encode() not in check.stdout, "Fixture CA remained in login keychain"
-    shutil.rmtree(root)
+    if retain:
+        print("Retained owner-only fixture for explicit retry:", root, flush=True)
+    else:
+        shutil.rmtree(root)
