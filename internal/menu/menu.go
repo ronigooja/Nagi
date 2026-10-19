@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 
@@ -92,7 +93,9 @@ var rootEntries = []rootEntry{
 	{"advanced", "Settings & Maintenance"},
 }
 
-func RootPage() *Page {
+func RootPage() *Page { return rootPageForOS(runtime.GOOS) }
+
+func rootPageForOS(goos string) *Page {
 	return &Page{Title: "Nagi menu", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Context: statusSummary(s.Fetch(ctx, "status"))}
 		for _, entry := range rootEntries {
@@ -100,6 +103,15 @@ func RootPage() *Page {
 			factory := registered[entry.key]
 			if factory == nil {
 				continue
+			}
+			switch entry.key {
+			case "traffic":
+				entry.label = trafficTitleForOS(goos)
+				factory = func() *Page { return trafficPageForOS(goos) }
+			case "diagnostics":
+				factory = func() *Page { return diagnosticsPageForOS(goos) }
+			case "advanced":
+				factory = func() *Page { return advancedPageForOS(goos) }
 			}
 			view.Items = append(view.Items, Item{Label: entry.label, Next: factory})
 		}
