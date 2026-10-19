@@ -21,7 +21,8 @@ import (
 // buffer. The standard server and goproxy retain response and upgrade ownership.
 func serveHTTP1(ctx context.Context, conn net.Conn, handler http.Handler, scheme string) {
 	input, output := net.Pipe()
-	guard := &guardConn{Conn: conn, input: input, output: output, done: make(chan struct{})}
+	guard := &guardConn{Conn: conn, input: input, output: output, done: make(chan struct{}), closed: make(chan struct{})}
+	responses := make(chan chan struct{}, 1)
 	go func() {
 		defer close(guard.done)
 		defer output.Close()
@@ -53,12 +54,28 @@ func serveHTTP1(ctx context.Context, conn net.Conn, handler http.Handler, scheme
 			if req.URL.IsAbs() && (req.URL.Scheme != scheme || !sameAuthority(rawHost, req.URL.Host, scheme)) {
 				return
 			}
+			// The header deadline must not become an absolute lifetime for a
+			// request body or an upgraded stream. idleConn refreshes streaming
+			// read deadlines as bytes arrive.
+			conn.SetReadDeadline(time.Time{})
+			// Start the next-header idle clock only after this response ends.
+			// Reading ahead while a response is streaming makes an otherwise
+			// active connection look idle and cancels the response at one minute.
+			responseDone := make(chan struct{})
+			responses <- responseDone
 			if e = req.Write(output); e != nil {
 				return
 			}
 			if headerToken(req.Header, "Connection", "upgrade") {
 				_, _ = io.Copy(output, parser)
 				guard.Close()
+				return
+			}
+			select {
+			case <-responseDone:
+			case <-guard.closed:
+				return
+			case <-ctx.Done():
 				return
 			}
 			// Preserve all prefetched bytes, then discard parser layers instead of
@@ -76,7 +93,12 @@ func serveHTTP1(ctx context.Context, conn net.Conn, handler http.Handler, scheme
 		}
 	}()
 	listener := &singleListener{conn: guard, closed: make(chan struct{})}
-	server := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 64 << 10, ErrorLog: log.New(io.Discard, "", 0), BaseContext: func(net.Listener) context.Context { return ctx }}
+	responseHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		done := <-responses
+		defer close(done)
+		handler.ServeHTTP(w, r)
+	})
+	server := &http.Server{Handler: responseHandler, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 64 << 10, ErrorLog: log.New(io.Discard, "", 0), BaseContext: func(net.Listener) context.Context { return ctx }}
 	stop := context.AfterFunc(ctx, func() { server.Close(); guard.Close() })
 	defer stop()
 	_ = server.Serve(listener)
@@ -110,6 +132,7 @@ type guardConn struct {
 	input   net.Conn
 	output  net.Conn
 	done    chan struct{}
+	closed  chan struct{}
 	once    sync.Once
 	onClose func()
 }
@@ -122,6 +145,7 @@ func (c *guardConn) SetReadDeadline(t time.Time) error { return c.input.SetReadD
 
 func (c *guardConn) Close() error {
 	c.once.Do(func() {
+		close(c.closed)
 		c.input.Close()
 		c.output.Close()
 		c.Conn.Close()
