@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/capture"
 	"io"
 	"math/big"
 	"net"
@@ -183,6 +184,9 @@ type bufferedConn struct {
 func (c *bufferedConn) Read(b []byte) (int, error) { return c.r.Read(b) }
 
 type connectionContext struct {
+	identity   *capture.Identity
+	authority  string
+	protocol   string
 	ctx        context.Context
 	cancel     context.CancelFunc
 	token      string

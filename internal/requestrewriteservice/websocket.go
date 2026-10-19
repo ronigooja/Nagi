@@ -40,6 +40,11 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 		writeOriginResponse(w, req, fixedResponse(req, "rewrite_invalid"))
 		return
 	}
+	cap := s.beginCapture(cc, req, "http", "", "", 0)
+	req = req.WithContext(context.WithValue(req.Context(), captureKey{}, cap))
+	if cap != nil {
+		req.Body = cap.body("request_original", req.Body, func() http.Header { return req.Trailer })
+	}
 	stripHeaders(req.Header)
 	originalRequest := req.Clone(req.Context())
 	result, err := s.transformRequest(req, wire, true)
@@ -48,6 +53,10 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 		return
 	}
 	outgoing := result.Request.WithContext(req.Context())
+	if cap != nil {
+		cap.requestActual(outgoing, result.RuleIDs, result.Outcome)
+		outgoing.Body = cap.body("request_actual", outgoing.Body, func() http.Header { return outgoing.Trailer })
+	}
 	// Dial creates its own empty handshake body; release any buffered transaction.
 	if outgoing.Body != nil {
 		_ = outgoing.Body.Close()
@@ -67,7 +76,13 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 		if err != nil {
 			return nil, err
 		}
+		if cap != nil {
+			cap.response("response_original", response)
+		}
 		if response.StatusCode != http.StatusSwitchingProtocols {
+			if cap != nil {
+				response.Body = cap.body("response_original", response.Body, func() http.Header { return response.Trailer })
+			}
 			rejected = response
 			return nil, errHandshakeResponse
 		}
@@ -87,6 +102,11 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 	if err != nil {
 		if rejected != nil {
 			response, failure := s.transformResponse(originalRequest, rejected, wire)
+			if cap != nil && response != nil {
+				cap.response("response_actual", response)
+				response.Body = cap.body("response_actual", response.Body, func() http.Header { return response.Trailer })
+				cap.complete("complete", "", 0)
+			}
 			if failure != nil {
 				response = fixedResponse(req, transformCode(failure))
 			}
@@ -101,6 +121,9 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 		return
 	}
 	defer upstream.CloseNow()
+	if cap != nil {
+		cap.offer(captureFinish("response_original"))
+	}
 	response, err := s.transformResponse(originalRequest, originalHandshake, wire)
 	if err == nil {
 		response, err = s.snapshot.TransformHandshake(originalRequest, originalHandshake, response)
@@ -108,6 +131,11 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 	if err != nil {
 		writeOriginResponse(w, req, fixedResponse(req, transformCode(err)))
 		return
+	}
+	if cap != nil {
+		cap.response("response_actual", response)
+		cap.offer(captureFinish("response_actual"))
+		cap.complete("upgraded", "", 0)
 	}
 	stripHeaders(response.Header)
 	for k, values := range response.Header {
@@ -127,6 +155,9 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 	}
 	defer downstream.CloseNow()
 	ctx, cancel := context.WithCancel(cc.ctx)
+	if cap != nil {
+		ctx = context.WithValue(ctx, websocketCaptureKey{}, websocketCapture{cc: cc, parent: cap.record.ID})
+	}
 	defer cancel()
 	stop := context.AfterFunc(ctx, func() { upstream.CloseNow(); downstream.CloseNow() })
 	defer stop()
@@ -155,6 +186,9 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 	}()
 	first := <-done
 	code := websocket.CloseStatus(first.err)
+	if cap != nil {
+		cap.complete("closed", "", int(code))
+	}
 	if code != websocket.StatusNormalClosure && code != websocket.StatusGoingAway {
 		s.mu.Lock()
 		s.counters.WebSocketAbnormalCloses++
@@ -169,21 +203,50 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 }
 
 func (s *Service) relayMessages(ctx context.Context, source, destination *websocket.Conn, stage string, req *http.Request, handshake *http.Response, editing bool) error {
+	var sequence uint64
 	for {
 		kind, reader, err := source.Reader(ctx)
 		if err != nil {
 			return err
+		}
+		sequence++
+		var cap *captureRecord
+		messageType := "binary"
+		if kind == websocket.MessageText {
+			messageType = "text"
+		}
+		if info, ok := ctx.Value(websocketCaptureKey{}).(websocketCapture); ok {
+			cap = s.beginCapture(info.cc, req, "websocket", info.parent, stage, sequence)
+		}
+		var originalBody, actualBody *captureBody
+		if cap != nil {
+			originalBody = cap.messageSnapshot("message_original", messageType)
+			reader = &captureReader{Reader: reader, body: originalBody}
 		}
 		if !editing {
 			writer, err := destination.Writer(ctx, kind)
 			if err != nil {
 				return err
 			}
+			var target io.Writer = writer
+			if cap != nil {
+				actualBody = cap.messageSnapshot("message_actual", messageType)
+				target = captureWriter{Writer: writer, body: actualBody}
+			}
 			var copyErr error
 			if kind == websocket.MessageText {
-				copyErr = copyTextMessage(writer, reader)
+				copyErr = copyTextMessage(target, reader)
 			} else {
-				_, copyErr = io.Copy(writer, reader)
+				_, copyErr = io.Copy(target, reader)
+			}
+			if cap != nil {
+				state := "complete"
+				if copyErr != nil {
+					state = "failed"
+				}
+				originalBody.finish(state)
+				actualBody.finish(state)
+				cap.complete("unchanged", "", 0)
 			}
 			if copyErr != nil {
 				// Do not finish a partial invalid message with a final data frame.
@@ -232,15 +295,36 @@ func (s *Service) relayMessages(ctx context.Context, source, destination *websoc
 			err = errUnavailable
 		}
 		s.count(stage, result.Outcome, err, result.FailureCode)
+		if cap != nil {
+			originalBody.finish("complete")
+			cap.result(result.RuleIDs, result.Outcome)
+		}
 		if err == nil {
 			kind = websocket.MessageBinary
 			if result.Message.Type == "text" {
 				kind = websocket.MessageText
 			}
+			if cap != nil {
+				actualBody = cap.messageSnapshot("message_actual", result.Message.Type)
+			}
 			err = destination.Write(ctx, kind, result.Message.Body)
+			if cap != nil {
+				if err == nil {
+					actualBody.append(result.Message.Body)
+					actualBody.finish("complete")
+					cap.complete(result.Outcome, "", 0)
+				} else {
+					actualBody.finish("failed")
+					cap.complete("failed", "websocket_failed", 0)
+				}
+			}
 		}
 		<-messageWorkspace
 		if err != nil {
+			if cap != nil {
+				originalBody.finish("failed")
+				cap.complete("failed", "websocket_failed", 0)
+			}
 			if errors.Is(err, errTextUTF8) {
 				return closeInvalidText(source)
 			}

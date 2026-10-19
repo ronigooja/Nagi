@@ -18,18 +18,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/capture"
 	domain "github.com/ronigooja/Nagi/internal/requestrewrite"
 )
 
 // Configuration is supplied only through the child's inherited control pipe.
 // Its secrets and endpoints must never enter ordinary output or diagnostics.
 type Configuration struct {
-	Generation          string `json:"generation"`
-	EngineEpoch         string `json:"engine_epoch"`
-	ReinjectionAddr     string `json:"reinjection_addr"`
-	EngineTransportCert string `json:"engine_transport_cert"`
-	HandoffSecret       string `json:"handoff_secret"`
-	ReinjectionSecret   string `json:"reinjection_secret"`
+	Capture             *capture.Policy `json:"capture,omitempty"`
+	RecorderSocket      string          `json:"recorder_socket,omitempty"`
+	BodyLimit           int             `json:"body_limit,omitempty"`
+	Generation          string          `json:"generation"`
+	EngineEpoch         string          `json:"engine_epoch"`
+	ReinjectionAddr     string          `json:"reinjection_addr"`
+	EngineTransportCert string          `json:"engine_transport_cert"`
+	HandoffSecret       string          `json:"handoff_secret"`
+	ReinjectionSecret   string          `json:"reinjection_secret"`
 }
 type Announcement struct {
 	HandoffAddr        string `json:"handoff_addr"`
@@ -37,6 +41,8 @@ type Announcement struct {
 	RuleVersion        string `json:"rule_version"`
 }
 type Service struct {
+	captureSink      *capture.Sink
+	capturePolicy    *capture.Policy
 	transformTimeout time.Duration
 	counters         RewriteCounters
 	control          net.Listener
@@ -98,7 +104,15 @@ func (s *Service) Configure(c Configuration) error {
 	if e != nil {
 		return e
 	}
+	if err := validateCaptureConfiguration(c); err != nil {
+		return err
+	}
 	s.config = c
+	if c.Capture != nil {
+		cp := *c.Capture
+		s.capturePolicy = &cp
+		s.captureSink = capture.NewSink(c.RecorderSocket, cp.SessionID)
+	}
 	s.peer = p
 	s.configured = true
 	return nil
@@ -168,6 +182,9 @@ func (s *Service) Close() error {
 		c.close()
 	}
 	s.workers.Wait()
+	if s.captureSink != nil {
+		s.captureSink.Close()
+	}
 	if s.controlLock != nil {
 		s.controlLock.Close()
 	}
@@ -202,7 +219,7 @@ func (s *Service) receive(raw net.Conn) {
 	if e != nil {
 		return
 	}
-	allowed := map[string]bool{"host": true, "authorization": true, "nagi-rewrite-version": true, "nagi-rewrite-generation": true, "nagi-rewrite-epoch": true, "nagi-rewrite-context": true, "nagi-rewrite-protocol": true, "nagi-rewrite-probe": true}
+	allowed := map[string]bool{"host": true, "authorization": true, "nagi-rewrite-version": true, "nagi-rewrite-generation": true, "nagi-rewrite-epoch": true, "nagi-rewrite-context": true, "nagi-rewrite-protocol": true, "nagi-rewrite-probe": true, "nagi-capture-metadata": true}
 	if headFields(head, allowed) != nil {
 		wireError(conn, "rewrite_invalid")
 		return
@@ -213,7 +230,9 @@ func (s *Service) receive(raw net.Conn) {
 		return
 	}
 	h := req.Header
+	s.mu.Lock()
 	c := s.config
+	s.mu.Unlock()
 	if !bearer(h.Get("Authorization"), c.HandoffSecret) {
 		wireError(conn, "rewrite_auth")
 		return
@@ -232,6 +251,11 @@ func (s *Service) receive(raw net.Conn) {
 		wireError(conn, "rewrite_auth")
 		return
 	}
+	identity, identityErr := s.captureIdentity(h.Get("Nagi-Capture-Metadata"))
+	if identityErr != nil {
+		wireError(conn, "rewrite_auth")
+		return
+	}
 	host, port, e := net.SplitHostPort(req.Host)
 	pn, pe := strconv.Atoi(port)
 	rawHost := ""
@@ -240,12 +264,12 @@ func (s *Service) receive(raw net.Conn) {
 			rawHost = strings.TrimSpace(line[5:])
 		}
 	}
-	if e != nil || pe != nil || pn < 1 || pn > 65535 || strconv.Itoa(pn) != port || rawHost != req.RequestURI || probe == "" && !s.snapshot.Authorized(host) {
+	if e != nil || pe != nil || pn < 1 || pn > 65535 || strconv.Itoa(pn) != port || rawHost != req.RequestURI || probe == "" && !s.snapshot.Authorized(host) && identity == nil {
 		wireError(conn, "rewrite_auth")
 		return
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, time.Hour)
-	cc := &connectionContext{ctx: ctx, cancel: cancel, token: h.Get("Nagi-Rewrite-Context"), service: s, sockets: map[net.Conn]bool{}, transports: map[string]*http.Transport{}}
+	cc := &connectionContext{identity: identity, authority: req.Host, protocol: protocol, ctx: ctx, cancel: cancel, token: h.Get("Nagi-Rewrite-Context"), service: s, sockets: map[net.Conn]bool{}, transports: map[string]*http.Transport{}}
 	s.mu.Lock()
 	if s.draining || s.closing || len(s.contexts) >= 1024 || s.contexts[cc.token] != nil {
 		s.mu.Unlock()
@@ -340,7 +364,7 @@ func (s *Service) sendHeartbeat(sequence uint64) {
 }
 func stripHeaders(h http.Header) {
 	for k := range h {
-		if strings.HasPrefix(strings.ToLower(k), "nagi-rewrite-") {
+		if strings.HasPrefix(strings.ToLower(k), "nagi-rewrite-") || strings.EqualFold(k, "Nagi-Capture-Metadata") {
 			delete(h, k)
 		}
 	}

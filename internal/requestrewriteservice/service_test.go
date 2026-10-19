@@ -88,7 +88,7 @@ func newFixture(t *testing.T, origin string, documents ...[]byte) *fixture {
 	handoff, _ := randomValue(32)
 	reinjection, _ := randomValue(32)
 	engine := engineCert(t)
-	c := Configuration{gen, epoch, l.Addr().String(), base64.StdEncoding.EncodeToString(engine.Certificate[0]), handoff, reinjection}
+	c := Configuration{Generation: gen, EngineEpoch: epoch, ReinjectionAddr: l.Addr().String(), EngineTransportCert: base64.StdEncoding.EncodeToString(engine.Certificate[0]), HandoffSecret: handoff, ReinjectionSecret: reinjection}
 	if e = s.Configure(c); e != nil {
 		t.Fatal(e)
 	}

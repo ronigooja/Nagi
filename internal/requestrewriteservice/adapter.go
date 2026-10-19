@@ -98,14 +98,26 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 			return req, fixedResponse(req, "rewrite_invalid")
 		}
 		stripHeaders(req.Header)
-		state := &exchangeState{original: req.Clone(req.Context())}
+		cap := s.beginCapture(cc, req, "http", "", "", 0)
+		req = req.WithContext(context.WithValue(req.Context(), captureKey{}, cap))
+		state := &exchangeState{original: req.Clone(req.Context()), capture: cap}
+		if cap != nil {
+			req.Body = cap.body("request_original", req.Body, func() http.Header { return req.Trailer })
+		}
 		pctx.UserData = state
 		result, e := s.transformRequest(req, wire, req.Header.Get("Upgrade") != "")
 		if e != nil {
 			state.localFailure = true
+			if cap != nil {
+				cap.complete("blocked", "request_failed", 0)
+			}
 			return req, fixedResponse(req, transformCode(e))
 		}
 		out := result.Request.WithContext(req.Context())
+		if cap != nil {
+			cap.requestActual(out, result.RuleIDs, result.Outcome)
+			out.Body = cap.body("request_actual", out.Body, func() http.Header { return out.Trailer })
+		}
 		pctx.RoundTripper = goproxy.RoundTripperFunc(func(r *http.Request, _ *goproxy.ProxyCtx) (*http.Response, error) {
 			if r.Body != nil {
 				defer r.Body.Close()
@@ -136,6 +148,10 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		if !ok || state.localFailure {
 			return resp
 		}
+		if state.capture != nil {
+			state.capture.response("response_original", resp)
+			resp.Body = state.capture.body("response_original", resp.Body, func() http.Header { return resp.Trailer })
+		}
 		originalHandshake := *resp
 		originalHandshake.Header = resp.Header.Clone()
 		originalHandshake.Body = http.NoBody
@@ -153,6 +169,11 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 				}
 				return fixedResponse(pctx.Req, transformCode(err))
 			}
+		}
+		if state.capture != nil {
+			state.capture.response("response_actual", resp)
+			resp.Body = state.capture.body("response_actual", resp.Body, func() http.Header { return resp.Trailer })
+			state.capture.complete("complete", "", 0)
 		}
 		stripHeaders(resp.Header)
 		if state, ok := pctx.Req.Context().Value(bodyStateKey{}).(*bodyState); ok && resp.StatusCode != 101 {
@@ -178,7 +199,7 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		if req.URL.Host == "" {
 			req.URL.Host = req.Host
 		}
-		if req.Host == "" || !s.snapshot.Authorized(req.URL.Hostname()) {
+		if req.Host == "" || !cc.authorizedRequest(req, scheme) {
 			http.Error(w, "rewrite_auth", 502)
 			return
 		}

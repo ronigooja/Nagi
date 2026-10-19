@@ -14,6 +14,7 @@ import (
 type exchangeState struct {
 	original     *http.Request
 	localFailure bool
+	capture      *captureRecord
 }
 
 type RewriteCounters struct {
@@ -86,6 +87,9 @@ func transformCode(err error) string {
 }
 
 func (s *Service) transformRequest(req *http.Request, wire net.Conn, upgrade bool) (domain.Result, error) {
+	if cap, _ := req.Context().Value(captureKey{}).(*captureRecord); cap != nil && !s.snapshot.Authorized(req.URL.Hostname()) {
+		return domain.Result{Request: req, Outcome: "unchanged", RuleVersion: s.snapshot.Version()}, nil
+	}
 	ctx, cancel := context.WithTimeout(req.Context(), s.transformTimeout)
 	stop := context.AfterFunc(ctx, func() {
 		if req.ProtoMajor == 1 {
@@ -133,6 +137,9 @@ func (s *Service) transformResponse(req *http.Request, resp *http.Response, wire
 		err = errUnavailable
 	}
 	s.count("response", result.Outcome, err, result.FailureCode)
+	if cap, _ := req.Context().Value(captureKey{}).(*captureRecord); cap != nil {
+		cap.result(result.RuleIDs, result.Outcome)
+	}
 	if err != nil {
 		if resp.Body != nil {
 			resp.Body.Close()
