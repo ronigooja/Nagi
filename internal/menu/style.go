@@ -57,12 +57,6 @@ func (s *Session) styled(style textStyle, text string) string {
 	return "\x1b[" + code + "m" + text + "\x1b[0m"
 }
 
-// styledContext colors recognizable state values while leaving the surrounding
-// summary and recovery guidance in the terminal's default foreground.
-func (s *Session) styledContext(text string) string {
-	return output.StyleStateText(text, s.styles)
-}
-
 type feedbackKind uint8
 
 const (

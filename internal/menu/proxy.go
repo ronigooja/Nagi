@@ -1,5 +1,7 @@
 package menu
 
+import "github.com/ronigooja/Nagi/internal/i18n"
+
 import (
 	"context"
 	"encoding/json"
@@ -24,12 +26,12 @@ type menuProxyGroup struct {
 
 func init() { RegisterPage("proxy", ProxyPage) }
 
-func decodeMenuResult(result Result, target any) error {
+func localizeddecodeMenuResult(language i18n.Context, result Result, target any) error {
 	if result.Code != 0 || result.Error != nil {
 		if result.Error != nil {
-			return errors.New(result.Error.Message)
+			return errors.New(result.errorText(language))
 		}
-		return fmt.Errorf("command exited with status %d", result.Code)
+		return fmt.Errorf("%s", menuFormat(language, "menu.proxy.decode_menu_result.command_exited_with_status_d", "command exited with status %d", result.Code))
 	}
 	data, err := json.Marshal(result.Data)
 	if err != nil {
@@ -39,38 +41,47 @@ func decodeMenuResult(result Result, target any) error {
 }
 
 // ProxyPage groups proxy selection and profile-local proxy sources.
-func ProxyPage() *Page {
-	return actionPage("Proxies", Item{Label: "Proxy Groups", Next: proxyGroupsPage}, Item{Label: "Proxy Providers", Next: providerListPage}, Item{Label: "Tailscale", Next: tailscaleListPage})
+func localizedProxyPage(language i18n.Context) *Page {
+	return localizedactionPage(language, menuText(language, "menu.proxy.proxy_page.proxies", "Proxies"), Item{ID: "proxy.ProxyPage.item1", Label: menuText(language, "menu.proxy.proxy_page.proxy_groups", "Proxy Groups"), Next: func() *Page {
+		return localizedproxyGroupsPage(language)
+	},
+	}, Item{ID: "proxy.ProxyPage.item2", Label: menuText(language, "menu.proxy.proxy_page.proxy_providers", "Proxy Providers"), Next: func() *Page {
+		return localizedproviderListPage(language)
+	},
+	}, Item{ID: "proxy.ProxyPage.item3", Label: menuText(language, "menu.proxy.proxy_page.tailscale", "Tailscale"), Next: func() *Page {
+		return localizedtailscaleListPage(language)
+	},
+	})
 }
 
-func proxyGroupsPage() *Page {
-	return &Page{Title: "Proxy Groups", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: "Select a group, then a node to switch.", Empty: "No proxy groups. Check the profile in Profiles & Subscriptions > Profiles.", Actions: []Item{
-			{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
+func localizedproxyGroupsPage(language i18n.Context) *Page {
+	return &Page{ID: "proxy.proxyGroupsPage.page1", Title: menuText(language, "menu.proxy.proxy_groups_page.proxy_groups", "Proxy Groups"), Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Context: menuText(language, "menu.proxy.proxy_groups_page.select_a_group_then_a_node_to_switch", "Select a group, then a node to switch."), Empty: menuText(language, "menu.proxy.proxy_groups_page.no_proxy_groups_check_the_profile_in_profiles_su", "No proxy groups. Check the profile in Profiles & Subscriptions > Profiles."), Actions: []Item{
+			{ID: "proxy.proxyGroupsPage.item2", Label: menuText(language, "menu.proxy.proxy_groups_page.restore_saved_selections", "Restore saved selections"), Args: []string{"proxy", "restore"}},
 		}}
 		var data struct {
 			Groups []menuProxyGroup `json:"groups"`
 		}
-		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "groups"), &data); err != nil {
-			view.Context = "Mihomo: unknown | Proxy group state: unknown"
-			view.ReadErrorHint = "Open Service to check status or Monitoring & Diagnostics to inspect logs, then return here."
+		if err := localizeddecodeMenuResult(language, s.Fetch(ctx, "proxy", "groups"), &data); err != nil {
+			view.Context = menuText(language, "menu.proxy.proxy_groups_page.mihomo_unknown_proxy_group_state_unknown", "Mihomo: unknown | Proxy group state: unknown")
+			view.ReadErrorHint = menuText(language, "menu.proxy.proxy_groups_page.open_service_to_check_status_or_monitoring_diagn", "Open Service to check status or Monitoring & Diagnostics to inspect logs, then return here.")
 			var status struct {
 				Running        *bool `json:"running"`
 				UnexpectedExit bool  `json:"unexpected_exit"`
 			}
-			if statusErr := decodeMenuResult(s.Fetch(ctx, "status"), &status); statusErr != nil {
-				view.Context += "\nStatus unavailable: " + statusErr.Error()
+			if statusErr := localizeddecodeMenuResult(language, s.Fetch(ctx, "status"), &status); statusErr != nil {
+				view.Context += menuText(language, "menu.proxy.proxy_groups_page.status_unavailable", "\nStatus unavailable: ") + statusErr.Error()
 			} else if status.Running != nil {
 				switch {
 				case *status.Running:
-					view.Context = "Mihomo: running | Proxy group state: unknown"
-					view.ReadErrorHint = "Check logs in Monitoring & Diagnostics; open Service if a restart is needed."
+					view.Context = menuText(language, "menu.proxy.proxy_groups_page.mihomo_running_proxy_group_state_unknown", "Mihomo: running | Proxy group state: unknown")
+					view.ReadErrorHint = menuText(language, "menu.proxy.proxy_groups_page.check_logs_in_monitoring_diagnostics_open_servic", "Check logs in Monitoring & Diagnostics; open Service if a restart is needed.")
 				case status.UnexpectedExit:
-					view.Context = "Mihomo: stopped (unexpected exit) | Proxy group state: unavailable"
-					view.ReadErrorHint = "Check logs in Monitoring & Diagnostics, clean stale runtime records in Service > Startup Recovery, then start mihomo through Service."
+					view.Context = menuText(language, "menu.proxy.proxy_groups_page.mihomo_stopped_unexpected_exit_proxy_group_state", "Mihomo: stopped (unexpected exit) | Proxy group state: unavailable")
+					view.ReadErrorHint = menuText(language, "menu.proxy.proxy_groups_page.check_logs_in_monitoring_diagnostics_clean_stale", "Check logs in Monitoring & Diagnostics, clean stale runtime records in Service > Startup Recovery, then start mihomo through Service.")
 				default:
-					view.Context = "Mihomo: stopped | Proxy group state: unavailable"
-					view.ReadErrorHint = "Start mihomo through Service, then return here."
+					view.Context = menuText(language, "menu.proxy.proxy_groups_page.mihomo_stopped_proxy_group_state_unavailable", "Mihomo: stopped | Proxy group state: unavailable")
+					view.ReadErrorHint = menuText(language, "menu.proxy.proxy_groups_page.start_mihomo_through_service_then_return_here", "Start mihomo through Service, then return here.")
 					view.Empty = view.ReadErrorHint
 					return view, nil
 				}
@@ -82,17 +93,17 @@ func proxyGroupsPage() *Page {
 				continue
 			}
 			group := group
-			view.Items = append(view.Items, Item{Name: group.Name, Label: proxyGroupLabel(group), Next: func() *Page { return proxyGroupPage(group.Name) }})
+			view.Items = append(view.Items, Item{ID: "proxy.proxyGroupsPage.item3", Name: group.Name, Label: localizedproxyGroupLabel(language, group), Next: func() *Page { return localizedproxyGroupPage(language, group.Name) }})
 		}
 		return view, nil
 	}}
 }
 
-func automaticProxyGroup(group menuProxyGroup) bool {
+func localizedautomaticProxyGroup(language i18n.Context, group menuProxyGroup) bool {
 	return strings.EqualFold(group.Type, "URLTest") || strings.EqualFold(group.Type, "Fallback")
 }
 
-func proxyGroupLabel(group menuProxyGroup) string {
+func localizedproxyGroupLabel(language i18n.Context, group menuProxyGroup) string {
 	label := group.Name
 	if group.Icon != "" {
 		label = "[icon] " + label
@@ -100,15 +111,15 @@ func proxyGroupLabel(group menuProxyGroup) string {
 	if group.Now != "" {
 		label += " → " + group.Now
 	}
-	if automaticProxyGroup(group) {
+	if localizedautomaticProxyGroup(language, group) {
 		if group.Fixed == "" {
-			label += " (automatic)"
+			label += menuText(language, "menu.proxy.group.automatic", " (automatic)")
 		} else {
-			label += " (fixed: " + group.Fixed + ")"
+			label += menuText(language, "menu.proxy.group.fixed", " (fixed: ") + group.Fixed + ")"
 		}
 	}
 	if group.SelectedStatus != "" && group.SelectedStatus != "available" {
-		label += " (" + group.SelectedStatus + ")"
+		label += " (" + menuState(language, group.SelectedStatus) + ")"
 	}
 	return label
 }
@@ -119,31 +130,33 @@ type menuProxyMeasurement struct {
 	Error   string `json:"error"`
 }
 
-func proxyGroupPage(name string) *Page { return proxyNodesPage(name, false) }
+func localizedproxyGroupPage(language i18n.Context, name string) *Page {
+	return localizedproxyNodesPage(language, name, false)
+}
 
 // Batch ordering belongs to the page. Engine measurements remain authoritative
 // on every reload, including failures newer than the last batch.
-func proxyNodesPage(name string, testOnly bool) *Page {
+func localizedproxyNodesPage(language i18n.Context, name string, testOnly bool) *Page {
 	measurements := map[string]menuProxyMeasurement{}
 	order := []string{}
-	title := "Proxy group: " + name
+	title := menuText(language, "menu.proxy.proxy_nodes_page.proxy_group", "Proxy group: ") + name
 	if testOnly {
-		title = "Test node latency: " + name
+		title = menuText(language, "menu.proxy.proxy_nodes_page.test_node_latency", "Test node latency: ") + name
 	}
-	return &Page{Title: title, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Empty: "No nodes available. Inspect `nagi proxy show`.", Actions: []Item{
-			{Label: "Show group details", Args: []string{"proxy", "show", name}},
+	return &Page{ID: "proxy.proxyNodesPage.page1", Title: title, Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Empty: menuText(language, "menu.proxy.proxy_nodes_page.no_nodes_available_inspect_nagi_proxy_show", "No nodes available. Inspect `nagi proxy show`."), Actions: []Item{
+			{ID: "proxy.proxyNodesPage.item2", Label: menuText(language, "menu.proxy.proxy_nodes_page.show_group_details", "Show group details"), Args: []string{"proxy", "show", name}},
 		}}
 		if !testOnly {
 			view.Actions = append(view.Actions,
-				Item{Label: "Test one node", Next: func() *Page { return proxyNodesPage(name, true) }},
-				Item{Label: "Test all nodes and select from results", Impact: "May clear a fixed choice and its saved selection for automatic groups", Action: func(ctx context.Context, s *Session) error {
-					s.WriteLine("Testing node latency...")
+				Item{ID: "proxy.proxyNodesPage.item3", Label: menuText(language, "menu.proxy.proxy_nodes_page.test_one_node", "Test one node"), Next: func() *Page { return localizedproxyNodesPage(language, name, true) }},
+				Item{ID: "proxy.proxyNodesPage.item4", Label: menuText(language, "menu.proxy.proxy_nodes_page.test_all_nodes_and_select_from_results", "Test all nodes and select from results"), Impact: menuText(language, "menu.proxy.proxy_nodes_page.may_clear_a_fixed_choice_and_its_saved_selection", "May clear a fixed choice and its saved selection for automatic groups"), Action: func(ctx context.Context, s *Session) error {
+					s.WriteLine(menuText(language, "menu.proxy.proxy_nodes_page.testing_node_latency", "Testing node latency..."))
 					result := s.Fetch(ctx, "proxy", "delays", name)
 					var data struct {
 						Results []menuProxyMeasurement `json:"results"`
 					}
-					if err := decodeMenuResult(result, &data); err != nil {
+					if err := localizeddecodeMenuResult(language, result, &data); err != nil {
 						s.ShowResult([]string{"proxy", "delays", name}, result)
 						return nil
 					}
@@ -153,15 +166,15 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 						order = append(order, measurement.Proxy)
 						measurements[measurement.Proxy] = measurement
 					}
-					s.feedback(feedbackSuccess, fmt.Sprintf("Latency test completed: %d results.", len(order)))
+					s.feedback(feedbackSuccess, menuFormat(language, "menu.proxy.proxy_nodes_page.latency_test_completed_d_results", "Latency test completed: %d results.", len(order)))
 					return nil
 				}},
-				Item{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
+				Item{ID: "proxy.proxyNodesPage.item5", Label: menuText(language, "menu.proxy.proxy_nodes_page.restore_saved_selections", "Restore saved selections"), Args: []string{"proxy", "restore"}},
 			)
 		}
 		var group menuProxyGroup
-		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "show", name), &group); err != nil {
-			view.Context = "Current node and selection state: unknown"
+		if err := localizeddecodeMenuResult(language, s.Fetch(ctx, "proxy", "show", name), &group); err != nil {
+			view.Context = menuText(language, "menu.proxy.proxy_nodes_page.current_node_and_selection_state_unknown", "Current node and selection state: unknown")
 			return view, err
 		}
 		current := group.Now
@@ -172,21 +185,21 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 		if status == "" {
 			status = "unknown"
 		}
-		view.Context = fmt.Sprintf("Current: %s (%s); available nodes: %d", current, status, len(group.All))
-		if automaticProxyGroup(group) {
+		view.Context = menuFormat(language, "menu.proxy.proxy_nodes_page.current_s_s_available_nodes_d", "Current: %s (%s); available nodes: %d", current, status, len(group.All))
+		if localizedautomaticProxyGroup(language, group) {
 			if group.Fixed == "" {
-				view.Context += "\nSelection: automatic"
+				view.Context += menuText(language, "menu.proxy.proxy_nodes_page.selection_automatic", "\nSelection: automatic")
 			} else {
-				view.Context += "\nSelection: fixed to " + group.Fixed
+				view.Context += menuText(language, "menu.proxy.proxy_nodes_page.selection_fixed_to", "\nSelection: fixed to ") + group.Fixed
 			}
 			if !testOnly {
-				view.Actions = append(view.Actions, Item{Label: "Resume automatic selection", Impact: "Clears this group's fixed choice and saved selection", Args: []string{"proxy", "auto", name}})
+				view.Actions = append(view.Actions, Item{ID: "proxy.proxyNodesPage.item6", Label: menuText(language, "menu.proxy.proxy_nodes_page.resume_automatic_selection", "Resume automatic selection"), Impact: menuText(language, "menu.proxy.proxy_nodes_page.clears_this_group_s_fixed_choice_and_saved_selec", "Clears this group's fixed choice and saved selection"), Args: []string{"proxy", "auto", name}})
 			}
 		}
 		if testOnly {
-			view.Context += "\nChoose a node to measure latency."
+			view.Context += menuText(language, "menu.proxy.proxy_nodes_page.choose_a_node_to_measure_latency", "\nChoose a node to measure latency.")
 		} else {
-			view.Context += "\nChoose a node to switch immediately."
+			view.Context += menuText(language, "menu.proxy.proxy_nodes_page.choose_a_node_to_switch_immediately", "\nChoose a node to switch immediately.")
 		}
 		live := map[string]bool{}
 		for _, node := range group.All {
@@ -210,33 +223,57 @@ func proxyNodesPage(name string, testOnly bool) *Page {
 			}
 		}
 		if len(order) > 0 {
-			view.Context += "\nLast latency results first; unmeasured nodes follow."
+			view.Context += menuText(language, "menu.proxy.proxy_nodes_page.last_latency_results_first_unmeasured_nodes_foll", "\nLast latency results first; unmeasured nodes follow.")
 		}
 		for _, node := range nodes {
-			if testOnly && nodeKind(node, group.NodeInfo) != "node" {
+			if testOnly && localizednodeKind(language, node, group.NodeInfo) != "node" {
 				continue
 			}
-			label := nodeLabel(node, group.NodeInfo, group.NodeDelays)
-			if nodeKind(node, group.NodeInfo) == "node" {
+			label := localizednodeLabel(language, node, group.NodeInfo, group.NodeDelays)
+			if localizednodeKind(language, node, group.NodeInfo) == "node" {
 				if _, liveHistory := group.NodeDelays[node]; !liveHistory {
 					if measurement, ok := measurements[node]; ok {
 						delay := menuNodeDelay{Status: "ok", DelayMS: measurement.DelayMS}
 						if measurement.Error != "" {
 							delay.Status = "failed"
 						}
-						label = node + " — " + delay.label()
+						label = node + " — " + delay.labelFor(language)
 					}
 				}
 			}
 			if node == group.Now {
-				label += " (selected)"
+				label += menuText(language, "menu.proxy.selected", " (selected)")
 			}
 			args := []string{"proxy", "select", name, node}
 			if testOnly {
 				args = []string{"proxy", "test", "group", name, node}
 			}
-			view.Items = append(view.Items, Item{Name: node, Label: label, Selected: node == group.Now, Args: args})
+			view.Items = append(view.Items, Item{ID: "proxy.proxyNodesPage.item7", Name: node, Label: label, Selected: node == group.Now, Args: args})
 		}
 		return view, nil
 	}}
+}
+func decodeMenuResult(result Result, target any) error {
+	return localizeddecodeMenuResult(i18n.New(i18n.English), result, target)
+}
+
+func ProxyPage() *Page {
+	return localizedProxyPage(i18n.New(i18n.English))
+}
+func proxyGroupsPage() *Page {
+	return localizedproxyGroupsPage(i18n.New(i18n.English))
+}
+func automaticProxyGroup(group menuProxyGroup) bool {
+	return localizedautomaticProxyGroup(i18n.New(i18n.English), group)
+}
+func proxyGroupLabel(
+	group menuProxyGroup) string {
+	return localizedproxyGroupLabel(i18n.New(i18n.English), group)
+}
+func proxyGroupPage(name string) *Page {
+	return localizedproxyGroupPage(i18n.New(i18n.English), name)
+}
+
+func proxyNodesPage(name string, testOnly bool) *Page {
+	return localizedproxyNodesPage(i18n.New(i18n.English), name, testOnly)
 }

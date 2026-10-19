@@ -1,5 +1,7 @@
 package menu
 
+import "github.com/ronigooja/Nagi/internal/i18n"
+
 import (
 	"bufio"
 	"context"
@@ -16,6 +18,7 @@ import (
 )
 
 type Session struct {
+	language   i18n.Context
 	runner     Runner
 	in         *bufio.Reader
 	out        io.Writer
@@ -28,7 +31,17 @@ type Session struct {
 }
 
 func NewSession(runner Runner, in io.Reader, out io.Writer) *Session {
-	s := &Session{runner: runner, in: bufio.NewReader(in), out: out, styles: shouldStyle(out)}
+	return NewSessionWithLanguage(runner, in, out, i18n.New(i18n.English))
+}
+
+// NewSessionWithLanguage fixes the language for the complete menu lifetime.
+func NewSessionWithLanguage(runner Runner, in io.Reader, out io.Writer, language i18n.Context) *Session {
+	if concrete, ok := runner.(*commandRunner); ok {
+		clone := *concrete
+		clone.language = &language
+		runner = &clone
+	}
+	s := &Session{language: language, runner: runner, in: bufio.NewReader(in), out: out, styles: shouldStyle(out)}
 	s.file, _ = in.(*os.File)
 	return s
 }
@@ -93,11 +106,13 @@ var rootEntries = []rootEntry{
 	{"maintenance", "Maintenance"},
 }
 
-func RootPage() *Page { return rootPageForOS(runtime.GOOS) }
+func localizedRootPage(language i18n.Context) *Page {
+	return localizedrootPageForOS(language, runtime.GOOS)
+}
 
-func rootPageForOS(goos string) *Page {
-	return &Page{Title: "Nagi menu", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: statusSummary(s.Fetch(ctx, "status"))}
+func localizedrootPageForOS(language i18n.Context, goos string) *Page {
+	return &Page{ID: "menu.rootPageForOS.page1", Root: true, Title: menuText(language, "menu.menu.root_page_for_o_s.nagi_menu", "Nagi menu"), Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Context: s.statusSummary(s.Fetch(ctx, "status"))}
 		for _, entry := range rootEntries {
 			entry := entry
 			factory := registered[entry.key]
@@ -105,18 +120,24 @@ func rootPageForOS(goos string) *Page {
 				continue
 			}
 			switch entry.key {
+			case "proxy":
+				factory = func() *Page { return localizedProxyPage(language) }
+			case "routing":
+				factory = func() *Page { return localizedRoutingPage(language) }
+			case "profiles":
+				factory = func() *Page { return localizedProfilesAndSubscriptionsPage(language) }
 			case "traffic":
-				factory = func() *Page { return trafficPageForOS(goos) }
+				factory = func() *Page { return localizedtrafficPageForOS(language, goos) }
 			case "rewrite-capture":
-				factory = func() *Page { return rewriteAndCapturePageForOS(goos) }
+				factory = func() *Page { return localizedrewriteAndCapturePageForOS(language, goos) }
 			case "diagnostics":
-				factory = func() *Page { return diagnosticsPageForOS(goos) }
+				factory = func() *Page { return localizeddiagnosticsPageForOS(language, goos) }
 			case "service":
-				factory = func() *Page { return serviceManagementPageForOS(goos) }
+				factory = func() *Page { return localizedserviceManagementPageForOS(language, goos) }
 			case "maintenance":
-				factory = func() *Page { return maintenancePageForOS(goos) }
+				factory = func() *Page { return localizedmaintenancePageForOS(language, goos) }
 			}
-			view.Items = append(view.Items, Item{Label: entry.label, Next: factory})
+			view.Items = append(view.Items, Item{ID: "root." + entry.key, Label: menuText(language, "menu.root."+entry.key, entry.label), Next: factory})
 		}
 		return view, nil
 	}}
@@ -131,7 +152,9 @@ type frame struct {
 }
 
 // Run drives the scrollback-preserving menu; operations remain CLI commands.
-func Run(ctx context.Context, s *Session) int { return RunPage(ctx, s, RootPage()) }
+func Run(ctx context.Context, s *Session) int {
+	return RunPage(ctx, s, localizedRootPage(s.language))
+}
 
 func RunPage(ctx context.Context, s *Session, root *Page) int {
 	s.active = true
@@ -146,11 +169,12 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			if current.page.Load != nil {
 				view, err := current.page.Load(ctx, s)
 				if err != nil {
-					s.feedback(feedbackError, fmt.Sprintf("Error reading %s: %s", current.page.Title, err.Error()))
+					s.feedback(feedbackError, menuFormat(s.language, "menu.menu.run_page.error_reading_s_s", "Error reading %s: %s", current.page.Title, err.Error()))
 					view.Items = nil // Failed reads cannot leave stale resources selectable.
 					view.Empty = view.ReadErrorHint
 					if view.Empty == "" {
-						view.Empty = "Data unavailable. Return to the parent page and reopen to try again."
+						view.Empty = menuText(s.language, "menu.menu.run_page.data_unavailable_return_to_the_parent_page_and_r", "Data unavailable. Return to the parent page and reopen to try again.")
+
 					}
 				}
 				current.view = view
@@ -180,7 +204,7 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 				return 0
 			}
 		} else if err != nil {
-			s.writeFeedback(feedbackError, fmt.Sprintf("Input error: %s", err))
+			s.writeFeedback(feedbackError, menuFormat(s.language, "menu.menu.run_page.input_error_s", "Input error: %s", err))
 			return 1
 		}
 		if value == "" {
@@ -194,10 +218,11 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			stack[len(stack)-1].loaded = false
 			continue
 		}
-		choices := numberedChoices(current.view, current.index)
+		choices := localizednumberedChoices(s.language,
+			current.view, current.index)
 		n, e := strconv.Atoi(value)
 		if e != nil || n < 1 || n > len(choices) || strconv.Itoa(n) != value {
-			s.writeFeedback(feedbackWarning, "Choose a listed number.")
+			s.writeFeedback(feedbackWarning, menuText(s.language, "menu.menu.run_page.choose_a_listed_number", "Choose a listed number."))
 			continue
 		}
 		choice := choices[n-1]
@@ -224,12 +249,13 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			return 0
 		}
 		if err != nil && !errors.Is(err, ErrBack) {
-			s.feedback(feedbackError, "Error: "+err.Error())
+			s.feedback(feedbackError, menuText(s.language, "menu.menu.run_page.error", "Error: ")+
+				err.Error())
 		}
 		if s.longResult {
 			s.flushResult()
 			s.longResult = false
-			_, pauseErr := s.readLine("Press Enter to return: ")
+			_, pauseErr := s.readLine(menuText(s.language, "menu.menu.run_page.press_enter_to_return", "Press Enter to return: "))
 			if errors.Is(pauseErr, ErrQuit) {
 				return 0
 			}
@@ -303,4 +329,10 @@ func (s *Session) discardInterrupts() {
 // IsTerminal checks that a file is attached to an interactive terminal.
 func IsTerminal(file *os.File) bool {
 	return terminal.IsTerminal(file)
+}
+func RootPage() *Page {
+	return localizedRootPage(i18n.New(i18n.English))
+}
+func rootPageForOS(goos string) *Page {
+	return localizedrootPageForOS(i18n.New(i18n.English), goos)
 }

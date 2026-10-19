@@ -25,6 +25,9 @@ func TestTrafficPageReadsOverlapAndKeepSummaryOrder(t *testing.T) {
 		releases[command] = make(chan struct{})
 	}
 	runner := NewCommandRunner(func(args []string, stdout, stderr io.Writer) int {
+		if len(args) >= 2 && args[0] == "--lang" {
+			args = args[2:]
+		}
 		if len(args) != 3 || args[0] != "--json" || args[2] != "status" {
 			t.Errorf("unexpected read: %v", args)
 			return 1
@@ -100,6 +103,9 @@ func TestTrafficMutationDispatchOnceAfterReads(t *testing.T) {
 	var mu sync.Mutex
 	active, mutations := 0, 0
 	runner := NewCommandRunner(func(args []string, stdout, stderr io.Writer) int {
+		if len(args) >= 2 && args[0] == "--lang" {
+			args = args[2:]
+		}
 		mu.Lock()
 		if args[2] == "disable" {
 			mutations++

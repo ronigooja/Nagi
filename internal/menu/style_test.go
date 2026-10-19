@@ -88,7 +88,7 @@ func TestMenuStyleRenderPreservesTextAndScopesHighlights(t *testing.T) {
 	assertMenuStyled(t, got, "Replace configuration", "94")
 	assertMenuStyled(t, got, " — Clears saved selections", "2")
 	for _, line := range []string{
-		"\nMihomo: \x1b[32mrunning\x1b[0m\n",
+		"\nMihomo: running\n",
 		"\n1. \x1b[94mOrdinary (selected)\x1b[0m\n", "\n2. \x1b[32mActual (selected)\x1b[0m\n",
 		"\n3. \x1b[94mReplace configuration\x1b[0m\x1b[2m — Clears saved selections\x1b[0m\n", "\n0. Exit menu (mihomo keeps running)\n",
 	} {

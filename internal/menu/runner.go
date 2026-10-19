@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"os"
 	"os/exec"
@@ -18,9 +19,10 @@ type CLIError struct {
 }
 
 type Result struct {
-	Data  any
-	Code  int
-	Error *CLIError
+	Data     any
+	Code     int
+	Error    *CLIError
+	Messages map[string]json.RawMessage
 }
 
 type Runner interface {
@@ -53,6 +55,7 @@ type InputCommandFunc func([]string, io.Reader, io.Writer, io.Writer) int
 type commandRunner struct {
 	run      CommandFunc
 	runInput InputCommandFunc
+	language *i18n.Context
 }
 
 func NewCommandRunner(run CommandFunc) Runner { return &commandRunner{run: run} }
@@ -72,35 +75,37 @@ func (r *commandRunner) RunInput(ctx context.Context, args []string, input io.Re
 		return Result{Code: 1, Error: &CLIError{Code: "cancelled", Message: err.Error()}}
 	}
 	var stdout, stderr bytes.Buffer
-	argv := append([]string{"--json"}, args...)
+	argv := r.arguments(append([]string{"--json"}, args...))
 	var code int
 	if input != nil {
 		if r.runInput == nil {
-			return Result{Code: 1, Error: &CLIError{Code: "input_unavailable", Message: "Command runner does not support input"}}
+			return runnerFailure(1, "input_unavailable", "menu.runner.input_unavailable", "Command runner does not support input")
 		}
 		code = r.runInput(argv, input, &stdout, &stderr)
 	} else {
 		code = r.run(argv, &stdout, &stderr)
 	}
 	var envelope struct {
-		OK    bool      `json:"ok"`
-		Data  any       `json:"data"`
-		Error *CLIError `json:"error"`
+		OK       bool            `json:"ok"`
+		Data     any             `json:"data"`
+		Error    *CLIError       `json:"error"`
+		Messages json.RawMessage `json:"messages"`
 	}
 	data := stdout.Bytes()
 	if code != 0 {
 		data = stderr.Bytes()
 	}
 	if err := json.Unmarshal(data, &envelope); err != nil {
-		return Result{Code: maxCode(code), Error: &CLIError{Code: "output_error", Message: "Could not decode command response"}}
+		return runnerFailure(maxCode(code), "output_error", "menu.runner.output_error", "Could not decode command response")
 	}
+	messages := decodeMessages(envelope.Messages)
 	if !envelope.OK || code != 0 {
 		if envelope.Error == nil {
 			envelope.Error = &CLIError{Code: "command_error", Message: "Command failed"}
 		}
-		return Result{Code: maxCode(code), Error: envelope.Error}
+		return Result{Code: maxCode(code), Error: envelope.Error, Messages: messages}
 	}
-	return Result{Data: envelope.Data}
+	return Result{Data: envelope.Data, Messages: messages}
 }
 
 // Read is used only for independent page status reads. Mutations continue to
@@ -132,7 +137,7 @@ func (r *commandRunner) Stream(ctx context.Context, args []string, out io.Writer
 	if err != nil {
 		return Result{Code: 1, Error: &CLIError{Code: "output_error", Message: err.Error()}}
 	}
-	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd := exec.CommandContext(ctx, exe, r.arguments(args)...)
 	cmd.Stdout = out
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -143,6 +148,13 @@ func (r *commandRunner) Stream(ctx context.Context, args []string, out io.Writer
 		code := 1
 		if exit, ok := err.(*exec.ExitError); ok {
 			code = exit.ExitCode()
+		}
+		var envelope struct {
+			Error    *CLIError       `json:"error"`
+			Messages json.RawMessage `json:"messages"`
+		}
+		if json.Unmarshal(stderr.Bytes(), &envelope) == nil && envelope.Error != nil {
+			return Result{Code: code, Error: envelope.Error, Messages: decodeMessages(envelope.Messages)}
 		}
 		message := strings.TrimSpace(stderr.String())
 		if message == "" {
@@ -161,7 +173,7 @@ type RawRunner interface {
 
 func (r *commandRunner) RunRaw(ctx context.Context, args []string) Result {
 	if ctx.Err() != nil {
-		return Result{Code: 1, Error: &CLIError{Message: "Export cancelled"}}
+		return runnerFailure(1, "export_cancelled", "menu.runner.export_cancelled", "Export cancelled")
 	}
 	valid := len(args) == 3 && args[0] == "request-rewrite" && args[1] == "export"
 	if len(args) == 5 && args[0] == "request-rewrite" && args[1] == "export" && args[3] == "--profile" && args[4] != "" {
@@ -190,12 +202,32 @@ func (r *commandRunner) RunRaw(ctx context.Context, args []string) Result {
 		}
 	}
 	if !valid {
-		return Result{Code: 1, Error: &CLIError{Message: "Unsupported raw command"}}
+		return runnerFailure(1, "raw_unsupported", "menu.runner.raw_unsupported", "Unsupported raw command")
 	}
 	var stdout, stderr bytes.Buffer
-	code := r.run(args, &stdout, &stderr)
+	code := r.run(r.arguments(args), &stdout, &stderr)
 	if code != 0 {
-		return Result{Code: code, Error: &CLIError{Message: "Export failed; check destination permissions, existence, and request-rewrite status"}}
+		return runnerFailure(code, "export_failed", "menu.runner.export_failed", "Export failed; check destination permissions, existence, and request-rewrite status")
 	}
 	return Result{Data: stdout.String()}
+}
+
+// arguments fixes child invocations to the menu session language, including streams.
+func (r *commandRunner) arguments(args []string) []string {
+	if r.language == nil {
+		return args
+	}
+	return append([]string{"--lang", string(r.language.Language())}, args...)
+}
+func decodeMessages(raw json.RawMessage) map[string]json.RawMessage {
+	var messages map[string]json.RawMessage
+	if json.Unmarshal(raw, &messages) != nil {
+		return nil
+	}
+	return messages
+}
+
+func runnerFailure(code int, errorCode, id, message string) Result {
+	descriptor, _ := json.Marshal(i18n.Descriptor{ID: id})
+	return Result{Code: code, Error: &CLIError{Code: errorCode, Message: message}, Messages: map[string]json.RawMessage{"/error/message": descriptor}}
 }

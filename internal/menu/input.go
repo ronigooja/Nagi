@@ -31,7 +31,7 @@ func (s *Session) readLine(label string) (string, error) {
 // readChoice adds the menu-wide quit key to numeric choice prompts. Text
 // prompts use readLine directly so values such as "q" remain literal.
 func (s *Session) readChoice() (string, error) {
-	value, err := s.readLine("Choice: ")
+	value, err := s.readLine(menuText(s.language, "menu.input.read_choice.choice", "Choice: "))
 	if err == nil && value == "q" {
 		return "", ErrQuit
 	}
@@ -40,22 +40,29 @@ func (s *Session) readChoice() (string, error) {
 
 // Prompt treats all text literally. Ctrl-C cancels the current flow.
 func (s *Session) Prompt(label string) (string, error) {
-	return s.readLine(label + " (Ctrl-C cancels): ")
+	return s.readLine(label + menuText(s.language, "menu.input.prompt.ctrl_c_cancels", " (Ctrl-C cancels): "))
 }
 
 func (s *Session) Select(label string, choices []string) (string, error) {
+	return s.selectChoices(label, choices, nil)
+}
+func (s *Session) selectChoices(label string, choices, labels []string) (string, error) {
 	if len(choices) == 0 {
-		return "", fmt.Errorf("no choices available")
+		return "", fmt.Errorf("%s", menuText(s.language, "menu.input.select.no_choices_available", "no choices available"))
 	}
 	page := 0
 	view := PageView{}
-	for _, value := range choices {
-		view.Items = append(view.Items, Item{Label: value, Name: value})
+	for i, value := range choices {
+		display := value
+		if i < len(labels) {
+			display = labels[i]
+		}
+		view.Items = append(view.Items, Item{ID: "input.Select.item1", Label: display, Name: value})
 	}
 	redraw := true
 	for {
 		if redraw {
-			s.render(&Page{Title: label}, view, page, 0)
+			s.render(&Page{ID: "input.Select.page2", Title: label}, view, page, 0)
 			redraw = false
 		}
 		value, err := s.readChoice()
@@ -68,10 +75,11 @@ func (s *Session) Select(label string, choices []string) (string, error) {
 		if value == "0" {
 			return "", ErrBack
 		}
-		numbered := numberedChoices(view, page)
+		numbered := localizednumberedChoices(s.language,
+			view, page)
 		n, err := strconv.Atoi(value)
 		if err != nil || n < 1 || n > len(numbered) || strconv.Itoa(n) != value {
-			s.writeFeedback(feedbackWarning, "Choose a listed number.")
+			s.writeFeedback(feedbackWarning, menuText(s.language, "menu.input.select.choose_a_listed_number", "Choose a listed number."))
 			continue
 		}
 		choice := numbered[n-1]
@@ -86,11 +94,12 @@ func (s *Session) Select(label string, choices []string) (string, error) {
 
 // Field validation happens locally; submit remains the existing CLI operation.
 type Field struct {
-	Key      string
-	Label    string
-	Required bool
-	Validate func(string) error
-	Choices  []string
+	Key          string
+	Label        string
+	Required     bool
+	Validate     func(string) error
+	Choices      []string
+	ChoiceLabels []string
 }
 
 // Form preserves entered fields after validation or command failure. A failed
@@ -103,12 +112,13 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 		for {
 			label := field.Label
 			if values[field.Key] != "" {
-				label += " [blank keeps current value]"
+				label += menuText(s.language, "menu.input.form.blank_keeps_current_value", " [blank keeps current value]")
+
 			}
 			var value string
 			var err error
 			if len(field.Choices) > 0 {
-				value, err = s.Select(label, field.Choices)
+				value, err = s.selectChoices(label, field.Choices, field.ChoiceLabels)
 			} else {
 				value, err = s.Prompt(label)
 			}
@@ -119,12 +129,13 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 				value = values[field.Key]
 			}
 			if field.Required && strings.TrimSpace(value) == "" {
-				s.writeFeedback(feedbackWarning, "This field is required.")
+				s.writeFeedback(feedbackWarning, menuText(s.language, "menu.input.form.this_field_is_required", "This field is required."))
 				continue
 			}
 			if field.Validate != nil {
 				if err := field.Validate(value); err != nil {
-					s.writeFeedback(feedbackWarning, "Invalid value: "+err.Error())
+					s.writeFeedback(feedbackWarning, menuText(s.language, "menu.input.form.invalid_value", "Invalid value: ")+
+						err.Error())
 					continue
 				}
 			}
@@ -139,12 +150,12 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 	}
 	result := submit(values)
 	for result.Code != 0 || result.Error != nil {
-		s.writeFeedback(feedbackWarning, "Submission failed. Values are retained. Choose a field to edit or submit again.")
+		s.writeFeedback(feedbackWarning, menuText(s.language, "menu.input.form.submission_failed_values_are_retained_choose_a_f", "Submission failed. Values are retained. Choose a field to edit or submit again."))
 		for i, field := range fields {
 			s.writeChoice(i+1, field.Label)
 		}
-		s.writeChoice(len(fields)+1, "Submit again")
-		s.writeChoice(0, "Cancel")
+		s.writeChoice(len(fields)+1, menuText(s.language, "menu.input.form.submit_again", "Submit again"))
+		s.writeChoice(0, menuText(s.language, "menu.input.form.cancel", "Cancel"))
 		s.flushResult()
 		for {
 			value, err := s.readChoice()
@@ -166,7 +177,7 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 			}
 			n, err := strconv.Atoi(value)
 			if err != nil || n < 1 || n > len(fields) || strconv.Itoa(n) != value {
-				s.writeFeedback(feedbackWarning, "Choose a listed number.")
+				s.writeFeedback(feedbackWarning, menuText(s.language, "menu.input.form.choose_a_listed_number", "Choose a listed number."))
 				continue
 			}
 			if err := edit(fields[n-1]); err != nil {
