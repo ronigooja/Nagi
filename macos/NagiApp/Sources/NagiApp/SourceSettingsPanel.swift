@@ -66,6 +66,9 @@ private final class SourceSettingsPanel: NSPanel {
     }
 
     private func build(_ panel: NSPanel) {
+        for button in [retryLoad, closeButton, restore] { NativeControlStyle.configure(button) }
+        automatic.controlSize = .regular
+        automatic.font = .systemFont(ofSize: NSFont.systemFontSize)
         let root = NSView()
         panel.contentView = root
         body.orientation = .vertical; body.alignment = .leading; body.spacing = 16
@@ -112,13 +115,16 @@ private final class SourceSettingsPanel: NSPanel {
             view.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         }
         for (field, name) in [(updateCustom, "Custom update interval in seconds"), (intervalCustom, "Custom check interval in seconds"), (urlField, "Test URL")] {
+            NativeControlStyle.configure(field)
             field.delegate = self; field.setAccessibilityLabel(name)
             field.placeholderString = field === urlField ? "Full HTTP(S) URL" : "Seconds (1–31536000)"
             if field.superview != nil { field.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
         }
         for (control, name) in [(updateChoice, "Update interval"), (intervalMode, "Check interval source"),
                                 (intervalChoice, "Check interval"), (urlMode, "Test URL source")] {
+            NativeControlStyle.configure(control)
             control.setAccessibilityLabel(name)
+            if control.superview != nil { control.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
         }
         for control in [automatic, updateChoice, intervalMode, intervalChoice, urlMode] as [NSControl] {
             control.target = self; control.action = #selector(draftChanged)
@@ -145,10 +151,12 @@ private final class SourceSettingsPanel: NSPanel {
     private func add(_ view: NSView) { content.addArrangedSubview(view) }
     private func sectionFooter(_ section: SettingsSection, title: String) {
         let save = NSButton(title: title, target: self, action: #selector(saveClicked(_:)))
+        NativeControlStyle.configure(save)
         save.tag = tag(section); saves[section] = save
         if section == .update { save.keyEquivalent = "\r" }
         let actions = NSStackView()
         actions.orientation = .horizontal
+        actions.alignment = .centerY
         actions.spacing = 8
         let spacer = NSView()
         actions.addArrangedSubview(spacer)
@@ -159,6 +167,7 @@ private final class SourceSettingsPanel: NSPanel {
         progress[section] = spinner; actions.insertArrangedSubview(spinner, at: 1)
         let result = label("", secondary: true); results[section] = result; add(result)
         let retry = NSButton(title: "Refresh Saved Values", target: self, action: #selector(retrySection(_:)))
+        NativeControlStyle.configure(retry)
         retry.tag = tag(section); retries[section] = retry; add(retry)
     }
     private func buildUpdate() {

@@ -120,6 +120,8 @@ import AppKit
 
     private func buildContent() {
         guard let content = window?.contentView else { return }
+        NativeControlStyle.configure(search)
+        for button in [refreshButton, closeButton, closeAllButton] { NativeControlStyle.configure(button) }
         search.placeholderString = "Search domain, IP, process, proxy chain, or ID"
         search.delegate = self
         search.sendsSearchStringImmediately = true
@@ -133,6 +135,7 @@ import AppKit
 
         let toolbar = NSStackView(views: [search, refreshButton, countLabel])
         toolbar.orientation = .horizontal; toolbar.spacing = 12
+        toolbar.alignment = .firstBaseline
         search.setContentHuggingPriority(.defaultLow, for: .horizontal)
         countLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         refreshButton.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -182,6 +185,7 @@ import AppKit
         detailsTitle.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
         let actions = NSStackView(views: [closeButton, closeAllButton, NSView(), updatedLabel])
         actions.orientation = .horizontal; actions.spacing = 12
+        actions.alignment = .firstBaseline
         statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusLabel.maximumNumberOfLines = 3
         let sampling = NSTextField(labelWithString: "Snapshots refresh once a second. Connections shorter than one second may not appear.")

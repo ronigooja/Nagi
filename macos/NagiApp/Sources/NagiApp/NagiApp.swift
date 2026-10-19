@@ -558,8 +558,10 @@ import AppKit
         let alert = NSAlert()
         alert.messageText = "Choose DNS Proxy Group"
         alert.informativeText = "Primary DNS queries will follow the group's selected proxy node."
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 26), pullsDown: false)
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        NativeControlStyle.configure(popup)
         popup.addItems(withTitles: model.dnsProxyGroups)
+        popup.setFrameSize(NSSize(width: 320, height: popup.intrinsicContentSize.height))
         if !model.dnsProxyGroup.isEmpty, let index = model.dnsProxyGroups.firstIndex(of: model.dnsProxyGroup) { popup.selectItem(at: index) }
         alert.accessoryView = popup
         alert.addButton(withTitle: "Apply")
@@ -581,38 +583,26 @@ import AppKit
         alert.informativeText = instructions
         alert.addButton(withTitle: "Add Provider")
         alert.addButton(withTitle: "Cancel")
-        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 174))
-        func label(_ title: String, y: CGFloat) {
-            let field = NSTextField(labelWithString: title)
-            field.frame = NSRect(x: 0, y: y, width: 85, height: 24)
-            accessory.addSubview(field)
-        }
-        label("Name", y: 142)
-        let nameField = NSTextField(frame: NSRect(x: 90, y: 142, width: 310, height: 24))
+        let nameField = NSTextField()
         nameField.placeholderString = "Provider name"
-        accessory.addSubview(nameField)
-        label("URL", y: 108)
-        let urlField = NSTextField(frame: NSRect(x: 90, y: 108, width: 310, height: 24))
+        let urlField = NSTextField()
         urlField.placeholderString = "https://example.com/provider.yaml"
-        accessory.addSubview(urlField)
-        label("Group", y: 74)
-        let groupField = NSComboBox(frame: NSRect(x: 90, y: 74, width: 310, height: 24))
+        let groupField = NSComboBox()
         groupField.isEditable = true
         groupField.placeholderString = "Existing or new group name"
         groupField.addItems(withObjectValues: model.groups.filter {
             ["selector", "urltest", "fallback", "loadbalance"].contains($0.kind.lowercased())
         }.map(\.name))
-        accessory.addSubview(groupField)
-        label("Update (s)", y: 40)
-        let intervalField = NSComboBox(frame: NSRect(x: 90, y: 40, width: 310, height: 24))
+        let intervalField = NSComboBox()
         intervalField.isEditable = true
         intervalField.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
         intervalField.stringValue = "3600"
-        accessory.addSubview(intervalField)
-        label("Test URL", y: 6)
-        let testURLField = NSTextField(frame: NSRect(x: 90, y: 6, width: 310, height: 24))
+        let testURLField = NSTextField()
         testURLField.placeholderString = "Optional; blank inherits configuration"
-        accessory.addSubview(testURLField)
+        let accessory = NativeControlStyle.form([
+            ("Name", nameField), ("URL", urlField), ("Group", groupField),
+            ("Update (s)", intervalField), ("Test URL", testURLField)
+        ])
         alert.accessoryView = accessory
         alert.window.initialFirstResponder = nameField
         NSApp.activate(ignoringOtherApps: true)
@@ -675,31 +665,20 @@ import AppKit
         alert.addButton(withTitle: "Add and Apply")
         alert.addButton(withTitle: "Cancel")
 
-        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 140))
-        let nameLabel = NSTextField(labelWithString: "Name")
-        nameLabel.frame = NSRect(x: 0, y: 110, width: 85, height: 22)
-        accessory.addSubview(nameLabel)
-        let nameField = NSTextField(frame: NSRect(x: 90, y: 110, width: 310, height: 22))
+        let nameField = NSTextField()
         nameField.placeholderString = "Subscription name"
-        accessory.addSubview(nameField)
-        let urlLabel = NSTextField(labelWithString: "URL")
-        urlLabel.frame = NSRect(x: 0, y: 76, width: 85, height: 22)
-        accessory.addSubview(urlLabel)
-        let urlField = NSTextField(frame: NSRect(x: 90, y: 76, width: 310, height: 22))
+        let urlField = NSTextField()
         urlField.placeholderString = "https://example.com/subscription"
-        accessory.addSubview(urlField)
-        let scheduleLabel = NSTextField(labelWithString: "Update (s)")
-        scheduleLabel.frame = NSRect(x: 0, y: 42, width: 85, height: 22); accessory.addSubview(scheduleLabel)
-        let scheduleField = NSComboBox(frame: NSRect(x: 90, y: 42, width: 310, height: 22))
+        let scheduleField = NSComboBox()
         scheduleField.isEditable = true
         scheduleField.addItems(withObjectValues: ["off", "3600", "21600", "86400"])
         scheduleField.stringValue = "3600"; scheduleField.placeholderString = "Seconds, or off"
-        accessory.addSubview(scheduleField)
-        let testLabel = NSTextField(labelWithString: "Test URL")
-        testLabel.frame = NSRect(x: 0, y: 8, width: 85, height: 22); accessory.addSubview(testLabel)
-        let testURLField = NSTextField(frame: NSRect(x: 90, y: 8, width: 310, height: 22))
+        let testURLField = NSTextField()
         testURLField.placeholderString = "Optional; blank inherits configuration"
-        accessory.addSubview(testURLField)
+        let accessory = NativeControlStyle.form([
+            ("Name", nameField), ("URL", urlField),
+            ("Update (s)", scheduleField), ("Test URL", testURLField)
+        ])
         alert.accessoryView = accessory
         alert.window.initialFirstResponder = nameField
         NSApp.activate(ignoringOtherApps: true)
