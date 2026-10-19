@@ -49,6 +49,46 @@ final class CaptureDraftIntentTests: XCTestCase {
 }
 
 @MainActor final class CaptureDraftModelTests: XCTestCase {
+    func testDraftWindowFitsScreenAndPreservesResizedFrame() async throws {
+        _ = NSApplication.shared
+        let model = CaptureDraftModel(context: try CaptureDraftIntentTests.context()) { args, input in
+            try self.response(args, input)
+        }
+        await model.prepare()
+        XCTAssertTrue(model.ready, model.error ?? "")
+        let controller = CaptureDraftWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
+        let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
+        let initial = window.frame
+        XCTAssertEqual(initial, CaptureDraftWindowController.layout.initialFrame(in: screen))
+        XCTAssertEqual(window.minSize, CaptureDraftWindowController.layout.minimumFrameSize(in: screen))
+        controller.present()
+        let content = try XCTUnwrap(window.contentView)
+        let minimum = CaptureDraftWindowController.layout.minimumFrameSize(in: NSRect(x: 0, y: 0, width: 960, height: 600))
+        window.minSize = minimum
+        func buttons(in view: NSView) -> [NSButton] {
+            ((view as? NSButton).map { [$0] } ?? []) + view.subviews.flatMap { buttons(in: $0) }
+        }
+        for size in [minimum, initial.size, minimum] {
+            window.setFrame(NSRect(origin: initial.origin, size: size), display: true)
+            for _ in 0..<5 {
+                content.layoutSubtreeIfNeeded()
+                try await Task.sleep(nanoseconds: 20_000_000)
+            }
+            XCTAssertEqual(window.frame.size, size)
+            for title in ["Cancel", "Preview…", "Save Rule"] {
+                let button = try XCTUnwrap(buttons(in: content).first { $0.title == title })
+                XCTAssertTrue(content.bounds.insetBy(dx: -1, dy: -1).contains(button.convert(button.bounds, to: content)), title)
+            }
+        }
+        // Ordering out keeps the draft session alive, unlike closing it.
+        window.orderOut(nil)
+        controller.present()
+        content.layoutSubtreeIfNeeded()
+        XCTAssertEqual(window.frame.size, minimum)
+    }
+
     private func json(_ text: String) throws -> JSONValue { try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) }
     private let fixture = #"{"stage":"exchange","request":{"scheme":"https","host":"api.service.example","port":443,"method":"POST","path":"/v1/a%2Fb","query":"token=fictitious-example","headers":{"Authorization":["Bearer fictitious-example"]},"body_base64":"b3JpZ2luYWw="},"response":{"status":201,"headers":{},"body_base64":""}}"#
     private func response(_ args: [String], _ input: Data?) throws -> JSONValue {

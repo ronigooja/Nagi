@@ -3,6 +3,42 @@ import AppKit
 @testable import NagiApp
 
 final class ConnectionsWindowTests: XCTestCase {
+    @MainActor func testWindowFitsScreenAndKeepsActionsVisibleAtSmallSizes() async throws {
+        _ = NSApplication.shared
+        let model = ConnectionsModel(fetch: { [] }, execute: { _ in })
+        model.setEngineState(.stopped)
+        let controller = ConnectionsWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
+        let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
+        let initial = window.frame
+        XCTAssertEqual(initial, ConnectionsWindowController.layout.initialFrame(in: screen))
+        XCTAssertEqual(window.minSize, ConnectionsWindowController.layout.minimumFrameSize(in: screen))
+        controller.present()
+        let content = try XCTUnwrap(window.contentView)
+        // Exercise small-screen minimums even when the test host has a large display.
+        let smallScreen = NSRect(x: 0, y: 0, width: 960, height: 600)
+        let minimum = ConnectionsWindowController.layout.minimumFrameSize(in: smallScreen)
+        window.minSize = minimum
+        for size in [minimum, initial.size, minimum] {
+            window.setFrame(NSRect(origin: initial.origin, size: size), display: true)
+            content.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+            XCTAssertEqual(window.frame.size, size)
+            for button in descendants(content, of: NSButton.self) where !button.isHidden {
+                XCTAssertTrue(content.bounds.insetBy(dx: -1, dy: -1).contains(button.convert(button.bounds, to: content)), button.title)
+            }
+            let details = try XCTUnwrap(descendants(content, of: NSTextView.self).first { $0.identifier?.rawValue == "connection-details" })
+            let detailScroll = try XCTUnwrap(details.enclosingScrollView)
+            XCTAssertGreaterThanOrEqual(detailScroll.frame.height, 60)
+            XCTAssertTrue(content.bounds.insetBy(dx: -1, dy: -1).contains(detailScroll.convert(detailScroll.bounds, to: content)))
+        }
+        window.close()
+        controller.present()
+        content.layoutSubtreeIfNeeded()
+        XCTAssertEqual(window.frame.size, minimum)
+    }
+
     @MainActor private func descendants<T: NSView>(_ root: NSView, of type: T.Type) -> [T] {
         ((root as? T).map { [$0] } ?? []) + root.subviews.flatMap { descendants($0, of: type) }
     }

@@ -10,6 +10,14 @@ The connection client decodes typed snapshot data on a worker queue. Missing fie
 
 An independent connection model owns the snapshot, filtered and sorted rows, selected ID, request generation, read task, close task, timer, and error state. Search and sort calculation runs outside the main actor. The AppKit controller owns native views, column descriptors, search editing, and scroll anchoring. Only view updates occur on the main actor. The menu delegate retains one resizable window controller, presents it again on repeated menu selection, and preserves the accessory activation policy.
 
+The controller uses the shared `NativeWindowLayout` to fit its initial and minimum
+frame sizes to the screen's visible area, following the [UI sizing rules](../development/ui-design.md#window-sizing).
+The preferred frame is 1040 × 700 points and the preferred minimum is 800 × 550.
+Table and detail panes can shrink below their preferred heights while retaining
+scrolling and access to window actions. Reopening preserves the resized frame.
+The screen-fitting changes and their regression tests still require macOS
+compilation, execution and interactive acceptance.
+
 ## Snapshot lifecycle
 
 Opening a visible window immediately requests a snapshot. A one-second timer attempts reads; an in-flight read skips the tick without queueing another. Manual refresh shares that gate. Window close, minimization or hiding, App hiding, sleep, and starting quit invalidate the generation and cancel the read and timer. Cancellation terminates the CLI child, with bounded escalation if it ignores termination. A later read waits for cancellation to finish. Old results cannot replace a newer state. Becoming visible or waking starts an immediate read again. Explicit window ordering hooks complement delegate and App hide notifications. If AppKit declines native minimization, a cancellable 500 ms fallback hides the window; reopening cancels that fallback and resumes reading.

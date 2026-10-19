@@ -198,6 +198,15 @@ row. The active detail section survives record refresh and selection changes;
 changing records closes the pointer popover and clears its input. Field and body
 context menus continue to derive drafts through the CLI.
 
+The native quick-rule window uses the shared `NativeWindowLayout` to fit its
+initial and minimum frame sizes to the screen's visible area, following the
+[UI sizing rules](../development/ui-design.md#window-sizing). Its preferred frame
+is 840 × 740 points and its preferred minimum is 760 × 600. Ordering the existing
+window forward preserves its resized frame. SwiftUI content does not publish
+window size constraints; the editor form scrolls within the available space.
+The screen-fitting changes and their regression tests require macOS compilation,
+execution and interactive acceptance.
+
 The native quick-rule window shows its pinned save profile in the window title
 (`Create Rule — PROFILE`). Its body starts with rule settings, original-metadata
 match conditions and ordered operations, without a repeated title, record ID or

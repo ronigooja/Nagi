@@ -6,6 +6,8 @@ import SwiftUI
     let model: CaptureDraftModel
     var onClose: (() -> Void)?
     private var titleObservation: AnyCancellable?
+    static let layout = NativeWindowLayout(preferredSize: NSSize(width: 840, height: 740),
+                                          minimumSize: NSSize(width: 760, height: 600))
     init(model: CaptureDraftModel) {
         self.model = model
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 840, height: 740), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
@@ -13,12 +15,11 @@ import SwiftUI
         titleObservation = model.$profile.sink { [weak window] profile in
             window?.title = profile.map { "Create Rule · \($0)" } ?? "Create Rule"
         }
-        window.minSize = NSSize(width: 760, height: 600)
         window.isReleasedWhenClosed = false; window.delegate = self
         let content = NSHostingView(rootView: CaptureDraftView(model: model, close: { [weak self] in self?.close() }))
         content.sizingOptions = []
         window.contentView = content
-        window.center()
+        Self.layout.apply(to: window)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     func present() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }

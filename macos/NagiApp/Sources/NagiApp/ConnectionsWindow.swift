@@ -79,6 +79,8 @@ import AppKit
     private var topPinnedDuringRefresh = false
     private var updatingTable = false
     private var observers: [NSObjectProtocol] = []
+    static let layout = NativeWindowLayout(preferredSize: NSSize(width: 1040, height: 700),
+                                          minimumSize: NSSize(width: 800, height: 550))
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .none
@@ -92,12 +94,11 @@ import AppKit
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Nagi Connections"
-        window.minSize = NSSize(width: 800, height: 550)
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
-        window.center()
         buildContent()
+        Self.layout.apply(to: window)
         model.onChange = { [weak self] in self?.render() }
         for name in [NSApplication.didHideNotification, NSApplication.didUnhideNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -180,7 +181,10 @@ import AppKit
         let detailScroll = NSScrollView()
         detailScroll.documentView = detail; detailScroll.hasVerticalScroller = true
         detailScroll.borderType = .bezelBorder
-        detailScroll.heightAnchor.constraint(equalToConstant: 170).isActive = true
+        let preferredDetailHeight = detailScroll.heightAnchor.constraint(equalToConstant: 170)
+        preferredDetailHeight.priority = .defaultHigh
+        preferredDetailHeight.isActive = true
+        detailScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 60).isActive = true
         let detailsTitle = NSTextField(labelWithString: "Connection Details")
         detailsTitle.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
         let actions = NSStackView(views: [closeButton, closeAllButton, NSView(), updatedLabel])
@@ -200,8 +204,11 @@ import AppKit
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
             stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 16),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -16),
-            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 140)
+            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 80)
         ])
+        let preferredTableHeight = scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 140)
+        preferredTableHeight.priority = .defaultHigh
+        preferredTableHeight.isActive = true
         for view in [toolbar, scroll, detailScroll, actions, statusLabel] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
