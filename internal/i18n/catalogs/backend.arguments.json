@@ -71,6 +71,9 @@
   "backend.diagnostic.name.data_directory": {},
   "backend.diagnostic.name.dns": {},
   "backend.diagnostic.name.listener_exposure": {},
+  "backend.diagnostic.name.listener_port": {
+    "field": "string"
+  },
   "backend.diagnostic.name.mihomo_executable": {},
   "backend.diagnostic.name.process": {},
   "backend.diagnostic.name.runtime_directory": {},
@@ -310,6 +313,28 @@
   "backend.profile.unsupported_group_type": {},
   "backend.profile.unsupported_tailscale_action": {},
   "backend.profile.url_must_be_an_absolute_http_s_url_without_userinfo_or_fragment": {},
+  "backend.profile.validation": {
+    "path": "string",
+    "code": "string",
+    "detail": "string"
+  },
+  "backend.profile.validation.named": {
+    "path": "string",
+    "code": "string",
+    "detail": "string",
+    "profile": "string"
+  },
+  "backend.profile.validation.named.rules": {
+    "path": "string",
+    "code": "string",
+    "detail": "string",
+    "profile": "string"
+  },
+  "backend.profile.validation.rules": {
+    "path": "string",
+    "code": "string",
+    "detail": "string"
+  },
   "backend.profile.w_use_nagi_profile_use_name_or_nagi_subscription_apply_name_to_repair_the_selection": {
     "arg0": "string"
   },
@@ -326,6 +351,7 @@
   "backend.proxy.group_contains_a_node_with_ambiguous_ownership_test_a_specific_provider_node_ins": {},
   "backend.proxy.group_is_not_automatic_choose_a_urltest_or_fallback_group": {},
   "backend.proxy.group_missing_from_effective_profile": {},
+  "backend.proxy.history.unavailable": {},
   "backend.proxy.invalid_mode_q": {
     "arg0": "string"
   },
@@ -358,6 +384,14 @@
   "backend.proxy.url_must_be_an_absolute_http_s_url_without_userinfo": {},
   "backend.rewrite.recovery.build_engine": {},
   "backend.rules.cannot_merge_custom_rules_with_invalid_profile_yaml": {},
+  "backend.rules.collection.rules.empty": {},
+  "backend.rules.collection.rules.invalid_item": {},
+  "backend.rules.collection.rules.too_many": {},
+  "backend.rules.collection.set.empty": {},
+  "backend.rules.collection.set.invalid_item": {},
+  "backend.rules.collection.set.too_many": {},
+  "backend.rules.conflict.duplicate": {},
+  "backend.rules.conflict.shadowed": {},
   "backend.rules.download_rule_import_http_d": {
     "arg0": "string"
   },

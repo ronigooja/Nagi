@@ -2,17 +2,19 @@ package proxy
 
 import (
 	"context"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net/url"
 	"time"
 )
 
 // NodeDelay is the most recent native mihomo observation, never a new probe.
 type NodeDelay struct {
-	Status     string `json:"status"`
-	DelayMS    *int   `json:"delay_ms,omitempty"`
-	MeasuredAt string `json:"measured_at,omitempty"`
-	TestURL    string `json:"test_url,omitempty"`
-	Reason     string `json:"reason,omitempty"`
+	Messages   map[string]i18n.Descriptor `json:"-"`
+	Status     string                     `json:"status"`
+	DelayMS    *int                       `json:"delay_ms,omitempty"`
+	MeasuredAt string                     `json:"measured_at,omitempty"`
+	TestURL    string                     `json:"test_url,omitempty"`
+	Reason     string                     `json:"reason,omitempty"`
 }
 type historyRecord struct {
 	Time  time.Time `json:"time"`
@@ -221,7 +223,7 @@ func (r *groupHistoryReader) decorate(ctx context.Context, s *Service, g *Group,
 		p, provider, ok := r.resolve(ctx, s, g.Name, name)
 		if !ok {
 			g.NodeInfo[name] = NodeInfo{Kind: "unknown"}
-			g.NodeDelays[name] = NodeDelay{Status: "untested", Reason: "history unavailable or ambiguous node ownership"}
+			g.NodeDelays[name] = NodeDelay{Status: "untested", Reason: "history unavailable or ambiguous node ownership", Messages: map[string]i18n.Descriptor{"/reason": {ID: "backend.proxy.history.unavailable"}}}
 			continue
 		}
 		info := NodeInfo{Kind: scopedNodeKind(name, p, provider)}

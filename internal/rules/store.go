@@ -149,7 +149,7 @@ func Validate(e Entry) error {
 		if e.Target != "" {
 			return i18n.Errorf("backend.rules.imported_rules_preserve_each_rule_target_and_cannot_have_a_shared_target", "imported rules preserve each rule target and cannot have a shared target")
 		}
-		return validateItems(e.Items, "rule list")
+		return validateItems(e.Items, "rules")
 	}
 	if e.Target == "" || strings.ContainsAny(e.Target, ",\n\r") {
 		return i18n.Errorf("backend.rules.target_must_be_direct_reject_or_a_proxy_group_name_without_commas", "target must be DIRECT, REJECT, or a proxy group name without commas")
@@ -171,7 +171,7 @@ func Validate(e Entry) error {
 		if e.Behavior != "classical" && e.Behavior != "domain" && e.Behavior != "ipcidr" {
 			return i18n.Errorf("backend.rules.rule_set_behavior_must_be_classical_domain_or_ipcidr", "rule set behavior must be classical, domain, or ipcidr")
 		}
-		return validateItems(e.Items, "rule set")
+		return validateItems(e.Items, "set")
 	}
 	return i18n.Errorf("backend.rules.unknown_rule_kind", "unknown rule kind")
 }
@@ -237,16 +237,20 @@ func (s *Store) Import(ctx context.Context, name, source string) error {
 
 const maxImportBytes = 8 << 20
 
-func validateItems(items []string, label string) error {
+func validateItems(items []string, kind string) error {
+	label := "rule list"
+	if kind == "set" {
+		label = "rule set"
+	}
 	if len(items) == 0 {
-		return i18n.Errorf("backend.rules.s_is_empty", "%s is empty", label)
+		return i18n.NewMessage("backend.rules.collection."+kind+".empty", nil, label+" is empty", nil)
 	}
 	if len(items) > 100000 {
-		return i18n.Errorf("backend.rules.s_exceeds_100000_entries", "%s exceeds 100000 entries", label)
+		return i18n.NewMessage("backend.rules.collection."+kind+".too_many", nil, label+" exceeds 100000 entries", nil)
 	}
 	for _, item := range items {
 		if strings.TrimSpace(item) == "" || strings.ContainsAny(item, "\n\r") {
-			return i18n.Errorf("backend.rules.s_contains_an_invalid_item", "%s contains an invalid item", label)
+			return i18n.NewMessage("backend.rules.collection."+kind+".invalid_item", nil, label+" contains an invalid item", nil)
 		}
 	}
 	return nil
@@ -293,7 +297,7 @@ func ParseRules(data []byte) ([]string, error) {
 		}
 		items = append(items, item.Value)
 	}
-	if err := validateItems(items, "rule list"); err != nil {
+	if err := validateItems(items, "rules"); err != nil {
 		return nil, err
 	}
 	return items, nil

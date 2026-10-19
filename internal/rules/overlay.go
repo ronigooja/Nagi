@@ -8,9 +8,10 @@ import (
 )
 
 type Conflict struct {
-	Earlier int    `json:"earlier"`
-	Later   int    `json:"later"`
-	Reason  string `json:"reason"`
+	Messages map[string]i18n.Descriptor `json:"-"`
+	Earlier  int                        `json:"earlier"`
+	Later    int                        `json:"later"`
+	Reason   string                     `json:"reason"`
 }
 type Report struct {
 	Order     []string   `json:"order"`
@@ -104,12 +105,12 @@ func AnalyzeEffective(data []byte) (Report, error) {
 			key = parts[0] + "," + parts[1]
 		}
 		if earlier, ok := seen[key]; ok {
-			r.Conflicts = append(r.Conflicts, Conflict{earlier, i, "same rule matcher appears earlier"})
+			r.Conflicts = append(r.Conflicts, Conflict{Earlier: earlier, Later: i, Reason: "same rule matcher appears earlier", Messages: map[string]i18n.Descriptor{"/reason": {ID: "backend.rules.conflict.duplicate"}}})
 		} else {
 			seen[key] = i
 		}
 		if matchIndex >= 0 && i > matchIndex {
-			r.Conflicts = append(r.Conflicts, Conflict{matchIndex, i, "earlier MATCH rule shadows this rule"})
+			r.Conflicts = append(r.Conflicts, Conflict{Earlier: matchIndex, Later: i, Reason: "earlier MATCH rule shadows this rule", Messages: map[string]i18n.Descriptor{"/reason": {ID: "backend.rules.conflict.shadowed"}}})
 		}
 		if len(parts) > 0 && parts[0] == "MATCH" && matchIndex < 0 {
 			matchIndex = i

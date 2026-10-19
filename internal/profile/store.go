@@ -337,6 +337,26 @@ func (e *ValidationError) Error() string {
 	return message
 }
 
+// Unwrap exposes presentation metadata while Error keeps the legacy English
+// diagnostic, including mihomo's original fallback and detailed local-copy hint.
+// Descriptor selection depends only on profile/path/code, never engine prose.
+func (e *ValidationError) Unwrap() error {
+	id := "backend.profile.validation"
+	args := map[string]any{"path": e.Path, "code": e.Code, "detail": e.Message}
+	if e.Profile != "" {
+		id += ".named"
+		args["profile"] = fmt.Sprintf("%q", e.Profile)
+	}
+	if strings.HasPrefix(e.Path, "rules[") && !strings.HasPrefix(e.Code, "geodata_") {
+		id += ".rules"
+	}
+	// Use the shared constructor to sanitize external text before serialization.
+	for key, value := range args {
+		args[key] = i18n.SafeDiagnostic(value.(string))
+	}
+	return i18n.NewMessage(id, args, e.Error(), nil)
+}
+
 func (s *Store) validate(name string, data []byte) error {
 	if len(strings.TrimSpace(string(data))) == 0 {
 		return i18n.Errorf("backend.profile.empty_profile", "empty profile")

@@ -1,6 +1,9 @@
 package diagnostic
 
-import "github.com/ronigooja/Nagi/internal/i18n"
+import (
+	"github.com/ronigooja/Nagi/internal/i18n"
+	"strings"
+)
 
 func (c Check) MessageDescriptors() map[string]i18n.Descriptor {
 	return i18n.CopyDescriptors(c.Messages)
@@ -38,6 +41,9 @@ func newCheck(name, status string, message *i18n.Message) Check {
 		c.Messages["/name"] = i18n.Descriptor{ID: "backend.diagnostic.name.listener_exposure"}
 	case "controller_exposure":
 		c.Messages["/name"] = i18n.Descriptor{ID: "backend.diagnostic.name.controller_exposure"}
+	}
+	if strings.HasPrefix(name, "port_") {
+		c.Messages["/name"] = i18n.Descriptor{ID: "backend.diagnostic.name.listener_port", Args: map[string]any{"field": strings.TrimPrefix(name, "port_")}}
 	}
 	return c
 }
