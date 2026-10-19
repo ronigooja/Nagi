@@ -35,13 +35,13 @@ func gateClient(t *testing.T, f *fixture, cert tls.Certificate) net.Conn {
 	return conn
 }
 func handoffHead(f *fixture, secret, token, extra string) string {
-	return fmt.Sprintf("CONNECT api.service.example:80 HTTP/1.1\r\nHost: api.service.example:80\r\nAuthorization: Bearer %s\r\nNagi-Rewrite-Version: 1\r\nNagi-Rewrite-Generation: %s\r\nNagi-Rewrite-Epoch: %s\r\nNagi-Rewrite-Context: %s\r\nNagi-Rewrite-Protocol: http\r\n%s\r\n", secret, f.config.Generation, f.config.EngineEpoch, token, extra)
+	return fmt.Sprintf("CONNECT api.service.example:80 HTTP/1.1\r\nHost: api.service.example:80\r\nAuthorization: Bearer %s\r\nNagi-Rewrite-Version: 2\r\nNagi-Rewrite-Generation: %s\r\nNagi-Rewrite-Epoch: %s\r\nNagi-Rewrite-Context: %s\r\nNagi-Rewrite-Protocol: http\r\n%s\r\n", secret, f.config.Generation, f.config.EngineEpoch, token, extra)
 }
 func TestAuthenticatedGateRejectsAndRedacts(t *testing.T) {
 	f := newFixture(t, "127.0.0.1:1")
 	token, _ := randomValue(32)
 	wrongSecret, _ := randomValue(32)
-	for _, head := range []string{handoffHead(f, wrongSecret, token, ""), handoffHead(f, f.config.HandoffSecret, token, "Nagi-Rewrite-Version: 1\r\n"), strings.Replace(handoffHead(f, f.config.HandoffSecret, token, ""), "Host: api.service.example:80", "Host: mirror.service.example:80", 1), strings.Replace(handoffHead(f, f.config.HandoffSecret, token, ""), "Nagi-Rewrite-Version: 1\r\n", "Nagi-Rewrite-Version: 1\n", 1)} {
+	for _, head := range []string{handoffHead(f, wrongSecret, token, ""), handoffHead(f, f.config.HandoffSecret, token, "Nagi-Rewrite-Version: 2\r\n"), strings.Replace(handoffHead(f, f.config.HandoffSecret, token, ""), "Host: api.service.example:80", "Host: mirror.service.example:80", 1), strings.Replace(handoffHead(f, f.config.HandoffSecret, token, ""), "Nagi-Rewrite-Version: 2\r\n", "Nagi-Rewrite-Version: 2\n", 1)} {
 		conn := gateClient(t, f, f.engine)
 		io.WriteString(conn, head)
 		resp, e := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: "CONNECT"})

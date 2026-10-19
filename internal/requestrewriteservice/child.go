@@ -21,7 +21,7 @@ import (
 
 // InternalArgument is intentionally absent from public CLI help/completion.
 const InternalArgument = "__nagi-request-rewrite-child"
-const frameLimit = 512 << 10
+const frameLimit = 2 << 20
 
 type startup struct {
 	RuntimeDir string          `json:"runtime_dir"`
@@ -143,7 +143,7 @@ func RunChild() int {
 	defer output.Close()
 	input.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var init startup
-	if readFrame(input, &init) != nil || init.Version != 1 || init.OwnerUID != os.Geteuid() || !id(init.Generation) {
+	if readFrame(input, &init) != nil || init.Version != 2 || init.OwnerUID != os.Geteuid() || !id(init.Generation) {
 		return 1
 	}
 	snapshot, e := domain.Parse(init.Document)
@@ -249,7 +249,7 @@ func StartChild(ctx context.Context, executable string, options ChildOptions) (*
 	go func() { h.done <- cmd.Wait(); close(h.done) }()
 	parentIn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	parentOut.SetReadDeadline(time.Now().Add(5 * time.Second))
-	if writeFrame(parentIn, startup{RuntimeDir: options.RuntimeDir, Generation: options.Generation, OwnerUID: os.Geteuid(), Version: 1, CADir: options.CADir, Document: options.Document}) != nil {
+	if writeFrame(parentIn, startup{RuntimeDir: options.RuntimeDir, Generation: options.Generation, OwnerUID: os.Geteuid(), Version: 2, CADir: options.CADir, Document: options.Document}) != nil {
 		h.Close()
 		return nil, errUnavailable
 	}

@@ -89,7 +89,7 @@ func TestIndependentH2StreamCancellation(t *testing.T) {
 
 func TestHTTP2JSONBodyDeadlineAndReservationRelease(t *testing.T) {
 	origin := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.Copy(io.Discard, r.Body); w.Write([]byte("ok")) }))
-	doc := []byte(`{"version":1,"enabled":false,"domains":[{"id":"api","pattern":"api.service.example"}],"rules":[{"id":"json","enabled":true,"match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"json_set","pointer":"/edited","value":true}]}]}`)
+	doc := []byte(`{"version":2,"enabled":false,"rules":[{"id":"json","enabled":true,"match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"json_set","pointer":"/edited","value":true}],"stage":"request","range_mode":"fragment"}],"scripts":[]}`)
 	f := newFixture(t, origin.Listener.Addr().String(), doc)
 	f.s.transformTimeout = 100 * time.Millisecond
 	cfg, e := goproxy.TLSConfigFromCA(&f.s.ca)("api.service.example", &goproxy.ProxyCtx{Proxy: &goproxy.ProxyHttpServer{}})

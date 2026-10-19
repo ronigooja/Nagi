@@ -114,7 +114,7 @@ func run(scheme string, mode tunnel.TunnelMode, ca tls.Certificate) {
 	must(e)
 	p, e := strconv.Atoi(port)
 	must(e)
-	doc := fmt.Sprintf(`{"version":1,"enabled":false,"domains":[{"id":"api","pattern":"api.service.example"},{"id":"mirror","pattern":"mirror.service.example"}],"rules":[{"id":"edit","enabled":true,"match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[{"domain":"mirror.service.example","schemes":["%s"],"ports":[%d]}],"operations":[{"op":"header_set","name":"X-Rewritten","value":"yes"},{"op":"url_set","component":"host","value":"mirror.service.example"},{"op":"url_set","component":"path","value":"/changed"},{"op":"url_set","component":"query","value":"case=fixture"},{"op":"json_set","pointer":"/edited","value":true}]}]}`, scheme, p)
+	doc := fmt.Sprintf(`{"version":2,"enabled":false,"scripts":[],"rules":[{"id":"edit","enabled":true,"stage":"request","range_mode":"fragment","match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[{"domain":"mirror.service.example","schemes":["%s"],"ports":[%d]}],"operations":[{"op":"header_set","name":"X-Rewritten","value":"yes"},{"op":"url_set","component":"host","value":"mirror.service.example"},{"op":"url_set","component":"path","value":"/changed"},{"op":"url_set","component":"query","value":"case=fixture"},{"op":"json_set","pointer":"/edited","value":true}]}]}`, scheme, p)
 	snapshot, e := D.Parse([]byte(doc))
 	must(e)
 	service, e := S.New(snapshot, ca)
@@ -124,14 +124,14 @@ func run(scheme string, mode tunnel.TunnelMode, ca tls.Certificate) {
 	must(e)
 	handoff, reinjection := secret(), secret()
 	a := service.Announcement()
-	prepared, e := tunnel.RewritePrepareSession(tunnel.RewritePrepare{Version: 1, Generation: gen, OwnerUID: uint32(os.Getuid()), HandoffAddr: a.HandoffAddr, ChildTransportCert: a.ChildTransportCert, HandoffSecret: handoff, ReinjectionSecret: reinjection, Domains: []string{"api.service.example", "mirror.service.example"}, RuleVersion: snapshot.Version(), BlockAuthorizedQUIC: true}, uint32(os.Getuid()))
+	prepared, e := tunnel.RewritePrepareSession(tunnel.RewritePrepare{Version: 2, Generation: gen, OwnerUID: uint32(os.Getuid()), HandoffAddr: a.HandoffAddr, ChildTransportCert: a.ChildTransportCert, HandoffSecret: handoff, ReinjectionSecret: reinjection, InterceptDomains: snapshot.InterceptDomains(), TargetDomains: snapshot.TargetDomains(), RuleVersion: snapshot.Version(), BlockAuthorizedQUIC: true}, uint32(os.Getuid()))
 	must(e)
 	must(service.Configure(S.Configuration{Generation: gen, EngineEpoch: prepared["engine_epoch"].(string), ReinjectionAddr: prepared["reinjection_addr"].(string), EngineTransportCert: prepared["engine_transport_cert"].(string), HandoffSecret: handoff, ReinjectionSecret: reinjection}))
 	go service.Serve()
-	must(tunnel.RewriteProbe(tunnel.RewriteGeneration{Version: 1, Generation: gen}))
+	must(tunnel.RewriteProbe(tunnel.RewriteGeneration{Version: 2, Generation: gen}))
 	var activation error
 	for i := 0; i < 50; i++ {
-		_, activation = tunnel.RewriteSetBranch(tunnel.RewriteBranch{Version: 1, Generation: gen, Enabled: true})
+		_, activation = tunnel.RewriteSetBranch(tunnel.RewriteBranch{Version: 2, Generation: gen, Enabled: true})
 		if activation == nil {
 			break
 		}
@@ -139,7 +139,7 @@ func run(scheme string, mode tunnel.TunnelMode, ca tls.Certificate) {
 	}
 	must(activation)
 	defer func() {
-		_, e := tunnel.RewriteSetBranch(tunnel.RewriteBranch{Version: 1, Generation: gen, Enabled: false})
+		_, e := tunnel.RewriteSetBranch(tunnel.RewriteBranch{Version: 2, Generation: gen, Enabled: false})
 		must(e)
 		must(tunnel.RewriteDeleteSession(gen))
 	}()

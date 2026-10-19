@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/elazarl/goproxy"
 	domain "github.com/ronigooja/Nagi/internal/requestrewrite"
 	"golang.org/x/net/http2"
@@ -66,7 +67,7 @@ func newFixture(t *testing.T, origin string, documents ...[]byte) *fixture {
 	if e != nil {
 		t.Fatal(e)
 	}
-	document := []byte(`{"version":1,"enabled":false,"domains":[{"id":"api","pattern":"api.service.example"},{"id":"mirror","pattern":"mirror.service.example"}],"rules":[{"id":"header","enabled":true,"match":{"domain":"api.service.example","methods":["GET","POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"X-Test-Rewrite","value":"edited"}]}]}`)
+	document := []byte(`{"version":2,"enabled":false,"rules":[{"id":"header","enabled":true,"match":{"domain":"api.service.example","methods":["GET","POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"X-Test-Rewrite","value":"edited"}],"stage":"request"}],"scripts":[]}`)
 	if len(documents) > 0 {
 		document = documents[0]
 	}
@@ -178,7 +179,7 @@ func (f *fixture) handoff(t *testing.T, protocol string) net.Conn {
 		t.Fatal(e)
 	}
 	tok, _ := randomValue(32)
-	fmt.Fprintf(conn, "CONNECT api.service.example:80 HTTP/1.1\r\nHost: api.service.example:80\r\nAuthorization: Bearer %s\r\nNagi-Rewrite-Version: 1\r\nNagi-Rewrite-Generation: %s\r\nNagi-Rewrite-Epoch: %s\r\nNagi-Rewrite-Context: %s\r\nNagi-Rewrite-Protocol: %s\r\n\r\n", f.config.HandoffSecret, f.config.Generation, f.config.EngineEpoch, tok, protocol)
+	fmt.Fprintf(conn, "CONNECT api.service.example:80 HTTP/1.1\r\nHost: api.service.example:80\r\nAuthorization: Bearer %s\r\nNagi-Rewrite-Version: 2\r\nNagi-Rewrite-Generation: %s\r\nNagi-Rewrite-Epoch: %s\r\nNagi-Rewrite-Context: %s\r\nNagi-Rewrite-Protocol: %s\r\n\r\n", f.config.HandoffSecret, f.config.Generation, f.config.EngineEpoch, tok, protocol)
 	r := bufio.NewReader(conn)
 	if e = readOK(r); e != nil {
 		t.Fatal(e)
@@ -297,35 +298,43 @@ func TestCloseCancelsPendingContext(t *testing.T) {
 
 func TestWebSocketBufferedFirstFrame(t *testing.T) {
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c, rw, e := w.(http.Hijacker).Hijack()
-		if e != nil {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Error(err)
 			return
 		}
-		defer c.Close()
-		io.WriteString(rw, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
-		rw.Flush()
-		b := make([]byte, 6)
-		if _, e = io.ReadFull(rw, b); e != nil {
+		defer c.CloseNow()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+		defer cancel()
+		kind, body, err := c.Read(ctx)
+		if err != nil {
+			t.Error(err)
 			return
 		}
-		c.Write(b)
+		if err = c.Write(ctx, kind, body); err != nil {
+			t.Error(err)
+		}
+		_, _, _ = c.Read(ctx)
 	}))
 	defer origin.Close()
 	f := newFixture(t, strings.TrimPrefix(origin.URL, "http://"))
 	conn := f.handoff(t, "http")
 	defer conn.Close()
-	_, e := io.WriteString(conn, "GET /ws HTTP/1.1\r\nHost: api.service.example\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ZmFrZS1maXh0dXJlLWtleQ==\r\n\r\nFRAME1")
-	if e != nil {
-		t.Fatal(e)
+	// The complete masked frame is sent with the upgrade head, exercising both
+	// HTTP gate and codec buffers before either peer has accepted the handshake.
+	frame := []byte{0x81, 0x86, 1, 2, 3, 4, 'F' ^ 1, 'R' ^ 2, 'A' ^ 3, 'M' ^ 4, 'E' ^ 1, '1' ^ 2}
+	head := []byte("GET /ws HTTP/1.1\r\nHost: api.service.example\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ZmFrZS1maXh0dXJlLWtleQ==\r\n\r\n")
+	if _, err := conn.Write(append(head, frame...)); err != nil {
+		t.Fatal(err)
 	}
-	r := bufio.NewReader(conn)
-	resp, e := http.ReadResponse(r, &http.Request{Method: "GET"})
-	if e != nil || resp.StatusCode != 101 {
-		t.Fatalf("upgrade %v %v", resp, e)
+	reader := bufio.NewReader(conn)
+	response, err := http.ReadResponse(reader, &http.Request{Method: "GET"})
+	if err != nil || response.StatusCode != 101 {
+		t.Fatalf("upgrade %v %v", response, err)
 	}
-	b := make([]byte, 6)
-	if _, e = io.ReadFull(r, b); e != nil || string(b) != "FRAME1" {
-		t.Fatalf("first frame %q %v", b, e)
+	got := make([]byte, 8)
+	if _, err = io.ReadFull(reader, got); err != nil || !bytes.Equal(got, append([]byte{0x01, 6}, []byte("FRAME1")...)) {
+		t.Fatalf("frame %x %v", got, err)
 	}
 	conn.Close()
 	deadline := time.Now().Add(time.Second)
@@ -367,7 +376,7 @@ func TestHTTPPipelineAndDuplicateFraming(t *testing.T) {
 }
 
 func TestHTTP1JSONStallClosesAndReleasesReservation(t *testing.T) {
-	doc := []byte(`{"version":1,"enabled":false,"domains":[{"id":"api","pattern":"api.service.example"}],"rules":[{"id":"json","enabled":true,"match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"json_set","pointer":"/x","value":true}]}]}`)
+	doc := []byte(`{"version":2,"enabled":false,"rules":[{"id":"json","enabled":true,"match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"json_set","pointer":"/x","value":true}],"stage":"request","range_mode":"fragment"}],"scripts":[]}`)
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.Copy(io.Discard, r.Body); w.Write([]byte("ok")) }))
 	defer origin.Close()
 	f := newFixture(t, strings.TrimPrefix(origin.URL, "http://"), doc)

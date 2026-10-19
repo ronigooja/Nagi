@@ -20,7 +20,7 @@ import (
 // Standard Request.Write streams the body into the server without an unbounded
 // buffer. The standard server and goproxy retain response and upgrade ownership.
 func serveHTTP1(ctx context.Context, conn net.Conn, handler http.Handler, scheme string) {
-	input, output := io.Pipe()
+	input, output := net.Pipe()
 	guard := &guardConn{Conn: conn, input: input, output: output, done: make(chan struct{})}
 	go func() {
 		defer close(guard.done)
@@ -33,7 +33,7 @@ func serveHTTP1(ctx context.Context, conn net.Conn, handler http.Handler, scheme
 				return
 			}
 			if !validApplicationHead(head) {
-				output.CloseWithError(errInvalid)
+				output.Close()
 				return
 			}
 			parser := bufio.NewReader(io.MultiReader(bytes.NewReader(head), source))
@@ -107,14 +107,19 @@ func validApplicationHead(head []byte) bool {
 
 type guardConn struct {
 	net.Conn
-	input   *io.PipeReader
-	output  *io.PipeWriter
+	input   net.Conn
+	output  net.Conn
 	done    chan struct{}
 	once    sync.Once
 	onClose func()
 }
 
 func (c *guardConn) Read(p []byte) (int, error) { return c.input.Read(p) }
+
+// net/http interrupts pending header reads while hijacking. Keep that deadline
+// on the gate endpoint so it cannot terminate the raw upgraded byte stream.
+func (c *guardConn) SetReadDeadline(t time.Time) error { return c.input.SetReadDeadline(t) }
+
 func (c *guardConn) Close() error {
 	c.once.Do(func() {
 		c.input.Close()

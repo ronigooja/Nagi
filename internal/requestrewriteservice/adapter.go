@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"errors"
 	"io"
 	"log"
 	"net"
@@ -15,7 +14,6 @@ import (
 	"time"
 
 	"github.com/elazarl/goproxy"
-	domain "github.com/ronigooja/Nagi/internal/requestrewrite"
 	"golang.org/x/net/http2"
 )
 
@@ -100,41 +98,12 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 			return req, fixedResponse(req, "rewrite_invalid")
 		}
 		stripHeaders(req.Header)
-		transformCtx, cancelTransform := context.WithTimeout(req.Context(), s.transformTimeout)
-		stopBody := context.AfterFunc(transformCtx, func() {
-			if req.ProtoMajor == 1 {
-				wire.Close()
-			}
-			if req.Body != nil {
-				req.Body.Close()
-			}
-		})
-		var result domain.Result
-		var e error
-		if req.Header.Get("Upgrade") != "" {
-			result, e = s.snapshot.TransformUpgrade(transformCtx, req)
-		} else {
-			result, e = s.snapshot.Transform(transformCtx, req)
-		}
-		expired := transformCtx.Err() != nil
-		stopped := stopBody()
-		cancelTransform()
-		if e == nil && (expired || !stopped) {
-			e = errUnavailable
-		}
+		state := &exchangeState{original: req.Clone(req.Context())}
+		pctx.UserData = state
+		result, e := s.transformRequest(req, wire, req.Header.Get("Upgrade") != "")
 		if e != nil {
-			if result.Request != nil && result.Request.Body != nil {
-				result.Request.Body.Close()
-			}
-			code := "rewrite_transform"
-			var de *domain.Error
-			if errors.As(e, &de) {
-				switch de.Code {
-				case "rewrite_auth", "rewrite_invalid", "rewrite_limit", "rewrite_cancelled", "rewrite_transform":
-					code = de.Code
-				}
-			}
-			return req, fixedResponse(req, code)
+			state.localFailure = true
+			return req, fixedResponse(req, transformCode(e))
 		}
 		out := result.Request.WithContext(req.Context())
 		pctx.RoundTripper = goproxy.RoundTripperFunc(func(r *http.Request, _ *goproxy.ProxyCtx) (*http.Response, error) {
@@ -143,6 +112,7 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 			}
 			response, e := cc.roundTrip(r)
 			if e != nil {
+				state.localFailure = true
 				return fixedResponse(r, "rewrite_unavailable"), nil
 			}
 			return response, nil
@@ -162,9 +132,33 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 				return fixedResponse(pctx.Req, "rewrite_invalid")
 			}
 		}
+		state, ok := pctx.UserData.(*exchangeState)
+		if !ok || state.localFailure {
+			return resp
+		}
+		originalHandshake := *resp
+		originalHandshake.Header = resp.Header.Clone()
+		originalHandshake.Body = http.NoBody
+		transformed, err := s.transformResponse(state.original, resp, wire)
+		if err != nil {
+			state.localFailure = true
+			return fixedResponse(pctx.Req, transformCode(err))
+		}
+		resp = transformed
+		if resp.StatusCode == 101 {
+			resp, err = s.snapshot.TransformHandshake(state.original, &originalHandshake, resp)
+			if err != nil {
+				if transformed.Body != nil {
+					transformed.Body.Close()
+				}
+				return fixedResponse(pctx.Req, transformCode(err))
+			}
+		}
+		stripHeaders(resp.Header)
 		if state, ok := pctx.Req.Context().Value(bodyStateKey{}).(*bodyState); ok && resp.StatusCode != 101 {
 			resp.Body = &checkedBody{ReadCloser: resp.Body, state: state}
 		}
+
 		return resp
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -191,6 +185,10 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		upgrade := req.Header.Get("Upgrade")
 		if upgrade != "" && (req.ProtoMajor != 1 || !strings.EqualFold(upgrade, "websocket") || !headerToken(req.Header, "Connection", "upgrade")) {
 			http.Error(w, "rewrite_invalid", 502)
+			return
+		}
+		if upgrade != "" {
+			s.serveWebSocket(w, req, cc, wire)
 			return
 		}
 		state := &bodyState{}
@@ -265,6 +263,9 @@ func (c *connectionContext) roundTrip(req *http.Request) (*http.Response, error)
 		}
 		return c.dial(ctx, target, false)
 	}}
+	if req.Header.Get("Upgrade") != "" {
+		t.ResponseHeaderTimeout = 5 * time.Second
+	}
 	defer t.CloseIdleConnections()
 	if c.ctx.Err() != nil {
 		return nil, errUnavailable

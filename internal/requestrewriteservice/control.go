@@ -17,18 +17,19 @@ import (
 )
 
 type Status struct {
-	Version     int     `json:"version"`
-	Generation  string  `json:"generation"`
-	RuleVersion string  `json:"rule_version"`
-	Ready       bool    `json:"ready"`
-	Contexts    int     `json:"contexts"`
-	LastError   *string `json:"last_error"`
+	Version     int             `json:"version"`
+	Generation  string          `json:"generation"`
+	RuleVersion string          `json:"rule_version"`
+	Ready       bool            `json:"ready"`
+	Contexts    int             `json:"contexts"`
+	LastError   *string         `json:"last_error"`
+	Counters    RewriteCounters `json:"counters"`
 }
 
 func (s *Service) Status() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return Status{1, s.config.Generation, s.snapshot.Version(), s.configured && !s.closing && !s.draining, len(s.contexts), nil}
+	return Status{2, s.config.Generation, s.snapshot.Version(), s.configured && !s.closing && !s.draining, len(s.contexts), nil, s.counters}
 }
 
 type peerKey struct{}

@@ -38,6 +38,7 @@ type Announcement struct {
 }
 type Service struct {
 	transformTimeout time.Duration
+	counters         RewriteCounters
 	control          net.Listener
 	controlServer    *http.Server
 	controlLock      *os.File
@@ -67,6 +68,12 @@ func New(snapshot *domain.Snapshot, ca tls.Certificate) (*Service, error) {
 	if snapshot == nil || len(ca.Certificate) == 0 || ca.PrivateKey == nil {
 		return nil, errInvalid
 	}
+	prepareCtx, prepareCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	prepareErr := snapshot.PrepareScripts(prepareCtx)
+	prepareCancel()
+	if prepareErr != nil {
+		return nil, errUnavailable
+	}
 	cert, e := certificate()
 	if e != nil {
 		return nil, errUnavailable
@@ -76,7 +83,7 @@ func New(snapshot *domain.Snapshot, ca tls.Certificate) (*Service, error) {
 		return nil, errUnavailable
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{snapshot: snapshot, transformTimeout: 30 * time.Second, ca: ca, cert: cert, listener: l, ctx: ctx, cancel: cancel, contexts: map[string]*connectionContext{}, connections: map[net.Conn]bool{}, pending: make(chan struct{}, 32), leaves: &certCache{entries: map[string]*tls.Certificate{}}}, nil
+	return &Service{snapshot: snapshot, transformTimeout: 5 * time.Second, ca: ca, cert: cert, listener: l, ctx: ctx, cancel: cancel, contexts: map[string]*connectionContext{}, connections: map[net.Conn]bool{}, pending: make(chan struct{}, 32), leaves: &certCache{entries: map[string]*tls.Certificate{}}}, nil
 }
 func (s *Service) Announcement() Announcement {
 	return Announcement{s.listener.Addr().String(), base64.StdEncoding.EncodeToString(s.cert.Certificate[0]), s.snapshot.Version()}
@@ -217,7 +224,7 @@ func (s *Service) receive(raw net.Conn) {
 		wireError(conn, "rewrite_invalid")
 		return
 	}
-	if req.Method != "CONNECT" || req.Proto != "HTTP/1.1" || req.Host != req.RequestURI || req.ContentLength > 0 || len(req.TransferEncoding) > 0 || h.Get("Nagi-Rewrite-Version") != "1" || h.Get("Nagi-Rewrite-Generation") != c.Generation || h.Get("Nagi-Rewrite-Epoch") != c.EngineEpoch || !token(h.Get("Nagi-Rewrite-Context")) || (protocol != "http" && protocol != "tls") || (probe != "" && probe != "1") {
+	if req.Method != "CONNECT" || req.Proto != "HTTP/1.1" || req.Host != req.RequestURI || req.ContentLength > 0 || len(req.TransferEncoding) > 0 || h.Get("Nagi-Rewrite-Version") != "2" || h.Get("Nagi-Rewrite-Generation") != c.Generation || h.Get("Nagi-Rewrite-Epoch") != c.EngineEpoch || !token(h.Get("Nagi-Rewrite-Context")) || (protocol != "http" && protocol != "tls") || (probe != "" && probe != "1") {
 		wireError(conn, "rewrite_invalid")
 		return
 	}
@@ -318,7 +325,7 @@ func (s *Service) sendHeartbeat(sequence uint64) {
 		RuleVersion string `json:"rule_version"`
 		Ready       bool   `json:"ready"`
 		Sequence    uint64 `json:"sequence"`
-	}{1, c.Generation, c.EngineEpoch, s.snapshot.Version(), s.Status().Ready, sequence})
+	}{2, c.Generation, c.EngineEpoch, s.snapshot.Version(), s.Status().Ready, sequence})
 	_, _ = fmt.Fprintf(conn, "POST /_nagi/request-rewrite/heartbeat HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s", c.ReinjectionAddr, c.ReinjectionSecret, len(body), body)
 	r := bufio.NewReader(conn)
 	b, e := readHead(r, 16<<10)

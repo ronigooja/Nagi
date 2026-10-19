@@ -22,21 +22,22 @@ import (
 // RewriteStatus reports evidence separately from persisted intent. No endpoint,
 // transport credential or application content is included in this interface.
 type RewriteStatus struct {
-	ConfigVersion         int              `json:"config_version"`
-	Profile               string           `json:"profile"`
-	EnabledIntent         bool             `json:"enabled_intent"`
-	Actual                string           `json:"actual"`
-	ConfiguredRuleVersion string           `json:"configured_rule_version"`
-	ActiveRuleVersion     string           `json:"active_rule_version,omitempty"`
-	Generation            string           `json:"generation,omitempty"`
-	EngineEpoch           string           `json:"engine_epoch,omitempty"`
-	TUNRunning            *bool            `json:"tun_running"`
-	Backend               string           `json:"backend"`
-	ServiceRunning        *bool            `json:"service_running"`
-	ProtocolVersion       *int             `json:"protocol_version"`
-	CA                    rewrite.CAStatus `json:"ca"`
-	LastError             *string          `json:"last_error"`
-	Recovery              string           `json:"recovery,omitempty"`
+	ConfigVersion         int                    `json:"config_version"`
+	Profile               string                 `json:"profile"`
+	EnabledIntent         bool                   `json:"enabled_intent"`
+	Actual                string                 `json:"actual"`
+	ConfiguredRuleVersion string                 `json:"configured_rule_version"`
+	ActiveRuleVersion     string                 `json:"active_rule_version,omitempty"`
+	Generation            string                 `json:"generation,omitempty"`
+	EngineEpoch           string                 `json:"engine_epoch,omitempty"`
+	TUNRunning            *bool                  `json:"tun_running"`
+	Backend               string                 `json:"backend"`
+	ServiceRunning        *bool                  `json:"service_running"`
+	ProtocolVersion       *int                   `json:"protocol_version"`
+	CA                    rewrite.CAStatus       `json:"ca"`
+	LastError             *string                `json:"last_error"`
+	Recovery              string                 `json:"recovery,omitempty"`
+	Counters              *child.RewriteCounters `json:"counters,omitempty"`
 }
 
 type rewriteEngineStatus struct {
@@ -169,6 +170,9 @@ func rewriteStatusFor(ctx context.Context, paths nagiruntime.Paths, name string)
 		health, e := rewriteChildControl(ctx, rewriteSocket(paths, state.Generation), "GET", "/status", state.Generation)
 		running := e == nil
 		out.ServiceRunning = &running
+		if e == nil {
+			out.Counters = &health.Counters
+		}
 		if e != nil || !health.Ready || health.Generation != state.Generation || health.RuleVersion != state.RuleVersion {
 			out.Actual = "blocked"
 			code := "rewrite_unavailable"

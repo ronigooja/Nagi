@@ -31,7 +31,7 @@ import (
 const childRole = "nagi-rewrite-child.internal"
 const engineRole = "nagi-rewrite-engine.internal"
 const probeTarget = "nagi-rewrite-probe.invalid:443"
-const probePayload = "NAGI-REWRITE-PROBE-1"
+const probePayload = "NAGI-REWRITE-PROBE-2"
 
 var errInvalid = errors.New("rewrite_invalid")
 var errAuth = errors.New("rewrite_auth")
@@ -249,7 +249,7 @@ func (c *connectionContext) dial(ctx context.Context, target string, probe bool)
 	if probe {
 		extra = "Nagi-Rewrite-Probe: 1\r\n"
 	}
-	_, e = fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\nNagi-Rewrite-Version: 1\r\nNagi-Rewrite-Generation: %s\r\nNagi-Rewrite-Epoch: %s\r\nNagi-Rewrite-Context: %s\r\nNagi-Rewrite-Open: %d\r\n%s\r\n", target, target, cfg.ReinjectionSecret, cfg.Generation, cfg.EngineEpoch, c.token, c.open, extra)
+	_, e = fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\nNagi-Rewrite-Version: 2\r\nNagi-Rewrite-Generation: %s\r\nNagi-Rewrite-Epoch: %s\r\nNagi-Rewrite-Context: %s\r\nNagi-Rewrite-Open: %d\r\n%s\r\n", target, target, cfg.ReinjectionSecret, cfg.Generation, cfg.EngineEpoch, c.token, c.open, extra)
 	if e != nil {
 		c.cancel()
 		return nil, errUnavailable
