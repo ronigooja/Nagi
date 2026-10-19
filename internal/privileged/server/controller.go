@@ -2,12 +2,12 @@ package server
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 // ControllerAction is deliberately an enum, not an HTTP method or URL from
@@ -24,10 +24,10 @@ func QueryController(ctx context.Context, socketPath string, action ControllerAc
 	case ControllerVersion:
 		endpoint = "/version"
 	default:
-		return nil, errors.New("controller action is not allowed")
+		return nil, i18n.Errorf("system.privileged.controller.action.is.not.allowed", "controller action is not allowed")
 	}
 	if err := VerifyControllerSocket(socketPath); err != nil {
-		return nil, fmt.Errorf("unsafe controller socket: %w", err)
+		return nil, i18n.Errorf("system.privileged.unsafe.controller.socket", "unsafe controller socket: %w", err)
 	}
 	transport := &http.Transport{DisableKeepAlives: true, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
@@ -44,7 +44,7 @@ func QueryController(ctx context.Context, socketPath string, action ControllerAc
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("controller returned HTTP %d", resp.StatusCode)
+		return nil, i18n.Errorf("system.privileged.controller.returned.http", "controller returned HTTP %d", resp.StatusCode)
 	}
 	const maxBody = 64 << 10
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
@@ -52,7 +52,7 @@ func QueryController(ctx context.Context, socketPath string, action ControllerAc
 		return nil, err
 	}
 	if len(body) > maxBody {
-		return nil, errors.New("controller response too large")
+		return nil, i18n.Errorf("system.privileged.controller.response.too.large", "controller response too large")
 	}
 	return body, nil
 }

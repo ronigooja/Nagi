@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/output"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 func updateErrorPath() (string, error) {
@@ -108,7 +110,7 @@ func (m *Manager) launchBackgroundUpdate(ctx context.Context, r record, artifact
 		start = func() error { return m.StartBackground(cmd) }
 	}
 	if err := start(); err != nil {
-		return nil, fmt.Errorf("cannot start background update: %w", err)
+		return nil, i18n.Errorf("system.installation.cannot.start.background.update", "cannot start background update: %w", err)
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -119,14 +121,14 @@ func (m *Manager) launchBackgroundUpdate(ctx context.Context, r record, artifact
 		case <-ctx.Done():
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 			<-done
-			return nil, fmt.Errorf("update preparation cancelled; Nagi remains running: %w", ctx.Err())
+			return nil, i18n.Errorf("system.installation.update.preparation.cancelled.nagi.remains.running", "update preparation cancelled; Nagi remains running: %w", ctx.Err())
 		case err := <-done:
-			return nil, fmt.Errorf("cannot authorize update; Nagi remains running; retry Update and approve the macOS authorization dialog: %v", err)
+			return nil, i18n.Errorf("system.installation.cannot.authorize.update.nagi.remains.running.retry.update.and.approve", "cannot authorize update; Nagi remains running; retry Update and approve the macOS authorization dialog: %v", err)
 		case <-ticker.C:
 			if _, err := os.Stat(failed); err == nil {
 				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 				<-done
-				return nil, fmt.Errorf("update authorization was cancelled or failed; Nagi remains running")
+				return nil, i18n.Errorf("system.installation.update.authorization.was.cancelled.or.failed.nagi.remains.running", "update authorization was cancelled or failed; Nagi remains running")
 			}
 			if _, err := os.Stat(ready); err == nil {
 				// The acknowledgment prevents a child from deleting artifacts before its

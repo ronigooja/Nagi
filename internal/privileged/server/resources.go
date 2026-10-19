@@ -2,13 +2,14 @@ package server
 
 import (
 	"bytes"
-	"errors"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"path/filepath"
 	"strings"
 
 	"github.com/ronigooja/Nagi/internal/privileged/configpolicy"
 	"gopkg.in/yaml.v3"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 // prepareConfig copies every permitted local reference before the root child
@@ -19,13 +20,13 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 	}
 	var doc yaml.Node
 	if yaml.Unmarshal(data, &doc) != nil || len(doc.Content) != 1 {
-		return "", nil, errors.New("invalid configuration YAML")
+		return "", nil, i18n.Errorf("system.privileged.invalid.configuration.yaml", "invalid configuration YAML")
 	}
 	root := doc.Content[0]
 	var resources []string
 	fail := func() (string, []string, error) {
 		removeSnapshots("", resources)
-		return "", nil, errors.New("unsafe configuration resource")
+		return "", nil, i18n.Errorf("system.privileged.unsafe.configuration.resource", "unsafe configuration resource")
 	}
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		switch root.Content[i].Value {
@@ -84,7 +85,7 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 
 func (h *RuntimeHandler) snapshotProxyResources(source string, list *yaml.Node, resources *[]string) error {
 	if list == nil || list.Kind != yaml.SequenceNode {
-		return errors.New("invalid proxy list")
+		return i18n.Errorf("system.privileged.invalid.proxy.list", "invalid proxy list")
 	}
 	for _, proxy := range list.Content {
 		for _, key := range []string{"certificate", "private-key"} {
@@ -133,22 +134,22 @@ func field(mapping *yaml.Node, name string) string {
 
 func (h *RuntimeHandler) snapshotReference(source string, node *yaml.Node, resources *[]string) error {
 	if node.Kind != yaml.ScalarNode || node.Tag != "!!str" || node.Value == "" {
-		return errors.New("invalid resource path")
+		return i18n.Errorf("system.privileged.invalid.resource.path", "invalid resource path")
 	}
 	path := node.Value
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(filepath.Dir(source), path)
 	}
 	if filepath.Clean(path) != path {
-		return errors.New("unclean resource path")
+		return i18n.Errorf("system.privileged.unclean.resource.path", "unclean resource path")
 	}
 	data, err := readUserConfig(h.SourceDir, path, h.SessionUID)
 	if err != nil {
-		return errors.New("unsafe resource path")
+		return i18n.Errorf("system.privileged.unsafe.resource.path", "unsafe resource path")
 	}
 	snapshot, err := configpolicy.SnapshotResource(h.PrivateDir, data)
 	if err != nil {
-		return errors.New("resource snapshot failed")
+		return i18n.Errorf("system.privileged.resource.snapshot.failed", "resource snapshot failed")
 	}
 	*resources = append(*resources, snapshot)
 	node.Value = snapshot

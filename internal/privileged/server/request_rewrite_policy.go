@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"io"
 	"net"
 	"net/url"
@@ -25,11 +24,13 @@ import (
 	"golang.org/x/net/publicsuffix"
 	"path/filepath"
 	"sort"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 const rewriteControlLimit = 256 << 10
 
-var errRewritePolicy = errors.New("request rewrite controller operation rejected")
+var errRewritePolicy = i18n.Errorf("system.privileged.request.rewrite.controller.operation.rejected", "request rewrite controller operation rejected")
 
 type rewritePrepare = control.RewritePrepare
 
@@ -222,7 +223,7 @@ func (h *RuntimeHandler) validateRewriteOwner(peer int, req privileged.Request) 
 	}
 	if req.Method == "PUT" && u.Path == "/request-rewrite/session" {
 		if !h.rewriteOwnerBound {
-			return errors.New("rewrite_capability_missing: install the matching mihomo engine with request rewrite owner binding support")
+			return i18n.Errorf("system.privileged.rewrite.capability.missing.install.the.matching.mihomo.engine.with.request", "rewrite_capability_missing: install the matching mihomo engine with request rewrite owner binding support")
 		}
 		v, e := decodeRewritePrepare(req.Body)
 		if e != nil || v.OwnerUID != uint32(h.SessionUID) {
@@ -290,7 +291,7 @@ type rewriteHelpBuffer struct{ buffer bytes.Buffer }
 
 func (b *rewriteHelpBuffer) Write(p []byte) (int, error) {
 	if b.buffer.Len()+len(p) > 64<<10 {
-		return 0, errors.New("engine help output exceeds bound")
+		return 0, i18n.Errorf("system.privileged.engine.help.output.exceeds.bound", "engine help output exceeds bound")
 	}
 	return b.buffer.Write(p)
 }

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -22,6 +21,8 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/privileged"
 	"golang.org/x/sys/unix"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 // RuntimeHandler owns one root mihomo child for one authenticated login UID.
@@ -56,7 +57,7 @@ func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged
 	}
 	if req.Operation == privileged.Control && snapshotControl(req) {
 		if !h.status().Running {
-			return privileged.Response{}, errors.New("privileged mihomo is not running")
+			return privileged.Response{}, i18n.Errorf("system.privileged.privileged.mihomo.is.not.running", "privileged mihomo is not running")
 		}
 		child, generation, socket := h.child, h.generation, h.controllerPath()
 		h.mu.Unlock()
@@ -65,7 +66,7 @@ func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged
 		// Traffic counters belong to the process, not a configuration generation.
 		// Mode changes and reloads must not interrupt that process's traffic watch.
 		if h.child != child || (req.Path != "/traffic" && h.generation != generation) || !h.status().Running {
-			return privileged.Response{}, errors.New("stale_controller_response: privileged engine changed during request")
+			return privileged.Response{}, i18n.Errorf("system.privileged.stale.controller.response.privileged.engine.changed.during.request", "stale_controller_response: privileged engine changed during request")
 		}
 		return response, err
 	}
@@ -74,17 +75,17 @@ func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged
 		return h.handleDNS(ctx, req.Operation)
 	case privileged.Start:
 		if h.orphaned {
-			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
+			return privileged.Response{}, i18n.Errorf("system.privileged.orphaned.privileged.engine.root.mihomo.survived.helper.restart.administrator.recovery", "orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
 		}
 		return h.start(ctx, req)
 	case privileged.Stop:
 		if h.orphaned {
-			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
+			return privileged.Response{}, i18n.Errorf("system.privileged.orphaned.privileged.engine.root.mihomo.survived.helper.restart.administrator.recovery", "orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
 		}
 		return h.stop(ctx)
 	case privileged.Status:
 		if h.orphaned {
-			return privileged.Response{}, errors.New("orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
+			return privileged.Response{}, i18n.Errorf("system.privileged.orphaned.privileged.engine.root.mihomo.survived.helper.restart.administrator.recovery", "orphaned_privileged_engine: root mihomo survived helper restart; administrator recovery is required")
 		}
 		// DNS recovery errors must not hide process liveness or its PID.
 		// The dedicated DNS status operation reports those failures separately.
@@ -101,7 +102,7 @@ func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged
 			h.generation++
 		}
 		if h.child == nil {
-			return privileged.Response{}, errors.New("privileged mihomo is not running")
+			return privileged.Response{}, i18n.Errorf("system.privileged.privileged.mihomo.is.not.running", "privileged mihomo is not running")
 		}
 		if req.Method == "PUT" && req.Path == "/configs?force=true" {
 			return h.reload(ctx, req)
@@ -115,7 +116,7 @@ func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged
 	case privileged.Logs:
 		return h.logs(req)
 	default:
-		return privileged.Response{}, errors.New("unsupported helper operation")
+		return privileged.Response{}, i18n.Errorf("system.privileged.unsupported.helper.operation", "unsupported helper operation")
 	}
 }
 
@@ -134,7 +135,7 @@ func (h *RuntimeHandler) logs(req privileged.Request) (privileged.Response, erro
 		return privileged.Response{}, err
 	}
 	if !info.Mode().IsRegular() {
-		return privileged.Response{}, errors.New("invalid helper log")
+		return privileged.Response{}, i18n.Errorf("system.privileged.invalid.helper.log", "invalid helper log")
 	}
 	if req.Offset == -1 {
 		body, _ := json.Marshal([]string{})
@@ -217,10 +218,10 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	}
 	if markerExists(h.markerPath()) || controllerLive(h.controllerPath()) {
 		h.orphaned = true
-		return privileged.Response{}, errors.New("orphaned_privileged_engine: prior root child may still be active")
+		return privileged.Response{}, i18n.Errorf("system.privileged.orphaned.privileged.engine.prior.root.child.may.still.be.active", "orphaned_privileged_engine: prior root child may still be active")
 	}
 	if err := h.dnsManager().RestoreIfStopped(ctx, 0); err != nil {
-		return privileged.Response{}, fmt.Errorf("restore prior TUN DNS: %w", err)
+		return privileged.Response{}, i18n.Errorf("system.privileged.restore.prior.tun.dns", "restore prior TUN DNS: %w", err)
 	}
 	if err := verifyTrustedBinary(h.BinaryPath); err != nil {
 		return privileged.Response{}, err
@@ -262,7 +263,7 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	marker, err := os.OpenFile(h.markerPath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY|unix.O_NOFOLLOW, 0600)
 	if err != nil {
 		removeSnapshots(snapshot, resources)
-		return privileged.Response{}, fmt.Errorf("create child marker: %w", err)
+		return privileged.Response{}, i18n.Errorf("system.privileged.create.child.marker", "create child marker: %w", err)
 	}
 	if _, err := marker.WriteString("pending\n"); err != nil {
 		marker.Close()
@@ -278,7 +279,7 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 	if err := cmd.Start(); err != nil {
 		removeSnapshots(snapshot, resources)
 		os.Remove(h.markerPath())
-		return privileged.Response{}, fmt.Errorf("start privileged mihomo: %w", err)
+		return privileged.Response{}, i18n.Errorf("system.privileged.start.privileged.mihomo", "start privileged mihomo: %w", err)
 	}
 	h.child, h.done, h.snapshot = cmd, make(chan error, 1), snapshot
 	h.resources = resources
@@ -311,7 +312,7 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 			if _, err := h.syncDNS(ctx); err != nil {
 				h.kill()
 				_, restoreErr := h.dnsManager().Disable(context.Background())
-				return privileged.Response{}, fmt.Errorf("start TUN DNS: %w; restore: %v", err, restoreErr)
+				return privileged.Response{}, i18n.Errorf("system.privileged.start.tun.dns.restore", "start TUN DNS: %w; restore: %v", err, restoreErr)
 			}
 			h.dnsError = nil
 			return privileged.Response{OK: true, Running: true, PID: cmd.Process.Pid}, nil
@@ -322,12 +323,12 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 			return privileged.Response{}, ctx.Err()
 		case <-deadline.C:
 			h.kill()
-			return privileged.Response{}, errors.New("privileged mihomo controller did not become ready")
+			return privileged.Response{}, i18n.Errorf("system.privileged.privileged.mihomo.controller.did.not.become.ready", "privileged mihomo controller did not become ready")
 		case <-h.done:
 			h.child = nil
 			h.removeSnapshots()
 			os.Remove(h.markerPath())
-			return privileged.Response{}, errors.New("privileged mihomo exited during startup")
+			return privileged.Response{}, i18n.Errorf("system.privileged.privileged.mihomo.exited.during.startup", "privileged mihomo exited during startup")
 		case <-tick.C:
 		}
 	}
@@ -379,7 +380,7 @@ func (h *RuntimeHandler) Close() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.orphaned {
-		return errors.New("orphaned_privileged_engine: refusing DNS cleanup for unobserved child")
+		return i18n.Errorf("system.privileged.orphaned.privileged.engine.refusing.dns.cleanup.for.unobserved.child", "orphaned_privileged_engine: refusing DNS cleanup for unobserved child")
 	}
 	if h.child == nil {
 		_, err := h.dnsManager().Disable(context.Background())
@@ -411,14 +412,14 @@ func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (pr
 		ActivationID string `json:"activation_id"`
 	}
 	if strictJSON(req.Body, &body) != nil || body.Path == "" {
-		return privileged.Response{}, errors.New("invalid configuration reload")
+		return privileged.Response{}, i18n.Errorf("system.privileged.invalid.configuration.reload", "invalid configuration reload")
 	}
 	data, err := readUserConfig(h.SourceDir, body.Path, h.SessionUID)
 	if err != nil {
 		return privileged.Response{}, err
 	}
 	if !validActivationID(req.Body) {
-		return privileged.Response{}, errors.New("invalid activation_id")
+		return privileged.Response{}, i18n.Errorf("system.privileged.invalid.activation.id", "invalid activation_id")
 	}
 	snapshot, resources, err := h.prepareConfig(data, body.Path)
 	if err != nil {
@@ -491,16 +492,16 @@ func (h *RuntimeHandler) checkNative(ctx context.Context, snapshot string) error
 		} `json:"errors"`
 	}
 	if json.Unmarshal(output, &result) != nil {
-		return errors.New("restricted configuration failed native validation")
+		return i18n.Errorf("system.privileged.restricted.configuration.failed.native.validation", "restricted configuration failed native validation")
 	}
 	if !result.Valid || err != nil {
 		if len(result.Errors) != 0 {
 			issue := result.Errors[0]
 			if safeValidationField.MatchString(issue.Path) && safeValidationField.MatchString(issue.Code) && len(issue.Path) <= 128 && len(issue.Code) <= 64 {
-				return fmt.Errorf("restricted configuration failed native validation at %s (%s)", issue.Path, issue.Code)
+				return i18n.Errorf("system.privileged.restricted.configuration.failed.native.validation.at", "restricted configuration failed native validation at %s (%s)", issue.Path, issue.Code)
 			}
 		}
-		return errors.New("restricted configuration failed native validation")
+		return i18n.Errorf("system.privileged.restricted.configuration.failed.native.validation", "restricted configuration failed native validation")
 	}
 	return nil
 }
@@ -512,7 +513,7 @@ var safeValidationField = regexp.MustCompile(`^[a-zA-Z0-9_.:\[\]-]+$`)
 // a root file read. Only regular files under the configured source tree pass.
 func readUserConfig(root, path string, uid int) ([]byte, error) {
 	if !filepath.IsAbs(root) || !filepath.IsAbs(path) || filepath.Clean(root) != root || filepath.Clean(path) != path {
-		return nil, errors.New("invalid configuration path")
+		return nil, i18n.Errorf("system.privileged.invalid.configuration.path", "invalid configuration path")
 	}
 	// macOS maps /var to /private/var. Resolve only this fixed system alias;
 	// the openat walk below still rejects links in user-controlled components.
@@ -526,7 +527,7 @@ func readUserConfig(root, path string, uid int) ([]byte, error) {
 	}
 	rel, err := filepath.Rel(root, path)
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return nil, errors.New("configuration is outside session directory")
+		return nil, i18n.Errorf("system.privileged.configuration.is.outside.session.directory", "configuration is outside session directory")
 	}
 	fd, err := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
@@ -551,7 +552,7 @@ func readUserConfig(root, path string, uid int) ([]byte, error) {
 		return nil, err
 	}
 	if stat.Mode&unix.S_IFMT != unix.S_IFREG || stat.Size < 1 || stat.Size > 8<<20 || stat.Uid != uint32(uid) || stat.Mode&0022 != 0 {
-		return nil, errors.New("configuration is not a supported regular file")
+		return nil, i18n.Errorf("system.privileged.configuration.is.not.a.supported.regular.file", "configuration is not a supported regular file")
 	}
 	data := make([]byte, stat.Size)
 	for offset := 0; offset < len(data); {

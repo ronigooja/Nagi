@@ -2,11 +2,12 @@ package installation
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/ronigooja/Nagi/scripts"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 // PendingTransaction does not read install-state: that file may be one of the
@@ -28,13 +29,13 @@ func PendingTransaction(executable string) (bool, error) {
 func (m *Manager) recoverPending(ctx context.Context, action string) error {
 	pending, err := PendingTransaction(m.Executable)
 	if err != nil {
-		return fmt.Errorf("cannot inspect installation recovery state: %w", err)
+		return i18n.Errorf("system.installation.cannot.inspect.installation.recovery.state", "cannot inspect installation recovery state: %w", err)
 	}
 	if !pending {
 		return nil
 	}
 	if action == "app-status" {
-		return fmt.Errorf("an installation transaction needs recovery; run the current release's installer.sh recover --prefix %q before checking the App", filepath.Dir(filepath.Dir(m.Executable)))
+		return i18n.Errorf("system.installation.an.installation.transaction.needs.recovery.run.the.current.release.s", "an installation transaction needs recovery; run the current release's installer.sh recover --prefix %q before checking the App", filepath.Dir(filepath.Dir(m.Executable)))
 	}
 	dir, err := os.MkdirTemp("", "nagi-installation-recovery-")
 	if err != nil {
@@ -47,7 +48,7 @@ func (m *Manager) recoverPending(ctx context.Context, action string) error {
 	}
 	prefix := filepath.Dir(filepath.Dir(m.Executable))
 	if _, err := m.Run(ctx, "bash", path, "recover", "--prefix", prefix, "--transaction-helper", m.Executable); err != nil {
-		return fmt.Errorf("installation file recovery failed; retained transaction backups must be recovered before maintenance: %w", err)
+		return i18n.Errorf("system.installation.installation.file.recovery.failed.retained.transaction.backups.must.be.recovered", "installation file recovery failed; retained transaction backups must be recovered before maintenance: %w", err)
 	}
 	return nil
 }

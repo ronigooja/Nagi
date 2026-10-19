@@ -13,13 +13,14 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 const ProtocolVersion = 1
@@ -71,14 +72,57 @@ type Request struct {
 }
 
 type Response struct {
-	Version int             `json:"version"`
-	OK      bool            `json:"ok"`
-	Error   string          `json:"error,omitempty"`
-	PID     int             `json:"pid,omitempty"`
-	Running bool            `json:"running,omitempty"`
-	Status  int             `json:"status,omitempty"`
-	Body    json.RawMessage `json:"body,omitempty"`
-	Offset  int64           `json:"offset,omitempty"`
+	// Messages contains optional presentation metadata; business fields stay English.
+	Messages map[string]i18n.Descriptor `json:"messages,omitempty"`
+	Version  int                        `json:"version"`
+	OK       bool                       `json:"ok"`
+	Error    string                     `json:"error,omitempty"`
+	PID      int                        `json:"pid,omitempty"`
+	Running  bool                       `json:"running,omitempty"`
+	Status   int                        `json:"status,omitempty"`
+	Body     json.RawMessage            `json:"body,omitempty"`
+	Offset   int64                      `json:"offset,omitempty"`
+}
+
+// UnmarshalJSON isolates optional metadata failures from the operational response.
+func (r *Response) UnmarshalJSON(data []byte) error {
+	type plain Response
+	var wire struct {
+		*plain
+		Messages json.RawMessage `json:"messages"`
+	}
+	decoded := plain{}
+	wire.plain = &decoded
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*r = Response(decoded)
+	var entries map[string]json.RawMessage
+	if json.Unmarshal(wire.Messages, &entries) != nil {
+		return nil
+	}
+	for path, raw := range entries {
+		// The helper has only one human-message target; arbitrary data stays raw.
+		if path != "/error" || r.Error == "" {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(raw, &fields) != nil {
+			continue
+		}
+		if args, exists := fields["args"]; exists && strings.TrimSpace(string(args)) == "null" {
+			continue
+		}
+		var descriptor i18n.Descriptor
+		if json.Unmarshal(raw, &descriptor) != nil || !i18n.ValidDescriptor(descriptor) {
+			continue
+		}
+		if r.Messages == nil {
+			r.Messages = map[string]i18n.Descriptor{}
+		}
+		r.Messages[path] = descriptor
+	}
+	return nil
 }
 
 type Policy struct {
@@ -92,10 +136,10 @@ type Policy struct {
 
 func (r Request) Validate(p Policy) error {
 	if r.Version != ProtocolVersion {
-		return fmt.Errorf("unsupported protocol version %d", r.Version)
+		return i18n.Errorf("system.privileged.unsupported.protocol.version", "unsupported protocol version %d", r.Version)
 	}
 	if p.PeerUID <= 0 {
-		return errors.New("untrusted peer uid")
+		return i18n.Errorf("system.privileged.untrusted.peer.uid", "untrusted peer uid")
 	}
 	switch r.Operation {
 	case Start:
@@ -103,54 +147,54 @@ func (r Request) Validate(p Policy) error {
 			return err
 		}
 		if r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 {
-			return errors.New("unexpected control fields")
+			return i18n.Errorf("system.privileged.unexpected.control.fields", "unexpected control fields")
 		}
 		if r.BinaryPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" {
-			return errors.New("untrusted engine paths are not allowed")
+			return i18n.Errorf("system.privileged.untrusted.engine.paths.are.not.allowed", "untrusted engine paths are not allowed")
 		}
 		if r.ConfigPath == "" {
-			return errors.New("configuration path is required")
+			return i18n.Errorf("system.privileged.configuration.path.is.required", "configuration path is required")
 		}
 		if err := validatePath(r.ConfigPath, p.AllowedPaths); err != nil {
-			return fmt.Errorf("config_path: %w", err)
+			return i18n.Errorf("system.privileged.config.path", "config_path: %w", err)
 		}
 	case TUNDNSSync, TUNDNSRestore, TUNDNSStatus:
 		if r.Profile != "" || r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 {
-			return errors.New("DNS operation does not accept parameters")
+			return i18n.Errorf("system.privileged.dns.operation.does.not.accept.parameters", "DNS operation does not accept parameters")
 		}
 	case Stop, Status:
 		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 {
-			return errors.New("unexpected start fields")
+			return i18n.Errorf("system.privileged.unexpected.start.fields", "unexpected start fields")
 		}
 	case Control:
 		if r.Lines != 0 || r.Offset != 0 {
-			return errors.New("unexpected log fields")
+			return i18n.Errorf("system.privileged.unexpected.log.fields", "unexpected log fields")
 		}
 		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" {
-			return errors.New("unexpected start fields")
+			return i18n.Errorf("system.privileged.unexpected.start.fields", "unexpected start fields")
 		}
 		if r.Method == "" || r.Path == "" || len(r.Path) > 2048 || len(r.Body) > 1<<20 || len(r.Body) != 0 && !json.Valid(r.Body) {
-			return errors.New("invalid control request")
+			return i18n.Errorf("system.privileged.invalid.control.request", "invalid control request")
 		}
 	case Logs:
 		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines < 0 || r.Lines > 10000 || r.Offset < -1 {
-			return errors.New("invalid log request")
+			return i18n.Errorf("system.privileged.invalid.log.request", "invalid log request")
 		}
 	default:
-		return fmt.Errorf("unsupported operation %q", r.Operation)
+		return i18n.Errorf("system.privileged.unsupported.operation", "unsupported operation %q", r.Operation)
 	}
 	return nil
 }
 
 func (r Response) Validate() error {
 	if r.Version != ProtocolVersion {
-		return fmt.Errorf("unsupported protocol version %d", r.Version)
+		return i18n.Errorf("system.privileged.unsupported.protocol.version", "unsupported protocol version %d", r.Version)
 	}
 	if r.OK && r.Error != "" {
-		return errors.New("successful response cannot contain error")
+		return i18n.Errorf("system.privileged.successful.response.cannot.contain.error", "successful response cannot contain error")
 	}
 	if len(r.Body) > MaxMessageBytes-1024 || len(r.Body) != 0 && !json.Valid(r.Body) {
-		return errors.New("invalid control response")
+		return i18n.Errorf("system.privileged.invalid.control.response", "invalid control response")
 	}
 	return nil
 }
@@ -190,7 +234,7 @@ func readJSON(r io.Reader, v any) error {
 		return err
 	}
 	if len(line) > MaxMessageBytes {
-		return errors.New("protocol message too large")
+		return i18n.Errorf("system.privileged.protocol.message.too.large", "protocol message too large")
 	}
 	dec := json.NewDecoder(strings.NewReader(string(line)))
 	dec.DisallowUnknownFields()
@@ -199,21 +243,21 @@ func readJSON(r io.Reader, v any) error {
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return errors.New("multiple JSON values in protocol message")
+		return i18n.Errorf("system.privileged.multiple.json.values.in.protocol.message", "multiple JSON values in protocol message")
 	}
 	return nil
 }
 
 func validatePath(path string, allowed []string) error {
 	if !filepath.IsAbs(path) {
-		return errors.New("must be absolute")
+		return i18n.Errorf("system.privileged.must.be.absolute", "must be absolute")
 	}
 	clean := filepath.Clean(path)
 	if clean != path {
-		return errors.New("must be clean")
+		return i18n.Errorf("system.privileged.must.be.clean", "must be clean")
 	}
 	if len(allowed) == 0 {
-		return errors.New("path is not allowed")
+		return i18n.Errorf("system.privileged.path.is.not.allowed", "path is not allowed")
 	}
 	// A root process must not follow an attacker-controlled symlink from a
 	// user-owned directory to a privileged path. Reject every existing
@@ -224,7 +268,7 @@ func validatePath(path string, allowed []string) error {
 			return err
 		}
 		if err == nil && info.Mode()&os.ModeSymlink != 0 {
-			return errors.New("symlink path component is not allowed")
+			return i18n.Errorf("system.privileged.symlink.path.component.is.not.allowed", "symlink path component is not allowed")
 		}
 		if parent := filepath.Dir(current); parent == current {
 			break
@@ -240,16 +284,16 @@ func validatePath(path string, allowed []string) error {
 			return nil
 		}
 	}
-	return errors.New("outside allowed directory")
+	return i18n.Errorf("system.privileged.outside.allowed.directory", "outside allowed directory")
 }
 
 func validateProfile(profile string) error {
 	if profile == "" || len(profile) > 128 {
-		return errors.New("invalid profile")
+		return i18n.Errorf("system.privileged.invalid.profile", "invalid profile")
 	}
 	for _, ch := range profile {
 		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '-' || ch == '_') {
-			return errors.New("invalid profile")
+			return i18n.Errorf("system.privileged.invalid.profile", "invalid profile")
 		}
 	}
 	return nil

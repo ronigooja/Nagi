@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,6 +18,8 @@ import (
 	"time"
 
 	"github.com/ronigooja/Nagi/scripts"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 type Runner func(context.Context, string, ...string) ([]byte, error)
@@ -58,7 +59,7 @@ func runProcess(ctx context.Context, executable string, args ...string) ([]byte,
 		if len(message) > 32768 {
 			message = message[len(message)-32768:]
 		}
-		return output.Bytes(), fmt.Errorf("%s failed: %s: %w", filepath.Base(executable), message, err)
+		return output.Bytes(), i18n.Errorf("system.installation.failed", "%s failed: %s: %w", filepath.Base(executable), message, err)
 	}
 	return output.Bytes(), nil
 }
@@ -68,25 +69,25 @@ type record struct{ Prefix, App string }
 func (m *Manager) record() (record, error) {
 	r := record{Prefix: filepath.Dir(filepath.Dir(m.Executable))}
 	if filepath.Base(m.Executable) != "nagi" || filepath.Base(filepath.Dir(m.Executable)) != "bin" {
-		return r, fmt.Errorf("use the installed CLI at PREFIX/bin/nagi")
+		return r, i18n.Errorf("system.installation.use.the.installed.cli.at.prefix.bin.nagi", "use the installed CLI at PREFIX/bin/nagi")
 	}
 	data, err := os.ReadFile(filepath.Join(r.Prefix, "share", "nagi", "install-state"))
 	if err != nil {
-		return r, fmt.Errorf("no readable installer record; install Nagi using the release installer first: %w", err)
+		return r, i18n.Errorf("system.installation.no.readable.installer.record.install.nagi.using.the.release.installer", "no readable installer record; install Nagi using the release installer first: %w", err)
 	}
 	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
 	if len(lines) < 2 || !strings.HasPrefix(lines[1], "app=") {
-		return r, fmt.Errorf("invalid installer record; repair the installation before retrying")
+		return r, i18n.Errorf("system.installation.invalid.installer.record.repair.the.installation.before.retrying", "invalid installer record; repair the installation before retrying")
 	}
 	current := len(lines) == 2 && lines[0] == "nagi-installer-v4"
 	legacy := len(lines) == 5 && lines[0] == "nagi-installer-v3" &&
 		strings.HasPrefix(lines[2], "nagi_sha256=") && strings.HasPrefix(lines[3], "mihomo_sha256=") && strings.HasPrefix(lines[4], "app_sha256=")
 	if !current && !legacy {
-		return r, fmt.Errorf("invalid installer record; repair the installation before retrying")
+		return r, i18n.Errorf("system.installation.invalid.installer.record.repair.the.installation.before.retrying", "invalid installer record; repair the installation before retrying")
 	}
 	r.App = strings.TrimPrefix(lines[1], "app=")
 	if r.App != "" && (!filepath.IsAbs(r.App) || filepath.Clean(r.App) != r.App || filepath.Base(r.App) != "Nagi.app" || strings.ContainsAny(r.App, "\n\r")) {
-		return r, fmt.Errorf("invalid App path in installer record")
+		return r, i18n.Errorf("system.installation.invalid.app.path.in.installer.record", "invalid App path in installer record")
 	}
 	return r, nil
 }
@@ -94,25 +95,25 @@ func (m *Manager) record() (record, error) {
 // Manage owns maintenance operations; the terminal menu and App only dispatch.
 func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOption ...bool) (map[string]any, error) {
 	if m.LockFD == 3 && m.PreparedArtifact == "" {
-		return nil, fmt.Errorf("missing prepared update artifact")
+		return nil, i18n.Errorf("system.installation.missing.prepared.update.artifact", "missing prepared update artifact")
 	}
 	if m.PreparedArtifact != "" && (action != "update" || !validPreparedArtifact(m.PreparedArtifact)) {
-		return nil, fmt.Errorf("invalid prepared update handoff")
+		return nil, i18n.Errorf("system.installation.invalid.prepared.update.handoff", "invalid prepared update handoff")
 	}
 	purgeData := len(purgeDataOption) > 0 && purgeDataOption[0]
 	if purgeData && action != "uninstall" {
-		return nil, fmt.Errorf("--purge-data is only valid with uninstall")
+		return nil, i18n.Errorf("system.installation.purge.data.is.only.valid.with.uninstall", "--purge-data is only valid with uninstall")
 	}
 	appAction := strings.HasPrefix(action, "app-")
 	if appAction && m.OS != "darwin" {
-		return nil, fmt.Errorf("App management is supported only on macOS")
+		return nil, i18n.Errorf("system.installation.app.management.is.supported.only.on.macos", "App management is supported only on macOS")
 	}
 	if action == "app-update-error" {
 		return consumeUpdateError()
 	}
 	background := action == "background-update"
 	if background && m.OS != "darwin" {
-		return nil, fmt.Errorf("background update requires an installed macOS App")
+		return nil, i18n.Errorf("system.installation.background.update.requires.an.installed.macos.app", "background update requires an installed macOS App")
 	}
 	if err := m.recoverPending(ctx, action); err != nil {
 		return nil, err
@@ -133,28 +134,28 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 		return m.launchTerminal(ctx, r)
 	}
 	if background && r.App == "" {
-		return nil, fmt.Errorf("background update requires an installed macOS App")
+		return nil, i18n.Errorf("system.installation.background.update.requires.an.installed.macos.app", "background update requires an installed macOS App")
 	}
 	if appAction && r.Prefix != "/usr/local" {
-		return nil, fmt.Errorf("Nagi.app requires the CLI at /usr/local/bin/nagi")
+		return nil, i18n.Errorf("system.installation.nagi.app.requires.the.cli.at.usr.local.bin.nagi", "Nagi.app requires the CLI at /usr/local/bin/nagi")
 	}
 	if action == "app-install" && r.App != "" {
-		return nil, fmt.Errorf("App is already installed; use nagi update")
+		return nil, i18n.Errorf("system.installation.app.is.already.installed.use.nagi.update", "App is already installed; use nagi update")
 	}
 	if action == "app-update" && r.App == "" {
-		return nil, fmt.Errorf("App is not installed; use nagi app install")
+		return nil, i18n.Errorf("system.installation.app.is.not.installed.use.nagi.app.install", "App is not installed; use nagi app install")
 	}
 	if action == "app-install" && tag == "" {
 		if !ValidTag(m.Version) {
-			return nil, fmt.Errorf("this CLI has no release version; specify nagi app install vX.Y.Z")
+			return nil, i18n.Errorf("system.installation.this.cli.has.no.release.version.specify.nagi.app.install", "this CLI has no release version; specify nagi app install vX.Y.Z")
 		}
 		tag = m.Version
 	}
 	if tag != "" && !ValidTag(tag) {
-		return nil, fmt.Errorf("invalid release tag; use vX.Y.Z")
+		return nil, i18n.Errorf("system.installation.invalid.release.tag.use.vx.y.z", "invalid release tag; use vX.Y.Z")
 	}
 	if m.OS != "linux" && m.OS != "darwin" || m.Arch != "amd64" && m.Arch != "arm64" {
-		return nil, fmt.Errorf("unsupported release platform")
+		return nil, i18n.Errorf("system.installation.unsupported.release.platform", "unsupported release platform")
 	}
 	// All CLI maintenance operations for this user share one nonblocking lock.
 	cache, err := os.UserCacheDir()
@@ -175,7 +176,7 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	}
 	defer lock.Close()
 	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		return nil, fmt.Errorf("another Nagi maintenance operation is running")
+		return nil, i18n.Errorf("system.installation.another.nagi.maintenance.operation.is.running", "another Nagi maintenance operation is running")
 	}
 	handedOff := false
 	defer func() {
@@ -189,10 +190,10 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 		return nil, err
 	}
 	if action == "app-install" && r.App != "" {
-		return nil, fmt.Errorf("App is already installed; use nagi update")
+		return nil, i18n.Errorf("system.installation.app.is.already.installed.use.nagi.update", "App is already installed; use nagi update")
 	}
 	if action == "app-update" && r.App == "" {
-		return nil, fmt.Errorf("App is not installed; use nagi app install")
+		return nil, i18n.Errorf("system.installation.app.is.not.installed.use.nagi.app.install", "App is not installed; use nagi app install")
 	}
 	artifact := m.PreparedArtifact
 	var earlyEngine struct{ Running bool }
@@ -207,7 +208,7 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 				BindAddress string `json:"bind_address"`
 			}
 			if err := m.query(ctx, []string{"ports", "status"}, &ports); err != nil {
-				return nil, fmt.Errorf("cannot inspect running proxy for update: %w", err)
+				return nil, i18n.Errorf("system.installation.cannot.inspect.running.proxy.for.update", "cannot inspect running proxy for update: %w", err)
 			}
 			port := ports.Mixed
 			if port == 0 {
@@ -246,7 +247,7 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 		}()
 		if action == "app-install" || r.App != "" {
 			if info, err := os.Stat(filepath.Join(artifact, "Nagi.app")); err != nil || !info.IsDir() {
-				return nil, fmt.Errorf("selected release does not contain Nagi.app")
+				return nil, i18n.Errorf("system.installation.selected.release.does.not.contain.nagi.app", "selected release does not contain Nagi.app")
 			}
 		} else {
 			if err := os.RemoveAll(filepath.Join(artifact, "Nagi.app")); err != nil {
@@ -313,7 +314,7 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	}
 	if m.OS == "darwin" && r.App != "" {
 		if _, err := m.Run(ctx, "pgrep", "-x", "NagiApp"); err == nil {
-			return nil, fmt.Errorf("quit Nagi.app before updating or uninstalling; its Update option does this automatically")
+			return nil, i18n.Errorf("system.installation.quit.nagi.app.before.updating.or.uninstalling.its.update.option", "quit Nagi.app before updating or uninstalling; its Update option does this automatically")
 		}
 	}
 	var serviceState struct{ Installed, Enabled bool }
@@ -328,19 +329,19 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 		engineState.Running = m.EngineWasRunning
 	}
 	if _, err := m.Run(ctx, m.Executable, "--json", "quit"); err != nil {
-		return nil, fmt.Errorf("cannot stop Nagi before maintenance: %w", err)
+		return nil, i18n.Errorf("system.installation.cannot.stop.nagi.before.maintenance", "cannot stop Nagi before maintenance: %w", err)
 	}
 	// Quit preserves next-login running intent. Record an explicit stop before
 	// reinstalling the login monitor so it cannot start the engine mid-update.
 	if data, err := m.Run(ctx, m.Executable, "--json", "stop"); err != nil {
 		var response struct{ Error struct{ Code string } }
 		if json.Unmarshal(data, &response) != nil || response.Error.Code != "not_running" {
-			return nil, fmt.Errorf("cannot record a stopped engine before maintenance: %w", err)
+			return nil, i18n.Errorf("system.installation.cannot.record.a.stopped.engine.before.maintenance", "cannot record a stopped engine before maintenance: %w", err)
 		}
 	}
 	if serviceState.Installed {
 		if _, err := m.Run(ctx, m.Executable, "--json", "service", "uninstall"); err != nil {
-			return nil, fmt.Errorf("Nagi is stopped; cannot remove login service: %w", err)
+			return nil, i18n.Errorf("system.installation.nagi.is.stopped.cannot.remove.login.service", "Nagi is stopped; cannot remove login service: %w", err)
 		}
 	}
 	transactionOutput, transactionErr := m.Run(ctx, "bash", argv...)
@@ -348,14 +349,14 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 		return map[string]any{"action": action, "completed": true, "user_data_removed": purgeData}, nil
 	}
 	if action == "uninstall" && purgeData && bytes.Contains(transactionOutput, []byte("NAGI_PURGE_DATA_INCOMPLETE:")) {
-		return nil, fmt.Errorf("Nagi was removed, but user data cleanup was incomplete; some user data may remain: %w", transactionErr)
+		return nil, i18n.Errorf("system.installation.nagi.was.removed.but.user.data.cleanup.was.incomplete.some", "Nagi was removed, but user data cleanup was incomplete; some user data may remain: %w", transactionErr)
 	}
 	if transactionErr != nil && bytes.Contains(transactionOutput, []byte("NAGI_INSTALL_COMMIT_UNCERTAIN:")) {
-		return nil, fmt.Errorf("installation commit state is uncertain; transaction backups are retained; repair the storage failure and run installer.sh recover before resuming Nagi; service restoration was skipped: %w", transactionErr)
+		return nil, i18n.Errorf("system.installation.installation.commit.state.is.uncertain.transaction.backups.are.retained.repair", "installation commit state is uncertain; transaction backups are retained; repair the storage failure and run installer.sh recover before resuming Nagi; service restoration was skipped: %w", transactionErr)
 	}
 	filesCommitted := transactionErr != nil && bytes.Contains(transactionOutput, []byte("NAGI_INSTALL_FILES_COMMITTED:"))
 	if action == "uninstall" && filesCommitted {
-		return nil, fmt.Errorf("Nagi installation files were removed, but transaction cleanup was incomplete; run the current release's installer.sh recover; service restoration was skipped: %w", transactionErr)
+		return nil, i18n.Errorf("system.installation.nagi.installation.files.were.removed.but.transaction.cleanup.was.incomplete", "Nagi installation files were removed, but transaction cleanup was incomplete; run the current release's installer.sh recover; service restoration was skipped: %w", transactionErr)
 	}
 	// Restore login preferences after success or a rolled-back failure. A failed
 	// transaction leaves mihomo stopped so recovery remains an explicit action.
@@ -368,16 +369,16 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 	}
 	if transactionErr != nil {
 		if filesCommitted {
-			return nil, errors.Join(fmt.Errorf("files updated, but transaction cleanup was incomplete; Nagi remains stopped; run installer.sh recover before resuming: %w", transactionErr), restoreErr)
+			return nil, errors.Join(i18n.Errorf("system.installation.files.updated.but.transaction.cleanup.was.incomplete.nagi.remains.stopped", "files updated, but transaction cleanup was incomplete; Nagi remains stopped; run installer.sh recover before resuming: %w", transactionErr), restoreErr)
 		}
-		return nil, errors.Join(fmt.Errorf("installation failed; inspect installer details; Nagi remains stopped: %w", transactionErr), restoreErr)
+		return nil, errors.Join(i18n.Errorf("system.installation.installation.failed.inspect.installer.details.nagi.remains.stopped", "installation failed; inspect installer details; Nagi remains stopped: %w", transactionErr), restoreErr)
 	}
 	if restoreErr != nil {
-		return nil, fmt.Errorf("files updated, but login service restoration failed; run nagi service install: %w", restoreErr)
+		return nil, i18n.Errorf("system.installation.files.updated.but.login.service.restoration.failed.run.nagi.service", "files updated, but login service restoration failed; run nagi service install: %w", restoreErr)
 	}
 	if engineState.Running {
 		if _, err := m.Run(ctx, m.Executable, "--json", "start"); err != nil {
-			return nil, fmt.Errorf("files updated, but engine restart failed; run nagi status and nagi logs: %w", err)
+			return nil, i18n.Errorf("system.installation.files.updated.but.engine.restart.failed.run.nagi.status.and", "files updated, but engine restart failed; run nagi status and nagi logs: %w", err)
 		}
 	}
 	return map[string]any{"action": "update", "completed": true, "engine_restarted": engineState.Running}, nil
@@ -393,7 +394,7 @@ func (m *Manager) query(ctx context.Context, argv []string, dest any) error {
 		Data json.RawMessage
 	}
 	if err := json.Unmarshal(data, &envelope); err != nil || !envelope.OK {
-		return fmt.Errorf("installed CLI returned invalid %s response", strings.Join(argv, " "))
+		return i18n.Errorf("system.installation.installed.cli.returned.invalid.response", "installed CLI returned invalid %s response", strings.Join(argv, " "))
 	}
 	return json.Unmarshal(envelope.Data, dest)
 }
@@ -402,7 +403,7 @@ func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'
 
 func (m *Manager) launchTerminal(ctx context.Context, r record) (map[string]any, error) {
 	if m.OS != "darwin" || r.App == "" {
-		return nil, fmt.Errorf("terminal update requires an installed macOS App")
+		return nil, i18n.Errorf("system.installation.terminal.update.requires.an.installed.macos.app", "terminal update requires an installed macOS App")
 	}
 	// No downloaded code is run by the launcher. The installed CLI downloads and
 	// verifies the release after the App has completed its normal quit cleanup.
@@ -411,7 +412,7 @@ func (m *Manager) launchTerminal(ctx context.Context, r record) (map[string]any,
 	command = "/bin/bash -c " + shellQuote(command)
 	script := "on run argv\n tell application \"Terminal\"\n activate\n do script (item 1 of argv)\n end tell\nend run"
 	if _, err := m.Run(ctx, "/usr/bin/osascript", "-e", script, command); err != nil {
-		return nil, fmt.Errorf("cannot open Terminal for update: %w", err)
+		return nil, i18n.Errorf("system.installation.cannot.open.terminal.for.update", "cannot open Terminal for update: %w", err)
 	}
 	return map[string]any{"action": "update", "scheduled": true, "terminal": true}, nil
 }

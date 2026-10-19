@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"os/user"
@@ -15,27 +14,29 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/privileged"
 	"golang.org/x/sys/unix"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 // RunDaemon serves one login session. The caller must pass a UID obtained
 // from root-owned launchd/systemd configuration, never from a client message.
 func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) (resultErr error) {
 	if os.Geteuid() != 0 {
-		return errors.New("privileged helper requires root")
+		return i18n.Errorf("system.privileged.privileged.helper.requires.root", "privileged helper requires root")
 	}
 	if uid <= 0 {
-		return errors.New("invalid session uid")
+		return i18n.Errorf("system.privileged.invalid.session.uid", "invalid session uid")
 	}
 	account, err := user.LookupId(strconv.Itoa(uid))
 	if err != nil {
-		return fmt.Errorf("lookup session user: %w", err)
+		return i18n.Errorf("system.privileged.lookup.session.user", "lookup session user: %w", err)
 	}
 	expectedSource := filepath.Join(account.HomeDir, ".config", "nagi")
 	if runtime.GOOS == "darwin" {
 		expectedSource = filepath.Join(account.HomeDir, "Library", "Application Support", "Nagi", "config")
 	}
 	if sourceDir != expectedSource {
-		return errors.New("session source directory does not match user home")
+		return i18n.Errorf("system.privileged.session.source.directory.does.not.match.user.home", "session source directory does not match user home")
 	}
 	if err := verifyTrustedBinary(binaryPath); err != nil {
 		return err
@@ -62,7 +63,7 @@ func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) (resu
 	}
 	defer lock.Close()
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		return errors.New("privileged helper session is already active")
+		return i18n.Errorf("system.privileged.privileged.helper.session.is.already.active", "privileged helper session is already active")
 	}
 	defer unix.Flock(int(lock.Fd()), unix.LOCK_UN)
 	path := privileged.SocketPath(uid)
@@ -70,7 +71,7 @@ func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) (resu
 		conn, dialErr := net.DialTimeout("unix", path, 250*time.Millisecond)
 		if dialErr == nil {
 			conn.Close()
-			return errors.New("privileged helper session is already active")
+			return i18n.Errorf("system.privileged.privileged.helper.session.is.already.active", "privileged helper session is already active")
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -93,7 +94,7 @@ func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) (resu
 	handler := &RuntimeHandler{SessionUID: uid, BinaryPath: binaryPath, SourceDir: sourceDir, PrivateDir: privateDir, orphaned: markerExists(filepath.Join(privateDir, "child.marker")) || controllerLive(filepath.Join(privateDir, "mihomo.sock"))}
 	if !handler.orphaned {
 		if err := handler.dnsManager().RestoreIfStopped(ctx, 0); err != nil {
-			return fmt.Errorf("recover TUN DNS: %w", err)
+			return i18n.Errorf("system.privileged.recover.tun.dns", "recover TUN DNS: %w", err)
 		}
 	}
 	defer func() { resultErr = errors.Join(resultErr, handler.Close()) }()
@@ -102,7 +103,7 @@ func RunDaemon(ctx context.Context, uid int, binaryPath, sourceDir string) (resu
 
 func rootDirectory(path string, mode os.FileMode) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return errors.New("invalid root directory path")
+		return i18n.Errorf("system.privileged.invalid.root.directory.path", "invalid root directory path")
 	}
 	if err := verifyAncestors(filepath.Dir(path), 0); err != nil {
 		return err
@@ -120,14 +121,14 @@ func rootDirectory(path string, mode os.FileMode) error {
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok || !info.IsDir() || stat.Uid != 0 || info.Mode().Perm() != mode {
-		return fmt.Errorf("unsafe root directory %s", path)
+		return i18n.Errorf("system.privileged.unsafe.root.directory", "unsafe root directory %s", path)
 	}
 	return nil
 }
 
 func verifyTrustedBinary(path string) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return errors.New("trusted mihomo path must be absolute and clean")
+		return i18n.Errorf("system.privileged.trusted.mihomo.path.must.be.absolute.and.clean", "trusted mihomo path must be absolute and clean")
 	}
 	if err := verifyAncestors(filepath.Dir(path), 0); err != nil {
 		return err
@@ -138,7 +139,7 @@ func verifyTrustedBinary(path string) error {
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok || !info.Mode().IsRegular() || stat.Uid != 0 || info.Mode().Perm()&0022 != 0 || info.Mode().Perm()&0111 == 0 {
-		return fmt.Errorf("unsafe mihomo executable %s", path)
+		return i18n.Errorf("system.privileged.unsafe.mihomo.executable", "unsafe mihomo executable %s", path)
 	}
 	return nil
 }

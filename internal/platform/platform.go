@@ -3,10 +3,11 @@ package platform
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"syscall"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 func Check() error {
@@ -14,7 +15,7 @@ func Check() error {
 	case "darwin", "linux":
 		return nil
 	default:
-		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+		return i18n.Errorf("system.platform.unsupported.operating.system", "unsupported operating system: %s", runtime.GOOS)
 	}
 }
 

@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -18,6 +16,8 @@ import (
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/privileged"
 	"github.com/ronigooja/Nagi/internal/rules"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 // snapshotControl is narrower than the controller authorization allowlist.
@@ -47,7 +47,7 @@ func controlRequest(ctx context.Context, socket string, req privileged.Request) 
 
 func controlRequestReload(ctx context.Context, socket string, req privileged.Request) (privileged.Response, error) {
 	if req.Method != http.MethodPut || req.Path != "/configs?force=true" {
-		return privileged.Response{}, errors.New("invalid reload operation")
+		return privileged.Response{}, i18n.Errorf("system.privileged.invalid.reload.operation", "invalid reload operation")
 	}
 	return sendControl(ctx, socket, req)
 }
@@ -96,7 +96,7 @@ func sendControl(ctx context.Context, socket string, req privileged.Request) (pr
 		return privileged.Response{Status: http.StatusNotFound, Body: json.RawMessage(`{"error":{"code":"rewrite_capability_missing","message":"Install the matching mihomo engine with request rewrite support"}}`)}, nil
 	}
 	if len(bytes.TrimSpace(body)) != 0 && !json.Valid(body) {
-		return privileged.Response{}, errors.New("invalid controller JSON response")
+		return privileged.Response{}, i18n.Errorf("system.privileged.invalid.controller.json.response", "invalid controller JSON response")
 	}
 	return filterRewriteResponse(req, privileged.Response{OK: response.StatusCode >= 200 && response.StatusCode < 300, Status: response.StatusCode, Body: json.RawMessage(body)})
 }
@@ -117,7 +117,7 @@ func readTrafficSample(r io.Reader) ([]byte, error) {
 		}
 	}
 	if len(line) > 4096 || !json.Valid(line) {
-		return nil, errors.New("invalid traffic sample")
+		return nil, i18n.Errorf("system.privileged.invalid.traffic.sample", "invalid traffic sample")
 	}
 	return line, nil
 }
@@ -125,7 +125,7 @@ func readTrafficSample(r io.Reader) ([]byte, error) {
 func validateControl(req privileged.Request) error {
 	u, err := url.ParseRequestURI(req.Path)
 	if err != nil || u.Scheme != "" || u.Host != "" || u.Fragment != "" || strings.Contains(req.Path, "\\") || strings.Contains(strings.ToLower(u.EscapedPath()), "%2f") || strings.Contains(strings.ToLower(u.EscapedPath()), "%5c") {
-		return errors.New("invalid controller path")
+		return i18n.Errorf("system.privileged.invalid.controller.path", "invalid controller path")
 	}
 	if isRewritePath(u.Path) {
 		return validateRewriteControl(req, u)
@@ -133,13 +133,13 @@ func validateControl(req privileged.Request) error {
 	parts := strings.Split(u.Path, "/")
 	for _, part := range parts {
 		if part == "." || part == ".." {
-			return errors.New("invalid controller path")
+			return i18n.Errorf("system.privileged.invalid.controller.path", "invalid controller path")
 		}
 	}
 	switch req.Method {
 	case http.MethodGet:
 		if len(req.Body) != 0 {
-			return errors.New("GET body is not allowed")
+			return i18n.Errorf("system.privileged.get.body.is.not.allowed", "GET body is not allowed")
 		}
 		switch u.Path {
 		case "/version", "/configs", "/proxies", "/providers/proxies", "/connections", "/rules", "/providers/rules", "/traffic":
@@ -210,7 +210,7 @@ func validateControl(req privileged.Request) error {
 			return validateConfigPatch(req.Body)
 		}
 	}
-	return fmt.Errorf("controller operation %s %s is not allowed", req.Method, req.Path)
+	return i18n.Errorf("system.privileged.controller.operation.is.not.allowed", "controller operation %s %s is not allowed", req.Method, req.Path)
 }
 
 func strictJSON(data []byte, out any) error {
@@ -221,7 +221,7 @@ func strictJSON(data []byte, out any) error {
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return errors.New("multiple JSON values")
+		return i18n.Errorf("system.privileged.multiple.json.values", "multiple JSON values")
 	}
 	return nil
 }
@@ -229,24 +229,24 @@ func strictJSON(data []byte, out any) error {
 func validateConfigPatch(data []byte) error {
 	var fields map[string]json.RawMessage
 	if err := strictJSON(data, &fields); err != nil || len(fields) == 0 {
-		return errors.New("invalid configuration patch")
+		return i18n.Errorf("system.privileged.invalid.configuration.patch", "invalid configuration patch")
 	}
 	for key, value := range fields {
 		switch key {
 		case "mode":
 			var mode string
 			if strictJSON(value, &mode) != nil || mode != "rule" && mode != "global" && mode != "direct" {
-				return errors.New("invalid mode")
+				return i18n.Errorf("system.privileged.invalid.mode", "invalid mode")
 			}
 		case "allow-lan":
 			var enabled bool
 			if strictJSON(value, &enabled) != nil {
-				return errors.New("invalid allow-lan")
+				return i18n.Errorf("system.privileged.invalid.allow.lan", "invalid allow-lan")
 			}
 		case "bind-address":
 			var address string
 			if strictJSON(value, &address) != nil || address != "*" && net.ParseIP(address) == nil {
-				return errors.New("invalid bind-address")
+				return i18n.Errorf("system.privileged.invalid.bind.address", "invalid bind-address")
 			}
 		case "tun":
 			var tun struct {
@@ -257,11 +257,11 @@ func validateConfigPatch(data []byte) error {
 				DNSHijack           *[]string `json:"dns-hijack"`
 			}
 			if strictJSON(value, &tun) != nil || tun.Enable == nil {
-				return errors.New("invalid tun patch")
+				return i18n.Errorf("system.privileged.invalid.tun.patch", "invalid tun patch")
 			}
 			if tun.DNSHijack != nil {
 				if len(*tun.DNSHijack) > 32 {
-					return errors.New("too many DNS interception entries")
+					return i18n.Errorf("system.privileged.too.many.dns.interception.entries", "too many DNS interception entries")
 				}
 				for _, endpoint := range *tun.DNSHijack {
 					endpoint = strings.TrimPrefix(strings.TrimPrefix(endpoint, "udp://"), "tcp://")
@@ -270,12 +270,12 @@ func validateConfigPatch(data []byte) error {
 					}
 					addr, err := netip.ParseAddrPort(endpoint)
 					if err != nil || addr.Port() != 53 {
-						return errors.New("DNS interception must use literal IP addresses on port 53")
+						return i18n.Errorf("system.privileged.dns.interception.must.use.literal.ip.addresses.on.port.53", "DNS interception must use literal IP addresses on port 53")
 					}
 				}
 			}
 		default:
-			return errors.New("configuration patch field is not allowed")
+			return i18n.Errorf("system.privileged.configuration.patch.field.is.not.allowed", "configuration patch field is not allowed")
 		}
 	}
 	return nil

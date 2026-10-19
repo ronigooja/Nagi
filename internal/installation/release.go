@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 var releaseTag = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$`)
@@ -29,7 +30,7 @@ func Fetch(ctx context.Context, base, target, tag string) (string, func(), error
 
 func fetchWithClient(ctx context.Context, base, target, tag string, client *http.Client) (string, func(), error) {
 	if tag != "" && !ValidTag(tag) {
-		return "", nil, fmt.Errorf("invalid release tag; use vX.Y.Z")
+		return "", nil, i18n.Errorf("system.installation.invalid.release.tag.use.vx.y.z", "invalid release tag; use vX.Y.Z")
 	}
 	if tag == "" {
 		base += "/latest/download"
@@ -64,7 +65,7 @@ func fetchWithClient(ctx context.Context, base, target, tag string, client *http
 		}
 	}
 	if digest, err := hex.DecodeString(expected); err != nil || len(digest) != sha256.Size {
-		return "", nil, fmt.Errorf("SHA256SUMS has no valid entry for %s", asset)
+		return "", nil, i18n.Errorf("system.installation.sha256sums.has.no.valid.entry.for", "SHA256SUMS has no valid entry for %s", asset)
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/"+asset, nil)
 	if err != nil {
@@ -72,11 +73,11 @@ func fetchWithClient(ctx context.Context, base, target, tag string, client *http
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return "", nil, fmt.Errorf("download %s: %w", asset, err)
+		return "", nil, i18n.Errorf("system.installation.download", "download %s: %w", asset, err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return "", nil, fmt.Errorf("download %s: HTTP %d", asset, response.StatusCode)
+		return "", nil, i18n.Errorf("system.installation.download.http", "download %s: HTTP %d", asset, response.StatusCode)
 	}
 	archive, err := os.Create(filepath.Join(dir, asset))
 	if err != nil {
@@ -92,10 +93,10 @@ func fetchWithClient(ctx context.Context, base, target, tag string, client *http
 		return "", nil, closeErr
 	}
 	if n > archiveLimit {
-		return "", nil, fmt.Errorf("release archive exceeds 512 MiB")
+		return "", nil, i18n.Errorf("system.installation.release.archive.exceeds.512.mib", "release archive exceeds 512 MiB")
 	}
 	if hex.EncodeToString(hash.Sum(nil)) != expected {
-		return "", nil, fmt.Errorf("release archive checksum mismatch")
+		return "", nil, i18n.Errorf("system.installation.release.archive.checksum.mismatch", "release archive checksum mismatch")
 	}
 	artifact := filepath.Join(dir, "artifact")
 	if err := extract(archive.Name(), artifact); err != nil {
@@ -104,7 +105,7 @@ func fetchWithClient(ctx context.Context, base, target, tag string, client *http
 	for _, name := range []string{"nagi", "mihomo", "installer.sh"} {
 		info, err := os.Lstat(filepath.Join(artifact, name))
 		if err != nil || !info.Mode().IsRegular() || info.Mode()&0111 == 0 || info.Size() == 0 {
-			return "", nil, fmt.Errorf("release has no regular executable %s", name)
+			return "", nil, i18n.Errorf("system.installation.release.has.no.regular.executable", "release has no regular executable %s", name)
 		}
 	}
 	ok = true
@@ -122,11 +123,11 @@ func get(ctx context.Context, client *http.Client, url string, limit int64) ([]b
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("release checksum download: HTTP %d", response.StatusCode)
+		return nil, i18n.Errorf("system.installation.release.checksum.download.http", "release checksum download: HTTP %d", response.StatusCode)
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
 	if err == nil && int64(len(data)) > limit {
-		err = fmt.Errorf("checksum file is too large")
+		err = i18n.Errorf("system.installation.checksum.file.is.too.large", "checksum file is too large")
 	}
 	return data, err
 }
@@ -155,14 +156,14 @@ func extract(archive, dest string) error {
 		}
 		name := filepath.Clean(header.Name)
 		if filepath.IsAbs(name) || name == ".." || strings.HasPrefix(name, "../") || strings.ContainsAny(name, "\r\n") {
-			return fmt.Errorf("unsafe release archive path")
+			return i18n.Errorf("system.installation.unsafe.release.archive.path", "unsafe release archive path")
 		}
 		if name == "." {
 			continue
 		}
 		entries++
 		if entries > 100000 {
-			return fmt.Errorf("release archive has too many entries")
+			return i18n.Errorf("system.installation.release.archive.has.too.many.entries", "release archive has too many entries")
 		}
 		path := filepath.Join(dest, name)
 		switch header.Typeflag {
@@ -173,7 +174,7 @@ func extract(archive, dest string) error {
 		case tar.TypeReg, tar.TypeRegA:
 			total += header.Size
 			if header.Size < 0 || total > archiveLimit {
-				return fmt.Errorf("extracted release exceeds 512 MiB")
+				return i18n.Errorf("system.installation.extracted.release.exceeds.512.mib", "extracted release exceeds 512 MiB")
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 				return err
@@ -191,7 +192,7 @@ func extract(archive, dest string) error {
 				return closeErr
 			}
 		default:
-			return fmt.Errorf("release archive contains unsupported links or special files")
+			return i18n.Errorf("system.installation.release.archive.contains.unsupported.links.or.special.files", "release archive contains unsupported links or special files")
 		}
 	}
 }

@@ -5,7 +5,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -15,6 +14,8 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/privileged"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 // Handler receives only validated requests from the fixed session user.
@@ -40,11 +41,11 @@ const maxHelperConnections = 32
 
 func (s Server) Serve(ctx context.Context, listener *net.UnixListener) error {
 	if listener == nil {
-		return errors.New("nil helper listener")
+		return i18n.Errorf("system.privileged.nil.helper.listener", "nil helper listener")
 	}
 	addr, ok := listener.Addr().(*net.UnixAddr)
 	if !ok || addr.Name == "" {
-		return errors.New("helper listener has no filesystem path")
+		return i18n.Errorf("system.privileged.helper.listener.has.no.filesystem.path", "helper listener has no filesystem path")
 	}
 	if err := VerifySessionSocket(addr.Name, s.SessionUID); err != nil {
 		return err
@@ -90,26 +91,26 @@ func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 	stop := closeOnCancellation(ctx, func() { _ = conn.Close() })
 	defer stop()
 	if s.SessionUID <= 0 || s.Handler == nil {
-		return errors.New("helper session is not configured")
+		return i18n.Errorf("system.privileged.helper.session.is.not.configured", "helper session is not configured")
 	}
 	uid, err := peerUID(conn)
 	if err != nil {
-		return fmt.Errorf("read peer credential: %w", err)
+		return i18n.Errorf("system.privileged.read.peer.credential", "read peer credential: %w", err)
 	}
 	if uid != s.SessionUID {
-		return fmt.Errorf("peer uid %d is not the bound session user", uid)
+		return i18n.Errorf("system.privileged.peer.uid.is.not.the.bound.session.user", "peer uid %d is not the bound session user", uid)
 	}
 	if err := conn.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		return err
 	}
 	req, err := privileged.ReadRequest(conn)
 	if err != nil {
-		return fmt.Errorf("read request: %w", err)
+		return i18n.Errorf("system.privileged.read.request", "read request: %w", err)
 	}
 	policy := s.Policy
 	policy.PeerUID = uid
 	if err := req.Validate(policy); err != nil {
-		return fmt.Errorf("validate request: %w", err)
+		return i18n.Errorf("system.privileged.validate.request", "validate request: %w", err)
 	}
 	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return err
@@ -117,13 +118,18 @@ func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 	resp, err := s.Handler.Handle(ctx, uid, req)
 	if err != nil {
 		resp = privileged.Response{Version: privileged.ProtocolVersion, Error: err.Error()}
+		var message *i18n.Message
+		if errors.As(err, &message) && message.Error() == err.Error() {
+			resp.Messages = map[string]i18n.Descriptor{"/error": message.Descriptor()}
+		}
 		if errors.Is(err, control.ErrResponseTooLarge) {
+			resp.Messages = nil
 			resp.Error = "response_too_large"
 		}
 	}
 	resp.Version = privileged.ProtocolVersion
 	if err := resp.Validate(); err != nil {
-		return fmt.Errorf("invalid handler response: %w", err)
+		return i18n.Errorf("system.privileged.invalid.handler.response", "invalid handler response: %w", err)
 	}
 	if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		return err
@@ -137,10 +143,10 @@ func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 // then chowned to the one session UID and chmodded to 0600.
 func VerifySessionSocket(path string, uid int) error {
 	if uid <= 0 {
-		return errors.New("invalid session uid")
+		return i18n.Errorf("system.privileged.invalid.session.uid", "invalid session uid")
 	}
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return errors.New("socket path must be absolute and clean")
+		return i18n.Errorf("system.privileged.socket.path.must.be.absolute.and.clean", "socket path must be absolute and clean")
 	}
 	if err := verifyOwned(path, uint32(uid), os.ModeSocket, 0600); err != nil {
 		return err
@@ -152,7 +158,7 @@ func VerifySessionSocket(path string, uid int) error {
 // Do not chown this socket to the session user or expose its raw HTTP API.
 func VerifyControllerSocket(path string) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return errors.New("controller path must be absolute and clean")
+		return i18n.Errorf("system.privileged.controller.path.must.be.absolute.and.clean", "controller path must be absolute and clean")
 	}
 	if err := verifyOwned(path, 0, os.ModeSocket, 0600); err != nil {
 		return err
@@ -168,7 +174,7 @@ func verifyAncestors(path string, uid uint32) error {
 		}
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok || !info.IsDir() || stat.Uid != uid || info.Mode().Perm()&0022 != 0 {
-			return fmt.Errorf("unsafe directory %s", path)
+			return i18n.Errorf("system.privileged.unsafe.directory", "unsafe directory %s", path)
 		}
 		parent := filepath.Dir(path)
 		if parent == path {
@@ -185,7 +191,7 @@ func verifyOwned(path string, uid uint32, kind os.FileMode, perm os.FileMode) er
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok || info.Mode()&os.ModeType != kind || stat.Uid != uid || info.Mode().Perm() != perm {
-		return fmt.Errorf("unsafe socket %s", path)
+		return i18n.Errorf("system.privileged.unsafe.socket", "unsafe socket %s", path)
 	}
 	return nil
 }

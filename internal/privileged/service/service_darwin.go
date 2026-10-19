@@ -3,7 +3,6 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 const (
@@ -37,7 +38,7 @@ func result() Result {
 
 func requireRoot(uid int) error {
 	if uid != 0 {
-		return errors.New("administrator privileges required; run with sudo")
+		return i18n.Errorf("system.privileged.administrator.privileges.required.run.with.sudo", "administrator privileges required; run with sudo")
 	}
 	return nil
 }
@@ -55,32 +56,32 @@ func install(r Result, executable string, uid int, command runner) (Result, erro
 		return r, err
 	}
 	if executable != ExecutablePath {
-		return r, fmt.Errorf("run the installed %s executable to install its helper", ExecutablePath)
+		return r, i18n.Errorf("system.privileged.run.the.installed.executable.to.install.its.helper", "run the installed %s executable to install its helper", ExecutablePath)
 	}
 	if err := secureExecutable(ExecutablePath); err != nil {
-		return r, fmt.Errorf("unsafe privileged helper executable: %w", err)
+		return r, i18n.Errorf("system.privileged.unsafe.privileged.helper.executable", "unsafe privileged helper executable: %w", err)
 	}
 	if err := secureDirectory(filepath.Dir(r.Path)); err != nil {
-		return r, fmt.Errorf("unsafe LaunchDaemon directory: %w", err)
+		return r, i18n.Errorf("system.privileged.unsafe.launchdaemon.directory", "unsafe LaunchDaemon directory: %w", err)
 	}
 	sessionUID, err := sudoSessionUID()
 	if err != nil {
 		return r, err
 	}
 	if _, err := os.Lstat(r.Path); err == nil {
-		return r, fmt.Errorf("helper definition already exists at %s; uninstall before reinstalling", r.Path)
+		return r, i18n.Errorf("system.privileged.helper.definition.already.exists.at.uninstall.before.reinstalling", "helper definition already exists at %s; uninstall before reinstalling", r.Path)
 	} else if !os.IsNotExist(err) {
-		return r, fmt.Errorf("inspect helper definition: %w", err)
+		return r, i18n.Errorf("system.privileged.inspect.helper.definition", "inspect helper definition: %w", err)
 	}
 	content := definition(sessionUID)
 	if err := writeExclusive(r.Path, []byte(content)); err != nil {
-		return r, fmt.Errorf("write helper definition: %w", err)
+		return r, i18n.Errorf("system.privileged.write.helper.definition", "write helper definition: %w", err)
 	}
 	if err := command(launchctlPath, "bootstrap", "system", r.Path); err != nil {
 		if removeErr := os.Remove(r.Path); removeErr != nil {
-			return r, fmt.Errorf("launchctl bootstrap: %w; removing definition failed: %v", err, removeErr)
+			return r, i18n.Errorf("system.privileged.launchctl.bootstrap.removing.definition.failed", "launchctl bootstrap: %w; removing definition failed: %v", err, removeErr)
 		}
-		return r, fmt.Errorf("launchctl bootstrap: %w; definition removed", err)
+		return r, i18n.Errorf("system.privileged.launchctl.bootstrap.definition.removed", "launchctl bootstrap: %w; definition removed", err)
 	}
 	r.Installed, r.Active = true, true
 	return r, nil
@@ -99,28 +100,28 @@ func uninstall(r Result, uid int, command runner) (Result, error) {
 	_, err := os.Lstat(r.Path)
 	installed := err == nil
 	if err != nil && !os.IsNotExist(err) {
-		return r, fmt.Errorf("inspect helper definition: %w", err)
+		return r, i18n.Errorf("system.privileged.inspect.helper.definition", "inspect helper definition: %w", err)
 	}
 	if command(launchctlPath, "print", "system/"+Label) == nil {
 		if err := command(launchctlPath, "bootout", "system/"+Label); err != nil {
 			if installed {
-				return r, fmt.Errorf("launchctl bootout: %w; definition retained at %s", err, r.Path)
+				return r, i18n.Errorf("system.privileged.launchctl.bootout.definition.retained.at", "launchctl bootout: %w; definition retained at %s", err, r.Path)
 			}
-			return r, fmt.Errorf("launchctl bootout: %w; no definition exists at %s", err, r.Path)
+			return r, i18n.Errorf("system.privileged.launchctl.bootout.no.definition.exists.at", "launchctl bootout: %w; no definition exists at %s", err, r.Path)
 		}
 		for attempt := 0; attempt < 20; attempt++ {
 			if command(launchctlPath, "print", "system/"+Label) != nil {
 				break
 			}
 			if attempt == 19 {
-				return r, fmt.Errorf("helper launchd job remains active after bootout; inspect %s", r.Path)
+				return r, i18n.Errorf("system.privileged.helper.launchd.job.remains.active.after.bootout.inspect", "helper launchd job remains active after bootout; inspect %s", r.Path)
 			}
 			time.Sleep(250 * time.Millisecond)
 		}
 	}
 	if installed {
 		if err := os.Remove(r.Path); err != nil {
-			return r, fmt.Errorf("helper stopped but removing definition failed: %w", err)
+			return r, i18n.Errorf("system.privileged.helper.stopped.but.removing.definition.failed", "helper stopped but removing definition failed: %w", err)
 		}
 	}
 	return r, nil
@@ -132,7 +133,7 @@ func Status() (Result, error) {
 	if _, err := os.Lstat(r.Path); err == nil {
 		r.Installed = true
 	} else if !os.IsNotExist(err) {
-		return r, fmt.Errorf("inspect helper definition: %w", err)
+		return r, i18n.Errorf("system.privileged.inspect.helper.definition", "inspect helper definition: %w", err)
 	}
 	r.Active = run(launchctlPath, "print", "system/"+Label) == nil
 	return r, nil
@@ -142,7 +143,7 @@ func sudoSessionUID() (int, error) {
 	value := os.Getenv("SUDO_UID")
 	uid, err := strconv.Atoi(value)
 	if err != nil || uid <= 0 {
-		return 0, errors.New("install the helper with sudo from the intended macOS user account")
+		return 0, i18n.Errorf("system.privileged.install.the.helper.with.sudo.from.the.intended.macos.user", "install the helper with sudo from the intended macOS user account")
 	}
 	return uid, nil
 }
@@ -180,10 +181,10 @@ func secureExecutable(path string) error {
 		return err
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("%s is not a regular file", path)
+		return i18n.Errorf("system.privileged.is.not.a.regular.file", "%s is not a regular file", path)
 	}
 	if info.Mode().Perm()&0111 == 0 {
-		return fmt.Errorf("%s is not executable", path)
+		return i18n.Errorf("system.privileged.is.not.executable", "%s is not executable", path)
 	}
 	return secureOwnership(path, info)
 }
@@ -195,7 +196,7 @@ func secureDirectory(path string) error {
 			return err
 		}
 		if !info.IsDir() {
-			return fmt.Errorf("%s is not a directory", path)
+			return i18n.Errorf("system.privileged.is.not.a.directory", "%s is not a directory", path)
 		}
 		if err := secureOwnership(path, info); err != nil {
 			return err
@@ -211,19 +212,19 @@ func secureDirectory(path string) error {
 func secureOwnership(path string, info os.FileInfo) error {
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok || stat.Uid != 0 {
-		return fmt.Errorf("%s is not owned by root", path)
+		return i18n.Errorf("system.privileged.is.not.owned.by.root", "%s is not owned by root", path)
 	}
 	if info.Mode().Perm()&0022 != 0 {
-		return fmt.Errorf("%s is writable by group or others", path)
+		return i18n.Errorf("system.privileged.is.writable.by.group.or.others", "%s is writable by group or others", path)
 	}
 	// An ACL can grant write access even when POSIX mode bits do not.
 	out, err := exec.Command("/bin/ls", "-lde", path).Output()
 	if err != nil {
-		return fmt.Errorf("inspect ACL for %s: %w", path, err)
+		return i18n.Errorf("system.privileged.inspect.acl.for", "inspect ACL for %s: %w", path, err)
 	}
 	fields := strings.Fields(string(out))
 	if len(fields) == 0 || len(fields[0]) < 10 || strings.Contains(fields[0], "+") {
-		return fmt.Errorf("%s has an ACL or unreadable permission record", path)
+		return i18n.Errorf("system.privileged.has.an.acl.or.unreadable.permission.record", "%s has an ACL or unreadable permission record", path)
 	}
 	return nil
 }

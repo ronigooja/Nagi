@@ -19,10 +19,12 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/platform"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
-var ErrAlreadyRunning = errors.New("mihomo is already running")
-var ErrNotRunning = errors.New("mihomo is not running")
+var ErrAlreadyRunning = i18n.Errorf("system.engine.mihomo.is.already.running", "mihomo is already running")
+var ErrNotRunning = i18n.Errorf("system.engine.mihomo.is.not.running", "mihomo is not running")
 
 type Options struct {
 	Binary     string
@@ -53,7 +55,7 @@ func New(options Options) (*Manager, error) {
 	}
 	var err error
 	if options.ConfigPath == "" {
-		return nil, errors.New("configuration path is required")
+		return nil, i18n.Errorf("system.engine.configuration.path.is.required", "configuration path is required")
 	}
 	options.ConfigPath, err = filepath.Abs(options.ConfigPath)
 	if err != nil {
@@ -77,10 +79,10 @@ func New(options Options) (*Manager, error) {
 func (m *Manager) Validate(ctx context.Context) error {
 	stat, err := os.Stat(m.options.ConfigPath)
 	if err != nil {
-		return fmt.Errorf("configuration: %w", err)
+		return i18n.Errorf("system.engine.configuration", "configuration: %w", err)
 	}
 	if !stat.Mode().IsRegular() {
-		return errors.New("configuration must be a regular file")
+		return i18n.Errorf("system.engine.configuration.must.be.a.regular.file", "configuration must be a regular file")
 	}
 	binary, err := m.binary()
 	if err != nil {
@@ -102,11 +104,11 @@ func (m *Manager) Validate(ctx context.Context) error {
 			}
 			if json.Unmarshal(out, &report) == nil && len(report.Errors) > 0 {
 				first := report.Errors[0]
-				return fmt.Errorf("configuration validation failed at %s (%s): %s; inspect `nagi config show`", first.Path, first.Code, first.Message)
+				return i18n.Errorf("system.engine.configuration.validation.failed.at.inspect.nagi.config.show", "configuration validation failed at %s (%s): %s; inspect `nagi config show`", first.Path, first.Code, first.Message)
 			}
-			return fmt.Errorf("configuration validation failed; inspect the selected profile with `nagi config show`, fix it, and retry (validate a local copy with mihomo -t -f FILE -d DIRECTORY): %w", err)
+			return i18n.Errorf("system.engine.configuration.validation.failed.inspect.the.selected.profile.with.nagi.config", "configuration validation failed; inspect the selected profile with `nagi config show`, fix it, and retry (validate a local copy with mihomo -t -f FILE -d DIRECTORY): %w", err)
 		}
-		return fmt.Errorf("unable to run mihomo for configuration validation; check NAGI_MIHOMO_BIN and executable permissions: %w", err)
+		return i18n.Errorf("system.engine.unable.to.run.mihomo.for.configuration.validation.check.nagi.mihomo", "unable to run mihomo for configuration validation; check NAGI_MIHOMO_BIN and executable permissions: %w", err)
 	}
 	return nil
 }
@@ -164,7 +166,7 @@ func (m *Manager) Start(ctx context.Context) (Status, error) {
 		// Clear inherited controller overrides; mihomo receives the explicit Unix path above.
 		cmd.Env = nagiruntime.TailscaleEnv(filteredEnv(os.Environ()), m.options.Paths.ConfigDir)
 		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("start mihomo: %w", err)
+			return i18n.Errorf("system.engine.start.mihomo", "start mihomo: %w", err)
 		}
 		pid := cmd.Process.Pid
 		done := make(chan error, 1)
@@ -192,7 +194,7 @@ func (m *Manager) Start(ctx context.Context) (Status, error) {
 			select {
 			case err := <-done:
 				_ = os.Remove(m.options.Paths.PIDPath)
-				return fmt.Errorf("mihomo exited before socket became ready: %v", err)
+				return i18n.Errorf("system.engine.mihomo.exited.before.socket.became.ready", "mihomo exited before socket became ready: %v", err)
 			case <-ctx.Done():
 				_ = cmd.Process.Kill()
 				<-done
@@ -202,7 +204,7 @@ func (m *Manager) Start(ctx context.Context) (Status, error) {
 				_ = cmd.Process.Kill()
 				<-done
 				_ = os.Remove(m.options.Paths.PIDPath)
-				return errors.New("mihomo control socket did not become ready")
+				return i18n.Errorf("system.engine.mihomo.control.socket.did.not.become.ready", "mihomo control socket did not become ready")
 			case <-ticker.C:
 			}
 		}
@@ -265,7 +267,7 @@ func (m *Manager) Restart(ctx context.Context) (Status, error) {
 
 func (m *Manager) Logs(lines int) ([]string, error) {
 	if lines < 0 {
-		return nil, errors.New("line count must be nonnegative")
+		return nil, i18n.Errorf("system.engine.line.count.must.be.nonnegative", "line count must be nonnegative")
 	}
 	if lines == 0 {
 		lines = 100
@@ -304,7 +306,7 @@ func (m *Manager) Logs(lines int) ([]string, error) {
 // current end of the log, so callers receive only newly appended entries.
 func (m *Manager) Follow(ctx context.Context, emit func(string) error) error {
 	if emit == nil {
-		return errors.New("log callback is required")
+		return i18n.Errorf("system.engine.log.callback.is.required", "log callback is required")
 	}
 	file, err := os.OpenFile(m.options.Paths.LogPath, os.O_CREATE|os.O_RDONLY, 0600)
 	if err != nil {
@@ -380,7 +382,7 @@ func readPID(path string) (int, error) {
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil || pid <= 0 {
-		return 0, fmt.Errorf("invalid PID file %s", path)
+		return 0, i18n.Errorf("system.engine.invalid.pid.file", "invalid PID file %s", path)
 	}
 	return pid, nil
 }
@@ -425,11 +427,11 @@ func filteredEnv(env []string) []string {
 
 func (m *Manager) binary() (string, error) {
 	if m.options.Binary == "" {
-		return "", errors.New("mihomo binary is required")
+		return "", i18n.Errorf("system.engine.mihomo.binary.is.required", "mihomo binary is required")
 	}
 	binary, err := exec.LookPath(m.options.Binary)
 	if err != nil {
-		return "", fmt.Errorf("find mihomo: %w; set NAGI_MIHOMO_BIN to a mihomo executable", err)
+		return "", i18n.Errorf("system.engine.find.mihomo.set.nagi.mihomo.bin.to.a.mihomo.executable", "find mihomo: %w; set NAGI_MIHOMO_BIN to a mihomo executable", err)
 	}
 	return filepath.Abs(binary)
 }

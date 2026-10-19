@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 const linuxUnitPath = "/etc/systemd/system/nagi-privileged-helper.service"
@@ -28,7 +30,7 @@ func linuxRun(name string, args ...string) error {
 // Install registers the root helper as a system service. It does not alter the
 // existing per-user service, which remains responsible for login monitoring.
 func Install(executable string) (Result, error) {
-	return linuxResult(), fmt.Errorf("privileged Linux helper installation is unavailable until restricted controller access and configuration validation are implemented")
+	return linuxResult(), i18n.Errorf("system.privileged.privileged.linux.helper.installation.is.unavailable.until.restricted.controller.access", "privileged Linux helper installation is unavailable until restricted controller access and configuration validation are implemented")
 }
 
 func linuxResult() Result {
@@ -38,13 +40,13 @@ func linuxResult() Result {
 func linuxInstall(path, executable string, uid int, run commandRunner) (Result, error) {
 	result := Result{Path: path, Manager: "systemd-system", Executable: linuxExecutablePath}
 	if uid != 0 {
-		return result, fmt.Errorf("installing the privileged helper requires root; rerun with sudo")
+		return result, i18n.Errorf("system.privileged.installing.the.privileged.helper.requires.root.rerun.with.sudo", "installing the privileged helper requires root; rerun with sudo")
 	}
 	if executable != linuxExecutablePath {
-		return result, fmt.Errorf("run the installed %s executable to install its helper", linuxExecutablePath)
+		return result, i18n.Errorf("system.privileged.run.the.installed.executable.to.install.its.helper", "run the installed %s executable to install its helper", linuxExecutablePath)
 	}
 	if err := rootControlledExecutable(executable); err != nil {
-		return result, fmt.Errorf("unsafe helper executable: %w", err)
+		return result, i18n.Errorf("system.privileged.unsafe.helper.executable", "unsafe helper executable: %w", err)
 	}
 	unit, err := linuxDefinition(executable)
 	if err != nil {
@@ -52,13 +54,13 @@ func linuxInstall(path, executable string, uid int, run commandRunner) (Result, 
 	}
 	old, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
-		return result, fmt.Errorf("read existing helper unit: %w", err)
+		return result, i18n.Errorf("system.privileged.read.existing.helper.unit", "read existing helper unit: %w", err)
 	}
 	existed := err == nil
 	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
-		return result, fmt.Errorf("helper unit path is a symlink: %s", path)
+		return result, i18n.Errorf("system.privileged.helper.unit.path.is.a.symlink", "helper unit path is a symlink: %s", path)
 	} else if err != nil && !os.IsNotExist(err) {
-		return result, fmt.Errorf("inspect helper unit: %w", err)
+		return result, i18n.Errorf("system.privileged.inspect.helper.unit", "inspect helper unit: %w", err)
 	}
 	if err := writeLinuxUnit(path, []byte(unit)); err != nil {
 		return result, err
@@ -81,14 +83,14 @@ func linuxInstall(path, executable string, uid int, run commandRunner) (Result, 
 		rollbackErr = run("systemctl", "daemon-reload")
 	}
 	if rollbackErr != nil {
-		return result, fmt.Errorf("activate helper unit: %w; rollback failed: %v; inspect %s and systemctl status %s", managerErr, rollbackErr, path, linuxUnitName)
+		return result, i18n.Errorf("system.privileged.activate.helper.unit.rollback.failed.inspect.and.systemctl.status", "activate helper unit: %w; rollback failed: %v; inspect %s and systemctl status %s", managerErr, rollbackErr, path, linuxUnitName)
 	}
-	return result, fmt.Errorf("activate helper unit: %w; previous unit definition restored; inspect systemctl status %s", managerErr, linuxUnitName)
+	return result, i18n.Errorf("system.privileged.activate.helper.unit.previous.unit.definition.restored.inspect.systemctl.status", "activate helper unit: %w; previous unit definition restored; inspect systemctl status %s", managerErr, linuxUnitName)
 }
 
 func linuxDefinition(executable string) (string, error) {
 	if !filepath.IsAbs(executable) || strings.ContainsAny(executable, "\n\r\x00") {
-		return "", fmt.Errorf("helper executable path must be absolute and contain no control characters")
+		return "", i18n.Errorf("system.privileged.helper.executable.path.must.be.absolute.and.contain.no.control", "helper executable path must be absolute and contain no control characters")
 	}
 	// systemd expands specifiers and dollar signs even inside quoted values.
 	quoted := strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "%", "%%", "$", "$$").Replace(executable)
@@ -97,7 +99,7 @@ func linuxDefinition(executable string) (string, error) {
 
 func writeLinuxUnit(path string, content []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("create helper unit directory: %w", err)
+		return i18n.Errorf("system.privileged.create.helper.unit.directory", "create helper unit directory: %w", err)
 	}
 	f, err := os.CreateTemp(filepath.Dir(path), ".nagi-helper-unit-*")
 	if err != nil {
@@ -127,7 +129,7 @@ func Uninstall() (Result, error) {
 func linuxUninstall(path string, uid int, run commandRunner) (Result, error) {
 	result := Result{Path: path, Manager: "systemd-system", Executable: linuxExecutablePath}
 	if uid != 0 {
-		return result, fmt.Errorf("uninstalling the privileged helper requires root; rerun with sudo")
+		return result, i18n.Errorf("system.privileged.uninstalling.the.privileged.helper.requires.root.rerun.with.sudo", "uninstalling the privileged helper requires root; rerun with sudo")
 	}
 	if _, err := os.Lstat(path); os.IsNotExist(err) {
 		return result, nil
@@ -135,13 +137,13 @@ func linuxUninstall(path string, uid int, run commandRunner) (Result, error) {
 		return result, err
 	}
 	if err := run("systemctl", "disable", "--now", linuxUnitName); err != nil {
-		return result, fmt.Errorf("disable helper service: %w; unit retained at %s", err, path)
+		return result, i18n.Errorf("system.privileged.disable.helper.service.unit.retained.at", "disable helper service: %w; unit retained at %s", err, path)
 	}
 	if err := os.Remove(path); err != nil {
-		return result, fmt.Errorf("helper stopped but unit removal failed: %w", err)
+		return result, i18n.Errorf("system.privileged.helper.stopped.but.unit.removal.failed", "helper stopped but unit removal failed: %w", err)
 	}
 	if err := run("systemctl", "daemon-reload"); err != nil {
-		return result, fmt.Errorf("helper unit removed but systemd reload failed: %w", err)
+		return result, i18n.Errorf("system.privileged.helper.unit.removed.but.systemd.reload.failed", "helper unit removed but systemd reload failed: %w", err)
 	}
 	return result, nil
 }
@@ -159,26 +161,26 @@ func Status() (Result, error) {
 
 func rootControlledExecutable(path string) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || strings.ContainsAny(path, "\n\r\x00") {
-		return fmt.Errorf("path must be absolute, clean, and contain no control characters")
+		return i18n.Errorf("system.privileged.path.must.be.absolute.clean.and.contain.no.control.characters", "path must be absolute, clean, and contain no control characters")
 	}
 	for current := path; ; current = filepath.Dir(current) {
 		info, err := os.Lstat(current)
 		if err != nil {
-			return fmt.Errorf("inspect %s: %w", current, err)
+			return i18n.Errorf("system.privileged.inspect", "inspect %s: %w", current, err)
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("symlink in executable path: %s", current)
+			return i18n.Errorf("system.privileged.symlink.in.executable.path", "symlink in executable path: %s", current)
 		}
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok || stat.Uid != 0 || info.Mode().Perm()&0022 != 0 {
-			return fmt.Errorf("%s must be root-owned and not group/world writable", current)
+			return i18n.Errorf("system.privileged.must.be.root.owned.and.not.group.world.writable", "%s must be root-owned and not group/world writable", current)
 		}
 		if current == path {
 			if !info.Mode().IsRegular() || info.Mode().Perm()&0111 == 0 {
-				return fmt.Errorf("%s must be an executable regular file", current)
+				return i18n.Errorf("system.privileged.must.be.an.executable.regular.file", "%s must be an executable regular file", current)
 			}
 		} else if !info.IsDir() {
-			return fmt.Errorf("%s must be a directory", current)
+			return i18n.Errorf("system.privileged.must.be.a.directory", "%s must be a directory", current)
 		}
 		if current == string(filepath.Separator) {
 			break

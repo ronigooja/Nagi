@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 type Operation struct {
@@ -38,7 +40,7 @@ var checkpoint = func(string) {}                 // Tests replace this with abru
 // cleanPath refuses symlinks in every existing component, including the leaf.
 func cleanPath(p string) error {
 	if !filepath.IsAbs(p) || filepath.Clean(p) != p || p == "/" {
-		return fmt.Errorf("unsafe transaction path %q", p)
+		return i18n.Errorf("system.installtx.unsafe.transaction.path", "unsafe transaction path %q", p)
 	}
 	for q := p; q != "/"; q = filepath.Dir(q) {
 		s, e := os.Lstat(q)
@@ -49,7 +51,7 @@ func cleanPath(p string) error {
 			return e
 		}
 		if s.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("symlink transaction path %q", q)
+			return i18n.Errorf("system.installtx.symlink.transaction.path", "symlink transaction path %q", q)
 		}
 	}
 	return nil
@@ -74,7 +76,7 @@ func syncDir(p string) error {
 func durableMkdir(p string, mode os.FileMode) error {
 	if s, e := os.Lstat(p); e == nil {
 		if !s.IsDir() {
-			return fmt.Errorf("not a directory: %s", p)
+			return i18n.Errorf("system.installtx.not.a.directory", "not a directory: %s", p)
 		}
 		return nil
 	} else if !os.IsNotExist(e) {
@@ -101,7 +103,7 @@ func privateRoot(root string) error {
 	}
 	st := s.Sys().(*syscall.Stat_t)
 	if s.Mode().Perm()&0077 != 0 || int(st.Uid) != os.Geteuid() {
-		return fmt.Errorf("transaction journal must be private and owned by current user: %s", root)
+		return i18n.Errorf("system.installtx.transaction.journal.must.be.private.and.owned.by.current.user", "transaction journal must be private and owned by current user: %s", root)
 	}
 	return nil
 }
@@ -111,7 +113,7 @@ func copyTree(src, dst string) error {
 		return e
 	}
 	if s.Mode()&os.ModeSymlink != 0 || (!s.IsDir() && !s.Mode().IsRegular()) {
-		return fmt.Errorf("unsupported transaction source %s", src)
+		return i18n.Errorf("system.installtx.unsupported.transaction.source", "unsupported transaction source %s", src)
 	}
 	if s.IsDir() {
 		if e = os.Mkdir(dst, 0700); e != nil {
@@ -221,7 +223,7 @@ func loadAt(root, expectedRoot string) (manifest, error) {
 	p := filepath.Join(root, "manifest.json")
 	if st, e := os.Lstat(p); e == nil {
 		if !st.Mode().IsRegular() || st.Mode().Perm()&0077 != 0 || int(st.Sys().(*syscall.Stat_t).Uid) != os.Geteuid() {
-			return m, errors.New("unsafe transaction manifest")
+			return m, i18n.Errorf("system.installtx.unsafe.transaction.manifest", "unsafe transaction manifest")
 		}
 	} else if !os.IsNotExist(e) {
 		return m, e
@@ -240,23 +242,23 @@ func loadAt(root, expectedRoot string) (manifest, error) {
 		return m, e
 	}
 	if d.Decode(new(any)) != io.EOF {
-		return m, errors.New("trailing manifest data")
+		return m, i18n.Errorf("system.installtx.trailing.manifest.data", "trailing manifest data")
 	}
 	if m.Version != 1 || m.Root != expectedRoot || len(m.Operations) == 0 {
-		return m, errors.New("invalid transaction manifest")
+		return m, i18n.Errorf("system.installtx.invalid.transaction.manifest", "invalid transaction manifest")
 	}
 	for i, o := range m.Operations {
 		for j := 0; j < i; j++ {
 			p := m.Operations[j].Target
 			if p == o.Target || inside(p, o.Target) || inside(o.Target, p) {
-				return m, errors.New("overlapping manifest targets")
+				return m, i18n.Errorf("system.installtx.overlapping.manifest.targets", "overlapping manifest targets")
 			}
 		}
 		if e = validateTarget(expectedRoot, o.Target); e != nil {
 			return m, e
 		}
 		if o.Source != "" && o.Source != fmt.Sprintf("new-%d", i) {
-			return m, errors.New("invalid staged source")
+			return m, i18n.Errorf("system.installtx.invalid.staged.source", "invalid staged source")
 		}
 	}
 	return m, nil
@@ -266,7 +268,7 @@ func validateTarget(root, target string) error {
 		return e
 	}
 	if target == root || inside(root, target) || inside(target, root) || target == root+".lock" || strings.HasPrefix(target, root+".garbage-") {
-		return errors.New("target overlaps transaction journal")
+		return i18n.Errorf("system.installtx.target.overlaps.transaction.journal", "target overlaps transaction journal")
 	}
 	return nil
 }
@@ -282,7 +284,9 @@ type CommitUncertainError struct{ Err error }
 func (e *CommitUncertainError) Error() string {
 	return "installation commit outcome uncertain; journal and backups retained for recovery: " + e.Err.Error()
 }
-func (e *CommitUncertainError) Unwrap() error { return e.Err }
+func (e *CommitUncertainError) Unwrap() error {
+	return i18n.Errorf("system.installtx.commit.uncertain", "installation commit outcome uncertain; journal and backups retained for recovery: %w", e.Err)
+}
 
 // CommittedError means file changes committed durably, but cleanup needs recovery.
 type CommittedError struct{ Err error }
@@ -290,7 +294,9 @@ type CommittedError struct{ Err error }
 func (e *CommittedError) Error() string {
 	return "installation files committed; journal cleanup pending: " + e.Err.Error()
 }
-func (e *CommittedError) Unwrap() error { return e.Err }
+func (e *CommittedError) Unwrap() error {
+	return i18n.Errorf("system.installtx.commit.cleanup.pending", "installation files committed; journal cleanup pending: %w", e.Err)
+}
 func syncAncestors(p string) error {
 	for {
 		if e := syncDir(p); e != nil {
@@ -308,7 +314,7 @@ func syncAncestors(p string) error {
 // Callers must hold WithLock throughout Prepare, Activate, and Commit.
 func Prepare(root string, ops []Operation) error {
 	if len(ops) == 0 {
-		return errors.New("empty transaction")
+		return i18n.Errorf("system.installtx.empty.transaction", "empty transaction")
 	}
 	if e := Recover(root); e != nil {
 		return e
@@ -324,7 +330,7 @@ func Prepare(root string, ops []Operation) error {
 		}
 		for _, p := range seen {
 			if p == o.Target || inside(p, o.Target) || inside(o.Target, p) {
-				return errors.New("overlapping transaction targets")
+				return i18n.Errorf("system.installtx.overlapping.transaction.targets", "overlapping transaction targets")
 			}
 		}
 		seen = append(seen, o.Target)
@@ -437,7 +443,7 @@ func treeHash(path string) (string, error) {
 			return e
 		}
 		if !s.IsDir() && !s.Mode().IsRegular() {
-			return errors.New("non-regular transaction content")
+			return i18n.Errorf("system.installtx.non.regular.transaction.content", "non-regular transaction content")
 		}
 		rel, e := filepath.Rel(path, p)
 		if e != nil {
@@ -472,7 +478,7 @@ func verify(root string, m manifest) error {
 				if v.path == fmt.Sprintf("old-%d", i) && !o.HadOld {
 					continue
 				}
-				return errors.New("missing transaction digest")
+				return i18n.Errorf("system.installtx.missing.transaction.digest", "missing transaction digest")
 			}
 			if e := cleanPath(filepath.Join(root, v.path)); e != nil {
 				return e
@@ -482,7 +488,7 @@ func verify(root string, m manifest) error {
 				return e
 			}
 			if got != v.hash {
-				return fmt.Errorf("transaction content corrupt; retained at %s", root)
+				return i18n.Errorf("system.installtx.transaction.content.corrupt.retained.at", "transaction content corrupt; retained at %s", root)
 			}
 		}
 	}
@@ -497,7 +503,7 @@ func Activate(root string) error {
 		return e
 	}
 	if _, e = os.Lstat(filepath.Join(root, "committed")); e == nil {
-		return errors.New("transaction already committed")
+		return i18n.Errorf("system.installtx.transaction.already.committed", "transaction already committed")
 	}
 	for i, o := range m.Operations {
 		src := ""
@@ -540,7 +546,7 @@ func Commit(root string) error {
 	for _, o := range m.Operations {
 		if o.Source == "" {
 			if _, e = os.Lstat(o.Target); !os.IsNotExist(e) {
-				return errors.New("removed transaction target reappeared")
+				return i18n.Errorf("system.installtx.removed.transaction.target.reappeared", "removed transaction target reappeared")
 			}
 		} else {
 			got, e := treeHash(o.Target)
@@ -548,7 +554,7 @@ func Commit(root string) error {
 				return e
 			}
 			if got != o.NewHash {
-				return errors.New("activated transaction target differs from prepared content")
+				return i18n.Errorf("system.installtx.activated.transaction.target.differs.from.prepared.content", "activated transaction target differs from prepared content")
 			}
 		}
 	}
@@ -574,7 +580,7 @@ func cleanupGarbage(root string) error {
 		return e
 	}
 	if _, e := os.Lstat(root); e == nil {
-		return errors.New("refusing garbage cleanup while active journal exists")
+		return i18n.Errorf("system.installtx.refusing.garbage.cleanup.while.active.journal.exists", "refusing garbage cleanup while active journal exists")
 	} else if !os.IsNotExist(e) {
 		return e
 	}
@@ -601,7 +607,7 @@ func cleanupGarbage(root string) error {
 			return e
 		}
 		if !st.IsDir() || st.Mode().Perm()&0077 != 0 || int(st.Sys().(*syscall.Stat_t).Uid) != os.Geteuid() {
-			return fmt.Errorf("unsafe detached transaction journal retained: %s", path)
+			return i18n.Errorf("system.installtx.unsafe.detached.transaction.journal.retained", "unsafe detached transaction journal retained: %s", path)
 		}
 		// Never follow links, including in partially deleted backup or staging trees.
 		if e = filepath.Walk(path, func(p string, s os.FileInfo, e error) error {
@@ -609,7 +615,7 @@ func cleanupGarbage(root string) error {
 				return e
 			}
 			if s.Mode()&os.ModeSymlink != 0 || (!s.IsDir() && !s.Mode().IsRegular()) {
-				return fmt.Errorf("unsafe detached journal entry: %s", p)
+				return i18n.Errorf("system.installtx.unsafe.detached.journal.entry", "unsafe detached journal entry: %s", p)
 			}
 			return nil
 		}); e != nil {
@@ -624,14 +630,14 @@ func cleanupGarbage(root string) error {
 		}
 		if st, e = os.Lstat(filepath.Join(path, "committed")); e == nil {
 			if !st.Mode().IsRegular() || st.Size() != 4 {
-				return errors.New("invalid detached commit marker")
+				return i18n.Errorf("system.installtx.invalid.detached.commit.marker", "invalid detached commit marker")
 			}
 			b, e := os.ReadFile(filepath.Join(path, "committed"))
 			if e != nil {
 				return e
 			}
 			if string(b) != "true" {
-				return errors.New("invalid detached commit marker")
+				return i18n.Errorf("system.installtx.invalid.detached.commit.marker", "invalid detached commit marker")
 			}
 		} else if !os.IsNotExist(e) {
 			return e
@@ -660,7 +666,7 @@ func recoverActive(root string) error {
 	m, e := load(root)
 	if os.IsNotExist(e) {
 		if _, me := os.Lstat(filepath.Join(root, "committed")); me == nil {
-			return errors.New("commit marker without manifest; journal retained")
+			return i18n.Errorf("system.installtx.commit.marker.without.manifest.journal.retained", "commit marker without manifest; journal retained")
 		} else if !os.IsNotExist(me) {
 			return me
 		}
@@ -672,14 +678,14 @@ func recoverActive(root string) error {
 	marker := filepath.Join(root, "committed")
 	if st, e := os.Lstat(marker); e == nil {
 		if !st.Mode().IsRegular() || st.Size() != 4 {
-			return errors.New("invalid commit marker")
+			return i18n.Errorf("system.installtx.invalid.commit.marker", "invalid commit marker")
 		}
 		b, e := os.ReadFile(marker)
 		if e != nil {
 			return e
 		}
 		if string(b) != "true" {
-			return errors.New("invalid commit marker")
+			return i18n.Errorf("system.installtx.invalid.commit.marker", "invalid commit marker")
 		}
 		return cleanup(root)
 	} else if !os.IsNotExist(e) {
@@ -698,7 +704,7 @@ func recoverActive(root string) error {
 			}
 		}
 		if e = replace(src, o.Target); e != nil {
-			return fmt.Errorf("rollback incomplete; journal retained at %s: %w", root, e)
+			return i18n.Errorf("system.installtx.rollback.incomplete.journal.retained.at", "rollback incomplete; journal retained at %s: %w", root, e)
 		}
 		checkpoint(fmt.Sprintf("rollback-%d", i))
 	}
@@ -736,7 +742,7 @@ func WithLock(root string, fn func() error) error {
 				return fn()
 			}
 		}
-		return errors.New("invalid inherited installation lock")
+		return i18n.Errorf("system.installtx.invalid.inherited.installation.lock", "invalid inherited installation lock")
 	}
 	f, e := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0600)
 	if e != nil {
@@ -744,7 +750,7 @@ func WithLock(root string, fn func() error) error {
 	}
 	defer f.Close()
 	if e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); e != nil {
-		return fmt.Errorf("installation maintenance already running: %w", e)
+		return i18n.Errorf("system.installtx.installation.maintenance.already.running", "installation maintenance already running: %w", e)
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 	return fn()
@@ -773,7 +779,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		args = args[1:]
 	}
 	if len(args) < 2 {
-		return errors.New("expected verb and absolute journal root")
+		return i18n.Errorf("system.installtx.expected.verb.and.absolute.journal.root", "expected verb and absolute journal root")
 	}
 	verb, root := args[0], args[1]
 	if verb == "lock" {
@@ -782,7 +788,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 			a = a[1:]
 		}
 		if len(a) == 0 {
-			return errors.New("lock requires command")
+			return i18n.Errorf("system.installtx.lock.requires.command", "lock requires command")
 		}
 		if e := cleanPath(root); e != nil {
 			return e
@@ -799,7 +805,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		defer f.Close()
 		if e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); e != nil {
-			return fmt.Errorf("installation maintenance already running: %w", e)
+			return i18n.Errorf("system.installtx.installation.maintenance.already.running", "installation maintenance already running: %w", e)
 		}
 		defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 		c := exec.Command(a[0], a[1:]...)
@@ -816,11 +822,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if os.Geteuid() == 0 && os.Getenv("SUDO_UID") != "" {
 			uid, e := strconv.Atoi(os.Getenv("SUDO_UID"))
 			if e != nil || uid <= 0 {
-				return errors.New("invalid invoking UID")
+				return i18n.Errorf("system.installtx.invalid.invoking.uid", "invalid invoking UID")
 			}
 			gid, e := strconv.Atoi(os.Getenv("SUDO_GID"))
 			if e != nil || gid < 0 {
-				return errors.New("invalid invoking GID")
+				return i18n.Errorf("system.installtx.invalid.invoking.gid", "invalid invoking GID")
 			}
 			u, e := user.LookupId(strconv.Itoa(uid))
 			if e != nil {
@@ -842,12 +848,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 		switch verb {
 		case "recover":
 			if len(args) != 2 {
-				return errors.New("recover takes only root")
+				return i18n.Errorf("system.installtx.recover.takes.only.root", "recover takes only root")
 			}
 			return Recover(root)
 		case "prepare":
 			if len(args) < 4 || (len(args)-2)%2 != 0 {
-				return errors.New("prepare requires target/source pairs")
+				return i18n.Errorf("system.installtx.prepare.requires.target.source.pairs", "prepare requires target/source pairs")
 			}
 			var ops []Operation
 			for i := 2; i < len(args); i += 2 {
@@ -859,7 +865,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		case "commit":
 			return Commit(root)
 		default:
-			return errors.New("unknown transaction verb")
+			return i18n.Errorf("system.installtx.unknown.transaction.verb", "unknown transaction verb")
 		}
 	}
 	if locked {
@@ -874,7 +880,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 		if e == nil {
 			syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-			return errors.New("installation broker lock is not held")
+			return i18n.Errorf("system.installtx.installation.broker.lock.is.not.held", "installation broker lock is not held")
 		}
 		if !errors.Is(e, syscall.EWOULDBLOCK) && !errors.Is(e, syscall.EAGAIN) {
 			return e

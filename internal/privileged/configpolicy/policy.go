@@ -14,11 +14,13 @@ import (
 	"syscall"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 const maxConfigBytes = 8 << 20
 
-var ErrUnsupported = errors.New("configuration is not supported for privileged mihomo")
+var ErrUnsupported = i18n.Errorf("system.privileged.configuration.is.not.supported.for.privileged.mihomo", "configuration is not supported for privileged mihomo")
 
 // Validate permits the inline configuration used by normal subscriptions.
 // It rejects features that let a root mihomo process read arbitrary local
@@ -26,19 +28,19 @@ var ErrUnsupported = errors.New("configuration is not supported for privileged m
 // fail closed and must be reviewed against the pinned mihomo version.
 func Validate(data []byte) error {
 	if len(data) == 0 || len(data) > maxConfigBytes {
-		return fmt.Errorf("%w: configuration must be 1..%d bytes", ErrUnsupported, maxConfigBytes)
+		return policyErrorf("system.privileged.configuration.must.be.1.bytes", "%w: configuration must be 1..%d bytes", ErrUnsupported, maxConfigBytes)
 	}
 	var document yaml.Node
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(&document); err != nil {
-		return fmt.Errorf("%w: invalid YAML: %v", ErrUnsupported, err)
+		return policyErrorf("system.privileged.invalid.yaml", "%w: invalid YAML: %v", ErrUnsupported, err)
 	}
 	var next yaml.Node
 	if err := decoder.Decode(&next); err != io.EOF {
-		return fmt.Errorf("%w: multiple YAML documents are not allowed", ErrUnsupported)
+		return policyErrorf("system.privileged.multiple.yaml.documents.are.not.allowed", "%w: multiple YAML documents are not allowed", ErrUnsupported)
 	}
 	if len(document.Content) != 1 || document.Content[0].Kind != yaml.MappingNode {
-		return fmt.Errorf("%w: expected a YAML mapping", ErrUnsupported)
+		return policyErrorf("system.privileged.expected.a.yaml.mapping", "%w: expected a YAML mapping", ErrUnsupported)
 	}
 	if err := checkNode(&document, 0); err != nil {
 		return err
@@ -94,7 +96,7 @@ func Validate(data []byte) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("%w: key %q is outside the privileged allowlist", ErrUnsupported, key)
+			return policyErrorf("system.privileged.key.is.outside.the.privileged.allowlist", "%w: key %q is outside the privileged allowlist", ErrUnsupported, key)
 		}
 	}
 	return nil
@@ -102,11 +104,11 @@ func Validate(data []byte) error {
 
 func port(node *yaml.Node) error {
 	if node.Kind != yaml.ScalarNode || node.Tag != "!!int" {
-		return errors.New("expected integer port")
+		return i18n.Errorf("system.privileged.expected.integer.port", "expected integer port")
 	}
 	var value int
 	if err := node.Decode(&value); err != nil || value < 0 || value > 65535 || value != 0 && value < 1024 {
-		return errors.New("expected port 0 or 1024..65535")
+		return i18n.Errorf("system.privileged.expected.port.0.or.1024.65535", "expected port 0 or 1024..65535")
 	}
 	return nil
 }
@@ -123,7 +125,7 @@ func validateProviders(node *yaml.Node, context string) error {
 		}
 		kind, ok := fields["type"]
 		if !ok {
-			return fmt.Errorf("%w: rule provider %q has no type", ErrUnsupported, name)
+			return policyErrorf("system.privileged.rule.provider.has.no.type", "%w: rule provider %q has no type", ErrUnsupported, name)
 		}
 		if err := literal(kind, "inline", "http", "file"); err != nil {
 			return fieldError(name+".type", err)
@@ -140,10 +142,10 @@ func validateProviders(node *yaml.Node, context string) error {
 				continue
 			}
 			if key == "path" && kind.Value == "http" {
-				return fmt.Errorf("%w: %s.path is managed by mihomo", ErrUnsupported, context)
+				return policyErrorf("system.privileged.path.is.managed.by.mihomo", "%w: %s.path is managed by mihomo", ErrUnsupported, context)
 			}
 			if key == "path" || key == "path-in-bundle" || key == "age-secret-key" {
-				return fmt.Errorf("%w: %s.%s is not supported", ErrUnsupported, context, key)
+				return policyErrorf("system.privileged.is.not.supported", "%w: %s.%s is not supported", ErrUnsupported, context, key)
 			}
 			if key == "payload" && context == "proxy-providers" {
 				if err := validateProviderProxies(value); err != nil {
@@ -161,7 +163,7 @@ func validateProviders(node *yaml.Node, context string) error {
 
 func validateProxies(node *yaml.Node) error {
 	if node.Kind != yaml.SequenceNode {
-		return fmt.Errorf("%w: expected proxy list", ErrUnsupported)
+		return policyErrorf("system.privileged.expected.proxy.list", "%w: expected proxy list", ErrUnsupported)
 	}
 	for _, proxy := range node.Content {
 		fields, err := mapping(proxy)
@@ -170,20 +172,20 @@ func validateProxies(node *yaml.Node) error {
 		}
 		kind, ok := fields["type"]
 		if !ok {
-			return fmt.Errorf("%w: proxy type is required", ErrUnsupported)
+			return policyErrorf("system.privileged.proxy.type.is.required", "%w: proxy type is required", ErrUnsupported)
 		}
 		if err := literal(kind, "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic", "http", "socks5", "snell", "wireguard", "anytls", "tailscale"); err != nil {
 			return fieldError("proxies.type", err)
 		}
 		if plugin := fields["plugin"]; plugin != nil {
 			if kind.Value != "ss" || literal(plugin, "obfs", "v2ray-plugin", "gost-plugin", "shadow-tls", "restls", "kcptun-plugin") != nil {
-				return fmt.Errorf("%w: proxies.plugin is not an audited built-in plugin", ErrUnsupported)
+				return policyErrorf("system.privileged.proxies.plugin.is.not.an.audited.built.in.plugin", "%w: proxies.plugin is not an audited built-in plugin", ErrUnsupported)
 			}
 		}
 		for key, value := range fields {
 			if key == "certificate" || key == "private-key" && kind.Value != "wireguard" {
 				if value.Kind != yaml.ScalarNode || value.Tag != "!!str" {
-					return fmt.Errorf("%w: proxies.%s requires inline PEM or a file snapshot", ErrUnsupported, key)
+					return policyErrorf("system.privileged.proxies.requires.inline.pem.or.a.file.snapshot", "%w: proxies.%s requires inline PEM or a file snapshot", ErrUnsupported, key)
 				}
 				continue
 			}
@@ -221,7 +223,7 @@ func validateInline(node *yaml.Node, context string) error {
 				continue
 			}
 			if forbiddenInlineKey(lower) || lower == "path" && context != "proxies.ws-opts" && context != "proxies.h2-opts" && context != "proxies.http-opts" {
-				return fmt.Errorf("%w: %s may access a local file or execute code", ErrUnsupported, child)
+				return policyErrorf("system.privileged.may.access.a.local.file.or.execute.code", "%w: %s may access a local file or execute code", ErrUnsupported, child)
 			}
 			if err := validateInline(value, child); err != nil {
 				return err
@@ -235,7 +237,7 @@ func validateInline(node *yaml.Node, context string) error {
 		}
 	case yaml.ScalarNode:
 		if node.Tag == "!!str" && (strings.HasPrefix(node.Value, "file:") || strings.HasPrefix(node.Value, "file://")) {
-			return fmt.Errorf("%w: %s contains a file URI", ErrUnsupported, context)
+			return policyErrorf("system.privileged.contains.a.file.uri", "%w: %s contains a file URI", ErrUnsupported, context)
 		}
 	}
 	return nil
@@ -265,7 +267,7 @@ func validateTun(node *yaml.Node) error {
 		case "mtu":
 			err = nonnegativeInteger(value)
 		default:
-			return fmt.Errorf("%w: tun.%s is outside the privileged allowlist", ErrUnsupported, key)
+			return policyErrorf("system.privileged.tun.is.outside.the.privileged.allowlist", "%w: tun.%s is outside the privileged allowlist", ErrUnsupported, key)
 		}
 		if err != nil {
 			return fieldError("tun."+key, err)
@@ -276,27 +278,27 @@ func validateTun(node *yaml.Node) error {
 
 func nonnegativeInteger(node *yaml.Node) error {
 	if node.Kind != yaml.ScalarNode || node.Tag != "!!int" {
-		return errors.New("expected nonnegative integer")
+		return i18n.Errorf("system.privileged.expected.nonnegative.integer", "expected nonnegative integer")
 	}
 	var value int
 	if err := node.Decode(&value); err != nil || value < 0 {
-		return errors.New("expected nonnegative integer")
+		return i18n.Errorf("system.privileged.expected.nonnegative.integer", "expected nonnegative integer")
 	}
 	return nil
 }
 
 func mapping(node *yaml.Node) (map[string]*yaml.Node, error) {
 	if node.Kind != yaml.MappingNode || len(node.Content)%2 != 0 {
-		return nil, fmt.Errorf("%w: expected mapping", ErrUnsupported)
+		return nil, policyErrorf("system.privileged.expected.mapping", "%w: expected mapping", ErrUnsupported)
 	}
 	result := make(map[string]*yaml.Node, len(node.Content)/2)
 	for i := 0; i < len(node.Content); i += 2 {
 		key := node.Content[i]
 		if key.Kind != yaml.ScalarNode || key.Tag != "!!str" || key.Value == "" {
-			return nil, fmt.Errorf("%w: mapping keys must be strings", ErrUnsupported)
+			return nil, policyErrorf("system.privileged.mapping.keys.must.be.strings", "%w: mapping keys must be strings", ErrUnsupported)
 		}
 		if _, exists := result[key.Value]; exists {
-			return nil, fmt.Errorf("%w: duplicate key %q", ErrUnsupported, key.Value)
+			return nil, policyErrorf("system.privileged.duplicate.key", "%w: duplicate key %q", ErrUnsupported, key.Value)
 		}
 		result[key.Value] = node.Content[i+1]
 	}
@@ -305,15 +307,15 @@ func mapping(node *yaml.Node) (map[string]*yaml.Node, error) {
 
 func checkNode(node *yaml.Node, depth int) error {
 	if depth > 32 {
-		return fmt.Errorf("%w: YAML nesting is too deep", ErrUnsupported)
+		return policyErrorf("system.privileged.yaml.nesting.is.too.deep", "%w: YAML nesting is too deep", ErrUnsupported)
 	}
 	if node.Kind == yaml.AliasNode || node.Anchor != "" {
-		return fmt.Errorf("%w: YAML aliases and anchors are not allowed", ErrUnsupported)
+		return policyErrorf("system.privileged.yaml.aliases.and.anchors.are.not.allowed", "%w: YAML aliases and anchors are not allowed", ErrUnsupported)
 	}
 	switch node.Tag {
 	case "", "!!map", "!!seq", "!!str", "!!bool", "!!int", "!!float", "!!null":
 	default:
-		return fmt.Errorf("%w: YAML tag %q is not allowed", ErrUnsupported, node.Tag)
+		return policyErrorf("system.privileged.yaml.tag.is.not.allowed", "%w: YAML tag %q is not allowed", ErrUnsupported, node.Tag)
 	}
 	for _, child := range node.Content {
 		if err := checkNode(child, depth+1); err != nil {
@@ -325,7 +327,7 @@ func checkNode(node *yaml.Node, depth int) error {
 
 func literal(node *yaml.Node, values ...string) error {
 	if node.Kind != yaml.ScalarNode || node.Tag != "!!str" {
-		return errors.New("expected a literal string")
+		return i18n.Errorf("system.privileged.expected.a.literal.string", "expected a literal string")
 	}
 	for _, value := range values {
 		if node.Value == value {
@@ -334,12 +336,12 @@ func literal(node *yaml.Node, values ...string) error {
 	}
 	// Values may be credentials or provider URLs. The caller adds the field
 	// name, which is sufficient to locate the rejected setting.
-	return errors.New("unsupported value")
+	return i18n.Errorf("system.privileged.unsupported.value", "unsupported value")
 }
 
 func boolean(node *yaml.Node) error {
 	if node.Kind != yaml.ScalarNode || node.Tag != "!!bool" || (node.Value != "true" && node.Value != "false") {
-		return errors.New("expected true or false")
+		return i18n.Errorf("system.privileged.expected.true.or.false", "expected true or false")
 	}
 	return nil
 }
@@ -349,13 +351,37 @@ func falseValue(node *yaml.Node) error {
 		return err
 	}
 	if node.Value != "false" {
-		return errors.New("must be false")
+		return i18n.Errorf("system.privileged.must.be.false", "must be false")
 	}
 	return nil
 }
 
+func policyErrorf(id, format string, values ...any) *i18n.Message {
+	message := i18n.Errorf(id, format, values...)
+	descriptor := message.Descriptor()
+	delete(descriptor.Args, "arg0") // The first argument is the fixed ErrUnsupported sentinel.
+	return i18n.NewMessage(id, descriptor.Args, message.Error(), message)
+}
+
 func fieldError(field string, err error) error {
-	return fmt.Errorf("%w: %s: %v", ErrUnsupported, field, err)
+	original := fmt.Errorf("%w: %s: %v", ErrUnsupported, field, err)
+	var message *i18n.Message
+	if errors.As(err, &message) {
+		descriptor := message.Descriptor()
+		// Compose a registered event variant from the source ID, never error text.
+		if i18n.ValidDescriptor(i18n.Descriptor{ID: descriptor.ID + ".field", Args: withField(descriptor.Args, field)}) {
+			return i18n.NewMessage(descriptor.ID+".field", withField(descriptor.Args, field), original.Error(), original)
+		}
+	}
+	return i18n.NewMessage("system.privileged.field.invalid", map[string]any{"field": field}, original.Error(), original)
+}
+func withField(args map[string]any, field string) map[string]any {
+	copied := make(map[string]any, len(args)+1)
+	for key, value := range args {
+		copied[key] = value
+	}
+	copied["field"] = field
+	return copied
 }
 
 // Snapshot copies validated bytes into an existing root-owned private directory.
@@ -363,7 +389,7 @@ func fieldError(field string, err error) error {
 // never pass a user-writable profile path to root mihomo.
 func Snapshot(rootDir string, data []byte) (string, error) {
 	if os.Geteuid() != 0 {
-		return "", errors.New("root privileges required for configuration snapshot")
+		return "", i18n.Errorf("system.privileged.root.privileges.required.for.configuration.snapshot", "root privileges required for configuration snapshot")
 	}
 	if err := Validate(data); err != nil {
 		return "", err
@@ -400,10 +426,10 @@ func Snapshot(rootDir string, data []byte) (string, error) {
 // user-file walk. It never accepts a source path for the root process to open.
 func SnapshotResource(rootDir string, data []byte) (string, error) {
 	if os.Geteuid() != 0 {
-		return "", errors.New("root privileges required for resource snapshot")
+		return "", i18n.Errorf("system.privileged.root.privileges.required.for.resource.snapshot", "root privileges required for resource snapshot")
 	}
 	if len(data) == 0 || len(data) > maxConfigBytes {
-		return "", fmt.Errorf("%w: resource size is outside 1..%d bytes", ErrUnsupported, maxConfigBytes)
+		return "", policyErrorf("system.privileged.resource.size.is.outside.1.bytes", "%w: resource size is outside 1..%d bytes", ErrUnsupported, maxConfigBytes)
 	}
 	if err := securePrivateDirectory(rootDir); err != nil {
 		return "", err
@@ -431,7 +457,7 @@ func SnapshotResource(rootDir string, data []byte) (string, error) {
 
 func securePrivateDirectory(path string) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return errors.New("snapshot directory must be an absolute clean path")
+		return i18n.Errorf("system.privileged.snapshot.directory.must.be.an.absolute.clean.path", "snapshot directory must be an absolute clean path")
 	}
 	first := true
 	for {
@@ -440,14 +466,14 @@ func securePrivateDirectory(path string) error {
 			return err
 		}
 		if !info.IsDir() {
-			return fmt.Errorf("%s is not a directory", path)
+			return i18n.Errorf("system.privileged.is.not.a.directory", "%s is not a directory", path)
 		}
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok || stat.Uid != 0 {
-			return fmt.Errorf("%s is not root-owned", path)
+			return i18n.Errorf("system.privileged.is.not.root.owned", "%s is not root-owned", path)
 		}
 		if info.Mode().Perm()&0022 != 0 || first && info.Mode().Perm()&0077 != 0 {
-			return fmt.Errorf("%s is writable or readable by other users", path)
+			return i18n.Errorf("system.privileged.is.writable.or.readable.by.other.users", "%s is writable or readable by other users", path)
 		}
 		if runtime.GOOS == "darwin" {
 			if err := rejectDarwinACL(path); err != nil {
@@ -474,7 +500,7 @@ func validateProviderProxies(node *yaml.Node) error {
 				return err
 			}
 			if kind := fields["type"]; kind != nil && kind.Value == "tailscale" {
-				return fmt.Errorf("%w: provider Tailscale nodes are not supported", ErrUnsupported)
+				return policyErrorf("system.privileged.provider.tailscale.nodes.are.not.supported", "%w: provider Tailscale nodes are not supported", ErrUnsupported)
 			}
 		}
 	}
