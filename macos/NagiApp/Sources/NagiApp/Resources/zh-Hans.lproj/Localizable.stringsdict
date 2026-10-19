@@ -98,5 +98,53 @@
 			<string>%lld 个连接</string>
 		</dict>
 	</dict>
+	<key>app.capture.scope_domain_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld 个域名</string>
+			<key>other</key>
+			<string>%lld 个域名</string>
+		</dict>
+	</dict>
+	<key>app.capture.scope_process_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld 个进程</string>
+			<key>other</key>
+			<string>%lld 个进程</string>
+		</dict>
+	</dict>
+	<key>app.capture.scope_application_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld 个应用</string>
+			<key>other</key>
+			<string>%lld 个应用</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

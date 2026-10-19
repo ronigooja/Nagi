@@ -19,6 +19,7 @@ final class ConnectionsWindowTests: XCTestCase {
         // Exercise small-screen minimums even when the test host has a large display.
         let smallScreen = NSRect(x: 0, y: 0, width: 960, height: 600)
         let minimum = ConnectionsWindowController.layout.minimumFrameSize(in: smallScreen)
+        (window as? NativeWindow)?.minimumFrameSize = minimum
         window.minSize = minimum
         for size in [minimum, initial.size, minimum] {
             window.setFrame(NSRect(origin: initial.origin, size: size), display: true)

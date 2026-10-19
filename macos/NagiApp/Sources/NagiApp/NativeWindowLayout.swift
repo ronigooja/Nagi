@@ -23,7 +23,34 @@ struct NativeWindowLayout {
             window.center()
             return
         }
+        if let native = window as? NativeWindow { native.minimumFrameSize = minimumFrameSize(in: screen) }
         window.minSize = minimumFrameSize(in: screen)
         window.setFrame(initialFrame(in: screen), display: false)
+    }
+}
+
+/// SwiftUI can reset contentMinSize while realizing a hosting view or its
+/// accessibility tree. Keep the AppKit-owned minimum independent of that hint.
+@MainActor class NativeWindow: NSWindow {
+    var minimumFrameSize: NSSize = .zero {
+        didSet { super.minSize = minimumFrameSize }
+    }
+    override var minSize: NSSize {
+        get {
+            NSSize(width: max(super.minSize.width, minimumFrameSize.width),
+                   height: max(super.minSize.height, minimumFrameSize.height))
+        }
+        set {
+            super.minSize = NSSize(width: max(newValue.width, minimumFrameSize.width),
+                                   height: max(newValue.height, minimumFrameSize.height))
+        }
+    }
+    override var contentMinSize: NSSize {
+        get { super.contentMinSize }
+        set {
+            let minimum = contentRect(forFrameRect: NSRect(origin: .zero, size: minimumFrameSize)).size
+            super.contentMinSize = NSSize(width: max(newValue.width, minimum.width),
+                                          height: max(newValue.height, minimum.height))
+        }
     }
 }

@@ -21,7 +21,7 @@ import SwiftUI
         let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = L10n.text("app.ui.nagi_request_rewrite"); window.minSize = NSSize(width: 850, height: 620)
+        window.title = L10n.text("app.ui.nagi_request_rewrite"); window.minimumFrameSize = NSSize(width: 850, height: 620)
         window.isReleasedWhenClosed = false; window.delegate = self
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
         let presentation = RewritePresentation(model)
@@ -33,7 +33,7 @@ import SwiftUI
         content.sizingOptions = []
         window.contentView = content
         if let screen = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
-            window.minSize = NSSize(width: min(850, screen.width * 0.8), height: min(620, screen.height * 0.8))
+            window.minimumFrameSize = NSSize(width: min(850, screen.width * 0.8), height: min(620, screen.height * 0.8))
             window.setFrame(Self.initialFrame(in: screen), display: false)
         } else {
             window.center()

@@ -14,7 +14,7 @@ import SwiftUI
         self.model = model
         let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 740), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = L10n.text("app.ui.nagi_capture"); window.minSize = NSSize(width: 980, height: 650)
+        window.title = L10n.text("app.ui.nagi_capture"); window.minimumFrameSize = NSSize(width: 980, height: 650)
         window.isReleasedWhenClosed = false; window.delegate = self
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
         let content = NSHostingView(rootView: CaptureView(presentation: CapturePresentation(model)))
@@ -23,7 +23,7 @@ import SwiftUI
         content.sizingOptions = []
         window.contentView = content
         if let screen = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
-            window.minSize = NSSize(width: min(980, screen.width * 0.8), height: min(650, screen.height * 0.8))
+            window.minimumFrameSize = NSSize(width: min(980, screen.width * 0.8), height: min(650, screen.height * 0.8))
             window.setFrame(Self.initialFrame(in: screen), display: false)
         } else {
             window.center()
@@ -186,11 +186,11 @@ import SwiftUI
     }
     private var scopeSummary: String {
         let value = displayedScope
-        let parts = [(value.domains.count, "domain", "domains"),
-                     (value.processPaths.count, "process", "processes"),
-                     (value.appPaths.count, "application", "applications")]
+        let parts = [(value.domains.count, "app.capture.scope_domain_count"),
+                     (value.processPaths.count, "app.capture.scope_process_count"),
+                     (value.appPaths.count, "app.capture.scope_application_count")]
             .filter { $0.0 > 0 }
-            .map { "\($0.0) \($0.0 == 1 ? $0.1 : $0.2)" }
+            .map { L10n.format($0.1, Int64($0.0)) }
         return parts.isEmpty ? L10n.text("app.ui.all_traffic") : parts.joined(separator: " · ")
     }
     private var scope: some View {

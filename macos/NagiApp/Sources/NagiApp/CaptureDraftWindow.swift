@@ -10,7 +10,7 @@ import SwiftUI
                                           minimumSize: NSSize(width: 760, height: 600))
     init(model: CaptureDraftModel) {
         self.model = model
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 840, height: 740), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        let window = NativeWindow(contentRect: NSRect(x: 0, y: 0, width: 840, height: 740), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init(window: window)
         titleObservation = model.$profile.sink { [weak window] profile in
             window?.title = profile.map { L10n.format("app.ui.create_rule", String(describing: $0)) } ?? L10n.text("app.ui.create_rule_2")

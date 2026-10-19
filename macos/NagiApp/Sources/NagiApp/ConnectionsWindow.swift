@@ -2,7 +2,7 @@ import AppKit
 
 /// Explicit ordering hooks complement delegate notifications, which AppKit
 /// can defer while minimizing and does not reliably send for orderOut.
-@MainActor final class ConnectionsWindow: NSWindow {
+@MainActor final class ConnectionsWindow: NativeWindow {
     var onVisibilityChange: (() -> Void)?
     private(set) var orderedOut = true
     private(set) var minimizing = false
@@ -182,7 +182,8 @@ import AppKit
         detailScroll.documentView = detail; detailScroll.hasVerticalScroller = true
         detailScroll.borderType = .bezelBorder
         let preferredDetailHeight = detailScroll.heightAnchor.constraint(equalToConstant: 170)
-        preferredDetailHeight.priority = .defaultHigh
+        // Preferred heights must not become the stack fitting minimum on small screens.
+        preferredDetailHeight.priority = .defaultLow
         preferredDetailHeight.isActive = true
         detailScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 60).isActive = true
         let detailsTitle = NSTextField(labelWithString: L10n.text("app.ui.connection_details_2"))
@@ -207,7 +208,7 @@ import AppKit
             scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 80)
         ])
         let preferredTableHeight = scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 140)
-        preferredTableHeight.priority = .defaultHigh
+        preferredTableHeight.priority = .defaultLow
         preferredTableHeight.isActive = true
         for view in [toolbar, scroll, detailScroll, actions, statusLabel] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true

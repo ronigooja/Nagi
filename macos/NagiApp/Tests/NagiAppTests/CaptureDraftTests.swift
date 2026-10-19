@@ -64,12 +64,12 @@ final class CaptureDraftIntentTests: XCTestCase {
         XCTAssertEqual(initial, CaptureDraftWindowController.layout.initialFrame(in: screen))
         XCTAssertEqual(window.minSize, CaptureDraftWindowController.layout.minimumFrameSize(in: screen))
         controller.present()
+        let restoreAccessibility = NativeAccessibilityFixture.enable()
+        defer { restoreAccessibility() }
         let content = try XCTUnwrap(window.contentView)
         let minimum = CaptureDraftWindowController.layout.minimumFrameSize(in: NSRect(x: 0, y: 0, width: 960, height: 600))
+        (window as? NativeWindow)?.minimumFrameSize = minimum
         window.minSize = minimum
-        func buttons(in view: NSView) -> [NSButton] {
-            ((view as? NSButton).map { [$0] } ?? []) + view.subviews.flatMap { buttons(in: $0) }
-        }
         for size in [minimum, initial.size, minimum] {
             window.setFrame(NSRect(origin: initial.origin, size: size), display: true)
             for _ in 0..<5 {
@@ -77,9 +77,15 @@ final class CaptureDraftIntentTests: XCTestCase {
                 try await Task.sleep(nanoseconds: 20_000_000)
             }
             XCTAssertEqual(window.frame.size, size)
-            for title in ["Cancel", "Preview…", "Save Rule"] {
-                let button = try XCTUnwrap(buttons(in: content).first { $0.title == title })
-                XCTAssertTrue(content.bounds.insetBy(dx: -1, dy: -1).contains(button.convert(button.bounds, to: content)), title)
+            try NativeAccessibilityFixture.snapshot(content, name: "capture-draft-\(Int(size.width))x\(Int(size.height))")
+            for key in ["app.ui.cancel", "app.ui.preview", "app.ui.save_rule"] {
+                let title = L10n.text(key)
+                let button = try XCTUnwrap(NativeAccessibilityFixture.buttons(in: content).first { ($0.value(forKey: "accessibilityLabel") as? String) == title }, title)
+                let visible = window.convertToScreen(content.convert(content.bounds, to: nil))
+                let frame = try XCTUnwrap(button.value(forKey: "accessibilityFrame") as? NSValue).rectValue
+                XCTAssertGreaterThan(frame.width, 0, title)
+                XCTAssertGreaterThan(frame.height, 0, title)
+                XCTAssertTrue(visible.insetBy(dx: -1, dy: -1).contains(frame), title)
             }
         }
         // Ordering out keeps the draft session alive, unlike closing it.
@@ -87,6 +93,54 @@ final class CaptureDraftIntentTests: XCTestCase {
         controller.present()
         content.layoutSubtreeIfNeeded()
         XCTAssertEqual(window.frame.size, minimum)
+    }
+
+    func testDraftAccessibilityPressFailureRetainsEditsAndEscapeCloses() async throws {
+        _ = NSApplication.shared
+        let restoreAccessibility = NativeAccessibilityFixture.enable()
+        defer { restoreAccessibility() }
+        var saves = 0
+        let model = CaptureDraftModel(context: try CaptureDraftIntentTests.context()) { args, input in
+            if args.prefix(2) == ["draft", "save"] {
+                saves += 1
+                throw CLIError.command("fixture", "Fictitious save failure")
+            }
+            return try self.response(args, input)
+        }
+        await model.prepare()
+        let controller = CaptureDraftWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
+        controller.present()
+        model.rule.id = "Running · fictitious中文%@"
+        let edited = try model.document()
+        for _ in 0..<5 {
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let content = try XCTUnwrap(window.contentView)
+        let save = try XCTUnwrap(NativeAccessibilityFixture.buttons(in: content).first {
+            ($0.value(forKey: "accessibilityLabel") as? String) == L10n.text("app.ui.save_rule")
+        })
+        XCTAssertEqual(save.value(forKey: "accessibilityEnabled") as? Bool, true)
+        XCTAssertTrue(save.responds(to: NSSelectorFromString("accessibilityPerformPress")))
+        save.perform(NSSelectorFromString("accessibilityPerformPress"))
+        for _ in 0..<100 {
+            if saves == 1 && !model.saving { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(saves, 1)
+        XCTAssertFalse(model.saved)
+        XCTAssertTrue(model.error?.contains("Fictitious save failure") == true)
+        XCTAssertEqual(try model.document(), edited)
+        XCTAssertTrue(window.isVisible)
+        let escape = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero,
+            modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
+            context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53))
+        XCTAssertTrue(window.performKeyEquivalent(with: escape))
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(window.isVisible)
+        XCTAssertEqual(saves, 1)
     }
 
     private func json(_ text: String) throws -> JSONValue { try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) }

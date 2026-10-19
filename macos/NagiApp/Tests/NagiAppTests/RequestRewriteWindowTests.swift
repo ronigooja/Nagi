@@ -45,9 +45,12 @@ import SwiftUI
         let window = try XCTUnwrap(controller.window)
         defer { window.close() }
         let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
+        XCTAssertTrue(screen.contains(window.frame))
+        controller.present()
+        // AppKit may reposition a newly presented window to avoid other windows.
+        // Content and tab changes must preserve the resulting user-visible frame.
         let initial = window.frame
         XCTAssertTrue(screen.contains(initial))
-        controller.present()
         for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
         XCTAssertTrue(model.listsFresh)
         XCTAssertEqual(model.rules.first?.path, "/" + longValue)
