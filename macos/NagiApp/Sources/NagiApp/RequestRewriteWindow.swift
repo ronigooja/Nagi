@@ -171,9 +171,6 @@ private struct RewriteEditorSession: Identifiable {
                         if let error = status.value["last_error"]?.displayString, !error.isEmpty {
                             Text(verbatim: error).foregroundColor(.red).textSelection(.enabled)
                         }
-                        if let recovery = status.value["recovery"]?.displayString ?? status.value["recovery_command"]?.string, !recovery.isEmpty {
-                            Text(verbatim: recovery).textSelection(.enabled)
-                        }
                         DisclosureGroup(L10n.text("app.ui.runtime_details")) {
                             VStack(spacing: 10) {
                                 RewriteDetailRow(L10n.text("app.ui.schema"), value: status.value["config_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown"))
