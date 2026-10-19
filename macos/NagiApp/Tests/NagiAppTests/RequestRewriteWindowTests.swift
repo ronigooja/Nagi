@@ -50,18 +50,18 @@ import AppKit
         // Drive the read slot directly so the test does not depend on window occlusion.
         model.refreshStatus()
         for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
-        XCTAssertEqual(window.title, "Nagi Request Rewrite — work")
+        XCTAssertEqual(window.title, "Nagi Request Rewrite · work")
 
         profile = "personal"
         model.refreshStatus()
         for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
-        XCTAssertEqual(window.title, "Nagi Request Rewrite — personal")
+        XCTAssertEqual(window.title, "Nagi Request Rewrite · personal")
 
         failRead = true
         model.refreshStatus()
         for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
         XCTAssertTrue(model.stale)
-        XCTAssertEqual(window.title, "Nagi Request Rewrite — personal")
+        XCTAssertEqual(window.title, "Nagi Request Rewrite · personal")
 
         failRead = false; profile = nil
         model.refreshStatus()

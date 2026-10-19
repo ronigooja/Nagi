@@ -26,7 +26,7 @@ import SwiftUI
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
         let presentation = RewritePresentation(model)
         titleObservation = presentation.$revision.sink { [weak window, weak model] _ in
-            window?.title = model?.status?.profile.map { "Nagi Request Rewrite — \($0)" } ?? "Nagi Request Rewrite"
+            window?.title = model?.status?.profile.map { "Nagi Request Rewrite · \($0)" } ?? "Nagi Request Rewrite"
         }
         window.contentView = NSHostingView(rootView: RequestRewriteView(presentation: presentation))
         window.center()

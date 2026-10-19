@@ -11,7 +11,7 @@ import SwiftUI
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 840, height: 740), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init(window: window)
         titleObservation = model.$profile.sink { [weak window] profile in
-            window?.title = profile.map { "Create Rule — \($0)" } ?? "Create Rule"
+            window?.title = profile.map { "Create Rule · \($0)" } ?? "Create Rule"
         }
         window.minSize = NSSize(width: 760, height: 600)
         window.isReleasedWhenClosed = false; window.delegate = self
