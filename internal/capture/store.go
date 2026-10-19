@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unsafe"
 )
 
 // Store retains a single session in bounded memory. It never persists traffic.
@@ -224,14 +225,12 @@ func (s *Store) event(e Event) Reply {
 		if allowed > len(e.Data) {
 			allowed = len(e.Data)
 		}
-		for s.bytes+int64(allowed)+256 > MaxBytes-8*DefaultBodyLimit && s.evict(r.ID) {
+		body := s.bodies[r.ID][e.Snapshot]
+		for s.bytes+body.growth(allowed)+256 > MaxBytes-8*DefaultBodyLimit && s.evict(r.ID) {
 		}
 		remaining := int64(MaxBytes-8*DefaultBodyLimit) - s.bytes - 256
-		if int64(allowed) > remaining {
-			allowed = int(remaining)
-			if allowed < 0 {
-				allowed = 0
-			}
+		if available := body.available(remaining); allowed > available {
+			allowed = available
 		}
 		snap.BodySize = e.Offset + int64(len(e.Data))
 		snap.Captured += int64(allowed)
@@ -248,8 +247,10 @@ func (s *Store) event(e Event) Reply {
 		if s.bodies[r.ID][e.Snapshot] == nil {
 			s.bodies[r.ID][e.Snapshot] = &bodyData{}
 		}
-		s.bodies[r.ID][e.Snapshot].append(e.Data[:allowed])
-		s.bytes += int64(allowed)
+		body = s.bodies[r.ID][e.Snapshot]
+		growth := body.growth(allowed)
+		body.append(e.Data[:allowed])
+		s.bytes += growth
 
 	case "finish":
 		if size(e.Trailers) > 256<<10 {
@@ -479,7 +480,7 @@ func (s *Store) evict(protect string) bool {
 			}
 			s.bytes -= size(s.records[candidate])
 			for _, b := range s.bodies[candidate] {
-				s.bytes -= b.length()
+				s.bytes -= b.allocated()
 			}
 			delete(s.records, candidate)
 			delete(s.bodies, candidate)
@@ -492,10 +493,21 @@ func (s *Store) evict(protect string) bool {
 	return false
 }
 
-// Chunk storage avoids allocating another multi-MiB copy on every body append.
+// Fixed blocks coalesce tiny reads and include retained capacity and block
+// overhead in the storage budget. One-byte events cannot allocate one slice each.
+const bodyBlockSize = (16 << 10) - 16 // The complete block occupies a 16 KiB allocation on supported 64-bit targets.
+
+type bodyBlock struct {
+	data [bodyBlockSize]byte
+	used int
+	next *bodyBlock
+}
+
+const bodyBlockCost = int64(unsafe.Sizeof(bodyBlock{}))
+
 type bodyData struct {
-	chunks [][]byte
-	n      int64
+	head, tail *bodyBlock
+	n, blocks  int64
 }
 
 func (b *bodyData) length() int64 {
@@ -504,31 +516,65 @@ func (b *bodyData) length() int64 {
 	}
 	return b.n
 }
-func (b *bodyData) append(data []byte) {
-	if len(data) == 0 {
-		return
+func (b *bodyData) allocated() int64 {
+	if b == nil {
+		return 0
 	}
-	b.chunks = append(b.chunks, append([]byte{}, data...))
-	b.n += int64(len(data))
+	return b.blocks * bodyBlockCost
+}
+func (b *bodyData) free() int {
+	if b == nil || b.tail == nil {
+		return 0
+	}
+	return bodyBlockSize - b.tail.used
+}
+func (b *bodyData) growth(n int) int64 {
+	if n <= b.free() {
+		return 0
+	}
+	return int64((n-b.free()+bodyBlockSize-1)/bodyBlockSize) * bodyBlockCost
+}
+func (b *bodyData) available(budget int64) int {
+	if budget < 0 {
+		return 0
+	}
+	return b.free() + int(budget/bodyBlockCost)*bodyBlockSize
+}
+func (b *bodyData) append(data []byte) {
+	for len(data) > 0 {
+		if b.tail == nil || b.tail.used == bodyBlockSize {
+			next := &bodyBlock{}
+			if b.tail == nil {
+				b.head = next
+			} else {
+				b.tail.next = next
+			}
+			b.tail = next
+			b.blocks++
+		}
+		n := copy(b.tail.data[b.tail.used:], data)
+		b.tail.used += n
+		b.n += int64(n)
+		data = data[n:]
+	}
 }
 func (b *bodyData) read(start, end int64) []byte {
 	out := make([]byte, end-start)
 	if b == nil {
 		return out
 	}
-	pos := int64(0)
-	written := 0
-	for _, chunk := range b.chunks {
-		next := pos + int64(len(chunk))
+	pos, written := int64(0), 0
+	for block := b.head; block != nil; block = block.next {
+		next := pos + int64(block.used)
 		if next > start && pos < end {
-			lo, hi := int64(0), int64(len(chunk))
+			lo, hi := int64(0), int64(block.used)
 			if start > pos {
 				lo = start - pos
 			}
 			if end < next {
 				hi = end - pos
 			}
-			written += copy(out[written:], chunk[lo:hi])
+			written += copy(out[written:], block.data[lo:hi])
 		}
 		pos = next
 		if pos >= end {
@@ -543,8 +589,8 @@ func (b *bodyData) contains(query string) bool {
 	}
 	needle := []byte(strings.ToLower(query))
 	var tail []byte
-	for _, chunk := range b.chunks {
-		combined := append(tail, []byte(strings.ToLower(string(chunk)))...)
+	for block := b.head; block != nil; block = block.next {
+		combined := append(tail, []byte(strings.ToLower(string(block.data[:block.used])))...)
 		if bytes.Contains(combined, needle) {
 			return true
 		}

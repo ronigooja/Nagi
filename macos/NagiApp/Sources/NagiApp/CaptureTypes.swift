@@ -19,6 +19,7 @@ struct CaptureStatus: Codable, Sendable {
     let sessionID: String
     let revision: UInt64
     let state, profile, backend, owner: String
+    let recorderState, recovery: String?
     let scope: CaptureScope
     let bodyLimit, records: Int
     let bytes: Int64
@@ -27,7 +28,15 @@ struct CaptureStatus: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case revision, state, profile, backend, owner, scope, records, bytes, dropped, truncated
         case sessionID = "session_id", bodyLimit = "body_limit", readOnly = "read_only"
+        case recorderState = "recorder_state", recovery
     }
+}
+// Uncertain runtime state still owns a recorder session and must retain its
+// explicit Stop recovery action. Starting/importing would hide that session.
+extension CaptureStatus {
+    var canStartNewSession: Bool { state == "stopped" }
+    var canPauseOrResume: Bool { !readOnly && ["recording", "paused"].contains(state) }
+    var canStop: Bool { !readOnly && ["recording", "paused", "uncertain"].contains(state) }
 }
 struct CaptureIdentity: Codable, Sendable {
     let sessionID: String

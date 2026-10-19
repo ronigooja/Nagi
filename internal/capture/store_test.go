@@ -154,3 +154,46 @@ func TestStartScopeUsesEngineCompatiblePatternsAndPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestBodyStorageCoalescesTinyEventsAndAccountsCapacity(t *testing.T) {
+	var b bodyData
+	data := []byte("x")
+	for i := 0; i < bodyBlockSize*3+1; i++ {
+		before := b.allocated()
+		growth := b.growth(len(data))
+		b.append(data)
+		if b.allocated()-before != growth {
+			t.Fatal("allocation estimate differs from retained blocks")
+		}
+	}
+	data[0] = 'z'
+	if b.blocks != 4 || b.allocated() != 4*bodyBlockCost {
+		t.Fatalf("tiny events did not coalesce: %d blocks / %d bytes", b.blocks, b.allocated())
+	}
+	if got := string(b.read(bodyBlockSize-1, bodyBlockSize+1)); got != "xx" {
+		t.Fatalf("cross-block read or input ownership: %q", got)
+	}
+	if !b.contains(strings.Repeat("x", bodyBlockSize+1)) {
+		t.Fatal("cross-block search lost a match")
+	}
+	s := started(t, DefaultBodyLimit)
+	add(t, s, "tiny")
+	initial := s.bytes
+	for i := 0; i < 2; i++ {
+		e := Event{Type: "body", SessionID: "session", RecordID: "tiny", Snapshot: "request_original", Offset: int64(i), Data: []byte("x")}
+		if out := s.Handle(Request{Action: "event", SessionID: "session", Event: &e}); out.Error != "" {
+			t.Fatal(out.Error)
+		}
+	}
+	if s.bytes-initial < bodyBlockCost || s.bytes-initial > bodyBlockCost+128 {
+		t.Fatalf("body capacity missing from store budget: %d", s.bytes-initial)
+	}
+	// When one allocation cannot fit, no bytes are retained outside the budget.
+	add(t, s, "full")
+	s.bytes = MaxBytes - 8*DefaultBodyLimit - bodyBlockCost + 1
+	e := Event{Type: "body", SessionID: "session", RecordID: "full", Snapshot: "request_original", Data: []byte("x")}
+	out := s.Handle(Request{Action: "event", SessionID: "session", Event: &e})
+	if out.Error != "" || s.bodies["full"]["request_original"].allocated() != 0 || s.records["full"].Snapshots["request_original"].BodyState != "truncated" {
+		t.Fatalf("accepted unbudgeted body allocation: %+v", out)
+	}
+}

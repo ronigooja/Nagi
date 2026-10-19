@@ -465,3 +465,46 @@ func TestCaptureWebSocketUneditedLargeMessageStreams(t *testing.T) {
 		}
 	}
 }
+
+type captureReadFailure struct{ io.Reader }
+
+func (r captureReadFailure) Read(p []byte) (int, error) {
+	n, _ := r.Reader.Read(p)
+	return n, io.ErrUnexpectedEOF
+}
+
+func TestCaptureFixedLengthCloseWithoutEOF(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		expected int64
+		read     int
+		failed   bool
+		want     string
+	}{
+		{name: "exact", expected: 4, read: 4, want: "complete"},
+		{name: "short", expected: 5, read: 4, want: "cutoff"},
+		{name: "unknown", expected: -1, read: 4, want: "cutoff"},
+		{name: "failed", expected: 4, read: 4, failed: true, want: "failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := enableCapture(t, newFixture(t, "127.0.0.1:1", []byte(`{"version":2,"enabled":false,"rules":[],"scripts":[]}`)), 4096)
+			req, _ := http.NewRequest("POST", "http://api.service.example/path", nil)
+			cc := &connectionContext{identity: &capture.Identity{SessionID: f.policy.SessionID, Revision: 1}}
+			record := f.s.beginCapture(cc, req, "http", "", "", 0)
+			var source io.Reader = strings.NewReader("body")
+			if tc.failed {
+				source = captureReadFailure{source}
+			}
+			body := record.body("request_original", io.NopCloser(source), tc.expected, func() http.Header { return nil })
+			buffer := make([]byte, tc.read)
+			_, _ = io.ReadFull(body, buffer)
+			_ = body.Close()
+			// Closing the sink drains asynchronous events before inspecting state.
+			f.s.captureSink.Close()
+			got := f.call(t, capture.Request{Action: "show", RecordID: record.record.ID}).Record.Snapshots["request_original"]
+			if got.BodyState != tc.want || got.Captured != int64(tc.read) {
+				t.Fatalf("close state: %+v; want %s", got, tc.want)
+			}
+		})
+	}
+}

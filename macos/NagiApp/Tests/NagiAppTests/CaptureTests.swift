@@ -186,3 +186,39 @@ extension CaptureTests {
         XCTAssertTrue(commands.contains(["quit"]))
     }
 }
+
+
+extension CaptureTests {
+    func testUncertainSessionRetainsStopRecoveryAndHistoryAccess() throws {
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(reply().status)) as? [String: Any])
+        document["state"] = "uncertain"
+        document["recorder_state"] = "recording"
+        document["recovery"] = "run nagi rewrite capture stop session"
+        let status = try JSONDecoder().decode(CaptureStatus.self, from: JSONSerialization.data(withJSONObject: document))
+        XCTAssertEqual(status.recorderState, "recording")
+        XCTAssertEqual(status.recovery, "run nagi rewrite capture stop session")
+        XCTAssertTrue(status.canStop)
+        XCTAssertFalse(status.canPauseOrResume)
+        XCTAssertFalse(status.canStartNewSession)
+        let stopped = try XCTUnwrap(reply(state: "stopped").status)
+        XCTAssertTrue(stopped.canStartNewSession)
+        XCTAssertFalse(stopped.canStop)
+        XCTAssertNil(stopped.recovery)
+    }
+    @MainActor func testOwnedUncertainSessionStopsOnClose() async throws {
+        var stops = 0
+        var current = try reply()
+        let model = CaptureModel(read: { _, _ in current }, submit: { args, _ in
+            if args[0] == "stop" { stops += 1 }
+            return current
+        }, export: { _ in }, interval: 9_000_000_000)
+        current = try reply(owner: model.owner, state: "uncertain", records: true)
+        model.setVisible(true)
+        await wait { !model.isReading }
+        XCTAssertFalse(model.records.isEmpty)
+        XCTAssertTrue(model.canOperate)
+        model.setVisible(false)
+        await model.stopOwnedSession()
+        XCTAssertEqual(stops, 1)
+    }
+}

@@ -101,7 +101,7 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		req = req.WithContext(context.WithValue(req.Context(), captureKey{}, cap))
 		state := &exchangeState{original: req.Clone(req.Context()), capture: cap}
 		if cap != nil {
-			req.Body = cap.body("request_original", req.Body, func() http.Header { return req.Trailer })
+			req.Body = cap.body("request_original", req.Body, req.ContentLength, func() http.Header { return req.Trailer })
 		}
 		stripHeaders(req.Header)
 		pctx.UserData = state
@@ -116,7 +116,7 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		out := result.Request.WithContext(req.Context())
 		if cap != nil {
 			cap.requestActual(out, result.RuleIDs, result.Outcome)
-			out.Body = cap.body("request_actual", out.Body, func() http.Header { return out.Trailer })
+			out.Body = cap.body("request_actual", out.Body, out.ContentLength, func() http.Header { return out.Trailer })
 		}
 		pctx.RoundTripper = goproxy.RoundTripperFunc(func(r *http.Request, _ *goproxy.ProxyCtx) (*http.Response, error) {
 			if r.Body != nil {
@@ -151,7 +151,7 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		if state.capture != nil {
 			state.capture.response("response_original", resp)
 			originalResponse := resp
-			resp.Body = state.capture.body("response_original", resp.Body, func() http.Header { return originalResponse.Trailer })
+			resp.Body = state.capture.body("response_original", resp.Body, resp.ContentLength, func() http.Header { return originalResponse.Trailer })
 		}
 		originalHandshake := *resp
 		originalHandshake.Header = resp.Header.Clone()
@@ -173,7 +173,7 @@ func (s *Service) application(cc *connectionContext, wire net.Conn, authority, p
 		}
 		if state.capture != nil {
 			state.capture.response("response_actual", resp)
-			resp.Body = state.capture.body("response_actual", resp.Body, func() http.Header { return resp.Trailer })
+			resp.Body = state.capture.body("response_actual", resp.Body, resp.ContentLength, func() http.Header { return resp.Trailer })
 			state.capture.complete("complete", "", 0)
 		}
 		stripHeaders(resp.Header)

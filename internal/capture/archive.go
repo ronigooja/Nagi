@@ -308,8 +308,9 @@ func (s *Store) importNative(reader io.Reader) (Status, error) {
 				prev = &bodyData{}
 				next.bodies[active][line.Snapshot] = prev
 			}
+			growth := prev.growth(len(line.Data))
 			prev.append(line.Data)
-			next.bytes += int64(len(line.Data))
+			next.bytes += growth
 		case "end":
 			if finalize() != nil || line.Records != len(next.order) {
 				return Status{}, ErrArchive

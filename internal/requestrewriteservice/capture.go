@@ -201,23 +201,30 @@ func (c *captureRecord) complete(outcome, code string, closeCode int) {
 
 // Each boundary has its own reader. When a transform leaves a body untouched,
 // nesting these readers records each consumed byte once at each boundary.
-func (c *captureRecord) body(name string, body io.ReadCloser, trailers func() http.Header) io.ReadCloser {
+func (c *captureRecord) body(name string, body io.ReadCloser, expected int64, trailers func() http.Header) io.ReadCloser {
 	if body == nil || body == http.NoBody {
 		c.offer(capture.Event{Type: "finish", Snapshot: name, State: "complete", Trailers: trailers()})
 		return body
 	}
-	return &captureBody{ReadCloser: body, record: c, name: name, trailers: trailers}
+	// ContentLength zero with a nonempty body means unknown length for Go
+	// requests. Only a positive declared length proves completion without EOF.
+	if expected == 0 {
+		expected = -1
+	}
+	return &captureBody{ReadCloser: body, record: c, name: name, trailers: trailers, expected: expected}
 }
 
 type captureBody struct {
 	io.ReadCloser
-	mu       sync.Mutex
-	record   *captureRecord
-	name     string
-	trailers func() http.Header
-	once     sync.Once
-	bytes    int64
-	cutoff   bool
+	mu         sync.Mutex
+	record     *captureRecord
+	name       string
+	trailers   func() http.Header
+	once       sync.Once
+	bytes      int64
+	expected   int64
+	readFailed bool
+	cutoff     bool
 }
 
 func (b *captureBody) Read(p []byte) (int, error) {
@@ -229,6 +236,9 @@ func (b *captureBody) Read(p []byte) (int, error) {
 		state := "complete"
 		if err != io.EOF {
 			state = "failed"
+			b.mu.Lock()
+			b.readFailed = true
+			b.mu.Unlock()
 		}
 		b.finish(state)
 	}
@@ -271,7 +281,19 @@ func (b *captureBody) finish(state string) {
 		b.record.offer(capture.Event{Type: "finish", Snapshot: b.name, State: state, BodySize: b.bytes, Trailers: b.trailers()})
 	})
 }
-func (b *captureBody) Close() error { err := b.ReadCloser.Close(); b.finish("cutoff"); return err }
+func (b *captureBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.mu.Lock()
+	state := "cutoff"
+	// The HTTP transport may close a fixed-length body after consuming exactly
+	// ContentLength bytes without asking its reader for a final EOF.
+	if !b.readFailed && b.expected > 0 && b.bytes == b.expected {
+		state = "complete"
+	}
+	b.mu.Unlock()
+	b.finish(state)
+	return err
+}
 
 type captureWriter struct {
 	io.Writer

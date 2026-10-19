@@ -43,7 +43,7 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 	cap := s.beginCapture(cc, req, "http", "", "", 0)
 	req = req.WithContext(context.WithValue(req.Context(), captureKey{}, cap))
 	if cap != nil {
-		req.Body = cap.body("request_original", req.Body, func() http.Header { return req.Trailer })
+		req.Body = cap.body("request_original", req.Body, req.ContentLength, func() http.Header { return req.Trailer })
 	}
 	stripHeaders(req.Header)
 	originalRequest := req.Clone(req.Context())
@@ -71,7 +71,7 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: controlledRoundTripper(func(r *http.Request) (*http.Response, error) {
 		if cap != nil {
 			cap.requestActual(r, result.RuleIDs, result.Outcome)
-			r.Body = cap.body("request_actual", r.Body, func() http.Header { return r.Trailer })
+			r.Body = cap.body("request_actual", r.Body, r.ContentLength, func() http.Header { return r.Trailer })
 		}
 		response, err := cc.roundTrip(r)
 		if err != nil {
@@ -82,7 +82,7 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 		}
 		if response.StatusCode != http.StatusSwitchingProtocols {
 			if cap != nil {
-				response.Body = cap.body("response_original", response.Body, func() http.Header { return response.Trailer })
+				response.Body = cap.body("response_original", response.Body, response.ContentLength, func() http.Header { return response.Trailer })
 			}
 			rejected = response
 			return nil, errHandshakeResponse
@@ -105,7 +105,7 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 			response, failure := s.transformResponse(originalRequest, rejected, wire)
 			if cap != nil && response != nil {
 				cap.response("response_actual", response)
-				response.Body = cap.body("response_actual", response.Body, func() http.Header { return response.Trailer })
+				response.Body = cap.body("response_actual", response.Body, response.ContentLength, func() http.Header { return response.Trailer })
 				cap.complete("complete", "", 0)
 			}
 			if failure != nil {

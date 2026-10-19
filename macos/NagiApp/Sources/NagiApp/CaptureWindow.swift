@@ -85,6 +85,9 @@ import SwiftUI
                 if model.isReading || model.readingBody { ProgressView().controlSize(.small) }
             }.font(.caption).foregroundColor(.secondary)
             if let error = model.error { Text(error).foregroundColor(.red).textSelection(.enabled) }
+            if let status = model.status, let recovery = status.recovery {
+                Text("Recorder: \(status.recorderState ?? "unknown"). \(recovery)").font(.callout).foregroundColor(.orange).textSelection(.enabled)
+            }
             if let notice = model.notice { Text(notice).font(.caption).foregroundColor(.secondary) }
         }.padding()
     }
@@ -95,13 +98,13 @@ import SwiftUI
             if model.status?.readOnly == true { Text("Imported · Read only").foregroundColor(.secondary) }
             Spacer()
             Button("Start") { Task { await model.start(scope: CaptureScope(domains: lines(domains), processPaths: lines(processes), appPaths: lines(apps)), bodyLimit: bodyLimit) } }
-                .disabled(!model.canOperate || model.status?.state == "recording" || model.status?.state == "paused")
+                .disabled(!model.canOperate || model.status?.canStartNewSession == false)
             Button(model.status?.state == "paused" ? "Resume" : "Pause") { Task { await model.mutate(model.status?.state == "paused" ? "resume" : "pause") } }
-                .disabled(!model.canOperate || model.status?.readOnly == true || !["recording", "paused"].contains(model.status?.state ?? ""))
-            Button("Stop") { Task { await model.mutate("stop") } }.disabled(!model.canOperate || !["recording", "paused"].contains(model.status?.state ?? ""))
+                .disabled(!model.canOperate || model.status?.canPauseOrResume != true)
+            Button("Stop") { Task { await model.mutate("stop") } }.disabled(!model.canOperate || model.status?.canStop != true)
             Button("Clear") { Task { await model.mutate("clear") } }.disabled(!model.canOperate || model.status == nil || model.status?.readOnly == true)
             Button("Refresh") { model.refresh() }.disabled(!model.canOperate)
-            Button("Import…") { importFile() }.disabled(!model.canOperate || ["recording", "paused"].contains(model.status?.state ?? ""))
+            Button("Import…") { importFile() }.disabled(!model.canOperate || model.status?.canStartNewSession == false)
             Menu("Export…") {
                 Button("Native Archive…") { exportFile("native") }
                 Button("HAR…") { exportFile("har") }
