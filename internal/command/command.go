@@ -119,11 +119,19 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		return 0
 	}
 	jsonMode := false
-	filtered := make([]string, 0, len(args))
 	for _, arg := range args {
 		if arg == "--json" {
 			jsonMode = true
-		} else {
+		}
+	}
+	languageArgs, locale, languageErr := parseLanguage(args, os.Getenv)
+	if languageErr != nil {
+		output.WriteMessageError(stderr, jsonMode, locale, "usage", languageErr)
+		return 2
+	}
+	filtered := make([]string, 0, len(languageArgs))
+	for _, arg := range languageArgs {
+		if arg != "--json" {
 			filtered = append(filtered, arg)
 		}
 	}
@@ -132,7 +140,7 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 			output.WriteError(stderr, jsonMode, "usage", err.Error())
 			return 2
 		}
-		if err := output.Write(stdout, jsonMode, data); err != nil {
+		if err := output.WriteLocalized(stdout, jsonMode, locale, data); err != nil {
 			output.WriteError(stderr, jsonMode, "output_error", err.Error())
 			return 1
 		}
@@ -170,7 +178,7 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
 		return runTrafficWatch(stdout, stderr, jsonMode)
 	}
-	ctx := context.Background()
+	ctx := context.WithValue(context.Background(), languageContextKey{}, locale)
 	var inputErr error
 	if len(filtered) > 0 && filtered[0] == "request-rewrite" {
 		o, _ := parseRewriteArguments(filtered)
@@ -217,7 +225,7 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		case errors.Is(err, os.ErrNotExist):
 			code = "not_found"
 		}
-		output.WriteError(stderr, jsonMode, code, err.Error())
+		output.WriteErrorCause(stderr, jsonMode, locale, code, err)
 		if code == "usage" {
 			return 2
 		}
@@ -252,7 +260,7 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		}
 		return 0
 	}
-	if err := output.Write(stdout, jsonMode, data); err != nil {
+	if err := output.WriteLocalized(stdout, jsonMode, locale, data); err != nil {
 		output.WriteError(stderr, jsonMode, "output_error", err.Error())
 		return 1
 	}

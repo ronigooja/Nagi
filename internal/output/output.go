@@ -9,6 +9,7 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
@@ -31,9 +32,10 @@ type Failure struct {
 }
 
 type Envelope struct {
-	OK    bool     `json:"ok"`
-	Data  any      `json:"data,omitempty"`
-	Error *Failure `json:"error,omitempty"`
+	Messages map[string]i18n.Descriptor `json:"messages,omitempty"`
+	OK       bool                       `json:"ok"`
+	Data     any                        `json:"data,omitempty"`
+	Error    *Failure                   `json:"error,omitempty"`
 }
 
 func Write(w io.Writer, jsonMode bool, data any) error {

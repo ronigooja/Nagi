@@ -1,0 +1,5 @@
+{
+  "cli.language.invalid": "Unsupported language {value}; use en or zh-Hans.",
+  "cli.language.missing": "--lang requires a language; use en or zh-Hans.",
+  "cli.language.duplicate": "--lang may be specified only once."
+}

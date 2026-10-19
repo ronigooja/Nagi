@@ -1,0 +1,5 @@
+{
+  "cli.language.invalid": "不支持语言 {value}；请使用 en 或 zh-Hans。",
+  "cli.language.missing": "--lang 需要语言参数；请使用 en 或 zh-Hans。",
+  "cli.language.duplicate": "--lang 只能指定一次。"
+}
