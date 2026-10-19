@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "status": "implementation-in-progress",
+  "languages": [
+    "en",
+    "zh-Hans"
+  ],
+  "field": "messages",
+  "pointer_standard": "RFC 6901",
+  "descriptor": {
+    "id": "nonempty semantic string",
+    "args": "optional object of exact named scalar arguments; omit when empty"
+  },
+  "argument_scalar_types": [
+    "string",
+    "number",
+    "boolean",
+    "null"
+  ],
+  "initial_ids": {
+    "cli.language.invalid": {
+      "args": {
+        "value": "string"
+      },
+      "en": "Unsupported language {value}; use en or zh-Hans.",
+      "zh-Hans": "不支持语言 {value}；请使用 en 或 zh-Hans。"
+    },
+    "cli.language.missing": {
+      "args": {},
+      "en": "--lang requires a language; use en or zh-Hans.",
+      "zh-Hans": "--lang 需要语言参数；请使用 en 或 zh-Hans。"
+    },
+    "cli.language.duplicate": {
+      "args": {},
+      "en": "--lang may be specified only once.",
+      "zh-Hans": "--lang 只能指定一次。"
+    }
+  },
+  "valid_descriptors": [
+    {
+      "pointer": "/error/message",
+      "descriptor": {
+        "id": "cli.language.invalid",
+        "args": {
+          "value": "example-unsupported-locale"
+        }
+      }
+    },
+    {
+      "pointer": "/error/message",
+      "descriptor": {
+        "id": "cli.language.missing"
+      }
+    },
+    {
+      "pointer": "/data",
+      "target_requirement": "data is an existing string",
+      "descriptor": {
+        "id": "cli.language.duplicate"
+      }
+    }
+  ],
+  "invalid_descriptors": [
+    {
+      "descriptor": {
+        "id": "example.unknown"
+      },
+      "reason": "unknown ID"
+    },
+    {
+      "descriptor": {
+        "id": "cli.language.invalid"
+      },
+      "reason": "missing argument"
+    },
+    {
+      "descriptor": {
+        "id": "cli.language.invalid",
+        "args": {
+          "value": 7
+        }
+      },
+      "reason": "wrong argument type"
+    },
+    {
+      "descriptor": {
+        "id": "cli.language.invalid",
+        "args": {
+          "value": {
+            "nested": "not scalar"
+          }
+        }
+      },
+      "reason": "container argument"
+    },
+    {
+      "descriptor": {
+        "id": "cli.language.missing",
+        "args": {
+          "extra": "unexpected"
+        }
+      },
+      "reason": "extra argument"
+    },
+    {
+      "pointer": "/data/01/message",
+      "reason": "noncanonical array index when traversing array"
+    },
+    {
+      "pointer": "/data/~2",
+      "reason": "invalid pointer escape"
+    },
+    {
+      "pointer": "/data/missing",
+      "reason": "missing or nonstring target"
+    }
+  ],
+  "fallback": "Preserve original English target; optional metadata failure must not reject valid base response.",
+  "ownership": "Go owns internal/i18n catalogs. App owns native interface and CLI message catalogs. This fixture is specification data; Phase A tests do not consume it automatically."
+}
