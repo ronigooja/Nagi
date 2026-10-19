@@ -197,3 +197,39 @@ func TestBodyStorageCoalescesTinyEventsAndAccountsCapacity(t *testing.T) {
 		t.Fatalf("accepted unbudgeted body allocation: %+v", out)
 	}
 }
+
+func TestEvictionRetainsLiveHandshakeAndCollectingExchange(t *testing.T) {
+	s := started(t, DefaultBodyLimit)
+	add(t, s, "handshake")
+	apply := func(e Event) {
+		t.Helper()
+		e.SessionID = "session"
+		if r := s.Handle(Request{Action: "event", SessionID: "session", Event: &e}); r.Error != "" {
+			t.Fatal(r.Error)
+		}
+	}
+	apply(Event{Type: "finish", RecordID: "handshake", Snapshot: "request_original", State: "complete"})
+	apply(Event{Type: "complete", RecordID: "handshake", Outcome: "upgraded"})
+	// No message is active between frames, but the next one still needs its
+	// original HTTP parent. Old behavior evicted this handshake immediately.
+	if s.evict("") {
+		t.Fatal("live WebSocket parent evicted between messages")
+	}
+	child := Record{ID: "message", ParentID: "handshake", SessionID: "session", Kind: "websocket", Identity: Identity{SessionID: "session", Revision: 1}, Snapshots: map[string]Snapshot{"message_original": {BodyState: "collecting"}}}
+	apply(Event{Type: "record", RecordID: child.ID, Record: &child})
+	apply(Event{Type: "finish", RecordID: child.ID, Snapshot: "message_original", State: "complete"})
+	apply(Event{Type: "complete", RecordID: child.ID, Outcome: "unchanged"})
+	apply(Event{Type: "complete", RecordID: "handshake", Outcome: "closed"})
+	if !s.evict("") || len(s.records) != 0 {
+		t.Fatal("closed handshake and completed children remain pinned")
+	}
+	add(t, s, "stream")
+	apply(Event{Type: "complete", RecordID: "stream", Outcome: "complete"})
+	if s.evict("") {
+		t.Fatal("response headers caused a still-collecting exchange to be evicted")
+	}
+	apply(Event{Type: "finish", RecordID: "stream", Snapshot: "request_original", State: "cutoff"})
+	if !s.evict("") {
+		t.Fatal("cutoff exchange remains pinned")
+	}
+}

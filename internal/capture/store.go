@@ -436,11 +436,14 @@ func validID(id string) bool {
 	return true
 }
 func completeRecord(r Record) bool {
-	if r.Outcome != "" {
-		return true
+	// A live WebSocket handshake must survive gaps between its messages: all
+	// future messages on that connection still name this parent. Its close event
+	// changes the outcome to closed and releases the retention.
+	if r.Outcome == "upgraded" {
+		return false
 	}
 	if len(r.Snapshots) == 0 {
-		return false
+		return r.Outcome != ""
 	}
 	for _, snap := range r.Snapshots {
 		if snap.BodyState == "collecting" {
