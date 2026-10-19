@@ -64,8 +64,9 @@ func (r Result) message(language i18n.Context, pointer, original string) string 
 		}
 	}
 
-	if children, exists := fields["argument_messages"]; exists {
-		_ = json.Unmarshal(children, &descriptor.ArgumentMessages)
+	var composed i18n.Descriptor
+	if json.Unmarshal(raw, &composed) == nil {
+		descriptor.ArgumentMessages = composed.ArgumentMessages
 	}
 	return language.RenderDescriptor(descriptor, original)
 }

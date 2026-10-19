@@ -150,6 +150,9 @@ func decodeDescriptor(data []byte, depth int, nodes *int) (Descriptor, error) {
 		return Descriptor{}, err
 	}
 	if args, ok := fields["args"]; ok {
+		if len(args) == 0 || args[0] != '{' {
+			return Descriptor{}, fmt.Errorf("message args must be an object")
+		}
 		if err := json.Unmarshal(args, &raw.Args); err != nil {
 			return Descriptor{}, err
 		}

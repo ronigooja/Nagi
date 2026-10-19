@@ -75,3 +75,21 @@ func TestCompositionOptionalFailuresBoundsAndCopy(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestMalformedOptionalChildDoesNotPoisonSibling(t *testing.T) {
+	raw := `{"id":"cli.language.invalid","args":{"value":"original"},"argument_messages":{"absent":42,"value":{"id":"cli.language.missing"}}}`
+	var descriptor Descriptor
+	if err := json.Unmarshal([]byte(raw), &descriptor); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor.ArgumentMessages["value"].ID != "cli.language.missing" {
+		t.Fatal(descriptor)
+	}
+	raw = `{"id":"cli.language.invalid","args":{"value":"original"},"argument_messages":{"value":{"id":"cli.language.missing","args":null}}}`
+	if err := json.Unmarshal([]byte(raw), &descriptor); err != nil {
+		t.Fatal(err)
+	}
+	if len(descriptor.ArgumentMessages) != 0 {
+		t.Fatal(descriptor)
+	}
+}
