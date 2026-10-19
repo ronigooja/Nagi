@@ -21,7 +21,7 @@ func TestBilingualMenuNavigationAndImmutableSessions(t *testing.T) {
 				defer wg.Done()
 				runner := &fakeRunner{results: map[string]Result{"status": {Data: map[string]any{"running": true, "profile": "running"}}}}
 				var out bytes.Buffer
-				session := NewSessionWithLanguage(runner, strings.NewReader("2\n1\n1\n0\n0\n0\n0\n"), &out, i18n.New(language))
+				session := NewSessionWithLanguage(runner, strings.NewReader("4\n1\n1\n0\n0\n0\n0\n"), &out, i18n.New(language))
 				if code := Run(context.Background(), session); code != 0 {
 					t.Errorf("exit=%d", code)
 				}

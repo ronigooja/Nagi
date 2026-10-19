@@ -215,7 +215,7 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 		"proxy select World Select Node A": {{Data: map[string]any{"group": "World Select", "node": "Node A"}}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n1\n0\n0\n7\n1\n0\n1\n1\n1\n1\n0\n0\n0\n0\n"), &out), RootPage())
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("3\n1\n0\n0\n1\n1\n0\n3\n1\n1\n1\n0\n0\n0\n0\n"), &out), RootPage())
 	for _, want := range [][]string{{"start"}, {"proxy", "select", "World Select", "Node A"}} {
 		count := 0
 		for _, call := range runner.calls {

@@ -11,7 +11,7 @@ import (
 
 func TestHomeOrderAndNumericDestinations(t *testing.T) {
 	for _, goos := range []string{"linux", "darwin"} {
-		want := []string{"Proxies", "Routing & DNS", "Network Access", "Profiles & Subscriptions", "Rewrite & Capture", "Monitoring & Diagnostics", "Service", "Maintenance"}
+		want := []string{"Service", "Network Access", "Proxies", "Routing & DNS", "Profiles & Subscriptions", "Rewrite & Capture", "Monitoring & Diagnostics", "Maintenance"}
 		for index, title := range want {
 			t.Run(goos+"/"+title, func(t *testing.T) {
 				var out bytes.Buffer
@@ -188,7 +188,7 @@ func TestCategoryInventoryAndReadOnlyEntry(t *testing.T) {
 func TestCurrentConfigurationReachableWithoutReadableProfiles(t *testing.T) {
 	runner := &fakeRunner{results: map[string]Result{"profile list": {Code: 1, Error: &CLIError{Message: "profiles unavailable"}}}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("4\n1\n0\n3\n2\n0\n0\n0\n"), &out), RootPage())
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("5\n1\n0\n3\n2\n0\n0\n0\n"), &out), RootPage())
 	if !hasProxyCall(runner.calls, []string{"config", "validate"}) || !strings.Contains(out.String(), "profiles unavailable") {
 		t.Fatalf("configuration inaccessible after profile failure: calls=%v output=%s", runner.calls, &out)
 	}

@@ -133,13 +133,13 @@ Text `subscription list` displays available update, expiry, and next-due timesta
 
 | Number | Entry | Contents |
 | --- | --- | --- |
-| 1 | Proxies | Proxy Groups, Proxy Providers, and Tailscale. Groups provide node selection, latency tests, and saved-selection restore; providers and offline Tailscale management have separate pages. |
-| 2 | Routing & DNS | Proxy Mode, Routing Rules, and DNS. Proxy Mode offers For this session or Save for future starts, each with Rule, Global, and Direct. |
-| 3 | Network Access | System Proxy (macOS only), TUN, LAN Access, and Listener Ports. |
-| 4 | Profiles & Subscriptions | Profiles, Subscriptions, and Current Configuration. Profile details include selection, export, Backup & Restore, Local Overrides, and removal; subscription details include Update and Apply, Automatic Updates, Automatic latency checks, Encryption Settings, and removal. |
-| 5 | Rewrite & Capture | Request Rewrite, Request Capture, and Certificate Authority. |
-| 6 | Monitoring & Diagnostics | Connections, Traffic, Logs, Basic checks, Detailed diagnostics, and Export diagnostics, in that order. |
-| 7 | Service | Start mihomo, Stop mihomo, Restart mihomo, Show full status, Quit Nagi for this login session, Start at Login, Startup Recovery, and Privileged helper (macOS only), in that order. |
+| 1 | Service | Start mihomo, Stop mihomo, Restart mihomo, Show full status, Quit Nagi for this login session, Start at Login, Startup Recovery, and Privileged helper (macOS only), in that order. |
+| 2 | Network Access | System Proxy (macOS only), TUN, LAN Access, and Listener Ports. |
+| 3 | Proxies | Proxy Groups, Proxy Providers, and Tailscale. Groups provide node selection, latency tests, and saved-selection restore; providers and offline Tailscale management have separate pages. |
+| 4 | Routing & DNS | Proxy Mode, Routing Rules, and DNS. Proxy Mode offers For this session or Save for future starts, each with Rule, Global, and Direct. |
+| 5 | Profiles & Subscriptions | Profiles, Subscriptions, and Current Configuration. Profile details include selection, export, Backup & Restore, Local Overrides, and removal; subscription details include Update and Apply, Automatic Updates, Automatic latency checks, Encryption Settings, and removal. |
+| 6 | Rewrite & Capture | Request Rewrite, Request Capture, and Certificate Authority. |
+| 7 | Monitoring & Diagnostics | Connections, Traffic, Logs, Basic checks, Detailed diagnostics, and Export diagnostics, in that order. |
 | 8 | Maintenance | Show version, Update Nagi, macOS App installation/removal, and Nagi uninstall variants. |
 | 0 | Exit menu | Leaves mihomo running. |
 
@@ -148,6 +148,10 @@ Monitoring & Diagnostics groups connection inspection and closure with separate 
 Profiles keeps Import a profile after the visible profile resources, including on every paginated page and when the list is empty or unreadable. Current Configuration is a sibling of Profiles and Subscriptions. It applies to the selected profile and retains show, validate, and reload in that order; it is not an action on the profile whose detail page was last opened. Subscriptions offers Add and Apply with a download interval and optional test URL; Local Overrides retains applying or restoring default runtime settings.
 
 System Proxy, TUN, and LAN Access each list Enable, Disable, then their details action. Both explicit enable and disable choices remain available; these are not state-dependent toggles. Network Access retains its summaries, platform-specific pages, and Listener Ports. Existing permissions, persistence, activation, and restoration behavior are unchanged.
+
+Network Access and its settings pages summarize switches as `On` or `Off`, for example `TUN: On` and `LAN Access: Off`. Listener summaries list only nonzero ports (`Listener Ports: Mixed 17890`); all three known ports being zero displays `None`. Missing, null, or malformed state values display `unknown` rather than implying `Off` or a disabled listener. LAN summaries include the bind address only when access is enabled. Explicit detail actions retain the complete result, including disabled ports and bind addresses. These summaries report configured state, not verified traffic interception or connectivity.
+
+DNS summaries show separate DNS, Upstream Routing, and TUN lines. Servers shows only Upstream Routing; TUN DNS Interception shows the CLI's `tun_enabled` state as `TUN: On` or `Off`, without claiming that DNS capture has been verified. The macOS Privileged helper summary reads installation and activity from `service.installed` and `service.active`, and the engine backend from `selected_backend`; each missing or invalid value remains independently unknown. These menu labels and states are localized in English and Simplified Chinese.
 
 Maintenance lists Show version, then Update Nagi, followed on macOS by Install menu bar App and Uninstall menu bar App, then Uninstall Nagi and Uninstall Nagi and clear user data. Version dispatches `version`; update dispatches `update`; App actions dispatch `app install` and `app uninstall`; removal dispatches `uninstall` (preserve user data) or `uninstall --purge-data` (remove user data). The separate Privileged helper page under Service retains macOS runtime-backend selection and helper management.
 

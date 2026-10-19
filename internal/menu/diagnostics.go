@@ -79,7 +79,7 @@ func localizedloginStartupSummary(language i18n.Context, result Result) string {
 		return no
 	}
 	return menuText(language, "menu.diagnostics.login_startup_summary.start_automatically_at_login", "Start automatically at login: ") + state(service["enabled"], menuText(language, "menu.diagnostics.login_startup_summary.on", "On"), menuText(language, "menu.diagnostics.login_startup_summary.off", "Off")) + menuText(language, "menu.diagnostics.login_startup_summary.mihomo", " | Mihomo: ") +
-		state(engine["running"], "running", "stopped")
+		state(engine["running"], menuState(language, "running"), menuState(language, "stopped"))
 }
 
 func localizedDiagnosticsPage(language i18n.Context) *Page {
@@ -178,7 +178,7 @@ func localizedhelperPageForOS(language i18n.Context, goos string) *Page {
 		if goos != "darwin" {
 			return PageView{Context: menuText(language, "menu.diagnostics.helper_page_for_o_s.privileged_helper_is_available_on_macos_only", "Privileged helper is available on macOS only.")}, nil
 		}
-		return PageView{Context: pageStatus(ctx, s, menuText(language, "menu.diagnostics.helper_page_for_o_s.privileged_helper", "Privileged helper"), []string{"privileged-helper", "status"}, "installed", "enabled", "backend"), Actions: []Item{
+		return PageView{Context: pageStatus(ctx, s, menuText(language, "menu.diagnostics.helper_page_for_o_s.privileged_helper", "Privileged helper"), []string{"privileged-helper", "status"}, "service", "selected_backend"), Actions: []Item{
 			{ID: "diagnostics.helperPageForOS.item2", Label: menuText(language, "menu.diagnostics.helper_page_for_o_s.privileged_helper_details", "Privileged helper details"), Args: []string{"privileged-helper", "status"}},
 			{ID: "diagnostics.helperPageForOS.item3", Label: menuText(language, "menu.diagnostics.helper_page_for_o_s.install_privileged_helper", "Install privileged helper"), Args: []string{"privileged-helper", "install"}, Impact: menuText(language, "menu.diagnostics.helper_page_for_o_s.requires_administrator_privileges", "Requires administrator privileges")},
 			{ID: "diagnostics.helperPageForOS.item4", Label: menuText(language, "menu.diagnostics.helper_page_for_o_s.select_privileged_backend", "Select privileged backend"), Args: []string{"privileged-helper", "enable"}, Impact: menuText(language, "menu.diagnostics.helper_page_for_o_s.applies_on_next_start_stop_user_mihomo_first", "Applies on next start; stop user mihomo first")},

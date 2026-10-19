@@ -96,13 +96,13 @@ func RegisterPage(key string, factory func() *Page) { registered[key] = factory 
 type rootEntry struct{ key, label string }
 
 var rootEntries = []rootEntry{
+	{"service", "Service"},
+	{"traffic", "Network Access"},
 	{"proxy", "Proxies"},
 	{"routing", "Routing & DNS"},
-	{"traffic", "Network Access"},
 	{"profiles", "Profiles & Subscriptions"},
 	{"rewrite-capture", "Rewrite & Capture"},
 	{"diagnostics", "Monitoring & Diagnostics"},
-	{"service", "Service"},
 	{"maintenance", "Maintenance"},
 }
 

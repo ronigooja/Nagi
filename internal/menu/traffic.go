@@ -49,12 +49,12 @@ func localizedtrafficPageForOS(language i18n.Context, goos string) *Page {
 		}
 		results := s.fetchReads(ctx, commands)
 		summary := []string{
-			localizedpageStatusResult(language, results[0], "TUN", "enabled"),
-			localizedpageStatusResult(language, results[1], menuText(language, "menu.traffic.traffic_page_for_o_s.listener_ports2", "Listener ports"), "http", "socks", "mixed"),
-			localizedpageStatusResult(language, results[2], "LAN", "enabled", "bind_address"),
+			localizedSettingsSummary(language, results[0], commands[0], "TUN", "enabled"),
+			localizedSettingsSummary(language, results[1], commands[1], menuText(language, "menu.traffic.traffic_page_for_o_s.listener_ports", "Listener Ports"), "http", "socks", "mixed"),
+			localizedSettingsSummary(language, results[2], commands[2], menuText(language, "menu.traffic.traffic_page_for_o_s.lan_access", "LAN Access"), "enabled", "bind_address"),
 		}
 		if goos == "darwin" {
-			summary = append(summary, localizedpageStatusResult(language, results[3], menuText(language, "menu.traffic.traffic_page_for_o_s.system_proxy2", "System proxy"), "enabled"))
+			summary = append(summary, localizedSettingsSummary(language, results[3], commands[3], menuText(language, "menu.traffic.traffic_page_for_o_s.system_proxy", "System Proxy"), "enabled"))
 		}
 		return PageView{Context: strings.Join(summary, "\n"), Actions: items}, nil
 	}}

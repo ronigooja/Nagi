@@ -74,9 +74,9 @@ func TestTrafficPageReadsOverlapAndKeepSummaryOrder(t *testing.T) {
 	}
 	select {
 	case view := <-done:
-		want := "TUN: enabled: yes\nListener ports: http: 7890, socks: 7891, mixed: 7892\nLAN: unknown — LAN read failed"
+		want := "TUN: On\nListener Ports: HTTP 7890, SOCKS 7891, Mixed 7892\nLAN Access: unknown — LAN read failed"
 		if runtime.GOOS == "darwin" {
-			want += "\nSystem proxy: enabled: yes"
+			want += "\nSystem Proxy: On"
 		}
 		if view.Context != want || len(view.Actions) != len(commands) {
 			t.Fatalf("view = %#v", view)

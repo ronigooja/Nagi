@@ -13,6 +13,8 @@ type stateDefinition struct {
 
 // Keys are typed protocol values, never user resource names or English sentences.
 var menuStates = map[string]stateDefinition{
+	"on":               {id: "menu.state.on", english: "On", style: styleSuccess},
+	"off":              {id: "menu.state.off", english: "Off", style: styleWarning},
 	"block":            {id: "menu.state.block", english: "block", style: styleWarning},
 	"forward_original": {id: "menu.state.forward_original", english: "forward_original", style: styleWarning},
 	"websocket_client": {id: "menu.state.websocket_client", english: "websocket_client", style: styleWarning},

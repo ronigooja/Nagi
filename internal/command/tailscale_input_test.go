@@ -122,7 +122,7 @@ func TestTailscaleMenuPasteUsesRealCommandInputChannel(t *testing.T) {
 		return RunWithInput(args, input, out, errOut, "test", "test")
 	})
 	var out bytes.Buffer
-	input := "1\n3\n1\nPaste Tail\n100.64.0.1\n\n\n" + key + "\n0\n0\n0\n"
+	input := "3\n3\n1\nPaste Tail\n100.64.0.1\n\n\n" + key + "\n0\n0\n0\n"
 	if code := menu.Run(context.Background(), menu.NewSession(runner, strings.NewReader(input), &out)); code != 0 {
 		t.Fatal(code)
 	}

@@ -94,8 +94,8 @@ func localizedmodePage(language i18n.Context, persistent bool) *Page {
 
 // pageStatus shows only the fields needed for a page summary, never raw JSON.
 func pageStatus(ctx context.Context, s *Session, label string, args []string, fields ...string) string {
-	return localizedpageStatusResult(s.language,
-		s.Fetch(ctx, args...), label, fields...)
+	return localizedSettingsSummary(s.language,
+		s.Fetch(ctx, args...), args, label, fields...)
 }
 
 func localizedpageStatusResult(language i18n.Context, result Result, label string, fields ...string) string {
