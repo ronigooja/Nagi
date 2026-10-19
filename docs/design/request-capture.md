@@ -206,7 +206,10 @@ to the existing zero-based CLI insertion position. Field labels remain visible
 while editing, and operation choices use readable action names. Domain, methods,
 path prefix and path expression stay visible; **More Conditions** folds additional
 predicates and reports their active count. **Advanced Settings** folds error and
-range policies. **Allowed Destinations** expands when a request operation changes
+range policies. All three disclosure headers use a button covering the arrow and
+title, so either toggles the section. The buttons retain
+keyboard activation and expose their expanded/collapsed state to accessibility.
+**Allowed Destinations** expands when a request operation changes
 the scheme, host or port; authorization still requires explicitly adding a target.
 **Enable on save** controls the candidate beside **Save Rule**. **Preview…** opens
 a separate offline sheet with original/result, diff and raw-result views, using
