@@ -86,11 +86,11 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 	}{
 		{ServicePage(), "View details", []string{"startup", "status"}, false},
 		{loginStartupAdvancedPage(), "Remove login startup service", []string{"service", "uninstall"}, true},
-		{DiagnosticsPage(), "Repair startup state", []string{"startup", "check"}, false},
-		{DiagnosticsPage(), "Clean stale runtime records", []string{"recover"}, true},
+		{startupRecoveryPage(), "Repair startup state", []string{"startup", "check"}, false},
+		{startupRecoveryPage(), "Clean stale runtime records", []string{"recover"}, true},
 		{diagnosticsPageForOS("linux"), "Basic checks", []string{"doctor"}, false},
 		{diagnosticsPageForOS("linux"), "Detailed diagnostics", []string{"diagnostics"}, false},
-		{diagnosticsPageForOS("linux"), "Show version", []string{"version"}, false},
+		{maintenancePageForOS("linux"), "Show version", []string{"version"}, false},
 		{helperPageForOS("darwin"), "Privileged helper details", []string{"privileged-helper", "status"}, false},
 		{helperPageForOS("darwin"), "Install privileged helper", []string{"privileged-helper", "install"}, true},
 		{helperPageForOS("darwin"), "Uninstall privileged helper", []string{"privileged-helper", "uninstall"}, true},
@@ -115,7 +115,7 @@ func TestServiceAndDiagnosticCommandMapping(t *testing.T) {
 
 func TestPrivilegedHelperGatedToMacOS(t *testing.T) {
 	for _, goos := range []string{"linux", "windows"} {
-		view, err := diagnosticsPageForOS(goos).Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
+		view, err := serviceManagementPageForOS(goos).Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -163,24 +163,22 @@ func TestServiceUninstallRunsOnceAndKeepsRecoveryPage(t *testing.T) {
 	}
 }
 
-func TestAdvancedRetainsAllFeatureEntrypoints(t *testing.T) {
+func TestServiceRetainsLifecycleAndRecoveryEntrypoints(t *testing.T) {
 	for _, goos := range []string{"linux", "darwin"} {
-		view, err := advancedPageForOS(goos).Load(context.Background(), nil)
+		view, err := serviceManagementPageForOS(goos).Load(context.Background(), NewSession(&fakeRunner{}, strings.NewReader(""), &bytes.Buffer{}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"Routing Rules", "DNS", "Request Rewrite", "Start at Login"}
+		want := []string{"Start mihomo", "Stop mihomo", "Restart mihomo", "Show full status", "Quit Nagi for this login session", "Start at Login", "Startup Recovery"}
 		if goos == "darwin" {
 			want = append(want, "Privileged helper")
 		}
-		want = append(want, "Nagi Maintenance")
-		if len(view.Items) != 0 || len(view.Actions) != len(want) {
-			t.Fatalf("%s: %+v", goos, view)
+		var labels []string
+		for _, item := range view.Actions {
+			labels = append(labels, item.Label)
 		}
-		for i, label := range want {
-			if view.Actions[i].Label != label || view.Actions[i].Next == nil {
-				t.Fatalf("%s: missing %s", goos, label)
-			}
+		if !reflect.DeepEqual(labels, want) {
+			t.Fatalf("%s actions=%v", goos, labels)
 		}
 	}
 }
@@ -190,8 +188,8 @@ func TestMaintenancePlatformActionsAndOrder(t *testing.T) {
 		goos string
 		want []string
 	}{
-		{goos: "linux", want: []string{"Update Nagi", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
-		{goos: "darwin", want: []string{"Update Nagi", "Install menu bar App", "Uninstall menu bar App", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
+		{goos: "linux", want: []string{"Show version", "Update Nagi", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
+		{goos: "darwin", want: []string{"Show version", "Update Nagi", "Install menu bar App", "Uninstall menu bar App", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
 	} {
 		page := maintenancePageForOS(tt.goos)
 		view, err := page.Load(context.Background(), nil)

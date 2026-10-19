@@ -8,7 +8,7 @@ Prepare an HTTP(S) subscription URL that mihomo can decode and select an existin
 
 ## Add from a menu
 
-In the terminal, run `nagi menu`, open **Select Node → Proxy Providers → Add provider**, and enter a name, subscription URL, target proxy group, and update interval. The default interval is one hour. The Add action remains available when the provider list is empty or cannot be read.
+In the terminal, run `nagi menu`, open **Proxies → Proxy Providers → Add provider**, and enter a name, subscription URL, target proxy group, and update interval. The default interval is one hour. The Add action remains available when the provider list is empty or cannot be read.
 
 In the macOS app, open **Proxy Providers → Add Provider…** and complete the same fields, optionally adding a latency test URL. The update interval accepts `off` to stop automatic downloads. Choose an existing supported group or enter a new group name. The app calls the CLI to save and activate the change; it does not edit configuration itself.
 
@@ -33,7 +33,7 @@ nagi mode global
 nagi proxy select GLOBAL 'My Proxy'
 ```
 
-Then select a provider node from the group's **Select Node** menu (**Proxy Groups** in the macOS app), or use `nagi proxy select 'My Proxy' 'NODE_NAME'`, replacing `NODE_NAME` with a listed node. Clicking a node inside the terminal Provider detail page measures latency; selection happens in the proxy group.
+Then select a provider node under **Proxies → Proxy Groups → GROUP** in the terminal menu (**Proxy Groups → GROUP** in the macOS app), or use `nagi proxy select 'My Proxy' 'NODE_NAME'`, replacing `NODE_NAME` with a listed node. Clicking a node inside the terminal Provider detail page measures latency; selection happens in the proxy group.
 
 ## Refresh and maintain
 

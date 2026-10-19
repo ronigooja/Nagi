@@ -44,7 +44,12 @@ var menuURLPattern = regexp.MustCompile(`(?i)[a-z][a-z0-9+.-]*://[^\s<>"']+`)
 
 func init() {
 	RegisterPage("profile", ProfilePage)
+	RegisterPage("profiles", ProfilesAndSubscriptionsPage)
 	RegisterPage("subscription", subscriptionListPage)
+}
+
+func ProfilesAndSubscriptionsPage() *Page {
+	return actionPage("Profiles & Subscriptions", Item{Label: "Profiles", Next: ProfilePage}, Item{Label: "Subscriptions", Next: subscriptionListPage}, Item{Label: "Current Configuration", Next: configurationPage})
 }
 
 // ProfilePage is the direct entry to local profiles.
@@ -53,7 +58,6 @@ func ProfilePage() *Page { return profileListPage() }
 func profileListPage() *Page {
 	return &Page{Title: "Profiles", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Empty: "No profiles found. Choose Import a profile.", Actions: []Item{
-			{Label: "Current Configuration", Next: configurationPage},
 			{Label: "Import a profile", Navigate: importProfile},
 		}}
 		var data menuProfiles

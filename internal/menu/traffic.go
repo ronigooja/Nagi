@@ -15,24 +15,15 @@ func init() {
 	RegisterPage("logs", LogsPage)
 }
 
-func trafficTitle() string { return trafficTitleForOS(runtime.GOOS) }
-
-func trafficTitleForOS(goos string) string {
-	if goos == "darwin" {
-		return "System Proxy & TUN"
-	}
-	return "TUN & LAN"
-}
-
 func TrafficPage() *Page { return trafficPageForOS(runtime.GOOS) }
 
 func trafficPageForOS(goos string) *Page {
-	return &Page{Title: trafficTitleForOS(goos), Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Network Access", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		items := []Item{
 			{Label: "Enable TUN", Args: []string{"tun", "enable"}},
 			{Label: "Disable TUN", Args: []string{"tun", "disable"}},
 			{Label: "TUN details", Args: []string{"tun", "status"}},
-			{Label: "Listener ports", Args: []string{"ports", "status"}},
+			{Label: "Listener Ports", Args: []string{"ports", "status"}},
 			{Label: "Enable LAN access", Impact: "Exposes listeners on the selected interface", Action: enableLAN},
 			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Impact: "Binds listeners to loopback"},
 			{Label: "LAN access details", Args: []string{"lan", "status"}},
@@ -108,11 +99,10 @@ func connectionAction(verb string) func(context.Context, *Session) error {
 }
 
 func LogsPage() *Page {
-	return &Page{Title: "Logs and traffic", Load: func(_ context.Context, _ *Session) (PageView, error) {
+	return &Page{Title: "Logs", Load: func(_ context.Context, _ *Session) (PageView, error) {
 		return PageView{Actions: []Item{
 			{Label: "Show recent logs", Action: recentLogs},
 			{Label: "Follow logs (Ctrl-C returns here)", Action: func(ctx context.Context, s *Session) error { s.Stream(ctx, "logs", "follow"); return nil }},
-			{Label: "Watch traffic (Ctrl-C returns here)", Action: func(ctx context.Context, s *Session) error { s.Stream(ctx, "traffic", "watch"); return nil }},
 		}}, nil
 	}}
 }
@@ -134,4 +124,8 @@ func recentLogs(ctx context.Context, s *Session) error {
 		return s.Run(ctx, "logs", v["lines"])
 	})
 	return err
+}
+
+func TrafficMonitorPage() *Page {
+	return actionPage("Traffic", Item{Label: "Watch traffic (Ctrl-C returns here)", Action: func(ctx context.Context, s *Session) error { s.Stream(ctx, "traffic", "watch"); return nil }})
 }

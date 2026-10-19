@@ -41,7 +41,7 @@ func (f *fakeRunner) Run(_ context.Context, args []string) Result {
 func TestMenuRuntimeNavigation(t *testing.T) {
 	fake := &fakeRunner{results: map[string]Result{"status": {Data: map[string]any{"running": false, "profile": "default"}}}}
 	var out bytes.Buffer
-	input := strings.NewReader("wrong\n\n1\n2\n0\n0\n")
+	input := strings.NewReader("wrong\n\n7\n2\n0\n0\n")
 	code := Run(context.Background(), NewSession(fake, input, &out))
 	if code != 0 {
 		t.Fatalf("exit status = %d", code)
@@ -63,7 +63,7 @@ func TestMenuRuntimeNavigation(t *testing.T) {
 func TestRuntimeModeMapping(t *testing.T) {
 	fake := &fakeRunner{results: map[string]Result{"status": {Data: map[string]any{"running": true, "profile": "work"}}, "mode saved": {Data: map[string]any{"mode": "rule"}}}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("3\n2\n2\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("2\n1\n2\n2\n"), &out))
 	want := []string{"mode", "save", "global"}
 	for _, args := range fake.calls {
 		if reflect.DeepEqual(args, want) {
@@ -109,7 +109,7 @@ func TestRootShowsEightSectionsAndSettings(t *testing.T) {
 			t.Fatalf("root section %q absent: %s", entry.label, out.String())
 		}
 	}
-	if !strings.Contains(out.String(), "Settings & Maintenance\n") || !strings.Contains(out.String(), "\nSettings & Maintenance\n") {
+	if !strings.Contains(out.String(), "Maintenance\n") || !strings.Contains(out.String(), "\nMaintenance\n") {
 		t.Fatalf("advanced section was not selectable: %s", out.String())
 	}
 }
@@ -122,7 +122,7 @@ func TestFailedRefreshDropsStaleChoices(t *testing.T) {
 		},
 	}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("6\n0\n6\n3\n0\n0\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("4\n1\n0\n1\n3\n0\n0\n0\n"), &out))
 	if !strings.Contains(out.String(), "Data unavailable. Return to the parent page") || !strings.Contains(out.String(), "Choose a listed number") {
 		t.Fatalf("failed refresh did not clear stale choices: %s", out.String())
 	}
@@ -140,7 +140,7 @@ func TestReturningToParentRefreshesList(t *testing.T) {
 		},
 	}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("6\n1\n0\n0\n0\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("4\n1\n1\n0\n0\n0\n0\n"), &out))
 	if !strings.Contains(out.String(), "1. new") {
 		t.Fatalf("parent list not refreshed after back: %s", out.String())
 	}
@@ -152,7 +152,7 @@ func TestCommandErrorHidesURL(t *testing.T) {
 		"start":  {Code: 1, Error: &CLIError{Message: "failed https://secret.example/token"}},
 	}}
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(fake, strings.NewReader("1\n1\n0\n0\n"), &out))
+	Run(context.Background(), NewSession(fake, strings.NewReader("7\n1\n0\n0\n"), &out))
 	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "Error: failed [redacted URL]") {
 		t.Fatalf("command error URL was not hidden: %s", out.String())
 	}

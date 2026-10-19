@@ -38,23 +38,22 @@ func decodeMenuResult(result Result, target any) error {
 	return json.Unmarshal(data, target)
 }
 
-// ProxyPage opens groups directly; selecting a group then a node is the daily flow.
-func ProxyPage() *Page { return proxyGroupsPage() }
+// ProxyPage groups proxy selection and profile-local proxy sources.
+func ProxyPage() *Page {
+	return actionPage("Proxies", Item{Label: "Proxy Groups", Next: proxyGroupsPage}, Item{Label: "Proxy Providers", Next: providerListPage}, Item{Label: "Tailscale", Next: tailscaleListPage})
+}
 
 func proxyGroupsPage() *Page {
-	return &Page{Title: "Select Node", Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: "Select a group, then a node to switch.", Empty: "No proxy groups. Check the profile in Profiles.", Actions: []Item{
+	return &Page{Title: "Proxy Groups", Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view := PageView{Context: "Select a group, then a node to switch.", Empty: "No proxy groups. Check the profile in Profiles & Subscriptions > Profiles.", Actions: []Item{
 			{Label: "Restore saved selections", Args: []string{"proxy", "restore"}},
-			{Label: "Proxy Providers", Next: func() *Page { return providerListPage() }},
-			{Label: "Tailscale", Next: tailscaleListPage},
 		}}
 		var data struct {
 			Groups []menuProxyGroup `json:"groups"`
 		}
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "groups"), &data); err != nil {
 			view.Context = "Mihomo: unknown | Proxy group state: unknown"
-			view.ReadErrorHint = "Open Connections & Troubleshooting to check status and logs, then return here."
-			view.Actions = append(view.Actions, Item{Label: "Start / Stop", Next: RuntimePage})
+			view.ReadErrorHint = "Open Service to check status or Monitoring & Diagnostics to inspect logs, then return here."
 			var status struct {
 				Running        *bool `json:"running"`
 				UnexpectedExit bool  `json:"unexpected_exit"`
@@ -65,13 +64,13 @@ func proxyGroupsPage() *Page {
 				switch {
 				case *status.Running:
 					view.Context = "Mihomo: running | Proxy group state: unknown"
-					view.ReadErrorHint = "Check logs in Connections & Troubleshooting; use Start / Stop if a restart is needed."
+					view.ReadErrorHint = "Check logs in Monitoring & Diagnostics; open Service if a restart is needed."
 				case status.UnexpectedExit:
 					view.Context = "Mihomo: stopped (unexpected exit) | Proxy group state: unavailable"
-					view.ReadErrorHint = "Check logs and clean stale runtime records in Connections & Troubleshooting, then start mihomo through Start / Stop."
+					view.ReadErrorHint = "Check logs in Monitoring & Diagnostics, clean stale runtime records in Service > Startup Recovery, then start mihomo through Service."
 				default:
 					view.Context = "Mihomo: stopped | Proxy group state: unavailable"
-					view.ReadErrorHint = "Start mihomo through Start / Stop, then return here."
+					view.ReadErrorHint = "Start mihomo through Service, then return here."
 					view.Empty = view.ReadErrorHint
 					return view, nil
 				}

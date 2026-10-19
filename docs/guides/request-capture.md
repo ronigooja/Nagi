@@ -42,8 +42,7 @@ process and application categories combine with AND; alternatives within each
 category combine with OR. Unknown process identity cannot match a process or
 application restriction.
 
-From the terminal, open `nagi menu`, then **Settings & Maintenance → Request Rewrite → Original
-Capture → Start with scope**. All choices use numbers. The menu submits scope and
+From the terminal, open `nagi menu`, then **Rewrite & Capture → Request Capture → Start with scope**. All choices use numbers. The menu submits scope and
 body limits to the existing CLI through stdin. It retains form values on failure;
 resubmission is explicit. **Captured records** opens paginated record IDs, then
 **Show original metadata** and **Read body chunk** display original content until

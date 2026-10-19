@@ -56,7 +56,7 @@ installs only the App. It leaves mihomo running and preserves the CLI, engine,
 login service, and profiles. The CLI must be installed at `/usr/local/bin/nagi`,
 the path compiled into the App. Open the installed App from Applications.
 The terminal menu offers whole-installation update and removal under
-**Settings & Maintenance → Nagi Maintenance** on macOS and Linux. On macOS,
+**Maintenance** on macOS and Linux. On macOS,
 App-only installation and removal are also listed there. The menu groups the
 uninstall actions together and offers both data-preserving removal and removal
 with data purge.

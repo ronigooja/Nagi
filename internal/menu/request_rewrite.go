@@ -103,7 +103,7 @@ func RequestRewritePage() *Page {
 			} else if rewriteText(m, "tun_running") == "true" {
 				view.Actions = append(view.Actions, rewriteRuntimeItem(profile, true))
 			} else {
-				view.Context += "\nEnable unavailable: actual TUN is not confirmed running. Open Traffic Access to start TUN."
+				view.Context += "\nEnable unavailable: actual TUN is not confirmed running. Open Network Access to start TUN."
 			}
 			view.Actions = append(view.Actions,
 				Item{Label: "Local Scripts", Next: func() *Page { return rewriteScriptsPage(profile) }},
@@ -116,7 +116,7 @@ func RequestRewritePage() *Page {
 				Item{Label: "Import document from file", Impact: rewriteEffect, Action: rewriteFileForm(profile, "import")},
 				Item{Label: "Export document to file", Impact: rewriteSensitive, Action: rewriteFileForm(profile, "export")})
 		}
-		view.Actions = append(view.Actions, Item{Label: "Original Capture", Next: capturePage}, Item{Label: "Certificate Authority", Next: rewriteCAPage}, Item{Label: "Recovery", Next: func() *Page { return rewriteRecoveryPage(profile, known) }})
+		view.Actions = append(view.Actions, Item{Label: "Recovery", Next: func() *Page { return rewriteRecoveryPage(profile, known) }})
 		if rewriteFailed(r) {
 			return view, rewriteReadError(r)
 		}
@@ -199,7 +199,7 @@ func rewriteCAPage() *Page {
 	return rewriteCAPageForOS(runtime.GOOS)
 }
 func rewriteCAPageForOS(goos string) *Page {
-	return &Page{Title: "Request Rewrite — Certificate Authority", Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Certificate Authority", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		r := s.Fetch(ctx, "request-rewrite", "ca", "status")
 		m := menuObject(r.Data)
 		text := "CA: " + rewriteText(m, "state") + " | Trust: " + rewriteText(m, "trust") + "\nGeneration does not install trust. Public export never includes the private key."
@@ -274,4 +274,12 @@ func (s *Session) rewriteForm(ctx context.Context, fields []Field, values map[st
 		return result, cancelled
 	}
 	return result, err
+}
+
+func init() { RegisterPage("rewrite-capture", RewriteAndCapturePage) }
+
+func RewriteAndCapturePage() *Page { return rewriteAndCapturePageForOS(runtime.GOOS) }
+
+func rewriteAndCapturePageForOS(goos string) *Page {
+	return actionPage("Rewrite & Capture", Item{Label: "Request Rewrite", Next: RequestRewritePage}, Item{Label: "Request Capture", Next: capturePage}, Item{Label: "Certificate Authority", Next: func() *Page { return rewriteCAPageForOS(goos) }})
 }

@@ -9,7 +9,7 @@ nagi startup enable
 nagi startup status
 ```
 
-In `nagi menu`, open Settings & Maintenance → Start at Login. Select Enable start at login or Disable start at login; only the action matching the current state is shown. View details includes service installation and activity as well as engine state. Advanced options → Remove login startup service removes only the service, keeping Nagi and configuration.
+In `nagi menu`, open Service → Start at Login. Select Enable start at login or Disable start at login; only the action matching the current state is shown. View details includes service installation and activity as well as engine state. Advanced options → Remove login startup service removes only the service, keeping Nagi and configuration.
 
 Use `nagi startup disable` to turn off future login startup without deleting the service definition or interrupting the current monitor, subscription scheduler, or mihomo connections. Use `nagi startup enable` to turn it back on; an existing definition is retained and an active monitor is not reloaded. To stop the current engine separately, use `nagi stop`. `nagi service status` shows the definition path and manager state. `nagi service uninstall` stops, disables, and removes the definition; this can interrupt mihomo. Complete command semantics are in the [CLI reference](../reference/cli.md#startup-and-background-operation).
 

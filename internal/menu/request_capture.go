@@ -89,7 +89,7 @@ func captureDisplay(s *Session, r Result) Result {
 	return r
 }
 func capturePage() *Page {
-	return &Page{Title: "Original Capture", Load: func(ctx context.Context, s *Session) (view PageView, err error) {
+	return &Page{Title: "Request Capture", Load: func(ctx context.Context, s *Session) (view PageView, err error) {
 		check := captureCall(ctx, s, nil, "check")
 		preparation := "Capture prerequisites: unable to check. Reopen this page to retry."
 		var readiness capture.Reply

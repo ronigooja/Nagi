@@ -83,14 +83,14 @@ func RegisterPage(key string, factory func() *Page) { registered[key] = factory 
 type rootEntry struct{ key, label string }
 
 var rootEntries = []rootEntry{
-	{"runtime", "Start / Stop"},
-	{"proxy", "Select Node"},
-	{"mode", "Proxy Mode"},
-	{"traffic", trafficTitle()},
-	{"subscription", "Subscriptions"},
-	{"profile", "Profiles"},
-	{"diagnostics", "Connections & Troubleshooting"},
-	{"advanced", "Settings & Maintenance"},
+	{"proxy", "Proxies"},
+	{"routing", "Routing & DNS"},
+	{"traffic", "Network Access"},
+	{"profiles", "Profiles & Subscriptions"},
+	{"rewrite-capture", "Rewrite & Capture"},
+	{"diagnostics", "Monitoring & Diagnostics"},
+	{"service", "Service"},
+	{"maintenance", "Maintenance"},
 }
 
 func RootPage() *Page { return rootPageForOS(runtime.GOOS) }
@@ -106,12 +106,15 @@ func rootPageForOS(goos string) *Page {
 			}
 			switch entry.key {
 			case "traffic":
-				entry.label = trafficTitleForOS(goos)
 				factory = func() *Page { return trafficPageForOS(goos) }
+			case "rewrite-capture":
+				factory = func() *Page { return rewriteAndCapturePageForOS(goos) }
 			case "diagnostics":
 				factory = func() *Page { return diagnosticsPageForOS(goos) }
-			case "advanced":
-				factory = func() *Page { return advancedPageForOS(goos) }
+			case "service":
+				factory = func() *Page { return serviceManagementPageForOS(goos) }
+			case "maintenance":
+				factory = func() *Page { return maintenancePageForOS(goos) }
 			}
 			view.Items = append(view.Items, Item{Label: entry.label, Next: factory})
 		}

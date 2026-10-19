@@ -154,7 +154,7 @@ window preserves its current size. Native resize regression tests cover small
 screens, long URLs/headers and repeated shrinking; execution of these new tests
 and interactive resize acceptance remain unverified on the Linux authoring host.
 
-The terminal menu is under Settings & Maintenance → Request Rewrite → Original Capture. It
+The terminal menu is under Rewrite & Capture → Request Capture. It
 uses existing command runners for status, scoped start, application discovery,
 record listing/show, decoded-offset body chunks, session controls, fixtures,
 archives and versioned drafts. Resource lists use the standard ten-entry numeric

@@ -9,9 +9,9 @@ import (
 )
 
 func init() {
-	RegisterPage("service", ServicePage)
+	RegisterPage("service", ServiceManagementPage)
+	RegisterPage("maintenance", MaintenancePage)
 	RegisterPage("diagnostics", DiagnosticsPage)
-	RegisterPage("advanced", AdvancedPage)
 }
 
 // ServicePage presents login activation separately from current engine controls.
@@ -82,19 +82,17 @@ func loginStartupSummary(result Result) string {
 func DiagnosticsPage() *Page { return diagnosticsPageForOS(runtime.GOOS) }
 
 func diagnosticsPageForOS(goos string) *Page {
-	return &Page{Title: "Connections & Troubleshooting", Load: func(_ context.Context, _ *Session) (PageView, error) {
+	return &Page{Title: "Monitoring & Diagnostics", Load: func(_ context.Context, _ *Session) (PageView, error) {
 		items := []Item{
 			{Label: "Connections", Next: ConnectionsPage},
-			{Label: "Logs and traffic", Next: LogsPage},
+			{Label: "Traffic", Next: TrafficMonitorPage},
+			{Label: "Logs", Next: LogsPage},
 			{Label: "Basic checks", Args: []string{"doctor"}},
 			{Label: "Detailed diagnostics", Args: []string{"diagnostics"}},
 			{Label: "Export diagnostics", Action: exportDiagnostics},
-			{Label: "Repair startup state", Args: []string{"startup", "check"}},
-			{Label: "Clean stale runtime records", Args: []string{"recover"}, Impact: "Clears records left by an unexpected exit"},
-			{Label: "Show version", Args: []string{"version"}},
 		}
 
-		return PageView{Context: "Inspect connections and logs, then run basic checks or detailed diagnostics. Use repair and cleanup for startup or stale runtime state.", Actions: items}, nil
+		return PageView{Context: "Inspect connections, traffic and logs, then run basic checks or detailed diagnostics. Open Service for startup recovery.", Actions: items}, nil
 	}}
 }
 
@@ -108,28 +106,30 @@ func exportDiagnostics(ctx context.Context, s *Session) error {
 	return err
 }
 
-func AdvancedPage() *Page { return advancedPageForOS(runtime.GOOS) }
+func ServiceManagementPage() *Page { return serviceManagementPageForOS(runtime.GOOS) }
 
-func advancedPageForOS(goos string) *Page {
-	return &Page{Title: "Settings & Maintenance", Load: func(_ context.Context, _ *Session) (PageView, error) {
-		items := []Item{
-			{Label: "Routing Rules", Next: RulesPage},
-			{Label: "DNS", Next: DNSPage},
-			{Label: "Request Rewrite", Next: RequestRewritePage},
-			{Label: "Start at Login", Next: ServicePage},
-		}
+func serviceManagementPageForOS(goos string) *Page {
+	return &Page{Title: "Service", Load: func(ctx context.Context, s *Session) (PageView, error) {
+		view, err := RuntimePage().Load(ctx, s)
+		view.Actions = append(view.Actions, Item{Label: "Start at Login", Next: ServicePage}, Item{Label: "Startup Recovery", Next: startupRecoveryPage})
 		if goos == "darwin" {
-			items = append(items, Item{Label: "Privileged helper", Next: func() *Page { return helperPageForOS(goos) }})
+			view.Actions = append(view.Actions, Item{Label: "Privileged helper", Next: func() *Page { return helperPageForOS(goos) }})
 		}
-		items = append(items, Item{Label: "Nagi Maintenance", Next: func() *Page { return maintenancePageForOS(goos) }})
-		return PageView{Actions: items}, nil
+		return view, err
 	}}
+}
+
+func startupRecoveryPage() *Page {
+	return actionPage("Startup Recovery",
+		Item{Label: "Repair startup state", Args: []string{"startup", "check"}},
+		Item{Label: "Clean stale runtime records", Args: []string{"recover"}, Impact: "Clears records left by an unexpected exit"},
+	)
 }
 
 func MaintenancePage() *Page { return maintenancePageForOS(runtime.GOOS) }
 
 func maintenancePageForOS(goos string) *Page {
-	items := []Item{{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates Nagi, mihomo and any installed App; resets the default profile"}}
+	items := []Item{{Label: "Show version", Args: []string{"version"}}, {Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates Nagi, mihomo and any installed App; resets the default profile"}}
 	if goos == "darwin" {
 		items = append(items,
 			Item{Label: "Install menu bar App", Args: []string{"app", "install"}, Impact: "Installs the App for this Nagi version"},
@@ -142,7 +142,7 @@ func maintenancePageForOS(goos string) *Page {
 	}
 	items = append(items, Item{Label: "Uninstall Nagi", Args: []string{"uninstall"}, Impact: uninstallImpact})
 	items = append(items, Item{Label: "Uninstall Nagi and clear user data", Args: []string{"uninstall", "--purge-data"}, Impact: "Permanently deletes all Nagi user data, including profiles and subscriptions"})
-	return actionPage("Nagi Maintenance", items...)
+	return actionPage("Maintenance", items...)
 }
 
 func helperPageForOS(goos string) *Page {

@@ -66,7 +66,7 @@ func TestOperationPageStaticCommands(t *testing.T) {
 		{DNSPage(), "Check DNS configuration", []string{"dns", "check"}, false},
 		{DNSPage(), "Disable TUN DNS interception", []string{"dns", "tun", "off"}, false},
 		{TrafficPage(), "TUN details", []string{"tun", "status"}, false},
-		{TrafficPage(), "Listener ports", []string{"ports", "status"}, false},
+		{TrafficPage(), "Listener Ports", []string{"ports", "status"}, false},
 		{TrafficPage(), "Disable LAN access", []string{"lan", "disable"}, true},
 		{ConnectionsPage(), "Close all connections", []string{"connections", "close-all"}, false},
 		{RulesPage(), "List active rule providers", []string{"rules", "providers"}, false},
@@ -199,16 +199,17 @@ func TestConnectionSelectionPassesIDAsOneArgument(t *testing.T) {
 
 func TestOperationStreamsUseStreamingRunner(t *testing.T) {
 	for _, tt := range []struct {
+		page  *Page
 		label string
 		args  []string
 	}{
-		{"Follow logs (Ctrl-C returns here)", []string{"logs", "follow"}},
-		{"Watch traffic (Ctrl-C returns here)", []string{"traffic", "watch"}},
+		{LogsPage(), "Follow logs (Ctrl-C returns here)", []string{"logs", "follow"}},
+		{TrafficMonitorPage(), "Watch traffic (Ctrl-C returns here)", []string{"traffic", "watch"}},
 	} {
 		runner := &operationStreamRunner{}
 		var out bytes.Buffer
 		session := NewSession(runner, strings.NewReader(""), &out)
-		item := operationItem(t, LogsPage(), tt.label)
+		item := operationItem(t, tt.page, tt.label)
 		if err := item.Action(context.Background(), session); err != nil {
 			t.Fatal(err)
 		}

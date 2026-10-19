@@ -29,7 +29,7 @@ func TestProxyGroupNodeNamesStaySingleArguments(t *testing.T) {
 		"proxy\x00show\x00World Select": {Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}, "now": "Node A", "selected_status": "available"}},
 	}}
 	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
-	groups, err := ProxyPage().Load(ctx, s)
+	groups, err := proxyGroupsPage().Load(ctx, s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func hasProxyCall(calls [][]string, want []string) bool {
 	return false
 }
 
-func TestProxySwitchNeedsThreeSelectionsFromRoot(t *testing.T) {
+func TestProxySwitchNeedsFourSelectionsFromRoot(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{
 		"proxy\x00groups":                           {Data: map[string]any{"groups": []any{map[string]any{"name": "World Select"}}}},
 		"proxy\x00show\x00World Select":             {Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}}},
@@ -65,7 +65,7 @@ func TestProxySwitchNeedsThreeSelectionsFromRoot(t *testing.T) {
 		return PageView{Items: []Item{{Label: "Proxy", Next: ProxyPage}}}, nil
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n1\n1\nq\n"), &out), root)
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n1\n1\n1\nq\n"), &out), root)
 	count := 0
 	for _, call := range runner.calls {
 		if len(call) > 1 && call[1] == "select" {
@@ -162,12 +162,12 @@ func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
 		hint   string
 		err    bool
 	}{
-		{"stopped", Result{Data: map[string]any{"running": false}}, "Mihomo: stopped |", "Start mihomo through Start / Stop", false},
+		{"stopped", Result{Data: map[string]any{"running": false}}, "Mihomo: stopped |", "Start mihomo through Service", false},
 		{"unexpected exit", Result{Data: map[string]any{"running": false, "unexpected_exit": true}}, "stopped (unexpected exit)", "clean stale runtime records", true},
-		{"running", Result{Data: map[string]any{"running": true}}, "Mihomo: running |", "Check logs in Connections & Troubleshooting", true},
-		{"status failure", Result{Code: 1, Error: &CLIError{Message: "status failed: https://private.example/token"}}, "Mihomo: unknown |", "Open Connections & Troubleshooting", true},
-		{"missing running field", Result{Data: map[string]any{}}, "Mihomo: unknown |", "Open Connections & Troubleshooting", true},
-		{"null running field", Result{Data: map[string]any{"running": nil}}, "Mihomo: unknown |", "Open Connections & Troubleshooting", true},
+		{"running", Result{Data: map[string]any{"running": true}}, "Mihomo: running |", "Check logs in Monitoring & Diagnostics", true},
+		{"status failure", Result{Code: 1, Error: &CLIError{Message: "status failed: https://private.example/token"}}, "Mihomo: unknown |", "Open Service to check status", true},
+		{"missing running field", Result{Data: map[string]any{}}, "Mihomo: unknown |", "Open Service to check status", true},
+		{"null running field", Result{Data: map[string]any{"running": nil}}, "Mihomo: unknown |", "Open Service to check status", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := &featureRunner{results: map[string]Result{
@@ -175,10 +175,10 @@ func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
 				"status":          tc.status,
 			}}
 			var out bytes.Buffer
-			if code := RunPage(context.Background(), NewSession(runner, strings.NewReader("0\n"), &out), ProxyPage()); code != 0 {
+			if code := RunPage(context.Background(), NewSession(runner, strings.NewReader("0\n"), &out), proxyGroupsPage()); code != 0 {
 				t.Fatalf("exit=%d", code)
 			}
-			for _, want := range []string{tc.state, tc.hint, "Restore saved selections", "Proxy Providers", "4. Start / Stop"} {
+			for _, want := range []string{tc.state, tc.hint, "Restore saved selections"} {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("missing %q: %s", want, out.String())
 				}
@@ -186,7 +186,7 @@ func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
 			if strings.Contains(out.String(), "mihomo control unavailable:") != tc.err || strings.Contains(out.String(), "socket missing") != tc.err {
 				t.Fatalf("read error visibility=%v output=%s", tc.err, out.String())
 			}
-			if strings.Contains(out.String(), "private.example") || strings.Contains(out.String(), "Data unavailable. Return to the parent page") {
+			if strings.Contains(out.String(), ". Start / Stop") || strings.Contains(out.String(), ". Proxy Providers") || strings.Contains(out.String(), ". Tailscale") || strings.Contains(out.String(), "private.example") || strings.Contains(out.String(), "Data unavailable. Return to the parent page") {
 				t.Fatalf("unsafe or misleading guidance: %s", out.String())
 			}
 			if !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}, {"status"}}) {
@@ -215,7 +215,7 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 		"proxy select World Select Node A": {{Data: map[string]any{"group": "World Select", "node": "Node A"}}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("4\n1\n0\n1\n1\n0\n0\n"), &out), ProxyPage())
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n1\n0\n0\n7\n1\n0\n1\n1\n1\n1\n0\n0\n0\n0\n"), &out), RootPage())
 	for _, want := range [][]string{{"start"}, {"proxy", "select", "World Select", "Node A"}} {
 		count := 0
 		for _, call := range runner.calls {
@@ -234,8 +234,8 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 
 func TestProxyGroupsSuccessfulReadDoesNotQueryRuntime(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{"proxy\x00groups": {Data: map[string]any{"groups": []any{}}}}}
-	view, err := ProxyPage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
-	if err != nil || len(view.Actions) != 3 || !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}}) {
+	view, err := proxyGroupsPage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+	if err != nil || len(view.Actions) != 1 || !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}}) {
 		t.Fatalf("view=%#v err=%v calls=%v", view, err, runner.calls)
 	}
 }

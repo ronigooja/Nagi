@@ -9,6 +9,7 @@ import (
 
 func init() {
 	RegisterPage("runtime", RuntimePage)
+	RegisterPage("routing", RoutingPage)
 	RegisterPage("mode", func() *Page {
 		return actionPage("Proxy Mode", Item{Label: "For this session", Next: func() *Page { return modePage(false) }}, Item{Label: "Save for future starts", Next: func() *Page { return modePage(true) }})
 	})
@@ -29,7 +30,7 @@ func statusSummary(result Result) string {
 		return "Mihomo: unknown | Profile: unknown. Status unavailable."
 	}
 	if result.Error != nil {
-		return "Mihomo: unknown | Profile: unknown. Status unavailable: " + result.Error.Message + ". Try `nagi status` or Connections & Troubleshooting."
+		return "Mihomo: unknown | Profile: unknown. Status unavailable: " + result.Error.Message + ". Open Service for status or Monitoring & Diagnostics for logs."
 	}
 	data, ok := result.Data.(map[string]any)
 	if !ok {
@@ -123,4 +124,8 @@ func readableState(value any) string {
 		return "no"
 	}
 	return fmt.Sprint(value)
+}
+
+func RoutingPage() *Page {
+	return actionPage("Routing & DNS", Item{Label: "Proxy Mode", Next: registered["mode"]}, Item{Label: "Routing Rules", Next: RulesPage}, Item{Label: "DNS", Next: DNSPage})
 }

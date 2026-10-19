@@ -112,7 +112,7 @@ func countTailscaleCall(calls [][]string, want ...string) int {
 func TestTailscaleOfflineEntryThroughHome(t *testing.T) {
 	r := tailscaleFixture()
 	var out bytes.Buffer
-	Run(context.Background(), NewSession(r, strings.NewReader("2\n3\n1\n0\n0\n0\n0\n"), &out))
+	Run(context.Background(), NewSession(r, strings.NewReader("1\n3\n1\n0\n0\n0\n0\n"), &out))
 	if countTailscaleCall(r.calls, "proxy", "tailscale", "show", "Tail Shared") != 1 {
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
 	}
