@@ -28,6 +28,8 @@ enum L10n {
         return text(key, bundle: bundle)
     }
     private static let protocolKeys: [String: String] = [
+        "user": "app.protocol.user",
+        "privileged": "app.protocol.privileged",
         "selector": "app.protocol.selector",
         "urltest": "app.protocol.urltest",
         "fallback": "app.protocol.fallback",

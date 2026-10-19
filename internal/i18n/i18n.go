@@ -8,6 +8,7 @@ import (
 	"math"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 type Language string
@@ -105,15 +106,16 @@ func (c Context) Render(message *Message) string {
 	return c.RenderDescriptor(message.Descriptor(), message.Error())
 }
 func (c Context) RenderDescriptor(d Descriptor, fallback string) string {
-	entry, ok := catalogs[c.Language()][d.ID]
+	selected, schemas := messageCatalog(d.ID)
+	entry, ok := selected[c.Language()][d.ID]
 	if !ok {
 		return fallback
 	}
-	_, ok = catalogs[English][d.ID]
+	_, ok = selected[English][d.ID]
 	if !ok {
 		return fallback
 	}
-	signature, ok := argumentSchemas[d.ID]
+	signature, ok := schemas[d.ID]
 	if !ok || len(signature) != len(d.Args) {
 		return fallback
 	}
@@ -169,10 +171,26 @@ var placeholders = regexp.MustCompile(`\{([A-Za-z][A-Za-z0-9_]*)\}`)
 
 //go:embed catalogs/*/*.json catalogs/*.arguments.json
 var files embed.FS
-var argumentSchemas = loadArgumentSchemas()
-var catalogs = loadCatalogs()
+var argumentSchemas = loadArgumentSchemas(false)
+var catalogs = loadCatalogs(false, argumentSchemas)
+var helpOnce sync.Once
+var helpCatalogs map[Language]map[string]entry
+var helpArgumentSchemas map[string]map[string]string
 
-func loadCatalogs() map[Language]map[string]entry {
+// Help has its own immutable module: ordinary polling commands do not parse its
+// complete usage catalog. sync.Once publishes both maps before any reader uses them.
+func messageCatalog(id string) (map[Language]map[string]entry, map[string]map[string]string) {
+	if strings.HasPrefix(id, "help.") {
+		helpOnce.Do(func() {
+			helpArgumentSchemas = loadArgumentSchemas(true)
+			helpCatalogs = loadCatalogs(true, helpArgumentSchemas)
+		})
+		return helpCatalogs, helpArgumentSchemas
+	}
+	return catalogs, argumentSchemas
+}
+
+func loadCatalogs(helpOnly bool, schemas map[string]map[string]string) map[Language]map[string]entry {
 	result := map[Language]map[string]entry{}
 	for _, language := range []Language{English, SimplifiedChinese} {
 		items := map[string]entry{}
@@ -181,6 +199,9 @@ func loadCatalogs() map[Language]map[string]entry {
 			panic(err)
 		}
 		for _, path := range paths {
+			if (path.Name() == "help.json") != helpOnly {
+				continue
+			}
 			data, err := files.ReadFile("catalogs/" + string(language) + "/" + path.Name())
 			if err != nil {
 				panic(err)
@@ -208,7 +229,7 @@ func loadCatalogs() map[Language]map[string]entry {
 
 		result[language] = items
 	}
-	if err := validateCatalogs(result, argumentSchemas); err != nil {
+	if err := validateCatalogs(result, schemas); err != nil {
 		panic(err)
 	}
 	return result

@@ -147,3 +147,20 @@ func TestLocalizedRootSemanticStyleAndLiteralName(t *testing.T) {
 		t.Fatal("raw text styled")
 	}
 }
+
+func TestMissingOriginalErrorTargetIgnoresOptionalDescriptor(t *testing.T) {
+	for _, raw := range []string{
+		`{"ok":false,"messages":{"/error/message":{"id":"cli.language.missing"}}}`,
+		`{"ok":false,"error":{"code":"failed"},"messages":{"/error/message":{"id":"cli.language.missing"}}}`,
+		`{"ok":false,"error":{"code":"failed","message":null},"messages":{"/error/message":{"id":"cli.language.missing"}}}`,
+	} {
+		runner := NewCommandRunner(func(_ []string, _ io.Writer, stderr io.Writer) int { io.WriteString(stderr, raw); return 1 })
+		result := runner.Run(context.Background(), []string{"status"})
+		if _, exists := result.Messages["/error/message"]; exists {
+			t.Fatalf("metadata annotated absent original target: %s", raw)
+		}
+		if result.Error == nil {
+			t.Fatal("missing operation error")
+		}
+	}
+}

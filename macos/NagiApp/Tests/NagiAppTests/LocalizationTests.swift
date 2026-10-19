@@ -79,6 +79,16 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(L10n.format("app.items.count", Int64(2), bundle: try bundle("zh-Hans")), "2 项")
     }
 
+    func testAbsentOriginalErrorTargetCannotAnnotateSynthesizedFallback() throws {
+        let data = Data(#"{"ok":false,"messages":{"/error/message":{"id":"cli.language.missing"}}}"#.utf8)
+        let envelope = try JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: data)
+        let error = envelope.commandError(fallbackCode: "failed", fallbackMessage: "original fallback")
+        if case .command(let code, let message) = error {
+            XCTAssertEqual(code, "failed")
+            XCTAssertEqual(message, "original fallback")
+        } else { XCTFail("Optional metadata annotated an absent original target") }
+    }
+
     func testOptionalMetadataCannotBreakValidResponse() throws {
         for metadata in ["null", "42", "[]", "{\"/data/message\":42}", "{\"/data/message\":{\"id\":\"x\",\"args\":{\"bad\":[]}}}"] {
             let data = Data("{\"ok\":true,\"data\":{\"message\":\"original\"},\"messages\":\(metadata)}".utf8)

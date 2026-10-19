@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"gopkg.in/yaml.v3"
 
 	"github.com/ronigooja/Nagi/internal/i18n"

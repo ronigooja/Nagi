@@ -99,6 +99,9 @@ func (r *commandRunner) RunInput(ctx context.Context, args []string, input io.Re
 		return runnerFailure(maxCode(code), "output_error", "menu.runner.output_error", "Could not decode command response")
 	}
 	messages := decodeMessages(envelope.Messages)
+	if !errorMessageTargetExists(data) {
+		delete(messages, "/error/message")
+	}
 	if !envelope.OK || code != 0 {
 		if envelope.Error == nil {
 			envelope.Error = &CLIError{Code: "command_error", Message: "Command failed"}
@@ -154,7 +157,7 @@ func (r *commandRunner) Stream(ctx context.Context, args []string, out io.Writer
 			Messages json.RawMessage `json:"messages"`
 		}
 		if json.Unmarshal(stderr.Bytes(), &envelope) == nil && envelope.Error != nil {
-			return Result{Code: code, Error: envelope.Error, Messages: decodeMessages(envelope.Messages)}
+			return Result{Code: code, Error: envelope.Error, Messages: errorMessages(envelope.Messages, stderr.Bytes())}
 		}
 		message := strings.TrimSpace(stderr.String())
 		if message == "" {
@@ -230,4 +233,24 @@ func decodeMessages(raw json.RawMessage) map[string]json.RawMessage {
 func runnerFailure(code int, errorCode, id, message string) Result {
 	descriptor, _ := json.Marshal(i18n.Descriptor{ID: id})
 	return Result{Code: code, Error: &CLIError{Code: errorCode, Message: message}, Messages: map[string]json.RawMessage{"/error/message": descriptor}}
+}
+
+// Metadata cannot annotate a fallback synthesized by the consumer.
+func errorMessageTargetExists(data []byte) bool {
+	var envelope struct {
+		Error map[string]json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal(data, &envelope) != nil {
+		return false
+	}
+	var original string
+	raw, exists := envelope.Error["message"]
+	return exists && string(raw) != "null" && json.Unmarshal(raw, &original) == nil
+}
+func errorMessages(raw json.RawMessage, envelope []byte) map[string]json.RawMessage {
+	messages := decodeMessages(raw)
+	if !errorMessageTargetExists(envelope) {
+		delete(messages, "/error/message")
+	}
+	return messages
 }

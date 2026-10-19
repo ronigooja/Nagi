@@ -803,3 +803,6 @@
 "app.protocol.client_to_server" = "客户端 → 服务端";
 "app.protocol.server_to_client" = "服务端 → 客户端";
 "app.rewrite.domain_example" = "api.service.example 或 *.service.example";
+"app.capture.http_status_label" = "HTTP 状态";
+"app.protocol.user" = "用户模式";
+"app.protocol.privileged" = "特权模式";

@@ -515,7 +515,7 @@ struct CLIEnvelope<Value: Decodable>: Decodable {
     func commandError(fallbackCode: String, fallbackMessage: String) -> CLIError {
         let code = error?.code ?? fallbackCode
         let original = error?.message ?? fallbackMessage
-        if let descriptor = messages.values["/error/message"] {
+        if error != nil, let descriptor = messages.values["/error/message"] {
             return .localizedCommand(code, original, descriptor)
         }
         return .command(code, original)

@@ -61,7 +61,8 @@ func Errorf(id, format string, values ...any) *Message {
 // ValidDescriptor checks the exact catalog signature without rendering or
 // matching any English text. Unknown or malformed optional metadata is ignored.
 func ValidDescriptor(d Descriptor) bool {
-	schema, ok := argumentSchemas[d.ID]
+	_, schemas := messageCatalog(d.ID)
+	schema, ok := schemas[d.ID]
 	if !ok || len(schema) != len(d.Args) {
 		return false
 	}

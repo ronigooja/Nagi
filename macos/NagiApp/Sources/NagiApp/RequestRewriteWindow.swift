@@ -177,7 +177,7 @@ private struct RewriteEditorSession: Identifiable {
                         DisclosureGroup(L10n.text("app.ui.runtime_details")) {
                             VStack(spacing: 10) {
                                 RewriteDetailRow(L10n.text("app.ui.schema"), value: status.value["config_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown"))
-                                RewriteDetailRow(L10n.text("app.ui.backend"), value: status.value["backend"]?.string ?? L10n.text("app.state.unknown"))
+                                RewriteDetailRow(L10n.text("app.ui.backend"), value: L10n.protocolLabel(status.value["backend"]?.string ?? "unknown"))
                                 RewriteDetailRow(L10n.text("app.ui.protocol"), value: status.value["protocol_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown"))
                                 RewriteDetailRow(L10n.text("app.ui.configured_version"), value: status.value["configured_rule_version"]?.string ?? L10n.text("app.state.unknown"))
                                 RewriteDetailRow(L10n.text("app.ui.active_version"), value: status.value["active_rule_version"]?.string ?? L10n.text("app.state.unknown"))

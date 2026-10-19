@@ -85,7 +85,7 @@ enum CaptureDetailSection: String, CaseIterable {
                         field(L10n.text("app.ui.method"), value: method, selection: CaptureFieldSelection(kind: "method", value: method, stage: record.stage))
                     }
                     if let status = snapshot.status {
-                        field("HTTP status", value: String(status), selection: CaptureFieldSelection(kind: "status", value: String(status), stage: record.stage))
+                        field(L10n.text("app.capture.http_status_label"), value: String(status), selection: CaptureFieldSelection(kind: "status", value: String(status), stage: record.stage))
                     }
                     if let query = snapshot.query, !query.isEmpty {
                         field(L10n.text("app.ui.query"), value: query, selection: CaptureFieldSelection(kind: "query", value: query, stage: record.stage))

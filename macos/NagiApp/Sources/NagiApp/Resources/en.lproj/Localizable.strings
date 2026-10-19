@@ -803,3 +803,6 @@
 "app.protocol.client_to_server" = "Client → Server";
 "app.protocol.server_to_client" = "Server → Client";
 "app.rewrite.domain_example" = "api.service.example or *.service.example";
+"app.capture.http_status_label" = "HTTP status";
+"app.protocol.user" = "User";
+"app.protocol.privileged" = "Privileged";

@@ -33,7 +33,7 @@ func matchesType(value any, kind string) bool {
 	return false
 }
 
-func loadArgumentSchemas() map[string]map[string]string {
+func loadArgumentSchemas(helpOnly bool) map[string]map[string]string {
 	paths, err := files.ReadDir("catalogs")
 	if err != nil {
 		panic(err)
@@ -41,6 +41,9 @@ func loadArgumentSchemas() map[string]map[string]string {
 	schemas := map[string]map[string]string{}
 	for _, path := range paths {
 		if path.IsDir() || !strings.HasSuffix(path.Name(), ".arguments.json") {
+			continue
+		}
+		if (path.Name() == "help.arguments.json") != helpOnly {
 			continue
 		}
 		data, err := files.ReadFile("catalogs/" + path.Name())

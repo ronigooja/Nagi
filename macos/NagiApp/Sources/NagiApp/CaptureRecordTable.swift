@@ -92,7 +92,7 @@ struct CaptureHTTPStatusView: View {
                 Text(verbatim: CaptureRecordSummary(record: record).method)
                     .font(.system(.caption, design: .monospaced).weight(.semibold))
                     .lineLimit(1)
-                    .help(record.kind == "websocket" ? record.stage ?? "WebSocket" : record.original?.method ?? "HTTP")
+                    .help(record.kind == "websocket" ? L10n.protocolLabel(record.stage ?? "WebSocket") : record.original?.method ?? "HTTP")
             }.width(52)
             TableColumn(L10n.text("app.ui.request")) { record in
                 let summary = CaptureRecordSummary(record: record, handshake: record.parentID.flatMap { byID[$0] })

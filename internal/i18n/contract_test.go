@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +83,28 @@ func TestCatalogValidation(t *testing.T) {
 			message := NewMessage(id, map[string]any{key: value}, "ORIGINAL", nil)
 			if got := New(SimplifiedChinese).Render(message); got != "ORIGINAL" {
 				t.Fatalf("invalid argument translated: %s", got)
+			}
+		}
+	}
+}
+
+func TestAllCatalogModulesAndLazyHelpOwnership(t *testing.T) {
+	help, signatures := messageCatalog("help.heading.usage")
+	for id := range signatures {
+		if !strings.HasPrefix(id, "help.") {
+			t.Fatalf("help module ID has no lazy namespace: %s", id)
+		}
+		if _, exists := argumentSchemas[id]; exists {
+			t.Fatalf("duplicate schema across help/base: %s", id)
+		}
+	}
+	if err := validateCatalogs(help, signatures); err != nil {
+		t.Fatal(err)
+	}
+	for _, entries := range catalogs {
+		for id := range entries {
+			if strings.HasPrefix(id, "help.") {
+				t.Fatalf("help ID is eager: %s", id)
 			}
 		}
 	}
