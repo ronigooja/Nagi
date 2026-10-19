@@ -60,7 +60,7 @@ struct CaptureDraftIntent {
             switch node {
             case .object(let fields): guard let next = fields[key] else { return nil }; node = next
             case .array(let items):
-                guard key == "0" || key.first != "0", let index = Int(key), index >= 0, index < items.count else { return nil }; node = items[index]
+                guard !key.isEmpty, key.utf8.allSatisfy({ (48...57).contains($0) }), key == "0" || key.first != "0", let index = Int(key), index < items.count else { return nil }; node = items[index]
             default: return nil
             }
         }
