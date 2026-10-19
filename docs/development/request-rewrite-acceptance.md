@@ -162,14 +162,25 @@ python3 scripts/test-request-capture-native-ui.py \
   /path/to/nagi /path/to/capture-engine-fixture macos/NagiApp --offline
 ```
 
-The same harness's live variant explicitly adds a freshly generated isolated CA
-to the current user's login keychain, then removes its trust/certificate and
-verifies the fingerprint is absent during cleanup. Its initial SSH run was
-blocked by `SecTrustSettingsSetTrustSettings`: no interactive authorization was
-available. That run removed the temporary certificate and verified cleanup;
-trust acceptance remains pending an authorized local session. System Events
-reported UI automation disabled, so interactive menu-bar acceptance remains
-pending. No accessibility permission was changed by these checks.
+The same harness's live variant passed after the user authorized its isolated CA
+through a local Terminal prompt: native raw-field selection, editable draft,
+offline preview, atomic save, CLI activation and an actual local HTTP origin
+observing the changed header. The generation transition retained existing capture
+history. The engine input remains synthetic TUN; this is not OS TUN evidence.
+The harness removed that CA's trust and certificate after the successful run;
+fresh checks found its fingerprint absent from both the login keychain and user
+trust settings. Its CLI, recorder, rewrite child, supervisor and fixture engine
+were stopped, and its private files were removed.
+
+The initial SSH trust operation failed with `SecTrustSettingsSetTrustSettings`
+because interactive authorization was unavailable; launching the exact command
+in local Terminal and the user's fingerprint authorization succeeded. A first
+live attempt used a fixture HOME too long for Darwin's Unix socket limit; it
+failed activation and removed that CA. The harness now checks socket length
+before activation, uses short canonical private paths and retains an explicitly
+supplied fixture after failure for retry with the same CA. System Events reported
+UI automation disabled, so interactive menu-bar acceptance remains pending.
+No accessibility permission was changed by these checks.
 
 ### Actual Linux TUN and root helper
 

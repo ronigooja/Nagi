@@ -12,6 +12,7 @@ import os
 import pathlib
 import shutil
 import shlex
+import secrets
 import socket
 import ssl
 import subprocess
@@ -22,10 +23,23 @@ import time
 cli, engine, package = map(os.path.abspath, sys.argv[1:4])
 offline = sys.argv[4:] == ["--offline"]
 assert sys.platform == "darwin", "Native macOS only"
-root = pathlib.Path(os.environ["NAGI_CAPTURE_ACCEPTANCE_HOME"]) if os.environ.get("NAGI_CAPTURE_ACCEPTANCE_HOME") else pathlib.Path(tempfile.mkdtemp(prefix="ncap-ui-", dir="/private/tmp"))
+def short_home():
+    # Darwin Unix sockets allow only 104 bytes, including the terminating NUL.
+    # The generation child appends 46 bytes to Nagi's fixed macOS runtime path.
+    for _ in range(256):
+        path = pathlib.Path("/private/tmp") / ("n" + secrets.token_hex(1))
+        try:
+            path.mkdir(mode=0o700)
+            return path
+        except FileExistsError:
+            pass
+    raise RuntimeError("No short private fixture directory available")
+
+root = pathlib.Path(os.environ["NAGI_CAPTURE_ACCEPTANCE_HOME"]) if os.environ.get("NAGI_CAPTURE_ACCEPTANCE_HOME") else short_home()
 keychain = pathlib.Path.home() / "Library/Keychains/login.keychain-db"
 env = dict(os.environ, HOME=str(root), NAGI_MIHOMO_BIN=engine)
 runtime = root / "Library/Application Support/Nagi/runtime"
+assert len(os.fsencode(str(runtime / ("rewrite-" + "0" * 32 + ".sock")))) < 104, "Use a shorter canonical fixture HOME for Darwin Unix sockets"
 public = root / "public.pem"
 fingerprint = None
 trusted = False
