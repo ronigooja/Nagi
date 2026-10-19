@@ -8414,6 +8414,8 @@
 "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.key" = "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi %2$@\n运行 `nagi subscription list` 查找订阅名称。\n运行 `nagi help %1$@` 查看详情";
 "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.watch" = "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi %2$@\n运行 `nagi subscription list` 检查到期时间和失败情况。\n运行 `nagi help %1$@` 查看详情";
 "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch" = "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi %2$@\n查看实时流量前请先启动 mihomo。\n运行 `nagi help %1$@` 查看详情";
+"integration.recover.helper_owned" = "辅助程序管理运行时状态";
+"integration.recover.no_stale_state" = "没有陈旧的运行时状态";
 "menu.runner.command_error" = "命令失败";
 "menu.runner.export_cancelled" = "导出已取消";
 "menu.runner.export_failed" = "导出失败；请检查目标权限、是否存在及请求重写状态";

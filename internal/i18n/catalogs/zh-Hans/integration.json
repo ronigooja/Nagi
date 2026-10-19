@@ -14,5 +14,7 @@
   "cli.display.override": "本地覆盖",
   "cli.display.bind": "绑定",
   "cli.display.unbind": "解除绑定",
-  "cli.capture.recovery.stop_required": "capture_state_uncertain；停止此会话以恢复；运行 `nagi rewrite capture status`"
+  "cli.capture.recovery.stop_required": "capture_state_uncertain；停止此会话以恢复；运行 `nagi rewrite capture status`",
+  "integration.recover.helper_owned": "辅助程序管理运行时状态",
+  "integration.recover.no_stale_state": "没有陈旧的运行时状态"
 }

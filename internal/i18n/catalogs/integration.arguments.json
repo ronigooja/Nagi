@@ -18,5 +18,7 @@
   "cli.display.override": {},
   "cli.display.bind": {},
   "cli.display.unbind": {},
-  "cli.capture.recovery.stop_required": {}
+  "cli.capture.recovery.stop_required": {},
+  "integration.recover.helper_owned": {},
+  "integration.recover.no_stale_state": {}
 }

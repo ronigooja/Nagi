@@ -1456,12 +1456,12 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return nil, e
 		}
 		if backendMode == privilegedBackend {
-			return map[string]any{"recovered": false, "reason": "helper owns runtime state"}, nil
+			return i18n.Result{Value: map[string]any{"recovered": false, "reason": "helper owns runtime state"}, Messages: map[string]i18n.Descriptor{"/reason": {ID: "integration.recover.helper_owned"}}}, nil
 		}
 		status, e := m.Recover(ctx)
 		if e != nil {
 			if errors.Is(e, engine.ErrNotRunning) {
-				return map[string]any{"recovered": false, "reason": "no stale runtime state"}, nil
+				return i18n.Result{Value: map[string]any{"recovered": false, "reason": "no stale runtime state"}, Messages: map[string]i18n.Descriptor{"/reason": {ID: "integration.recover.no_stale_state"}}}, nil
 			}
 			return nil, e
 		}

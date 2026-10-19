@@ -32455,6 +32455,8 @@
     "path": "string",
     "syntax": "string"
   },
+  "integration.recover.helper_owned": {},
+  "integration.recover.no_stale_state": {},
   "menu.runner.command_error": {},
   "menu.runner.export_cancelled": {},
   "menu.runner.export_failed": {},

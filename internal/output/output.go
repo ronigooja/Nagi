@@ -346,10 +346,16 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		}
 		return nil
 	}
+	if v["recovered"] == false {
+		if reason, ok := v["reason"].(string); ok {
+			return line(w, fieldText(w, "/reason", reason))
+		}
+	}
 	if message, ok := v["error"].(string); ok && len(v) == 1 {
 		if message == "" {
 			return line(w, text(w, "cli.output.writehumanmap.no_background_update_failure_is_pending", "No background update failure is pending."))
 		}
+		message = fieldText(w, "/error", message)
 		return line(w, renderText(w, "cli.output.writehumanmap.last_background_update_error.message", map[string]any{"detail": fmt.Sprint(RedactError(message))}, "Last background update error: "+fmt.Sprint(RedactError(message))))
 	}
 	if action, ok := v["action"].(string); ok && (v["completed"] == true || v["scheduled"] == true) {

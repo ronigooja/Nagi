@@ -14,5 +14,7 @@
   "cli.display.override": "override",
   "cli.display.bind": "bind",
   "cli.display.unbind": "unbind",
-  "cli.capture.recovery.stop_required": "capture_state_uncertain; stop this session to recover; run `nagi rewrite capture status`"
+  "cli.capture.recovery.stop_required": "capture_state_uncertain; stop this session to recover; run `nagi rewrite capture status`",
+  "integration.recover.helper_owned": "helper owns runtime state",
+  "integration.recover.no_stale_state": "no stale runtime state"
 }

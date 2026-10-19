@@ -8414,6 +8414,8 @@
 "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.key" = "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi %2$@\nRun `nagi subscription list` to find a subscription name.\nRun `nagi help %1$@` for details";
 "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.watch" = "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi %2$@\nRun `nagi subscription list` to inspect due times and failures.\nRun `nagi help %1$@` for details";
 "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch" = "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi %2$@\nStart mihomo before watching traffic.\nRun `nagi help %1$@` for details";
+"integration.recover.helper_owned" = "helper owns runtime state";
+"integration.recover.no_stale_state" = "no stale runtime state";
 "menu.runner.command_error" = "Command failed";
 "menu.runner.export_cancelled" = "Export cancelled";
 "menu.runner.export_failed" = "Export failed; check destination permissions, existence, and request-rewrite status";
