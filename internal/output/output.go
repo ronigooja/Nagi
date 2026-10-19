@@ -128,7 +128,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			}
 		}
 		for _, conflict := range v.Conflicts {
-			if err := line(w, renderText(w, "cli.output.write.conflict_rule_d_shadows_rule_d_s", map[string]any{"earlier": conflict.Earlier, "later": conflict.Later, "reason": fmt.Sprint(conflict.Reason)}, fmt.Sprintf("Conflict: rule %d shadows rule %d (%s)", conflict.Earlier, conflict.Later, conflict.Reason))); err != nil {
+			if err := line(w, renderText(w, "cli.output.write.conflict_rule_d_shadows_rule_d_s", map[string]any{"earlier": conflict.Earlier, "later": conflict.Later, "reason": RenderMessageField(conflict, "/reason", conflict.Reason, writerLanguage(w))}, fmt.Sprintf("Conflict: rule %d shadows rule %d (%s)", conflict.Earlier, conflict.Later, conflict.Reason))); err != nil {
 				return err
 			}
 		}

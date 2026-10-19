@@ -154,22 +154,45 @@ enum MessageArgument: Decodable, Equatable, Sendable {
 struct MessageDescriptor: Decodable, Equatable, Sendable {
     let id: String
     let args: [String: MessageArgument]
-    enum CodingKeys: String, CodingKey { case id, args }
-    init(id: String, args: [String: MessageArgument] = [:]) { self.id = id; self.args = args }
+    let argumentMessages: [String: MessageDescriptor]
+    enum CodingKeys: String, CodingKey { case id, args; case argumentMessages = "argument_messages" }
+    init(id: String, args: [String: MessageArgument] = [:], argumentMessages: [String: MessageDescriptor] = [:]) { self.id = id; self.args = args; self.argumentMessages = argumentMessages }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(String.self, forKey: .id)
         args = values.contains(.args) ? try values.decode([String: MessageArgument].self, forKey: .args) : [:]
+        var children: [String: MessageDescriptor] = [:]
+        let depth = decoder.codingPath.filter { $0.stringValue == "argument_messages" }.count
+        if depth < 8, let container = try? values.nestedContainer(keyedBy: ArgumentKey.self, forKey: .argumentMessages) {
+            for key in container.allKeys.sorted(by: { $0.stringValue < $1.stringValue }).prefix(64) {
+                guard case .string? = args[key.stringValue] else { continue }
+                children[key.stringValue] = try? container.decode(MessageDescriptor.self, forKey: key)
+            }
+        }
+        argumentMessages = children
     }
 
     /// Only registered IDs with exact named argument signatures may format.
     func render(original: String, bundle: Bundle = NagiResources.bundle) -> String {
+        var nodes = 64
+        return render(original: original, bundle: bundle, depth: 0, nodes: &nodes)
+    }
+    private struct ArgumentKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { return nil }
+    }
+    private func render(original: String, bundle: Bundle, depth: Int, nodes: inout Int) -> String {
+        guard depth <= 8, nodes > 0 else { return original }
+        nodes -= 1
         guard let signature = NativeMessageCatalog.signatures[id], Set(args.keys) == Set(signature.keys) else { return original }
         var arguments: [CVarArg] = []
         for name in signature.keys.sorted() {
             let value: String
             switch (signature[name], args[name]) {
-            case (.string?, .string(let string)?): value = string
+            case (.string?, .string(let string)?):
+                value = argumentMessages[name]?.render(original: string, bundle: bundle, depth: depth + 1, nodes: &nodes) ?? string
             case (.number?, .number(let number)?) where number.isFinite: value = String(number)
             case (.boolean?, .bool(let boolean)?): value = boolean ? "true" : "false"
             default: return original

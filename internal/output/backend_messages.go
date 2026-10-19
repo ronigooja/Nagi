@@ -52,7 +52,7 @@ func CollectMessages(data any) map[string]i18n.Descriptor {
 					if !i18n.ValidDescriptor(descriptor) || !stringTarget(target, full) {
 						continue
 					}
-					safe := SafeMessage(i18n.NewMessage(descriptor.ID, descriptor.Args, "", nil)).Descriptor()
+					safe := SafeMessage(i18n.MessageFromDescriptor(descriptor, "", nil)).Descriptor()
 					messages[path+pointer] = safe
 				}
 			}
@@ -158,7 +158,7 @@ func RenderMessageField(source any, pointer, fallback string, locale i18n.Contex
 	}
 	if source, ok := source.(i18n.MessageSource); ok {
 		if descriptor, exists := source.MessageDescriptors()[pointer]; exists && i18n.ValidDescriptor(descriptor) {
-			safe := SafeMessage(i18n.NewMessage(descriptor.ID, descriptor.Args, fallback, nil))
+			safe := SafeMessage(i18n.MessageFromDescriptor(descriptor, fallback, nil))
 			return locale.Render(safe)
 		}
 	}

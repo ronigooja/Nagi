@@ -6,6 +6,18 @@ final class LocalizationTests: XCTestCase {
         try XCTUnwrap(NagiResources.bundle.url(forResource: language.lowercased(), withExtension: "lproj").flatMap(Bundle.init(url:)))
     }
 
+    func testNestedMessageCompositionAndMalformedChildren() throws {
+        let raw = #"{"id":"cli.language.invalid","args":{"value":"original"},"argument_messages":{"value":{"id":"cli.language.missing"},"extra":42}}"#
+        let descriptor = try JSONDecoder().decode(MessageDescriptor.self, from: Data(raw.utf8))
+        let chinese = try bundle("zh-Hans")
+        let inner = MessageDescriptor(id: "cli.language.missing").render(original: "original", bundle: chinese)
+        let expected = MessageDescriptor(id: "cli.language.invalid", args: ["value": .string(inner)]).render(original: "fallback", bundle: chinese)
+        XCTAssertEqual(descriptor.render(original: "fallback", bundle: chinese), expected)
+        let malformed = raw.replacingOccurrences(of: #"{"id":"cli.language.missing"}"#, with: "42")
+        let fallback = try JSONDecoder().decode(MessageDescriptor.self, from: Data(malformed.utf8))
+        XCTAssertEqual(fallback.render(original: "fallback", bundle: chinese), MessageDescriptor(id: "cli.language.invalid", args: ["value": .string("original")]).render(original: "fallback", bundle: chinese))
+    }
+
     func testSharedContractAndCatalogParity() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()

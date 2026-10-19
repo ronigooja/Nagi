@@ -198,6 +198,9 @@
     "backend.diagnostic.name.data_directory": {},
     "backend.diagnostic.name.dns": {},
     "backend.diagnostic.name.listener_exposure": {},
+    "backend.diagnostic.name.listener_port": {
+      "field": "string"
+    },
     "backend.diagnostic.name.mihomo_executable": {},
     "backend.diagnostic.name.process": {},
     "backend.diagnostic.name.runtime_directory": {},
@@ -437,6 +440,28 @@
     "backend.profile.unsupported_group_type": {},
     "backend.profile.unsupported_tailscale_action": {},
     "backend.profile.url_must_be_an_absolute_http_s_url_without_userinfo_or_fragment": {},
+    "backend.profile.validation": {
+      "path": "string",
+      "code": "string",
+      "detail": "string"
+    },
+    "backend.profile.validation.named": {
+      "path": "string",
+      "code": "string",
+      "detail": "string",
+      "profile": "string"
+    },
+    "backend.profile.validation.named.rules": {
+      "path": "string",
+      "code": "string",
+      "detail": "string",
+      "profile": "string"
+    },
+    "backend.profile.validation.rules": {
+      "path": "string",
+      "code": "string",
+      "detail": "string"
+    },
     "backend.profile.w_use_nagi_profile_use_name_or_nagi_subscription_apply_name_to_repair_the_selection": {
       "arg0": "string"
     },
@@ -453,6 +478,7 @@
     "backend.proxy.group_contains_a_node_with_ambiguous_ownership_test_a_specific_provider_node_ins": {},
     "backend.proxy.group_is_not_automatic_choose_a_urltest_or_fallback_group": {},
     "backend.proxy.group_missing_from_effective_profile": {},
+    "backend.proxy.history.unavailable": {},
     "backend.proxy.invalid_mode_q": {
       "arg0": "string"
     },
@@ -485,6 +511,14 @@
     "backend.proxy.url_must_be_an_absolute_http_s_url_without_userinfo": {},
     "backend.rewrite.recovery.build_engine": {},
     "backend.rules.cannot_merge_custom_rules_with_invalid_profile_yaml": {},
+    "backend.rules.collection.rules.empty": {},
+    "backend.rules.collection.rules.invalid_item": {},
+    "backend.rules.collection.rules.too_many": {},
+    "backend.rules.collection.set.empty": {},
+    "backend.rules.collection.set.invalid_item": {},
+    "backend.rules.collection.set.too_many": {},
+    "backend.rules.conflict.duplicate": {},
+    "backend.rules.conflict.shadowed": {},
     "backend.rules.download_rule_import_http_d": {
       "arg0": "string"
     },
@@ -32527,6 +32561,756 @@
     "menu.runner.export_failed": {},
     "menu.runner.input_unavailable": {},
     "menu.runner.output_error": {},
-    "menu.runner.raw_unsupported": {}
+    "menu.runner.raw_unsupported": {},
+    "system.capture.archive.invalid": {},
+    "system.capture.bind.failed": {},
+    "system.capture.byte.limit": {},
+    "system.capture.directory.invalid": {},
+    "system.capture.export.failed": {},
+    "system.capture.format.invalid": {},
+    "system.capture.owner.invalid": {},
+    "system.capture.permissions.failed": {},
+    "system.capture.request.invalid": {},
+    "system.capture.service.failed": {},
+    "system.capture.socket.exists": {},
+    "system.capture.state.invalid": {},
+    "system.capture.unavailable": {},
+    "system.engine.configuration": {
+      "arg0": "string"
+    },
+    "system.engine.configuration.must.be.a.regular.file": {},
+    "system.engine.configuration.path.is.required": {},
+    "system.engine.configuration.validation.failed.at.inspect.nagi.config.show": {
+      "arg0": "string",
+      "arg1": "string",
+      "arg2": "string"
+    },
+    "system.engine.configuration.validation.failed.inspect.the.selected.profile.with.nagi.config": {
+      "arg0": "string"
+    },
+    "system.engine.find.mihomo.set.nagi.mihomo.bin.to.a.mihomo.executable": {
+      "arg0": "string"
+    },
+    "system.engine.invalid.pid.file": {
+      "arg0": "string"
+    },
+    "system.engine.line.count.must.be.nonnegative": {},
+    "system.engine.log.callback.is.required": {},
+    "system.engine.mihomo.binary.is.required": {},
+    "system.engine.mihomo.control.socket.did.not.become.ready": {},
+    "system.engine.mihomo.exited.before.socket.became.ready": {
+      "arg0": "string"
+    },
+    "system.engine.mihomo.is.already.running": {},
+    "system.engine.mihomo.is.not.running": {},
+    "system.engine.start.mihomo": {
+      "arg0": "string"
+    },
+    "system.engine.unable.to.run.mihomo.for.configuration.validation.check.nagi.mihomo": {
+      "arg0": "string"
+    },
+    "system.installation.an.installation.transaction.needs.recovery.run.the.current.release.s": {
+      "arg0": "string"
+    },
+    "system.installation.another.nagi.maintenance.operation.is.running": {},
+    "system.installation.app.is.already.installed.use.nagi.update": {},
+    "system.installation.app.is.not.installed.use.nagi.app.install": {},
+    "system.installation.app.management.is.supported.only.on.macos": {},
+    "system.installation.background.update.requires.an.installed.macos.app": {},
+    "system.installation.cannot.authorize.update.nagi.remains.running.retry.update.and.approve": {
+      "arg0": "string"
+    },
+    "system.installation.cannot.inspect.installation.recovery.state": {
+      "arg0": "string"
+    },
+    "system.installation.cannot.inspect.running.proxy.for.update": {
+      "arg0": "string"
+    },
+    "system.installation.cannot.open.terminal.for.update": {
+      "arg0": "string"
+    },
+    "system.installation.cannot.record.a.stopped.engine.before.maintenance": {
+      "arg0": "string"
+    },
+    "system.installation.cannot.start.background.update": {
+      "arg0": "string"
+    },
+    "system.installation.cannot.stop.nagi.before.maintenance": {
+      "arg0": "string"
+    },
+    "system.installation.checksum.file.is.too.large": {},
+    "system.installation.download": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.installation.download.http": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.installation.extracted.release.exceeds.512.mib": {},
+    "system.installation.failed": {
+      "arg0": "string",
+      "arg1": "string",
+      "arg2": "string"
+    },
+    "system.installation.files.updated.but.engine.restart.failed.run.nagi.status.and": {
+      "arg0": "string"
+    },
+    "system.installation.files.updated.but.login.service.restoration.failed.run.nagi.service": {
+      "arg0": "string"
+    },
+    "system.installation.files.updated.but.transaction.cleanup.was.incomplete.nagi.remains.stopped": {
+      "arg0": "string"
+    },
+    "system.installation.installation.commit.state.is.uncertain.transaction.backups.are.retained.repair": {
+      "arg0": "string"
+    },
+    "system.installation.installation.failed.inspect.installer.details.nagi.remains.stopped": {
+      "arg0": "string"
+    },
+    "system.installation.installation.file.recovery.failed.retained.transaction.backups.must.be.recovered": {
+      "arg0": "string"
+    },
+    "system.installation.installed.cli.returned.invalid.response": {
+      "arg0": "string"
+    },
+    "system.installation.invalid.app.path.in.installer.record": {},
+    "system.installation.invalid.installer.record.repair.the.installation.before.retrying": {},
+    "system.installation.invalid.prepared.update.handoff": {},
+    "system.installation.invalid.release.tag.use.vx.y.z": {},
+    "system.installation.missing.prepared.update.artifact": {},
+    "system.installation.nagi.app.requires.the.cli.at.usr.local.bin.nagi": {},
+    "system.installation.nagi.installation.files.were.removed.but.transaction.cleanup.was.incomplete": {
+      "arg0": "string"
+    },
+    "system.installation.nagi.is.stopped.cannot.remove.login.service": {
+      "arg0": "string"
+    },
+    "system.installation.nagi.was.removed.but.user.data.cleanup.was.incomplete.some": {
+      "arg0": "string"
+    },
+    "system.installation.no.readable.installer.record.install.nagi.using.the.release.installer": {
+      "arg0": "string"
+    },
+    "system.installation.purge.data.is.only.valid.with.uninstall": {},
+    "system.installation.quit.nagi.app.before.updating.or.uninstalling.its.update.option": {},
+    "system.installation.release.archive.checksum.mismatch": {},
+    "system.installation.release.archive.contains.unsupported.links.or.special.files": {},
+    "system.installation.release.archive.exceeds.512.mib": {},
+    "system.installation.release.archive.has.too.many.entries": {},
+    "system.installation.release.checksum.download.http": {
+      "arg0": "string"
+    },
+    "system.installation.release.has.no.regular.executable": {
+      "arg0": "string"
+    },
+    "system.installation.selected.release.does.not.contain.nagi.app": {},
+    "system.installation.sha256sums.has.no.valid.entry.for": {
+      "arg0": "string"
+    },
+    "system.installation.terminal.update.requires.an.installed.macos.app": {},
+    "system.installation.this.cli.has.no.release.version.specify.nagi.app.install": {},
+    "system.installation.unsafe.release.archive.path": {},
+    "system.installation.unsupported.release.platform": {},
+    "system.installation.update.authorization.was.cancelled.or.failed.nagi.remains.running": {},
+    "system.installation.update.preparation.cancelled.nagi.remains.running": {
+      "arg0": "string"
+    },
+    "system.installation.use.the.installed.cli.at.prefix.bin.nagi": {},
+    "system.installtx.activated.transaction.target.differs.from.prepared.content": {},
+    "system.installtx.commit.cleanup.pending": {
+      "arg0": "string"
+    },
+    "system.installtx.commit.marker.without.manifest.journal.retained": {},
+    "system.installtx.commit.uncertain": {
+      "arg0": "string"
+    },
+    "system.installtx.empty.transaction": {},
+    "system.installtx.expected.verb.and.absolute.journal.root": {},
+    "system.installtx.installation.broker.lock.is.not.held": {},
+    "system.installtx.installation.maintenance.already.running": {
+      "arg0": "string"
+    },
+    "system.installtx.invalid.commit.marker": {},
+    "system.installtx.invalid.detached.commit.marker": {},
+    "system.installtx.invalid.inherited.installation.lock": {},
+    "system.installtx.invalid.invoking.gid": {},
+    "system.installtx.invalid.invoking.uid": {},
+    "system.installtx.invalid.staged.source": {},
+    "system.installtx.invalid.transaction.manifest": {},
+    "system.installtx.lock.requires.command": {},
+    "system.installtx.missing.transaction.digest": {},
+    "system.installtx.non.regular.transaction.content": {},
+    "system.installtx.not.a.directory": {
+      "arg0": "string"
+    },
+    "system.installtx.overlapping.manifest.targets": {},
+    "system.installtx.overlapping.transaction.targets": {},
+    "system.installtx.prepare.requires.target.source.pairs": {},
+    "system.installtx.recover.takes.only.root": {},
+    "system.installtx.refusing.garbage.cleanup.while.active.journal.exists": {},
+    "system.installtx.removed.transaction.target.reappeared": {},
+    "system.installtx.rollback.incomplete.journal.retained.at": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.installtx.symlink.transaction.path": {
+      "arg0": "string"
+    },
+    "system.installtx.target.overlaps.transaction.journal": {},
+    "system.installtx.trailing.manifest.data": {},
+    "system.installtx.transaction.already.committed": {},
+    "system.installtx.transaction.content.corrupt.retained.at": {
+      "arg0": "string"
+    },
+    "system.installtx.transaction.journal.must.be.private.and.owned.by.current.user": {
+      "arg0": "string"
+    },
+    "system.installtx.unknown.transaction.verb": {},
+    "system.installtx.unsafe.detached.journal.entry": {
+      "arg0": "string"
+    },
+    "system.installtx.unsafe.detached.transaction.journal.retained": {
+      "arg0": "string"
+    },
+    "system.installtx.unsafe.transaction.manifest": {},
+    "system.installtx.unsafe.transaction.path": {
+      "arg0": "string"
+    },
+    "system.installtx.unsupported.transaction.source": {
+      "arg0": "string"
+    },
+    "system.platform.unsupported.operating.system": {
+      "arg0": "string"
+    },
+    "system.privileged.activate.helper.unit.previous.unit.definition.restored.inspect.systemctl.status": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.activate.helper.unit.rollback.failed.inspect.and.systemctl.status": {
+      "arg0": "string",
+      "arg1": "string",
+      "arg2": "string",
+      "arg3": "string"
+    },
+    "system.privileged.administrator.privileges.required.run.with.sudo": {},
+    "system.privileged.cannot.inspect.directory.acl": {},
+    "system.privileged.config.path": {
+      "arg0": "string"
+    },
+    "system.privileged.configuration.is.not.a.supported.regular.file": {},
+    "system.privileged.configuration.is.not.supported.for.privileged.mihomo": {},
+    "system.privileged.configuration.is.not.supported.for.privileged.mihomo.field": {
+      "field": "string"
+    },
+    "system.privileged.configuration.is.outside.session.directory": {},
+    "system.privileged.configuration.must.be.1.bytes": {
+      "arg1": "string"
+    },
+    "system.privileged.configuration.must.be.1.bytes.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.configuration.patch.field.is.not.allowed": {},
+    "system.privileged.configuration.path.is.required": {},
+    "system.privileged.contains.a.file.uri": {
+      "arg1": "string"
+    },
+    "system.privileged.contains.a.file.uri.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.controller.action.is.not.allowed": {},
+    "system.privileged.controller.operation.is.not.allowed": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.controller.path.must.be.absolute.and.clean": {},
+    "system.privileged.controller.response.too.large": {},
+    "system.privileged.controller.returned.http": {
+      "arg0": "string"
+    },
+    "system.privileged.create.child.marker": {
+      "arg0": "string"
+    },
+    "system.privileged.create.helper.unit.directory": {
+      "arg0": "string"
+    },
+    "system.privileged.disable.helper.service.unit.retained.at": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.dns.interception.must.use.literal.ip.addresses.on.port.53": {},
+    "system.privileged.dns.operation.does.not.accept.parameters": {},
+    "system.privileged.duplicate.key": {
+      "arg1": "string"
+    },
+    "system.privileged.duplicate.key.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.engine.help.output.exceeds.bound": {},
+    "system.privileged.expected.a.literal.string": {},
+    "system.privileged.expected.a.literal.string.field": {
+      "field": "string"
+    },
+    "system.privileged.expected.a.yaml.mapping": {},
+    "system.privileged.expected.a.yaml.mapping.field": {
+      "field": "string"
+    },
+    "system.privileged.expected.integer.port": {},
+    "system.privileged.expected.integer.port.field": {
+      "field": "string"
+    },
+    "system.privileged.expected.mapping": {},
+    "system.privileged.expected.mapping.field": {
+      "field": "string"
+    },
+    "system.privileged.expected.nonnegative.integer": {},
+    "system.privileged.expected.nonnegative.integer.field": {
+      "field": "string"
+    },
+    "system.privileged.expected.port.0.or.1024.65535": {},
+    "system.privileged.expected.port.0.or.1024.65535.field": {
+      "field": "string"
+    },
+    "system.privileged.expected.proxy.list": {},
+    "system.privileged.expected.proxy.list.field": {
+      "field": "string"
+    },
+    "system.privileged.expected.true.or.false": {},
+    "system.privileged.expected.true.or.false.field": {
+      "field": "string"
+    },
+    "system.privileged.field.invalid": {
+      "field": "string"
+    },
+    "system.privileged.get.body.is.not.allowed": {},
+    "system.privileged.has.an.acl.or.unreadable.permission.record": {
+      "arg0": "string"
+    },
+    "system.privileged.helper.definition.already.exists.at.uninstall.before.reinstalling": {
+      "arg0": "string"
+    },
+    "system.privileged.helper.executable.path.must.be.absolute.and.contain.no.control": {},
+    "system.privileged.helper.launchd.job.remains.active.after.bootout.inspect": {
+      "arg0": "string"
+    },
+    "system.privileged.helper.listener.has.no.filesystem.path": {},
+    "system.privileged.helper.session.is.not.configured": {},
+    "system.privileged.helper.stopped.but.removing.definition.failed": {
+      "arg0": "string"
+    },
+    "system.privileged.helper.stopped.but.unit.removal.failed": {
+      "arg0": "string"
+    },
+    "system.privileged.helper.unit.path.is.a.symlink": {
+      "arg0": "string"
+    },
+    "system.privileged.helper.unit.removed.but.systemd.reload.failed": {
+      "arg0": "string"
+    },
+    "system.privileged.inspect": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.inspect.acl.for": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.inspect.helper.definition": {
+      "arg0": "string"
+    },
+    "system.privileged.inspect.helper.unit": {
+      "arg0": "string"
+    },
+    "system.privileged.install.the.helper.with.sudo.from.the.intended.macos.user": {},
+    "system.privileged.installing.the.privileged.helper.requires.root.rerun.with.sudo": {},
+    "system.privileged.invalid.activation.id": {},
+    "system.privileged.invalid.allow.lan": {},
+    "system.privileged.invalid.bind.address": {},
+    "system.privileged.invalid.configuration.patch": {},
+    "system.privileged.invalid.configuration.path": {},
+    "system.privileged.invalid.configuration.reload": {},
+    "system.privileged.invalid.configuration.yaml": {},
+    "system.privileged.invalid.control.request": {},
+    "system.privileged.invalid.control.response": {},
+    "system.privileged.invalid.controller.json.response": {},
+    "system.privileged.invalid.controller.path": {},
+    "system.privileged.invalid.handler.response": {
+      "arg0": "string"
+    },
+    "system.privileged.invalid.helper.log": {},
+    "system.privileged.invalid.log.request": {},
+    "system.privileged.invalid.mode": {},
+    "system.privileged.invalid.profile": {},
+    "system.privileged.invalid.proxy.list": {},
+    "system.privileged.invalid.reload.operation": {},
+    "system.privileged.invalid.resource.path": {},
+    "system.privileged.invalid.root.directory.path": {},
+    "system.privileged.invalid.session.uid": {},
+    "system.privileged.invalid.traffic.sample": {},
+    "system.privileged.invalid.tun.patch": {},
+    "system.privileged.invalid.yaml": {
+      "arg1": "string"
+    },
+    "system.privileged.invalid.yaml.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.is.not.a.directory": {
+      "arg0": "string"
+    },
+    "system.privileged.is.not.a.regular.file": {
+      "arg0": "string"
+    },
+    "system.privileged.is.not.executable": {
+      "arg0": "string"
+    },
+    "system.privileged.is.not.owned.by.root": {
+      "arg0": "string"
+    },
+    "system.privileged.is.not.root.owned": {
+      "arg0": "string"
+    },
+    "system.privileged.is.not.supported": {
+      "arg1": "string",
+      "arg2": "string"
+    },
+    "system.privileged.is.not.supported.field": {
+      "arg1": "string",
+      "arg2": "string",
+      "field": "string"
+    },
+    "system.privileged.is.writable.by.group.or.others": {
+      "arg0": "string"
+    },
+    "system.privileged.is.writable.or.readable.by.other.users": {
+      "arg0": "string"
+    },
+    "system.privileged.key.is.outside.the.privileged.allowlist": {
+      "arg1": "string"
+    },
+    "system.privileged.key.is.outside.the.privileged.allowlist.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.launchctl.bootout.definition.retained.at": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.launchctl.bootout.no.definition.exists.at": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.launchctl.bootstrap.definition.removed": {
+      "arg0": "string"
+    },
+    "system.privileged.launchctl.bootstrap.removing.definition.failed": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.lookup.session.user": {
+      "arg0": "string"
+    },
+    "system.privileged.mapping.keys.must.be.strings": {},
+    "system.privileged.mapping.keys.must.be.strings.field": {
+      "field": "string"
+    },
+    "system.privileged.may.access.a.local.file.or.execute.code": {
+      "arg1": "string"
+    },
+    "system.privileged.may.access.a.local.file.or.execute.code.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.multiple.json.values": {},
+    "system.privileged.multiple.json.values.in.protocol.message": {},
+    "system.privileged.multiple.yaml.documents.are.not.allowed": {},
+    "system.privileged.multiple.yaml.documents.are.not.allowed.field": {
+      "field": "string"
+    },
+    "system.privileged.must.be.a.directory": {
+      "arg0": "string"
+    },
+    "system.privileged.must.be.absolute": {},
+    "system.privileged.must.be.an.executable.regular.file": {
+      "arg0": "string"
+    },
+    "system.privileged.must.be.clean": {},
+    "system.privileged.must.be.false": {},
+    "system.privileged.must.be.false.field": {
+      "field": "string"
+    },
+    "system.privileged.must.be.root.owned.and.not.group.world.writable": {
+      "arg0": "string"
+    },
+    "system.privileged.nil.helper.listener": {},
+    "system.privileged.orphaned.privileged.engine.administrator.recovery.is.required.before.changing.tun": {},
+    "system.privileged.orphaned.privileged.engine.prior.root.child.may.still.be.active": {},
+    "system.privileged.orphaned.privileged.engine.refusing.dns.cleanup.for.unobserved.child": {},
+    "system.privileged.orphaned.privileged.engine.root.mihomo.survived.helper.restart.administrator.recovery": {},
+    "system.privileged.outside.allowed.directory": {},
+    "system.privileged.path.is.managed.by.mihomo": {
+      "arg1": "string"
+    },
+    "system.privileged.path.is.managed.by.mihomo.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.path.is.not.allowed": {},
+    "system.privileged.path.must.be.absolute.clean.and.contain.no.control.characters": {},
+    "system.privileged.peer.uid.is.not.the.bound.session.user": {
+      "arg0": "string"
+    },
+    "system.privileged.privileged.helper.requires.root": {},
+    "system.privileged.privileged.helper.session.is.already.active": {},
+    "system.privileged.privileged.linux.helper.installation.is.unavailable.until.restricted.controller.access": {},
+    "system.privileged.privileged.mihomo.controller.did.not.become.ready": {},
+    "system.privileged.privileged.mihomo.exited.during.startup": {},
+    "system.privileged.privileged.mihomo.is.not.running": {},
+    "system.privileged.protocol.message.too.large": {},
+    "system.privileged.provider.tailscale.nodes.are.not.supported": {},
+    "system.privileged.proxies.plugin.is.not.an.audited.built.in.plugin": {},
+    "system.privileged.proxies.plugin.is.not.an.audited.built.in.plugin.field": {
+      "field": "string"
+    },
+    "system.privileged.proxies.requires.inline.pem.or.a.file.snapshot": {
+      "arg1": "string"
+    },
+    "system.privileged.proxies.requires.inline.pem.or.a.file.snapshot.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.proxy.type.is.required": {},
+    "system.privileged.proxy.type.is.required.field": {
+      "field": "string"
+    },
+    "system.privileged.read.existing.helper.unit": {
+      "arg0": "string"
+    },
+    "system.privileged.read.peer.credential": {
+      "arg0": "string"
+    },
+    "system.privileged.read.request": {
+      "arg0": "string"
+    },
+    "system.privileged.read.running.tun.configuration.http": {
+      "arg0": "string"
+    },
+    "system.privileged.recover.tun.dns": {
+      "arg0": "string"
+    },
+    "system.privileged.request.rewrite.controller.operation.rejected": {},
+    "system.privileged.resource.size.is.outside.1.bytes": {
+      "arg1": "string"
+    },
+    "system.privileged.resource.snapshot.failed": {},
+    "system.privileged.restore.prior.tun.dns": {
+      "arg0": "string"
+    },
+    "system.privileged.restore.system.dns": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.restricted.configuration.failed.native.validation": {},
+    "system.privileged.restricted.configuration.failed.native.validation.at": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.rewrite.capability.missing.install.the.matching.mihomo.engine.with.request": {},
+    "system.privileged.root.privileges.required.for.configuration.snapshot": {},
+    "system.privileged.root.privileges.required.for.resource.snapshot": {},
+    "system.privileged.rule.provider.has.no.type": {
+      "arg1": "string"
+    },
+    "system.privileged.rule.provider.has.no.type.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.run.the.installed.executable.to.install.its.helper": {
+      "arg0": "string"
+    },
+    "system.privileged.running.tun.has.no.adapter.name": {},
+    "system.privileged.session.source.directory.does.not.match.user.home": {},
+    "system.privileged.snapshot.directory.must.be.an.absolute.clean.path": {},
+    "system.privileged.snapshot.directory.or.ancestor.has.a.macos.acl": {},
+    "system.privileged.socket.path.must.be.absolute.and.clean": {},
+    "system.privileged.stale.controller.response.privileged.engine.changed.during.request": {},
+    "system.privileged.start.privileged.mihomo": {
+      "arg0": "string"
+    },
+    "system.privileged.start.tun.dns.restore": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.successful.response.cannot.contain.error": {},
+    "system.privileged.symlink.in.executable.path": {
+      "arg0": "string"
+    },
+    "system.privileged.symlink.path.component.is.not.allowed": {},
+    "system.privileged.too.many.dns.interception.entries": {},
+    "system.privileged.trusted.mihomo.path.must.be.absolute.and.clean": {},
+    "system.privileged.tun.adapter.is.not.ready": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "system.privileged.tun.dns.requires.auto.route": {},
+    "system.privileged.tun.dns.requires.running.mihomo.dns.enabled": {},
+    "system.privileged.tun.is.outside.the.privileged.allowlist": {
+      "arg1": "string"
+    },
+    "system.privileged.tun.is.outside.the.privileged.allowlist.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.privileged.unclean.resource.path": {},
+    "system.privileged.unexpected.control.fields": {},
+    "system.privileged.unexpected.log.fields": {},
+    "system.privileged.unexpected.start.fields": {},
+    "system.privileged.uninstalling.the.privileged.helper.requires.root.rerun.with.sudo": {},
+    "system.privileged.unsafe.configuration.resource": {},
+    "system.privileged.unsafe.controller.socket": {
+      "arg0": "string"
+    },
+    "system.privileged.unsafe.directory": {
+      "arg0": "string"
+    },
+    "system.privileged.unsafe.helper.executable": {
+      "arg0": "string"
+    },
+    "system.privileged.unsafe.launchdaemon.directory": {
+      "arg0": "string"
+    },
+    "system.privileged.unsafe.mihomo.executable": {
+      "arg0": "string"
+    },
+    "system.privileged.unsafe.privileged.helper.executable": {
+      "arg0": "string"
+    },
+    "system.privileged.unsafe.resource.path": {},
+    "system.privileged.unsafe.root.directory": {
+      "arg0": "string"
+    },
+    "system.privileged.unsafe.socket": {
+      "arg0": "string"
+    },
+    "system.privileged.unsupported.dns.operation": {},
+    "system.privileged.unsupported.helper.operation": {},
+    "system.privileged.unsupported.operation": {
+      "arg0": "string"
+    },
+    "system.privileged.unsupported.protocol.version": {
+      "arg0": "string"
+    },
+    "system.privileged.unsupported.value": {},
+    "system.privileged.unsupported.value.field": {
+      "field": "string"
+    },
+    "system.privileged.untrusted.engine.paths.are.not.allowed": {},
+    "system.privileged.untrusted.peer.uid": {},
+    "system.privileged.validate.request": {
+      "arg0": "string"
+    },
+    "system.privileged.write.helper.definition": {
+      "arg0": "string"
+    },
+    "system.privileged.yaml.aliases.and.anchors.are.not.allowed": {},
+    "system.privileged.yaml.aliases.and.anchors.are.not.allowed.field": {
+      "field": "string"
+    },
+    "system.privileged.yaml.nesting.is.too.deep": {},
+    "system.privileged.yaml.nesting.is.too.deep.field": {
+      "field": "string"
+    },
+    "system.privileged.yaml.tag.is.not.allowed": {
+      "arg1": "string"
+    },
+    "system.privileged.yaml.tag.is.not.allowed.field": {
+      "arg1": "string",
+      "field": "string"
+    },
+    "system.rewrite.activation.failed": {},
+    "system.rewrite.activation.failed.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.activation.required": {},
+    "system.rewrite.activation.required.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.auth": {},
+    "system.rewrite.auth.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.ca.exists": {},
+    "system.rewrite.ca.exists.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.ca.invalid": {},
+    "system.rewrite.ca.invalid.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.ca.required": {},
+    "system.rewrite.ca.required.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.cancelled": {},
+    "system.rewrite.cancelled.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.conflict": {},
+    "system.rewrite.conflict.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.invalid": {},
+    "system.rewrite.invalid.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.limit": {},
+    "system.rewrite.limit.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.range.conflict": {},
+    "system.rewrite.range.conflict.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.script.block": {},
+    "system.rewrite.script.block.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.script.execution": {},
+    "system.rewrite.script.execution.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.script.output": {},
+    "system.rewrite.script.output.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.script.referenced": {},
+    "system.rewrite.script.referenced.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.script.timeout": {},
+    "system.rewrite.script.timeout.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.state.uncertain": {},
+    "system.rewrite.state.uncertain.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.storage": {},
+    "system.rewrite.storage.rule": {
+      "rule": "string"
+    },
+    "system.rewrite.transform": {},
+    "system.rewrite.transform.rule": {
+      "rule": "string"
+    },
+    "system.rewritescript.busy": {},
+    "system.rewritescript.canceled": {},
+    "system.rewritescript.execution.failed": {},
+    "system.rewritescript.invalid.output": {},
+    "system.rewritescript.limit": {},
+    "system.rewritescript.timeout": {}
   }
 }

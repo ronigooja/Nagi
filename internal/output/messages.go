@@ -12,13 +12,8 @@ import (
 // SafeMessage redacts both descriptor arguments and the English fallback before
 // either text rendering or descriptor serialization can expose them.
 func SafeMessage(message *i18n.Message) *i18n.Message {
-	d := message.Descriptor()
-	for key, value := range d.Args {
-		if text, ok := value.(string); ok {
-			d.Args[key] = RedactError(text)
-		}
-	}
-	return i18n.NewMessage(d.ID, d.Args, RedactError(message.Error()), message.Unwrap())
+	d := i18n.CopyDescriptor(message.Descriptor(), RedactError)
+	return i18n.MessageFromDescriptor(d, RedactError(message.Error()), message.Unwrap())
 }
 
 // WriteMessage keeps the existing JSON value English, adding optional metadata.

@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 
 	"net"
 	"net/http"
@@ -78,7 +80,11 @@ func (b helperBackend) call(ctx context.Context, req privileged.Request) (privil
 		case "response_too_large":
 			return resp, control.ErrResponseTooLarge
 		}
-		return resp, messageError("cli.error.privileged_backend.privileged_helper_rejected_s_s", "privileged helper rejected %s: %s", req.Operation, resp.Error)
+		var cause error = errors.New(resp.Error)
+		if descriptor, ok := resp.Messages["/error"]; ok && i18n.ValidDescriptor(descriptor) {
+			cause = i18n.MessageFromDescriptor(descriptor, resp.Error, cause)
+		}
+		return resp, messageError("cli.error.privileged_backend.privileged_helper_rejected_s_s", "privileged helper rejected %s: %s", req.Operation, cause)
 	}
 	return resp, nil
 }

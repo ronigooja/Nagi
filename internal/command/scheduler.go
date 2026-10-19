@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -142,12 +141,14 @@ func retryDelay(seconds int64) time.Duration {
 	return d
 }
 func classifyRefreshFailure(err error) (string, string) {
-	s := strings.ToLower(err.Error())
-	if strings.Contains(s, "decrypt") || strings.Contains(s, "identity") {
-		return "decrypt", "identity_unavailable"
-	}
-	if strings.Contains(s, "invalid") || strings.Contains(s, "yaml") || strings.Contains(s, "content") {
-		return "validate", "invalid_content"
+	var failure *subscription.RefreshFailure
+	if errors.As(err, &failure) {
+		switch failure.Stage {
+		case "decrypt":
+			return "decrypt", "identity_unavailable"
+		case "validate":
+			return "validate", "invalid_content"
+		}
 	}
 	return "fetch", "network_error"
 }

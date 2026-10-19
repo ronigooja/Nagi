@@ -552,21 +552,21 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 		return zero, i18n.Errorf("backend.subscription.subscription_read_failed", "subscription read failed")
 	}
 	if len(data) == 0 || len(data) > maxSubscriptionSize {
-		return zero, i18n.Errorf("backend.subscription.subscription_content_empty_or_too_large", "subscription content empty or too large")
+		return zero, refreshFailure("validate", i18n.Errorf("backend.subscription.subscription_content_empty_or_too_large", "subscription content empty or too large"))
 	}
 	if strings.HasPrefix(string(data), "-----BEGIN AGE ENCRYPTED FILE-----") {
 		data, err = s.decrypt(ctx, name, data)
 		if err != nil {
-			return zero, err
+			return zero, refreshFailure("decrypt", err)
 		}
 	}
 	incoming, format, err := Document(data)
 	if err != nil {
-		return zero, err
+		return zero, refreshFailure("validate", err)
 	}
 	incoming, err = NormalizeChecked(incoming)
 	if err != nil {
-		return zero, err
+		return zero, refreshFailure("validate", err)
 	}
 	expiry, upload, download, total := parseUserInfo(resp.Header.Get("Subscription-Userinfo"))
 	var result RefreshResult
@@ -829,3 +829,14 @@ func (s *Store) SetHealthcheckURL(name string, value *string) error {
 		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
+
+// RefreshFailure retains a source pipeline stage independently of diagnostic text.
+// Normalization failures are validation failures, including mapping/bind errors.
+type RefreshFailure struct {
+	Stage string
+	Cause error
+}
+
+func (e *RefreshFailure) Error() string            { return e.Cause.Error() }
+func (e *RefreshFailure) Unwrap() error            { return e.Cause }
+func refreshFailure(stage string, err error) error { return &RefreshFailure{Stage: stage, Cause: err} }

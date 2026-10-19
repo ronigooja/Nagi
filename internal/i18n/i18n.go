@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -53,8 +54,9 @@ func Resolve(explicit string, getenv func(string) string) (Language, error) {
 }
 
 type Descriptor struct {
-	ID   string         `json:"id"`
-	Args map[string]any `json:"args,omitempty"`
+	ID               string                `json:"id"`
+	Args             map[string]any        `json:"args,omitempty"`
+	ArgumentMessages map[string]Descriptor `json:"argument_messages,omitempty"`
 }
 
 // Message retains a stable English error string and its original cause. Callers
@@ -75,16 +77,12 @@ func NewMessage(id string, args map[string]any, fallback string, cause error) *M
 			copied[key] = invalidArgument{}
 		}
 	}
-	return &Message{Descriptor{id, copied}, fallback, cause}
+	return &Message{Descriptor{ID: id, Args: copied}, fallback, cause}
 }
 func (m *Message) Error() string { return m.fallback }
 func (m *Message) Unwrap() error { return m.cause }
 func (m *Message) Descriptor() Descriptor {
-	args := make(map[string]any, len(m.descriptor.Args))
-	for k, v := range m.descriptor.Args {
-		args[k] = v
-	}
-	return Descriptor{m.descriptor.ID, args}
+	return CopyDescriptor(m.descriptor, nil)
 }
 
 // Context is an immutable rendering context, safe to copy across goroutines.
@@ -106,6 +104,14 @@ func (c Context) Render(message *Message) string {
 	return c.RenderDescriptor(message.Descriptor(), message.Error())
 }
 func (c Context) RenderDescriptor(d Descriptor, fallback string) string {
+	nodes := 64
+	return c.renderDescriptor(d, fallback, 0, &nodes)
+}
+func (c Context) renderDescriptor(d Descriptor, fallback string, depth int, nodes *int) string {
+	if depth > 8 || *nodes <= 0 {
+		return fallback
+	}
+	*nodes--
 	selected, schemas := messageCatalog(d.ID)
 	entry, ok := selected[c.Language()][d.ID]
 	if !ok {
@@ -125,12 +131,22 @@ func (c Context) RenderDescriptor(d Descriptor, fallback string) string {
 			return fallback
 		}
 	}
-	localized := entry.text(d.Args)
+	args := make(map[string]any, len(d.Args))
+	for _, key := range descriptorArgKeys(d.Args) {
+		value := d.Args[key]
+		args[key] = value
+		if original, ok := value.(string); ok {
+			if child, exists := d.ArgumentMessages[key]; exists {
+				args[key] = c.renderDescriptor(child, original, depth+1, nodes)
+			}
+		}
+	}
+	localized := entry.text(args)
 	if localized == "" {
 		return fallback
 	}
 	return placeholders.ReplaceAllStringFunc(localized, func(token string) string {
-		value, ok := d.Args[token[1:len(token)-1]]
+		value, ok := args[token[1:len(token)-1]]
 		if !ok {
 			return token
 		}
@@ -236,3 +252,12 @@ func loadCatalogs(helpOnly bool, schemas map[string]map[string]string) map[Langu
 }
 
 func isString(value any) bool { _, ok := value.(string); return ok }
+
+func descriptorArgKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}

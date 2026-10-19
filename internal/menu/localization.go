@@ -64,6 +64,9 @@ func (r Result) message(language i18n.Context, pointer, original string) string 
 		}
 	}
 
+	if children, exists := fields["argument_messages"]; exists {
+		_ = json.Unmarshal(children, &descriptor.ArgumentMessages)
+	}
 	return language.RenderDescriptor(descriptor, original)
 }
 func (r Result) errorText(language i18n.Context) string {
