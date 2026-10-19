@@ -127,8 +127,16 @@ func scriptHeaders(raw json.RawMessage, old http.Header, trailers bool) (http.He
 		if trailers {
 			allowed = allowedTrailer(k)
 		}
-		if !allowed && !reflect.DeepEqual(headerValues(old, k), headerValues(normalized, k)) {
-			return nil, invalid()
+		before, after := headerValues(old, k), headerValues(normalized, k)
+		if !reflect.DeepEqual(before, after) {
+			if !allowed {
+				return nil, invalid()
+			}
+			for _, value := range after {
+				if len(value) > 8192 {
+					return nil, &Error{Code: "rewrite_limit"}
+				}
+			}
 		}
 	}
 	return normalized, nil

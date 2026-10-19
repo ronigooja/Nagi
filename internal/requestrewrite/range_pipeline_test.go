@@ -296,3 +296,27 @@ func TestRangeJSONRequiresCompleteFragments(t *testing.T) {
 		}
 	}
 }
+
+func TestScriptChangedHeaderValueLimit(t *testing.T) {
+	for _, trailers := range []bool{false, true} {
+		t.Run(fmt.Sprint(trailers), func(t *testing.T) {
+			for _, size := range []int{8192, 8193} {
+				value := strings.Repeat("x", size)
+				encoded, _ := json.Marshal(http.Header{"X-Example": {value}})
+				if _, e := scriptHeaders(encoded, http.Header{}, trailers); (e == nil) != (size == 8192) {
+					t.Fatalf("size %d changed: %v", size, e)
+				}
+				// A script may round-trip a legal inbound aggregate with a long value.
+				if _, e := scriptHeaders(encoded, http.Header{"X-Example": {value}}, trailers); e != nil {
+					t.Fatalf("size %d unchanged: %v", size, e)
+				}
+			}
+			old := http.Header{"X-Example": {strings.Repeat("x", 8193)}}
+			// Appending even a small value changes the field and must validate every value.
+			changed, _ := json.Marshal(http.Header{"X-Example": {old.Get("X-Example"), "added"}})
+			if _, e := scriptHeaders(changed, old, trailers); e == nil {
+				t.Fatal("changed field retained oversized value")
+			}
+		})
+	}
+}
