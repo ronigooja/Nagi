@@ -146,12 +146,13 @@ existing saved data.
 
 ## Request rewrite release gate
 
-Request rewrite currently requires the reviewed local development engine; the
-release pin lacks its protocol. Do not advertise rewrite activation as available
-through ordinary installation or `nagi update`. Before releasing this capability,
-publish the implementing engine commit to the declared repository/ref, verify it
-from a fresh fetch, then update `engine.lock` and run the matching locked build.
-No engine publication or pin change is part of the current local verification.
+The implementing engine source is published at the commit in `engine.lock` and
+verified obtainable from a fresh fetch of the declared repository/ref. The
+matching locked source build is verified in the acceptance record. Nagi release
+binaries have not been published for this change: do not advertise rewrite
+activation through ordinary installation or `nagi update` until a matching Nagi
+release exists. For subsequent pin updates, publish the implementing engine commit,
+verify a fresh fetch, update `engine.lock` and run the matching locked build.
 The [request rewrite verification record](request-rewrite-acceptance.md) also
 requires native macOS Swift build/tests, packaging, trust/UI acceptance and real
 TUN/backend evidence before claiming those platforms accepted.

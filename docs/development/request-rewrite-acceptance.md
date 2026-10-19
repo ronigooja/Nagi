@@ -22,13 +22,31 @@ Swift compilation, tests, packaging and native interactions remain unverified.
 T8 local software verification passed; complete platform and release acceptance
 has not passed.
 
-`engine.lock` remains at `9a449c5797f7c855067f15be69fa659d13f6ce88`, which lacks
-request rewrite. The reviewed development engine has not been published or
-verified obtainable from the declared remote. Ordinary installation and
-`nagi update` therefore do not supply this capability. Local development needs
-a separately built matching engine selected with `NAGI_MIHOMO_BIN`, following
-[the development-pair instructions](build-and-test.md#request-rewrite-coordinator).
-No push, publication, release archive or engine pin change was performed.
+During that combined-source verification, `engine.lock` still recorded
+`9a449c5797f7c855067f15be69fa659d13f6ce88`; fixtures used the reviewed d7 source
+stated above. No publication or pin change was performed during that earlier
+verification. The subsequent engine publication
+and pin update are recorded below. Native and complete release acceptance remain
+unverified.
+
+## Published engine pin verification (2026-10-18)
+
+Engine source commit `d7c0a70776e4e698bee43f2044e7fa91d2d67d7b` is published
+on `https://github.com/ronigooja/mihomo.git`, ref `main`. A fresh checkout from
+that declared remote/ref verified the exact commit and the locked
+`./scripts/build.sh` built the engine with `with_gvisor` and the matching CLI
+without `MIHOMO_DIR`. `engine.lock` now records this commit.
+
+The locked CLI version reports the matching `mihomo_commit`. Isolated ordinary
+startup, configuration validation and request-rewrite capability/status checks
+passed with TUN disabled; these checks do not enable interception, install OS
+trust or establish platform acceptance. The Go suite and installer integration
+passed through `make test`.
+
+No Nagi source push, tag, release archive or GitHub Release was created for this
+pin update. Matching source builds are available through
+[the locked build instructions](build-and-test.md#request-rewrite-coordinator);
+ordinary installation and `nagi update` require a matching Nagi release.
 
 ## Automated and interactive checks
 
@@ -75,7 +93,7 @@ subscriptions.
 | Lifecycle and failure recovery | Coordinator integration covers persistent child/supervisor, repeated enable, rejected probe rollback, CAS cutover, child SIGKILL blocking and explicit recovery, isolated trust-root removal/restore, certificate renewal, engine death cleanup, reload, profile switch, TUN teardown and quit. Unit tests cover uncertain publication/disable and retained ownership. | Real TUN/backend/helper failures, native suspend/wake and OS lifecycle races. A synthetic teardown is not an OS interface teardown test. |
 | Three entry points | CLI and terminal Go/race/PTY checks passed. App source/API/concurrency review and Swift fixtures cover CLI-only dispatch, serialized mutations, stale reads, drafts and quit coordination. | Run Swift tests/package and native menu/window/forms/keyboard/file-picker/minimize/hide/sleep/quit/error-recovery checks. Source review does not establish executable App behavior. |
 | CA and sensitive data | Throwaway CA generation/public-only exports, private storage, sanitized ordinary output and temporary root-file assessment passed. Rule/request input uses stdin or private files; raw exports/previews are explicit sensitive operations. | Native login-keychain trust install/remove, application trust, authorization dialogs and separate Linux distribution/application trust instructions. No OS trust operation was performed in these checks. |
-| Build, installation and release | Four CLI targets compile; Go installer regressions pass. | Native App/helper/service installation and matching published-engine locked build/release artifacts. Development overrides do not prove remote availability. |
+| Build, installation and release | Four CLI targets compile; Go installer regressions pass. Subsequent published-pin verification passed a fresh remote checkout, locked engine/CLI build and isolated ordinary startup/capability checks. | Native App/helper/service installation and matching Nagi release artifacts. Source availability does not establish native acceptance or release-binary availability. |
 
 Resource reservations are logical admission limits. In particular, the 64 MiB
 workspace budget is **not** a whole-process heap/RSS ceiling. Earlier isolated
@@ -103,9 +121,8 @@ drafts, sensitive stdin/export boundaries, window reuse and close preserving the
 service, and App Quit cleanup plus failure recovery. Record an unavailable gate
 as **unverified**, never as passed by cross-compilation or source inspection.
 
-Before changing `engine.lock`, publish the reviewed engine commit to the declared
-repository/ref and verify it from a fresh fetch. Then run the locked build and
-ordinary startup/capability checks, inspect matching release artifacts and follow
-[the release gate](release.md#request-rewrite-release-gate). Publication is outside
-the current authorized local work. These open host and release gates prevent a
-claim of complete end-to-end acceptance.
+The published engine pin, fresh-fetch locked build and ordinary startup/capability
+checks are recorded above. Before a Nagi release, inspect matching release
+artifacts and follow [the release gate](release.md#request-rewrite-release-gate).
+These open host and release gates prevent a claim of complete end-to-end
+acceptance.

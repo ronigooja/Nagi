@@ -45,7 +45,7 @@ The tag-triggered [release workflow](../../.github/workflows/release.yml) runs r
 
 `make release` cross compiles Nagi and mihomo into `dist/linux-amd64`, `dist/linux-arm64`, `dist/darwin-amd64`, and `dist/darwin-arm64`, then creates the fixed-name archives and `dist/SHA256SUMS` consumed by the online installer. On macOS it also uses `lipo` to make `dist/darwin-universal`. Set `APPLE_SIGN_IDENTITY` to sign both universal executables only when signing is desired; signing is not required for release packaging. With a configured notarytool keychain profile, set `APPLE_NOTARY_PROFILE` to zip and notarize them only when that distribution path is desired. Run `make build app` before `make release` to include the unsigned App in the archive matching the host architecture. Versioning, tag checks, artifact review, and release notes are defined in [Release process](release.md).
 
-The current lock points at a commit available on the configured fork's `main` branch and includes the `--check-json`, restricted configuration policy, activation ID, age decryption, `dns.resolve-proxy-destinations`, destination rule testing, and restricted Tailscale state/lifecycle interfaces used by Nagi. Publish engine changes to the declared repository and ref before updating `engine.lock`, then verify the pinned commit is reachable from a fresh fetch of that ref. A successful build with `MIHOMO_DIR` alone does not establish remote availability. A dedicated `nagi/meta` branch and upstream synchronization policy in the original plan have not yet been established in the mihomo repository.
+The current lock points at a commit available on the configured fork's `main` branch and includes the `--check-json`, restricted configuration policy, activation ID, age decryption, `dns.resolve-proxy-destinations`, destination rule testing, and restricted Tailscale state/lifecycle and request-rewrite v1 interfaces used by Nagi. Publish engine changes to the declared repository and ref before updating `engine.lock`, then verify the pinned commit is reachable from a fresh fetch of that ref. A successful build with `MIHOMO_DIR` alone does not establish remote availability. A dedicated `nagi/meta` branch and upstream synchronization policy in the original plan have not yet been established in the mihomo repository.
 
 ## Rule test acceptance
 
@@ -131,24 +131,23 @@ For the opt-in real engine integration, supply a clean tracked checkout at revie
 GO=/path/to/go MIHOMO_DIR=/path/to/committed-engine ./scripts/test-request-rewrite-engine.sh
 ```
 
-The script checks that exact commit and tracked cleanliness, creates a temporary module with local source replacements, and removes it on exit. It leaves Nagi's module files and `engine.lock` unchanged. Engine dependencies are confined to the temporary module. The fixture uses synthetic TUN metadata through the real engine tunnel, authenticated channels, configured engine hosts and native DIRECT outbound to local HTTP/TLS servers. It verifies Rule/Global/Direct, Host/SNI changes, path/query edits, gzip JSON and exact integers. Expected final output is `actual-engine HTTP/TLS Rule/Global/Direct roundtrips passed`. It neither opens an OS TUN nor starts an installed engine, uses subscriptions or changes user routing. Invalid environment proxy addresses may be supplied to confirm the adapter ignores them. The reviewed local engine is not yet a remotely verified release pin.
+The script checks that exact commit and tracked cleanliness, creates a temporary module with local source replacements, and removes it on exit. It leaves Nagi's module files and `engine.lock` unchanged. Engine dependencies are confined to the temporary module. The fixture uses synthetic TUN metadata through the real engine tunnel, authenticated channels, configured engine hosts and native DIRECT outbound to local HTTP/TLS servers. It verifies Rule/Global/Direct, Host/SNI changes, path/query edits, gzip JSON and exact integers. Expected final output is `actual-engine HTTP/TLS Rule/Global/Direct roundtrips passed`. It neither opens an OS TUN nor starts an installed engine, uses subscriptions or changes user routing. Invalid environment proxy addresses may be supplied to confirm the adapter ignores them. This engine commit is now published and remotely verified as the source pin; the fixture alone does not establish real OS TUN or platform acceptance.
 
 Native macOS peer-credential runtime behavior, real TUN/process capture, platform CA trust and final lifecycle/UI acceptance require their respective host/integration gates. Cross-compilation does not establish those results. The domain 64 MiB workspace reservation bounds admission, not process heap/RSS; pressure acceptance must measure the complete runtime.
 
 
 ## Request rewrite coordinator
 
-The CLI/coordinator requires reviewed local mihomo commit `d7c0a70776e4e698bee43f2044e7fa91d2d67d7b`, including restricted immutable owner binding. That commit has not been published or made the release pin here. `nagi update` cannot provide it until a matching release exists. Ordinary operations remain compatible with the existing engine; rewrite enable reports an actionable capability error. Do not change `engine.lock` to bypass remote availability checks.
+The CLI/coordinator uses published mihomo commit `d7c0a70776e4e698bee43f2044e7fa91d2d67d7b`, including restricted immutable owner binding. `engine.lock` records this commit on `https://github.com/ronigooja/mihomo.git`, ref `main`. A fresh remote checkout and the matching locked build were verified on 2026-10-18. This publishes engine source, not Nagi release binaries: ordinary installation and `nagi update` require a matching Nagi release. Older engines return an actionable capability error for rewrite enable.
 
-For an explicitly labeled development pair, build the reviewed engine checkout separately and select its executable without modifying the pin:
+Build the matching source pair through the locked path, without a local checkout override:
 
 ```sh
-go -C /path/to/reviewed-mihomo build -tags with_gvisor -o /tmp/nagi-development-mihomo .
-make build cli
-NAGI_MIHOMO_BIN=/tmp/nagi-development-mihomo ./bin/nagi --json version
+./scripts/build.sh
+./bin/nagi --json version
 ```
 
-These paths are development examples. Use isolated Nagi home/XDG directories for runtime work; do not point a test at ordinary subscriptions, existing CA files, installed services or proxy ports.
+The version result must report the commit in `engine.lock` as `mihomo_commit`. `NAGI_MIHOMO_BIN` remains available for explicit development overrides. Use isolated Nagi home/XDG directories for runtime work; do not point a test at ordinary subscriptions, existing CA files, installed services or proxy ports.
 
 Run the exact-source coordinator fixture with:
 
