@@ -157,6 +157,27 @@ enum EngineState { case starting, running, stopped, unavailable }
         rewrite.onStatusChange = { [weak self] in self?.notify() }
         return rewrite
     }()
+    lazy var capture: CaptureModel = {
+        let capture = CaptureModel(cli: cli)
+        capture.submit = { [weak self] arguments, input in
+            guard let self else { throw CancellationError() }
+            guard !self.busy && !self.quitting else { throw RewriteFormError.invalid("Another operation is in progress.") }
+            self.busy = true
+            defer { self.busy = false }
+            await self.waitForConnectionsOperation(skipCaptureOperation: true)
+            return try await self.cli.capture(arguments, input: input)
+        }
+        capture.export = { [weak self] arguments in
+            guard let self else { throw CancellationError() }
+            guard !self.busy && !self.quitting else { throw RewriteFormError.invalid("Another operation is in progress.") }
+            self.busy = true
+            defer { self.busy = false }
+            await self.waitForConnectionsOperation(skipCaptureOperation: true)
+            try await self.cli.captureExport(arguments)
+        }
+        capture.onStatusChange = { [weak self] in self?.notify() }
+        return capture
+    }()
     private let watchDelay: (Int, Bool) -> UInt64
     private var refreshTask: Task<Void, Never>?
     private struct RefreshScope: OptionSet {
@@ -199,18 +220,21 @@ enum EngineState { case starting, running, stopped, unavailable }
     private var settingsGeneration = 0
     private var lastSample = Date.distantPast
     private var streamStartedAt = Date.distantPast
-    private var sleeping = false { didSet { connections.setSuspended(sleeping || quitting); requestRewrite.setSuspended(sleeping || quitting) } }
+    private var sleeping = false { didSet { connections.setSuspended(sleeping || quitting); requestRewrite.setSuspended(sleeping || quitting); capture.setSuspended(sleeping || quitting) } }
     private var quitting = false {
         didSet {
             connections.setSuspended(sleeping || quitting)
             requestRewrite.setSuspended(sleeping || quitting)
+            capture.setSuspended(sleeping || quitting)
             connections.setOperationBlocked(busy || quitting)
             requestRewrite.setBlocked(busy || quitting)
+            capture.setBlocked(busy || quitting)
         }
     }
     private(set) var busy = false { didSet {
         connections.setOperationBlocked(busy || quitting)
         requestRewrite.setBlocked(busy || quitting)
+        capture.setBlocked(busy || quitting)
         notify()
         if !busy, !pendingRefresh.isEmpty, !sleeping, !quitting {
             Task { _ = await requestRefresh([], force: false) }
@@ -364,6 +388,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         var subscriptionsRefreshed = true
         if scope.contains(.status) {
             requestRewrite.refreshStatus()
+            capture.refreshStatus()
             do {
                 let value = try await runCommand(["status"])
                 guard valid() else { return false }
@@ -862,7 +887,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         await waitForConnectionsOperation(skipRewriteOperation: true)
         return try await cli.rewriteExport(arguments)
     }
-    private func waitForConnectionsOperation(skipRewriteOperation: Bool = false) async {
+    private func waitForConnectionsOperation(skipRewriteOperation: Bool = false, skipCaptureOperation: Bool = false) async {
         // busy is acquired synchronously before reaching this wait, so new
         // close requests cannot slip in while an earlier close drains.
         while connections.operationInProgress { try? await Task.sleep(nanoseconds: 20_000_000) }
@@ -871,6 +896,10 @@ enum EngineState { case starting, running, stopped, unavailable }
             while requestRewrite.operationInProgress { try? await Task.sleep(nanoseconds: 20_000_000) }
         }
         await requestRewrite.waitForCancelledRead()
+        if !skipCaptureOperation {
+            while capture.operationInProgress { try? await Task.sleep(nanoseconds: 20_000_000) }
+        }
+        await capture.waitForCancelledRead()
     }
     func quit(completion: @escaping (Bool) -> Void) {
         guard !quitting else { return }
@@ -878,9 +907,10 @@ enum EngineState { case starting, running, stopped, unavailable }
         cancelRefresh()
         quitErrorMessage = nil
         Task {
-            while busy || connections.operationInProgress || requestRewrite.operationInProgress { try? await Task.sleep(nanoseconds: 100_000_000) }
+            while busy || connections.operationInProgress || requestRewrite.operationInProgress || capture.operationInProgress { try? await Task.sleep(nanoseconds: 100_000_000) }
             await connections.waitForCancelledRead()
             await requestRewrite.waitForCancelledRead()
+            await capture.stopOwnedSession(useGate: false)
             busy = true
             do {
                 _ = try await runCommand(["quit"])

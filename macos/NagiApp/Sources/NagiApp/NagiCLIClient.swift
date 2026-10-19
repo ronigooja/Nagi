@@ -57,6 +57,25 @@ struct NagiCLIClient {
         try await rewriteTransport(["request-rewrite"] + arguments, input: nil, inputLimit: Self.rewriteDocumentInputLimit, outputLimit: Self.rewriteDocumentOutputLimit)
     }
 
+    /// Capture responses intentionally contain original credentials, URLs and bodies.
+    func capture(_ arguments: [String], input: Data? = nil) async throws -> CaptureReply {
+        let bytes = try await rewriteTransport(["--json", "rewrite", "capture"] + arguments, input: input, inputLimit: 1_048_576, outputLimit: 80 * 1_048_576)
+        return try await Task.detached(priority: .userInitiated) {
+            let envelope = try JSONDecoder().decode(CLIEnvelope<CaptureReply>.self, from: bytes)
+            guard envelope.ok, let data = envelope.data else {
+                throw CLIError.command(envelope.error?.code ?? "capture_error", envelope.error?.message ?? "Capture operation failed.")
+            }
+            return data
+        }.value
+    }
+    func captureApps() async throws -> [CaptureApplication] {
+        struct Apps: Decodable { let apps: [CaptureApplication] }
+        return try await run(["rewrite", "capture", "apps"], stdoutLimit: 8_388_608, as: Apps.self).apps
+    }
+    func captureExport(_ arguments: [String]) async throws {
+        _ = try await rewriteTransport(["rewrite", "capture", "export"] + arguments, input: nil, inputLimit: 0, outputLimit: 1_048_576)
+    }
+
     static let rewriteDocumentInputLimit = 1_048_576
     static let rewriteDocumentOutputLimit = 6 * 1_048_576 + 65_536
     static let rewritePreviewInputLimit = 24 * 1_048_576

@@ -53,6 +53,7 @@ import AppKit
         super.init()
     }
     private let groupIcons = GroupIconLoader()
+    private lazy var captureWindow = CaptureWindowController(model: model.capture)
     private lazy var connectionsWindow = ConnectionsWindowController(model: model.connections)
     private lazy var requestRewriteWindow = RequestRewriteWindowController(model: model.requestRewrite)
     private var statusItem: NSStatusItem!
@@ -344,6 +345,11 @@ import AppKit
             item.representedObject = option.rawValue
         }
         add("Connections…", action: #selector(showConnections))
+        add("Capture…", action: #selector(showCapture))
+        if let capture = model.capture.status, ["recording", "paused"].contains(capture.state) {
+            disabled("Capture · " + capture.state.capitalized, to: menu)
+            add("Stop Capture", action: #selector(stopCapture), enabled: model.capture.canOperate)
+        }
         let rewriteMenu = NSMenu()
         let rewrite = model.requestRewrite
         disabled(rewrite.stale ? "State unavailable or stale" : (rewrite.status?.menuTitle ?? "Status unavailable"), to: rewriteMenu)
@@ -798,6 +804,8 @@ import AppKit
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertSecondButtonReturn { updateNagi() }
     }
+    @objc private func showCapture() { captureWindow.present() }
+    @objc private func stopCapture() { Task { await model.capture.mutate("stop") } }
     @objc private func showConnections() { connectionsWindow.present() }
     @objc private func showRequestRewrite() { requestRewriteWindow.present() }
     @objc private func toggleRequestRewrite() {
