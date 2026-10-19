@@ -57,11 +57,10 @@ import AppKit
     private lazy var connectionsWindow = ConnectionsWindowController(model: model.connections)
     private lazy var requestRewriteWindow = RequestRewriteWindowController(model: model.requestRewrite)
     private var statusItem: NSStatusItem!
-    private let menu = NSMenu()
+    let menu = NSMenu()
     private var pulse: Timer?
     private var menuRefreshTask: Task<Void, Never>?
     private var menuTracking = false
-    private var deferredMenuRebuild = false
     private var loadingTimer: Timer?
     private var loadingFrame = 0
     private var updateCleanupComplete = false
@@ -145,30 +144,26 @@ import AppKit
     func menuShouldOpen(_ menu: NSMenu) -> Bool { !model.busy }
 
     func menuWillOpen(_ menu: NSMenu) {
+        guard menu === self.menu, !menuTracking else { return }
         // Build the initial tree before AppKit starts tracking submenu items.
         rebuildMenu()
         menuTracking = true
-        deferredMenuRebuild = false
     }
 
     func menuDidClose(_ menu: NSMenu) {
+        guard menu === self.menu else { return }
         menuTracking = false
-        if deferredMenuRebuild {
-            deferredMenuRebuild = false
-            rebuildMenu()
-        }
+        // AppKit may still be unwinding submenu tracking. The next opening
+        // rebuilds from current state without replacing items during teardown.
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        if !menuTracking { rebuildMenu() }
+        guard menu === self.menu else { return }
+        rebuildMenu()
         guard menuRefreshTask == nil else { return }
         menuRefreshTask = Task {
             await model.refreshMenuData()
-            if menuTracking {
-                deferredMenuRebuild = true
-            } else {
-                rebuildMenu()
-            }
+            rebuildMenu()
             menuRefreshTask = nil
         }
     }
@@ -236,6 +231,8 @@ import AppKit
     }
 
     private func rebuildMenu() {
+        // Keep the entire tree stable while any submenu is being browsed.
+        guard !menuTracking else { return }
         menu.removeAllItems()
         menu.addItem(Self.makeStatusMenuItem(
             state: model.state,
