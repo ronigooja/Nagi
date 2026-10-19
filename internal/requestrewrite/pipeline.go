@@ -333,6 +333,9 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 	if original == nil || !token(original.Method) || !headersValid(original) {
 		return out, invalid()
 	}
+	if upgrade && (original.Method != http.MethodGet || original.ContentLength != 0 || len(original.TransferEncoding) != 0 || len(original.Trailer) != 0) {
+		return out, invalid()
+	}
 	targetOriginal, e := requestTarget(original.URL)
 	if e != nil || !s.Authorized(targetOriginal.host) {
 		return out, &Error{Code: "rewrite_auth"}
@@ -407,9 +410,6 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 			if ctx.Err() != nil || parent.Err() != nil {
 				return out, &Error{Code: "rewrite_cancelled", RuleID: r.ID}
 			}
-			if upgrade && s.needsBody(o) {
-				continue
-			}
 			e = nil
 			switch o.Op {
 			case "header_set", "header_append", "header_delete":
@@ -422,7 +422,7 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 			case "method_set":
 				work.Method, _ = stringValue(o)
 			case "trailer_set", "trailer_delete":
-				if body.complete {
+				if body.complete || upgrade {
 					work.Trailer, e = TransformTrailers(work.Trailer, []Operation{o})
 				} else {
 					trailers = append(trailers, o)
@@ -461,6 +461,10 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 				return fallback(r, e)
 			}
 		}
+	}
+	// Upgrade protocol validation is a commit boundary, outside rule fallback.
+	if upgrade && (work.Method != http.MethodGet || len(body.current) != 0 || len(work.Trailer) != 0 || len(trailers) != 0) {
+		return out, invalid()
 	}
 	final, e := requestTarget(work.URL)
 	if e != nil || !s.TargetAuthorized(final.host) {

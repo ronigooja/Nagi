@@ -48,6 +48,14 @@ func (s *Service) serveWebSocket(w http.ResponseWriter, req *http.Request, cc *c
 		return
 	}
 	outgoing := result.Request.WithContext(req.Context())
+	// Dial creates its own empty handshake body; release any buffered transaction.
+	if outgoing.Body != nil {
+		_ = outgoing.Body.Close()
+	}
+	if outgoing.Method != http.MethodGet || outgoing.ContentLength != 0 || len(outgoing.TransferEncoding) != 0 || len(outgoing.Trailer) != 0 {
+		writeOriginResponse(w, req, fixedResponse(req, "rewrite_invalid"))
+		return
+	}
 	headers := outgoing.Header.Clone()
 	for _, key := range []string{"Connection", "Upgrade", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Extensions", "Sec-WebSocket-Protocol"} {
 		headers.Del(key)

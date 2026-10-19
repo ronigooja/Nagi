@@ -210,7 +210,12 @@ func (s *Snapshot) PreviewSensitive(ctx context.Context, input []byte) (PreviewR
 		if in.Message != nil || in.Stage == StageRequest && in.Response != nil || in.Stage == "exchange" && in.Response == nil {
 			return out, invalid()
 		}
-		result, e := s.Transform(ctx, req)
+		var result Result
+		if strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
+			result, e = s.TransformUpgrade(ctx, req)
+		} else {
+			result, e = s.Transform(ctx, req)
+		}
 		if e != nil {
 			return out, e
 		}
