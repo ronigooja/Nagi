@@ -782,6 +782,13 @@ rewrite draft preview FILE|- [--profile NAME]
 rewrite draft save FILE|- [--profile NAME]
 ```
 
+The terminal menu opens capture under **Settings & Maintenance → Request
+Rewrite → Original Capture**. It dispatches these CLI commands for scoped start,
+application selection, paginated records, original content, session controls and
+archives. A record can produce a draft for complete JSON editing, full-chain
+local preview and version-checked save; advanced JSON and automation remain
+available through the CLI.
+
 The `capture` lines above follow either rewrite alias. Capture uses the selected
 profile; it rejects `--profile`. Start requires a running TUN engine advertising
 `capture_protocol:1` and an explicitly generated, trusted rewrite CA. It never
