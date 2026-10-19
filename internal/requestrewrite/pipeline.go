@@ -583,7 +583,7 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 		}
 		return nil
 	}
-	lastRule := Rule{}
+	lastEntityRule := Rule{}
 	lastBodyRule := Rule{}
 	mode, e := s.RangeMode(originalRequest)
 	if e != nil {
@@ -609,12 +609,12 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 			continue
 		}
 		out.RuleIDs = append(out.RuleIDs, r.ID)
-		lastRule = r
 		for _, o := range r.Operations {
 			if ctx.Err() != nil || parent.Err() != nil {
 				return out, &Error{Code: "rewrite_cancelled", RuleID: r.ID}
 			}
 			e = nil
+			previousStatus, previousTrailers := work.StatusCode, work.Trailer
 			if s.needsBody(o) {
 				lastBodyRule = r
 			}
@@ -670,6 +670,9 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 			if e == nil && s.needsBody(o) {
 				invalidate(work.Trailer)
 			}
+			if e == nil && (s.needsBody(o) || o.Op == "status_set" || strings.HasPrefix(o.Op, "trailer_") || work.StatusCode != previousStatus || !reflect.DeepEqual(work.Trailer, previousTrailers)) {
+				lastEntityRule = r
+			}
 			if e == nil && !validHeaders(work.Header, MaxHeadersBytes) {
 				e = invalid()
 			}
@@ -697,10 +700,10 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 	}
 	if noBody(work.StatusCode) {
 		if len(trailers) > 0 {
-			return fallback(lastRule, invalid())
+			return fallback(lastEntityRule, invalid())
 		}
 		if body.complete && len(body.current) > 0 {
-			return fallback(lastRule, invalid())
+			return fallback(lastEntityRule, invalid())
 		}
 		if work.StatusCode != 101 {
 			if original.Body != nil {
@@ -731,7 +734,7 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 		work.Body = TrailerBody(source, original.Trailer, work.Trailer, trailers)
 	}
 	if len(trailers) > 0 && noBody(work.StatusCode) {
-		return fallback(lastRule, invalid())
+		return fallback(lastEntityRule, invalid())
 	}
 	if len(work.Trailer) > 0 {
 		work.ContentLength = -1

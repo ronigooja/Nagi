@@ -98,7 +98,14 @@ func run(scheme string, mode tunnel.TunnelMode, ca tls.Certificate) {
 			panic("JSON/gzip precision failed")
 		}
 
-		io.WriteString(w, "actual-engine-ok")
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Trailer", "X-Origin-Trailer")
+		encoded := gzip.NewWriter(w)
+		_, e = io.WriteString(encoded, `{"number":9007199254740993,"response":"original"}`)
+		must(e)
+		must(encoded.Close())
+		w.Header().Set("X-Origin-Trailer", "original")
 	}))
 	if scheme == "https" {
 		cfg, e := goproxy.TLSConfigFromCA(&ca)("mirror.service.example", &goproxy.ProxyCtx{Proxy: &goproxy.ProxyHttpServer{}})
@@ -115,7 +122,11 @@ func run(scheme string, mode tunnel.TunnelMode, ca tls.Certificate) {
 	p, e := strconv.Atoi(port)
 	must(e)
 	doc := fmt.Sprintf(`{"version":2,"enabled":false,"scripts":[],"rules":[{"id":"edit","enabled":true,"stage":"request","range_mode":"fragment","match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/"},"on_error":"block","redirect_consent":[{"domain":"mirror.service.example","schemes":["%s"],"ports":[%d]}],"operations":[{"op":"header_set","name":"X-Rewritten","value":"yes"},{"op":"url_set","component":"host","value":"mirror.service.example"},{"op":"url_set","component":"path","value":"/changed"},{"op":"url_set","component":"query","value":"case=fixture"},{"op":"json_set","pointer":"/edited","value":true}]}]}`, scheme, p)
-	snapshot, e := D.Parse([]byte(doc))
+	var document D.Document
+	must(json.Unmarshal([]byte(doc), &document))
+	document.Scripts = []D.Script{{ID: "response-script", BodyAccess: "none", Source: `function transform(input){if(input.original.request.url.indexOf("api.service.example")<0)throw "original";return {action:"replace",message:{headers:Object.assign({},input.message.headers,{"X-Script":["yes"]})}}}`}}
+	document.Rules = append(document.Rules, D.Rule{ID: "response", Enabled: true, Stage: D.StageResponse, Match: D.Match{Domain: "api.service.example", StatusCodes: []int{200}, ContentTypes: []string{"application/json"}}, OnError: "block", RangeMode: "fragment", RedirectConsent: []D.Consent{}, Operations: []D.Operation{{Op: "script", Script: "response-script"}, {Op: "json_set", Pointer: "/response", Value: json.RawMessage(`true`)}, {Op: "trailer_set", Name: "X-Origin-Trailer", Value: json.RawMessage(`"edited"`)}}})
+	snapshot, e := D.Compile(document)
 	must(e)
 	service, e := S.New(snapshot, ca)
 	must(e)
@@ -165,11 +176,14 @@ func run(scheme string, mode tunnel.TunnelMode, ca tls.Certificate) {
 	must(req.Write(conn))
 	resp, e := http.ReadResponse(bufio.NewReader(conn), req)
 	must(e)
-	b, e := io.ReadAll(resp.Body)
+	decoded, e := gzip.NewReader(resp.Body)
 	must(e)
-	resp.Body.Close()
-	if string(b) != "actual-engine-ok" {
-		panic(string(b))
+	data, e := io.ReadAll(decoded)
+	must(e)
+	must(decoded.Close())
+	must(resp.Body.Close())
+	if string(data) != `{"number":9007199254740993,"response":true}` || resp.Header.Get("X-Script") != "yes" || resp.Trailer.Get("X-Origin-Trailer") != "edited" {
+		panic("response script/body/trailer transformation failed")
 	}
 	fmt.Printf("passed %s %s\n", scheme, mode.String())
 }
