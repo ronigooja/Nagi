@@ -116,7 +116,7 @@ func RequestRewritePage() *Page {
 				Item{Label: "Import document from file", Impact: rewriteEffect, Action: rewriteFileForm(profile, "import")},
 				Item{Label: "Export document to file", Impact: rewriteSensitive, Action: rewriteFileForm(profile, "export")})
 		}
-		view.Actions = append(view.Actions, Item{Label: "Certificate Authority", Next: rewriteCAPage}, Item{Label: "Recovery", Next: func() *Page { return rewriteRecoveryPage(profile, known) }})
+		view.Actions = append(view.Actions, Item{Label: "Original Capture", Next: capturePage}, Item{Label: "Certificate Authority", Next: rewriteCAPage}, Item{Label: "Recovery", Next: func() *Page { return rewriteRecoveryPage(profile, known) }})
 		if rewriteFailed(r) {
 			return view, rewriteReadError(r)
 		}

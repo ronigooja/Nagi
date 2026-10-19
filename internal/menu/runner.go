@@ -153,7 +153,7 @@ func (r *commandRunner) Stream(ctx context.Context, args []string, out io.Writer
 	return Result{}
 }
 
-// RawRunner is restricted to explicit request-rewrite document/public CA exports.
+// RawRunner is restricted to explicit rewrite document, public CA and capture exports.
 // Raw data is for the selected sensitive workflow, never ordinary presentation.
 type RawRunner interface {
 	RunRaw(context.Context, []string) Result
@@ -170,9 +170,14 @@ func (r *commandRunner) RunRaw(ctx context.Context, args []string) Result {
 	if len(args) == 4 && args[0] == "request-rewrite" && args[1] == "ca" && args[2] == "export" {
 		valid = true
 	}
+	captureExport := (len(args) == 4 || len(args) == 5) && args[0] == "request-rewrite" && args[1] == "capture" && args[2] == "export"
+	if captureExport && len(args) == 5 && args[4] != "native" && args[4] != "har" {
+		captureExport = false
+	}
+	valid = valid || captureExport
 	if valid {
 		destination := args[2]
-		if args[1] == "ca" {
+		if args[1] == "ca" || captureExport {
 			destination = args[3]
 		}
 		if destination == "" || (strings.HasPrefix(destination, "-") && destination != "-") {
