@@ -5,6 +5,15 @@ struct CaptureScope: Codable, Equatable, Sendable {
     var processPaths: [String] = []
     var appPaths: [String] = []
     enum CodingKeys: String, CodingKey { case domains; case processPaths = "process_paths", appPaths = "app_paths" }
+    init(domains: [String] = [], processPaths: [String] = [], appPaths: [String] = []) {
+        self.domains = domains; self.processPaths = processPaths; self.appPaths = appPaths
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        domains = try values.decodeIfPresent([String].self, forKey: .domains) ?? []
+        processPaths = try values.decodeIfPresent([String].self, forKey: .processPaths) ?? []
+        appPaths = try values.decodeIfPresent([String].self, forKey: .appPaths) ?? []
+    }
 }
 struct CaptureStatus: Codable, Sendable {
     let sessionID: String
@@ -67,6 +76,14 @@ struct CaptureBodyChunk: Decodable, Sendable {
     let eof: Bool
     let state: String
     enum CodingKeys: String, CodingKey { case data, offset, eof, state; case nextOffset = "next_offset" }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        data = try values.decodeIfPresent(Data.self, forKey: .data) ?? Data()
+        offset = try values.decode(Int64.self, forKey: .offset)
+        nextOffset = try values.decode(Int64.self, forKey: .nextOffset)
+        eof = try values.decode(Bool.self, forKey: .eof)
+        state = try values.decode(String.self, forKey: .state)
+    }
 }
 struct CaptureReply: Decodable, Sendable {
     let sensitive: Bool
@@ -112,6 +129,14 @@ func captureBodyText(_ data: Data, format: CaptureBodyFormat, before: Data? = ni
         if before == data { return "No body changes.\n" + captureBodyText(data, format: .raw) }
         let old = captureBodyText(before, format: .raw).components(separatedBy: "\n")
         let new = captureBodyText(data, format: .raw).components(separatedBy: "\n")
-        return old.map { "− " + $0 }.joined(separator: "\n") + "\n" + new.map { "+ " + $0 }.joined(separator: "\n")
+        // A linear prefix/suffix diff stays responsive even for multi-MiB streams.
+        var prefix = 0, suffix = 0
+        while prefix < min(old.count, new.count), old[prefix] == new[prefix] { prefix += 1 }
+        while suffix < min(old.count, new.count) - prefix, old[old.count - 1 - suffix] == new[new.count - 1 - suffix] { suffix += 1 }
+        let commonStart = old.prefix(prefix).map { "  " + $0 }
+        let removed = old[prefix..<(old.count - suffix)].map { "− " + $0 }
+        let inserted = new[prefix..<(new.count - suffix)].map { "+ " + $0 }
+        let commonEnd = old.suffix(suffix).map { "  " + $0 }
+        return (commonStart + removed + inserted + commonEnd).joined(separator: "\n")
     }
 }

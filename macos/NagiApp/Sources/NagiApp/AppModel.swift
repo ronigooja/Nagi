@@ -175,6 +175,10 @@ enum EngineState { case starting, running, stopped, unavailable }
             await self.waitForConnectionsOperation(skipCaptureOperation: true)
             try await self.cli.captureExport(arguments)
         }
+        capture.draftRun = { [weak self] arguments, input in
+            guard let self else { throw CancellationError() }
+            return try await self.executeRewrite(arguments, input: input)
+        }
         capture.onStatusChange = { [weak self] in self?.notify() }
         return capture
     }()

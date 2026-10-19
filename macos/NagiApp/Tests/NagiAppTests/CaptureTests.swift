@@ -111,3 +111,78 @@ final class CaptureTests: XCTestCase {
         XCTFail("Timed out waiting for capture model")
     }
 }
+
+extension CaptureTests {
+    func testNullScopeArraysAndEmptyBodyRemainDistinctFromCollecting() throws {
+        let scope = try JSONDecoder().decode(CaptureScope.self, from: Data(#"{"domains":null,"process_paths":null,"app_paths":null}"#.utf8))
+        XCTAssertEqual(scope, CaptureScope())
+        let empty = try JSONDecoder().decode(CaptureBodyChunk.self, from: Data(#"{"data":null,"offset":0,"next_offset":0,"eof":true,"state":"complete"}"#.utf8))
+        let pending = try JSONDecoder().decode(CaptureBodyChunk.self, from: Data(#"{"data":null,"offset":0,"next_offset":0,"eof":false,"state":"collecting"}"#.utf8))
+        XCTAssertTrue(empty.data.isEmpty); XCTAssertEqual(empty.state, "complete")
+        XCTAssertFalse(pending.eof); XCTAssertEqual(pending.state, "collecting")
+    }
+    func testRealTransportUsesStdinAndCancelsChild() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("nagi-capture-transport-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("fixture.py")
+        try #"""
+        #!/usr/bin/python3
+        import sys,json,time
+        if sys.argv[4] == 'start':
+            assert sys.argv[1:] == ['--json','rewrite','capture','start','-']
+            assert json.load(sys.stdin)['scope']['domains'] == ['private.example.invalid']
+            print(json.dumps({'ok':True,'data':{'sensitive':True}}))
+        else:
+            time.sleep(30)
+        """#.write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
+        let client = NagiCLIClient(executable: file, timeout: 40)
+        let result = try await client.capture(["start", "-"], input: Data(#"{"scope":{"domains":["private.example.invalid"]}}"#.utf8))
+        XCTAssertTrue(result.sensitive)
+        let start = Date()
+        let task = Task { try await client.capture(["status"]) }
+        try await Task.sleep(nanoseconds: 80_000_000); task.cancel()
+        do { _ = try await task.value; XCTFail("Expected cancellation") } catch is CancellationError { }
+        XCTAssertLessThan(Date().timeIntervalSince(start), 3)
+    }
+    @MainActor func testWindowMinimizeHideAndCloseCancelWithoutStartingCapture() async throws {
+        _ = NSApplication.shared
+        let status = try reply()
+        var starts = 0, cancelled = 0, mutations: [String] = []
+        let model = CaptureModel(read: { _, _ in
+            starts += 1
+            do { try await Task.sleep(nanoseconds: 20_000_000_000) } catch { cancelled += 1; throw error }
+            return status
+        }, submit: { args, _ in mutations.append(args[0]); return status }, export: { _ in }, interval: 60_000_000_000)
+        let controller = CaptureWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        XCTAssertEqual(window.title, "Nagi Capture")
+        XCTAssertTrue(window.styleMask.contains(.resizable)); XCTAssertTrue(window.styleMask.contains(.miniaturizable))
+        XCTAssertFalse(window.isReleasedWhenClosed)
+        controller.present(); await wait { starts == 1 }
+        window.miniaturize(nil); await wait { cancelled == 1 }
+        controller.present(); await wait { starts == 2 }
+        window.orderOut(nil); await wait { cancelled == 2 }
+        controller.present(); await wait { starts == 3 }
+        model.setSuspended(true); await wait { cancelled == 3 }
+        model.setSuspended(false); await wait { starts == 4 }
+        window.close(); await wait { cancelled == 4 }
+        XCTAssertTrue(mutations.isEmpty)
+    }
+    @MainActor func testSettingsAndQuitWaitForSubmittedCapture() async throws {
+        var release: CheckedContinuation<Void, Never>?, submitted = false, commands: [[String]] = [], completion: Bool?
+        let app = AppModel(runCommand: { args in commands.append(args); return .objectValue([:]) })
+        let status = try reply()
+        app.capture.submit = { _, _ in submitted = true; await withCheckedContinuation { release = $0 }; return status }
+        let operation = Task { await app.capture.perform(["start", "-"], input: Data("{}".utf8)) }
+        await wait { submitted }
+        app.quit { completion = $0 }
+        try await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertFalse(commands.contains(["quit"]))
+        release?.resume(); _ = await operation.value
+        await wait { completion != nil }
+        XCTAssertEqual(completion, true)
+        XCTAssertTrue(commands.contains(["quit"]))
+    }
+}

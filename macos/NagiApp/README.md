@@ -52,6 +52,49 @@ The window reads immediately on opening and attempts a new snapshot every second
 
 **Close Connection** submits the selected ID once. **Close All Connections…** asks for confirmation and affects all current mihomo connections, including those excluded by search. Applications may reconnect automatically. Success means mihomo accepted the request, including an ID that already disappeared; no closed count is reported. Failures and timeouts appear in the window and are never automatically retried. Close operations are coordinated with settings and quit cleanup. Connection reads do not animate the status icon or rebuild the menu. See the [CLI connection contract](../../docs/reference/cli.md#proxy-latency-connections-and-mode) and [window design](../../docs/design/connections-window.md).
 
+## Capture window
+
+**Capture…** opens the native request browser. Start a session explicitly after
+configuring TUN and certificate trust through the existing controls. Starting
+capture never enables TUN or installs trust. Capture applies to new connections;
+create a new connection in the application after starting it.
+
+The scope accepts domain patterns, exact process paths and application bundle
+paths, including paths entered before the application appears in **Find
+Applications**. Empty scope captures all applications. Different scope categories
+combine; entries within one category are alternatives. The selected scope and
+body limit apply to the next session. Use **Pause**, **Resume**, **Stop** and
+**Clear** to manage the current session. The menu bar also shows the recording
+state and offers **Stop Capture**.
+
+The list includes HTTP exchanges and both WebSocket message directions. Search
+uses original URLs, headers and bodies; kind, domain and process filters narrow
+the list. Sorting and refresh preserve selection by record ID. Select an exchange
+to inspect request/response snapshots, headers, trailers, body collection state,
+matched rules and its WebSocket message timeline. Raw text, formatted JSON, hex
+and before/after body comparisons are available. Header, URL, status and selected
+body text context menus expose the selected field to the quick-rule editor when
+that editor is installed; a JSON pointer selects a structured body field.
+
+Captured URLs, query parameters, Authorization, Cookie and body values are shown,
+searched and copied directly. Native archives and HAR exports include this
+original content and must be kept private. Export and import use the CLI;
+imported sessions are stopped and read-only. History stays in memory unless
+explicitly exported. Ordinary errors do not include captured content.
+
+Hiding, minimizing and sleeping cancel reads. Returning to the window resumes
+queries immediately without starting or resuming recording. Closing the window
+stops only a session started by that App window and retains history; a session
+started from the CLI survives window closure. App quit stops its own session
+before the existing quit cleanup. Profile/backend changes or TUN/engine exit stop
+capture, and later restart does not resume it. Settings operations, capture
+mutations and quit cleanup share the App operation gate.
+
+The native source compiles and has model, transport and window lifecycle tests.
+Live TUN, trust, privileged-helper and capture-to-rule acceptance remain separate
+platform checks. The shared contract is in the
+[capture design](../../docs/design/request-capture.md).
+
 Dialog text fields use AppKit's standard editing commands: **⌘V** to paste, **⌘C** to copy, **⌘X** to cut, **⌘A** to select all, **⌘Z** to undo, and **⇧⌘Z** to redo when available. The app installs an Edit menu and routes these commands to the focused input, including the editable provider group selector. After changing this menu, verify shortcuts on macOS in both Add Provider… and Add and Apply Subscription…, including after a validation error keeps a dialog open.
 
 The top of the status menu contains one summary row. Errors, including an enabled TUN whose adapter is absent or down, show **Nagi · Error** with a trailing `exclamationmark.triangle` SF Symbol; ordinary operation notices show **Nagi · Info** with a trailing `info.circle` SF Symbol when there are no errors. Both symbols use the same 14-point size and baseline alignment. Its submenu contains only current error and notice text, without repeated icons or an engine-state row. Detail text wraps within a 320-point row without truncation. These messages do not appear as separate rows in the main menu. With no messages, the summary shows the engine state directly. Notices keep their existing lifetime: they have no dismissal timer and are cleared when another relevant operation begins. The Subscriptions menu offers Add and Apply Subscription… to prompt for a name, URL, update interval, and optional latency test URL, save the record and these settings, download and validate its cache, and apply it in sequence. The update interval accepts `off`, 1 through 31,536,000 seconds, and common choices of 1, 6, or 24 hours. Each saved subscription shows quota, expiry when available, next update or scheduler status, and any pause or failure, followed by **Update and Apply**, **Update Settings…**, **Latency Check Settings…**, and **Delete Subscription…**. Provider and subscription download intervals remain separate from automatic latency check intervals. A failed download prevents apply and retains the saved record; a failed apply retains the new cache and reports that activation failed. Retry Update and Apply. For an encrypted feed, set its identity file with `nagi subscription key NAME FILE` in the CLI first, then retry in the app. The Update and Apply tooltip and creation prompt disclose that apply updates the subscription, retains local settings and nodes, and clears saved selections. These operations do not implicitly start mihomo or enable traffic access. Ordinary CLI subscription preview, download-only update, and cached apply remain available. Deleting a subscription removes its record and cache after confirmation and leaves any previously applied profile intact. Mihomo Selector, URLTest, and Fallback groups offer clickable node choices. Automatic groups show their current result or fixed choice and offer Restore Automatic Selection; other group types show their members as read-only items. Groups with no members show an explicit message. A TUN setting can be on while its adapter is absent or down; the status summary includes that warning in its submenu. Under “Login,” “Run engine at login” installs or uninstalls the CLI's login service; uninstalling removes its service definition and leaves profiles and settings intact. “Open menu bar app at login” uses macOS `SMAppService` and requires an installed app bundle.

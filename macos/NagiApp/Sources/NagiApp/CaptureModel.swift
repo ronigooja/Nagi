@@ -5,6 +5,7 @@ import Foundation
     var onChange: (() -> Void)?
     var onStatusChange: (() -> Void)?
     var onCreateRule: ((CaptureSelectionContext) -> Void)?
+    var draftRun: RequestRewriteModel.Run?
     var submit: Run
     var export: ([String]) async throws -> Void
     let read: Run
@@ -29,7 +30,8 @@ import Foundation
     var isReading: Bool { readTask != nil }
     private var visible = false, blocked = false, suspended = false
     private var generation: UInt64 = 0, detailGeneration: UInt64 = 0
-    private var readTask: Task<Void, Never>?, detailTask: Task<Void, Never>?, timer: Task<Void, Never>?
+    private var readTask: Task<Void, Never>?, detailTask: Task<Void, Never>?, timer: Task<Void, Never>?, applicationTask: Task<Void, Never>?
+    private var pendingDetail = false
     private var pendingRead = false
     private var query = "", kind = "", domain = "", processPath = ""
     private var ascending = false
@@ -41,6 +43,7 @@ import Foundation
     convenience init(cli: NagiCLIClient = NagiCLIClient()) {
         self.init(read: { try await cli.capture($0, input: $1) }, submit: { try await cli.capture($0, input: $1) },
                   export: { try await cli.captureExport($0) }, discover: { try await cli.captureApps() })
+        draftRun = { try await cli.rewrite($0, input: $1) }
     }
     func setVisible(_ value: Bool) { visible = value; updateActivity() }
     func setSuspended(_ value: Bool) { suspended = value; updateActivity() }
@@ -48,7 +51,8 @@ import Foundation
     private var active: Bool { visible && !blocked && !suspended && !operationInProgress }
     private func cancelReads() {
         generation &+= 1; detailGeneration &+= 1
-        readTask?.cancel(); detailTask?.cancel(); timer?.cancel(); timer = nil
+        readTask?.cancel(); detailTask?.cancel(); applicationTask?.cancel(); timer?.cancel(); timer = nil
+        pendingDetail = false
         stale = true; pendingRead = false
     }
     private func updateActivity() {
@@ -66,7 +70,7 @@ import Foundation
         } else { cancelReads() }
         notify()
     }
-    func waitForCancelledRead() async { await readTask?.value; await detailTask?.value }
+    func waitForCancelledRead() async { await readTask?.value; await detailTask?.value; await applicationTask?.value }
     func setFilters(query: String, kind: String, domain: String, processPath: String, ascending: Bool) {
         self.query = query; self.kind = kind; self.domain = domain; self.processPath = processPath; self.ascending = ascending
         generation &+= 1; readTask?.cancel(); pendingRead = active
@@ -84,14 +88,18 @@ import Foundation
                 let reply = try await read(["status"], nil)
                 var records: [CaptureRecord]?
                 if includeRecords, reply.status != nil {
-                    var all: [CaptureRecord] = [], cursor = ""
+                    var all: [CaptureRecord] = [], cursor = "", seenCursors: Set<String> = []
                     repeat {
                         let input: [String: Any] = ["query": query, "kind": kind, "domain": domain, "process_path": processPath, "cursor": cursor, "limit": 100]
                         let page = try await read(["list", "-"], try JSONSerialization.data(withJSONObject: input))
                         try Task.checkCancellation()
                         all += page.records ?? []; cursor = page.nextCursor ?? ""
+                        guard all.count <= 1000, cursor.isEmpty || seenCursors.insert(cursor).inserted else { throw CLIError.invalidJSON("Capture pagination exceeded its bounds. Refresh to retry.") }
                     } while !cursor.isEmpty
-                    records = await Task.detached(priority: .userInitiated) { all.sorted { ascending ? $0.started < $1.started : $0.started > $1.started } }.value
+                    records = await Task.detached(priority: .userInitiated) { all.sorted {
+                        if $0.started == $1.started { return $0.id < $1.id }
+                        return ascending ? $0.started < $1.started : $0.started > $1.started
+                    } }.value
                 }
                 guard let self, !Task.isCancelled, token == self.generation else { self?.finishRead(); return }
                 if self.status?.sessionID != reply.status?.sessionID { self.select(nil); self.records = [] }
@@ -116,10 +124,11 @@ import Foundation
         if resume && active { refresh() }
     }
     func discoverApplications() {
-        guard canOperate else { return }
-        Task { [weak self, discover] in
-            do { let apps = try await discover(); guard let self, self.active else { return }; self.applications = apps; self.notify() }
-            catch { self?.error = "Application list unavailable: \(error.localizedDescription)"; self?.notify() }
+        guard canOperate, applicationTask == nil else { return }
+        applicationTask = Task { [weak self, discover] in
+            defer { self?.applicationTask = nil }
+            do { let apps = try await discover(); guard let self, self.active, !Task.isCancelled else { return }; self.applications = apps; self.notify() }
+            catch { if !Task.isCancelled { self?.error = "Application list unavailable: \(error.localizedDescription)"; self?.notify() } }
         }
     }
     func select(_ id: String?) {
@@ -128,15 +137,12 @@ import Foundation
         loadDetail(); notify()
     }
     func selectSnapshot(_ name: String) { selectedSnapshotName = name; selectedBody = Data(); bodyText = ""; detailGeneration &+= 1; detailTask?.cancel(); loadDetail(); notify() }
-    func setFormat(_ value: CaptureBodyFormat) { format = value; detailGeneration &+= 1; detailTask?.cancel(); loadDetail() }
+    func setFormat(_ value: CaptureBodyFormat) { format = value; detailGeneration &+= 1; detailTask?.cancel(); loadDetail(); notify() }
     private func loadDetail() {
         guard active, let record = selectedRecord else { return }
         // Preserve the process slot until cancellation has drained all pipe readers.
-        if let pending = detailTask {
-            let token = detailGeneration
-            Task { [weak self] in await pending.value; guard let self, token == self.detailGeneration else { return }; self.loadDetail() }
-            return
-        }
+        if detailTask != nil { pendingDetail = true; return }
+        pendingDetail = false
         let token = detailGeneration, name = selectedSnapshotName, read = self.read, format = self.format
         readingBody = true
         detailTask = Task { [weak self] in
@@ -158,7 +164,12 @@ import Foundation
             self?.finishDetail()
         }
     }
-    private func finishDetail() { detailTask = nil; readingBody = false; notify() }
+    private func finishDetail() {
+        detailTask = nil; readingBody = false
+        let resume = pendingDetail; pendingDetail = false
+        if resume && active { loadDetail() }
+        notify()
+    }
     private static func readBody(_ read: Run, id: String, snapshot: String) async throws -> Data {
         var data = Data(), offset: Int64 = 0
         while true {
