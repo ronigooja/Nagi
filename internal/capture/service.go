@@ -73,6 +73,8 @@ func secureParent(path string, uid int) error {
 
 // Serve runs an owner-authenticated private Unix service until ctx is canceled.
 func Serve(ctx context.Context, socket string, ownerUID int) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	if err := secureParent(socket, ownerUID); err != nil {
 		return err
 	}
@@ -114,6 +116,21 @@ func Serve(ctx context.Context, socket string, ownerUID int) error {
 			return false
 		}
 	}
+	mux.HandleFunc("/shutdown", func(w http.ResponseWriter, r *http.Request) {
+		if !authorize(w, r) {
+			return
+		}
+		defer func() { <-slots }()
+		if r.Method != http.MethodPost || r.ContentLength > 0 || len(r.TransferEncoding) > 0 || r.URL.RawQuery != "" {
+			http.Error(w, "capture_request_invalid", 400)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		cancel()
+	})
 	mux.HandleFunc("/call", func(w http.ResponseWriter, r *http.Request) {
 		if !authorize(w, r) {
 			return
@@ -260,4 +277,23 @@ func (s *Sink) Close() {
 		<-s.done
 	}
 	s.cancel()
+}
+
+// Shutdown explicitly ends the private memory-only recorder.
+func Shutdown(ctx context.Context, socket string) error {
+	c := httpClient(socket)
+	defer c.CloseIdleConnections()
+	q, e := http.NewRequestWithContext(ctx, http.MethodPost, "http://capture/shutdown", nil)
+	if e != nil {
+		return ErrUnavailable
+	}
+	r, e := c.Do(q)
+	if e != nil {
+		return ErrUnavailable
+	}
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		return ErrUnavailable
+	}
+	return nil
 }

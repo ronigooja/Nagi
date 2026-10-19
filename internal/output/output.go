@@ -41,6 +41,8 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return json.NewEncoder(w).Encode(Envelope{OK: true, Data: data})
 	}
 	switch v := data.(type) {
+	case CaptureResult:
+		return writeCapture(w, v)
 	case Raw:
 		_, err := w.Write(v)
 		return err

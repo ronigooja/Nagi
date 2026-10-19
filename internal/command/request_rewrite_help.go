@@ -3,9 +3,9 @@ package command
 import "strings"
 
 func init() {
-	type entry struct{ path, syntax, summary, detail, example string }
+	type entry = rewriteHelpEntry
 	entries := []entry{
-		{"", "<command>", "Manage TUN request rewriting", "Default off. Configure ordered request, response and WebSocket rules and local scripts; enable requires running TUN, compatible mihomo and a trusted local CA. Commands: status, enable, disable, scripts, rules, import, export, validate, preview, ca.", "status"},
+		{"", "<command>", "Manage TUN request rewriting", "Default off. Configure ordered request, response and WebSocket rules and local scripts; enable requires running TUN, compatible mihomo and a trusted local CA. Commands: status, enable, disable, scripts, rules, import, export, validate, preview, ca, capture, draft.", "status"},
 		{"status", "", "Show confirmed rewrite state", "Show saved intent separately from actual runtime state, versions, CA trust and recovery guidance.", "status"},
 		{"enable", "", "Enable rewriting for selected profile", "Requires compatible mihomo, actually running TUN and trusted CA. Does not start TUN or install trust. --profile is not accepted.", "enable"},
 		{"disable", "", "Disable rewriting for selected profile", "Drain and disable runtime rewriting. Retain rule/script data, CA and OS trust. --profile is not accepted.", "disable"},
@@ -37,6 +37,7 @@ func init() {
 		{"ca trust install", "", "Install CA trust explicitly", "Install public certificate into the supported OS trust store and assess resulting trust. May require platform authorization.", "ca trust install"},
 		{"ca trust remove", "", "Remove CA trust explicitly", "Remove OS trust without deleting the private CA. Disable rewriting first; verify trust removal in platform state.", "ca trust remove"},
 	}
+	entries = append(entries, captureHelpEntries()...)
 	for _, e := range entries {
 		path := "request-rewrite"
 		if e.path != "" {
@@ -47,7 +48,7 @@ func init() {
 			syntax += " " + e.syntax
 		}
 		min, max := rewriteArity(path)
-		if e.path == "" || e.path == "scripts" || e.path == "rules" || e.path == "ca" || e.path == "ca trust" {
+		if e.path == "" || e.path == "scripts" || e.path == "rules" || e.path == "ca" || e.path == "ca trust" || e.path == "capture" || e.path == "draft" {
 			max = -1
 		} else if e.path != "status" && e.path != "enable" && e.path != "disable" && e.path != "ca status" && e.path != "ca generate" && e.path != "ca export" && e.path != "ca trust install" && e.path != "ca trust remove" {
 			max += 2

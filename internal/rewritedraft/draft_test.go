@@ -360,3 +360,18 @@ func TestAllOperationTypesUseExistingValidator(t *testing.T) {
 		}
 	}
 }
+
+func TestIncompleteOriginalAllowsDraftWithoutInventedFixture(t *testing.T) {
+	record := capture.Record{Kind: "http", Snapshots: map[string]capture.Snapshot{"request_original": {Scheme: "https", Host: "fixture.example", Method: "GET", Path: "/stream", BodyState: "cutoff", BodySize: 100, Captured: 2}}}
+	selection := Selection{Stage: "request", ID: "header", Operations: []requestrewrite.Operation{{Op: "header_delete", Name: "X-Fixture"}}}
+	draft, e := FromRecord(record, map[string][]byte{"request_original": []byte("ab")}, selection, requestrewrite.Empty())
+	if e != nil {
+		t.Fatal(e)
+	}
+	if draft.Fixture != nil {
+		t.Fatal("incomplete original turned into fixture")
+	}
+	if _, e = Preview(context.Background(), requestrewrite.Empty(), draft); e == nil {
+		t.Fatal("preview accepted missing original bytes")
+	}
+}

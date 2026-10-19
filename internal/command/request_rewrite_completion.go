@@ -33,17 +33,20 @@ const rewriteBashCompletion = `  if [[ ${semantic[0]} == request-rewrite || ${se
     fi
     if [[ $cur == --* ]]; then
       rwchoices='--json --help'
-      case "${rw[1]}" in scripts|rules|import|export|validate|preview) rwchoices+=' --profile';; esac
-    elif [[ ${#rw[@]} -eq 1 ]]; then rwchoices='status enable disable scripts rules import export validate preview ca'
+      case "${rw[1]}" in scripts|rules|import|export|validate|preview|draft) rwchoices+=' --profile';; esac
+    elif [[ ${#rw[@]} -eq 1 ]]; then rwchoices='status enable disable scripts rules import export validate preview ca capture draft'
     elif [[ ${#rw[@]} -eq 2 ]]; then
-      case "${rw[1]}" in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; import|export|validate|preview) rwfile=1;; esac
+      case "${rw[1]}" in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; capture) rwchoices='start status pause resume stop apps list show body clear export import fixture draft';; draft) rwchoices='preview save';; import|export|validate|preview) rwfile=1;; esac
     elif [[ ${#rw[@]} -eq 3 ]]; then
       case "${rw[1]} ${rw[2]}" in
         'ca trust') rwchoices='install remove';;
+ 'capture start'|'capture list'|'capture import'|'capture export'|'draft preview'|'draft save') rwfile=1;;
         'scripts show'|'scripts source'|'scripts update'|'scripts remove') rwkind=rewrite-scripts;;
         'rules update'|'rules remove'|'rules show'|'rules enable'|'rules disable') rwkind=rewrite-rules;;
         'scripts add'|'rules add'|'rules reorder'|'ca export') rwfile=1;;
       esac
+    elif [[ ${#rw[@]} -eq 4 && ${rw[1]} == capture ]]; then
+      case "${rw[2]}" in draft) rwfile=1;; export) rwchoices='native har';; body) rwchoices='request_original request_actual response_original response_actual message_original message_actual';; esac
     elif [[ ${#rw[@]} -eq 4 && ${rw[2]} == update && ( ${rw[1]} == rules || ${rw[1]} == scripts ) ]]; then rwfile=1
     fi
     if [[ -n $rwkind ]]; then
@@ -66,17 +69,20 @@ const rewriteZshCompletion = `  if [[ ${semantic[1]} == request-rewrite || ${sem
     if [[ $prev == --profile ]]; then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
     if [[ $words[CURRENT] == --* ]]; then
       rwchoices='--json --help'
-      case ${rw[2]} in scripts|rules|import|export|validate|preview) rwchoices+=' --profile';; esac
-    elif (( ${#rw} == 1 )); then rwchoices='status enable disable scripts rules import export validate preview ca'
+      case ${rw[2]} in scripts|rules|import|export|validate|preview|draft) rwchoices+=' --profile';; esac
+    elif (( ${#rw} == 1 )); then rwchoices='status enable disable scripts rules import export validate preview ca capture draft'
     elif (( ${#rw} == 2 )); then
-      case ${rw[2]} in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; import|export|validate|preview) rwfile=1;; esac
+      case ${rw[2]} in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; capture) rwchoices='start status pause resume stop apps list show body clear export import fixture draft';; draft) rwchoices='preview save';; import|export|validate|preview) rwfile=1;; esac
     elif (( ${#rw} == 3 )); then
       case "${rw[2]} ${rw[3]}" in
         'ca trust') rwchoices='install remove';;
+ 'capture start'|'capture list'|'capture import'|'capture export'|'draft preview'|'draft save') rwfile=1;;
         'scripts show'|'scripts source'|'scripts update'|'scripts remove') rwkind=rewrite-scripts;;
         'rules update'|'rules remove'|'rules show'|'rules enable'|'rules disable') rwkind=rewrite-rules;;
         'scripts add'|'rules add'|'rules reorder'|'ca export') rwfile=1;;
       esac
+    elif (( ${#rw} == 4 )) && [[ ${rw[2]} == capture ]]; then
+      case ${rw[3]} in draft) rwfile=1;; export) rwchoices='native har';; body) rwchoices='request_original request_actual response_original response_actual message_original message_actual';; esac
     elif (( ${#rw} == 4 )) && [[ ${rw[3]} == update && ( ${rw[2]} == scripts || ${rw[2]} == rules ) ]]; then rwfile=1
     fi
     if [[ -n $rwkind ]]; then
@@ -109,7 +115,7 @@ function __nagi_rewrite_ids
   nagi completion candidates $argv[1] $profile 2>/dev/null
 end
 `)
-	for _, group := range []struct{ path, choices string }{{"request-rewrite scripts", "list show source add update remove"}, {"request-rewrite rules", "list show add update remove enable disable reorder"}, {"request-rewrite ca", "status generate export trust"}, {"request-rewrite ca trust", "install remove"}} {
+	for _, group := range []struct{ path, choices string }{{"request-rewrite scripts", "list show source add update remove"}, {"request-rewrite rules", "list show add update remove enable disable reorder"}, {"request-rewrite ca", "status generate export trust"}, {"request-rewrite ca trust", "install remove"}, {"request-rewrite capture", "start status pause resume stop apps list show body clear export import fixture draft"}, {"request-rewrite draft", "preview save"}} {
 		parts := strings.Fields(group.path)
 		conditions := fmt.Sprintf("set -l s (__nagi_rewrite_words); test (count $s) -eq %d", len(parts))
 		for i, p := range parts {
@@ -123,6 +129,11 @@ complete -c nagi -f -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 3; 
 complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 2; and test "$s[1]" = request-rewrite; and contains -- "$s[2]" import export validate preview' -a '-'
 complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 3; and test "$s[1]" = request-rewrite; and begin; test "$s[2] $s[3]" = "scripts add"; or test "$s[2] $s[3]" = "rules add"; or test "$s[2] $s[3]" = "rules reorder"; or test "$s[2] $s[3]" = "ca export"; end' -a '-'
 complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 4; and test "$s[1]" = request-rewrite; and contains -- "$s[2]" scripts rules; and test "$s[3]" = update' -a '-'
+`)
+	b.WriteString(`complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 3; and test "$s[1]" = request-rewrite; and begin; test "$s[2]" = capture; and contains -- "$s[3]" start list import export; or test "$s[2]" = draft; and contains -- "$s[3]" preview save; end' -a '-'
+complete -c nagi -F -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 4; and test "$s[1] $s[2] $s[3]" = "request-rewrite capture draft"' -a '-'
+complete -c nagi -f -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 4; and test "$s[1] $s[2] $s[3]" = "request-rewrite capture export"' -a 'native har'
+complete -c nagi -f -n 'set -l s (__nagi_rewrite_words); test (count $s) -eq 4; and test "$s[1] $s[2] $s[3]" = "request-rewrite capture body"' -a 'request_original request_actual response_original response_actual message_original message_actual'
 `)
 	return b.String()
 }

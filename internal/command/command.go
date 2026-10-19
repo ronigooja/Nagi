@@ -53,6 +53,9 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 
 // RunWithInput keeps command input separate from argv, including pasted keys.
 func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, version, commit string) int {
+	if len(args) == 1 && args[0] == "__nagi-capture-service" {
+		return runCaptureService()
+	}
 	if len(args) == 2 && args[0] == "__nagi-request-rewrite-supervisor" {
 		return runRewriteSupervisor(args[1])
 	}
@@ -171,12 +174,16 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 	var inputErr error
 	if len(filtered) > 0 && filtered[0] == "request-rewrite" {
 		o, _ := parseRewriteArguments(filtered)
-		if jsonMode && (o.path == "request-rewrite export" || o.path == "request-rewrite ca export") {
+		if jsonMode && (o.path == "request-rewrite export" || o.path == "request-rewrite ca export" || o.path == "request-rewrite capture export") {
 			output.WriteError(stderr, jsonMode, "usage", "raw export does not accept --json; omit --json and use FILE or -")
 			return 2
 		}
 		var input []byte
-		input, inputErr = prepareRewriteInput(o, stdin)
+		if o.path != "request-rewrite capture import" {
+			input, inputErr = prepareRewriteInput(o, stdin)
+		}
+		ctx = context.WithValue(ctx, captureInputKey{}, stdin)
+		ctx = context.WithValue(ctx, captureOutputKey{}, stdout)
 		ctx = context.WithValue(ctx, rewriteInputKey{}, input)
 	}
 	if tailscaleInvocation(filtered) {

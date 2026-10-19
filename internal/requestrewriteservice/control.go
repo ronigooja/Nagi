@@ -3,12 +3,14 @@ package requestrewriteservice
 import (
 	"context"
 	"encoding/json"
+	"github.com/ronigooja/Nagi/internal/capture"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -127,6 +129,22 @@ func (s *Service) ListenControl(runtimeDir string, ownerUID int) (string, error)
 				http.Error(w, "rewrite_invalid", 400)
 				return
 			}
+		case r.Method == "PUT" && r.URL.Path == "/capture":
+			b, e := io.ReadAll(io.LimitReader(r.Body, 65537))
+			var update struct {
+				Version    int            `json:"version"`
+				Generation string         `json:"generation"`
+				Capture    capture.Policy `json:"capture"`
+			}
+			if e != nil || len(b) > 65536 || !uniqueJSON(b) || !exactKeys(b, reflect.TypeOf(update)) || json.Unmarshal(b, &update) != nil || update.Version != 2 || update.Generation != s.config.Generation {
+				http.Error(w, "rewrite_invalid", 409)
+				return
+			}
+			var raw map[string]json.RawMessage
+			if json.Unmarshal(b, &raw) != nil || len(raw) != 3 || raw["version"] == nil || raw["generation"] == nil || raw["capture"] == nil || s.SetCapture(update.Capture) != nil {
+				http.Error(w, "rewrite_invalid", 409)
+				return
+			}
 		case r.Method == "POST" && (r.URL.Path == "/drain" || r.URL.Path == "/shutdown"):
 			b, e := io.ReadAll(io.LimitReader(r.Body, 4097))
 			if e != nil || len(b) > 4096 || !uniqueJSON(b) {
@@ -181,6 +199,20 @@ func Control(ctx context.Context, socket, method, path, generation string) (Stat
 		}
 		body = `{"version":2,"generation":` + strconv.Quote(generation) + `}`
 	}
+	return controlBody(ctx, socket, method, path, body)
+}
+func ControlCapture(ctx context.Context, socket, generation string, policy capture.Policy) (Status, error) {
+	b, e := json.Marshal(struct {
+		Version    int            `json:"version"`
+		Generation string         `json:"generation"`
+		Capture    capture.Policy `json:"capture"`
+	}{2, generation, policy})
+	if e != nil {
+		return Status{}, errInvalid
+	}
+	return controlBody(ctx, socket, "PUT", "/capture", string(b))
+}
+func controlBody(ctx context.Context, socket, method, path, body string) (Status, error) {
 	transport := &http.Transport{Proxy: nil, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		conn, e := (&net.Dialer{}).DialContext(ctx, "unix", socket)
 		if e != nil {

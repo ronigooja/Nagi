@@ -103,6 +103,18 @@ type Snapshot struct {
 	regex     map[string]*regexp.Regexp
 }
 
+// Effective retains the configured version while suppressing all rules when
+// global rewriting is disabled. Capture can then use the same generation safely.
+func (s *Snapshot) Effective() *Snapshot {
+	if s.doc.Enabled {
+		return s
+	}
+	copy := *s
+	copy.doc = s.Document()
+	copy.doc.Rules = []Rule{}
+	return &copy
+}
+
 func (s *Snapshot) Version() string    { return s.version }
 func (s *Snapshot) Document() Document { var d Document; _ = json.Unmarshal(s.canonical, &d); return d }
 

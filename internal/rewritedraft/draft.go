@@ -125,8 +125,29 @@ func FromRecord(record capture.Record, bodies map[string][]byte, selection Selec
 		parents = append(parents, *selection.Context)
 	}
 	fixture, e := Fixture(record, bodies, selection.Stage, parents...)
+	completeFixture := e == nil
 	if e != nil {
-		return Draft{}, e
+		// A rule can be derived from trustworthy original metadata when a stream
+		// body is incomplete. Keep fixture absent: preview must not invent bytes.
+		original := record
+		switch selection.Stage {
+		case requestrewrite.StageRequest, requestrewrite.StageResponse, "exchange":
+			if record.Kind != "http" {
+				return Draft{}, invalid()
+			}
+		case requestrewrite.StageWebSocketClient, requestrewrite.StageWebSocketServer:
+			if record.Kind != "websocket" || record.Stage != selection.Stage || len(parents) != 1 || parents[0].Record.ID != record.ParentID || parents[0].Record.SessionID != record.SessionID {
+				return Draft{}, invalid()
+			}
+			original = parents[0].Record
+		default:
+			return Draft{}, invalid()
+		}
+		request, ok := original.Snapshots["request_original"]
+		if !ok || request.Host == "" || request.Method == "" {
+			return Draft{}, invalid()
+		}
+		fixture = requestrewrite.PreviewInput{Stage: selection.Stage, Request: requestrewrite.Fixture{Scheme: request.Scheme, Host: request.Host, Port: request.Port, Method: request.Method, Path: request.Path, Query: request.Query, Headers: copyHeaders(request.Headers)}}
 	}
 	match := requestrewrite.Match{Domain: fixture.Request.Host, Methods: []string{fixture.Request.Method}, PathRegex: "^" + regexp.QuoteMeta(fixture.Request.Path) + "$"}
 	if selection.Match != nil {
@@ -144,7 +165,10 @@ func FromRecord(record capture.Record, bodies map[string][]byte, selection Selec
 	if consent == nil {
 		consent = []requestrewrite.Consent{}
 	}
-	d := Draft{BaseRuleVersion: base.Version(), Position: position, Rule: requestrewrite.Rule{ID: selection.ID, Stage: selection.Stage, Match: match, OnError: onError, RangeMode: selection.RangeMode, RedirectConsent: consent, Operations: selection.Operations}, Fixture: &fixture, Enable: selection.Enable}
+	d := Draft{BaseRuleVersion: base.Version(), Position: position, Rule: requestrewrite.Rule{ID: selection.ID, Stage: selection.Stage, Match: match, OnError: onError, RangeMode: selection.RangeMode, RedirectConsent: consent, Operations: selection.Operations}, Enable: selection.Enable}
+	if completeFixture {
+		d.Fixture = &fixture
+	}
 	if _, e = Apply(base, d); e != nil {
 		return Draft{}, e
 	}

@@ -42,7 +42,7 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 		return o, errors.New("missing subcommand")
 	}
 	n := 2
-	if args[1] == "scripts" || args[1] == "rules" || args[1] == "ca" {
+	if args[1] == "scripts" || args[1] == "rules" || args[1] == "ca" || args[1] == "capture" || args[1] == "draft" {
 		n = 3
 	}
 	if len(args) >= 3 && args[1] == "ca" && args[2] == "trust" {
@@ -81,6 +81,11 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 	if len(o.values) > max {
 		return o, errors.New("too many arguments")
 	}
+	if args[1] == "capture" {
+		if err := validateCaptureArguments(o); err != nil {
+			return o, err
+		}
+	}
 	action := args[n-1]
 	if (args[1] == "scripts" || args[1] == "rules") && (action == "show" || action == "source" || action == "update" || action == "remove" || action == "enable" || action == "disable") && !rewriteID(o.values[0]) {
 		return o, errors.New("ID must contain 1..128 ASCII letters, digits, _ or -")
@@ -92,6 +97,16 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 }
 func rewriteArity(path string) (int, int) {
 	switch path {
+	case "request-rewrite draft preview", "request-rewrite draft save", "request-rewrite capture pause", "request-rewrite capture resume", "request-rewrite capture stop", "request-rewrite capture show", "request-rewrite capture clear", "request-rewrite capture import":
+		return 1, 1
+	case "request-rewrite capture start", "request-rewrite capture list":
+		return 0, 1
+	case "request-rewrite capture export":
+		return 1, 2
+	case "request-rewrite capture fixture", "request-rewrite capture draft":
+		return 2, 2
+	case "request-rewrite capture body":
+		return 3, 4
 	case "request-rewrite scripts add", "request-rewrite scripts show", "request-rewrite scripts source", "request-rewrite scripts remove", "request-rewrite rules add", "request-rewrite rules show", "request-rewrite rules remove", "request-rewrite rules enable", "request-rewrite rules disable", "request-rewrite rules reorder", "request-rewrite import", "request-rewrite export", "request-rewrite preview", "request-rewrite ca export":
 		return 1, 1
 	case "request-rewrite scripts update", "request-rewrite rules update":
@@ -103,6 +118,14 @@ func rewriteArity(path string) (int, int) {
 }
 func (o rewriteArguments) inputFile() string {
 	switch o.path {
+	case "request-rewrite draft preview", "request-rewrite draft save", "request-rewrite capture import":
+		return o.values[0]
+	case "request-rewrite capture start", "request-rewrite capture list":
+		if len(o.values) > 0 {
+			return o.values[0]
+		}
+	case "request-rewrite capture draft":
+		return o.values[1]
 	case "request-rewrite scripts add", "request-rewrite rules add", "request-rewrite rules reorder", "request-rewrite import", "request-rewrite preview":
 		return o.values[0]
 	case "request-rewrite scripts update", "request-rewrite rules update":
@@ -120,7 +143,7 @@ func prepareRewriteInput(o rewriteArguments, stdin io.Reader) ([]byte, error) {
 		return nil, nil
 	}
 	limit := rewrite.MaxDocumentBytes
-	if o.path == "request-rewrite preview" {
+	if o.path == "request-rewrite preview" || strings.HasPrefix(o.path, "request-rewrite draft ") {
 		limit = rewrite.MaxPreviewBytes
 	}
 	var reader io.Reader = stdin
@@ -266,6 +289,9 @@ func requestRewriteCommand(ctx context.Context, args []string, paths nagiruntime
 	if e != nil {
 		return nil, fail("usage", e)
 	}
+	if strings.HasPrefix(o.path, "request-rewrite capture ") {
+		return captureCommand(ctx, o, paths)
+	}
 	switch o.path {
 	case "request-rewrite status":
 		v, e := requestRewriteStatus(ctx, paths)
@@ -373,6 +399,9 @@ func requestRewriteCommand(ctx context.Context, args []string, paths nagiruntime
 			return nil, rewriteDomainError(e)
 		}
 		return rewriteResult(v)
+	}
+	if strings.HasPrefix(o.path, "request-rewrite draft ") {
+		return rewriteDraftCommand(ctx, o, paths, store, snapshot, data)
 	}
 	var saved rewrite.SaveResult
 	switch o.path {

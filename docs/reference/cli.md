@@ -757,3 +757,112 @@ Rule exports, script source and previews may contain credentials, complete URLs 
 Status data includes `config_version:2`, `profile`, `enabled_intent`, `actual`, `configured_rule_version`, optional `active_rule_version`, `generation`, `engine_epoch`, nullable `tun_running`, `backend`, nullable `service_running`, nullable `protocol_version`, `ca`, nullable redacted `last_error`, and recovery guidance when available. `actual` is `disabled`, `idle`, `starting`, `active`, `blocked`, `draining`, `unavailable` or `uncertain`. Missing runtime evidence is `unavailable`/null, even if saved intent is false; neither intent nor a PID proves activation. When child health is available, `counters` contains `requests`, `responses`, `messages`, `rewritten`, `stage_hits`, `transform_failures`, `fallbacks`, `resource_exhaustion`, `script_timeouts` and `websocket_abnormal_closes`. Counts are nonnegative integers for that child generation; a recovered original fallback increments both its failure category and `fallbacks`. CA metadata uses `state`, `trust`, optional public fingerprint and RFC 3339 validity timestamps. Human timestamps omit seconds. Script/rule mutation results include `{profile,saved,configured_rule_version,active_rule_version,actual}`. List/show include profile and configured version; validation returns `valid:true` and version, or fails with a redacted stable reason. Invalid supplied documents do not return success.
 
 JSON and exit behavior follow the [common interface](#json-and-exit-codes): success stdout, failure stderr, exit `0` success, `2` usage, `1` operation failure. Rewrite operation errors use `request_rewrite_error` with a stable sanitized reason, such as `rewrite_invalid`, `rewrite_limit`, `rewrite_tun_required`, `rewrite_ca_required`, `rewrite_capability_missing`, `rewrite_activation_failed` or `rewrite_state_uncertain`, plus a recovery command. Help and generated Bash/Zsh/Fish scripts require no valid profile or engine. Completion offers command paths, `--profile`, local files/`-`, profile names, and local rule/script IDs through `completion candidates rewrite-rules [PROFILE]` and `completion candidates rewrite-scripts [PROFILE]`; these ID sources contact no engine and expose no rule values.
+
+### Original request capture and capture-derived drafts
+
+`nagi rewrite capture` and `nagi request-rewrite capture` share the following
+commands and the existing `--json` success/error envelope:
+
+```text
+capture start [FILE|-]
+capture status
+capture pause SESSION
+capture resume SESSION
+capture stop SESSION
+capture apps
+capture list [FILE|-]
+capture show RECORD
+capture body RECORD SNAPSHOT OFFSET [LIMIT]
+capture clear SESSION
+capture export FILE [native|har]
+capture import FILE|-
+capture fixture RECORD STAGE
+capture draft RECORD FILE|-
+rewrite draft preview FILE|- [--profile NAME]
+rewrite draft save FILE|- [--profile NAME]
+```
+
+The `capture` lines above follow either rewrite alias. Capture uses the selected
+profile; it rejects `--profile`. Start requires a running TUN engine advertising
+`capture_protocol:1` and an explicitly generated, trusted rewrite CA. It never
+starts TUN, generates a CA, or installs trust. Rules may remain globally disabled:
+capture suppresses their transformations while retaining the configured rule
+version. Initial attachment creates a rule generation; pause, resume and stop
+update capture policy without replacing the generation or terminating open
+streams. Rule changes retain recorder history. Profile/backend changes and
+TUN/engine exit stop collection; engine restart does not resume it.
+
+Start reads an optional JSON object from a private file or stdin:
+
+```json
+{"owner":"cli","scope":{"domains":["api.fixture.example"],"process_paths":[],"app_paths":[]},"body_limit":1048576}
+```
+
+`session_id` is optional and otherwise generated. `profile` and `backend` are
+bound to the selected runtime. `owner` defaults to `cli`; a window can supply its
+own ownership token and stop only its own returned session. Empty scope arrays
+mean unrestricted capture. Populated categories are ANDed; entries within a
+category are ORed. Process paths match exactly. Application paths name outermost
+macOS `.app` directories and include their helpers. Unknown process identity
+does not match process/application restrictions. Domain patterns use rewrite
+syntax. The body limit defaults to 1 MiB per snapshot and is at most 8 MiB.
+
+Starting a session authorizes its original content reads. These commands show
+complete URLs, query/header/trailer values and bodies, including credentials;
+there is no redacted view or reveal operation. Ordinary diagnostics and errors
+continue to omit content. The independent recorder is memory-only, bounded to
+1,000 records and 64 MiB aggregate content and event buffering. Closing a CLI
+command retains the session. `stop` retains history; `clear` removes the named
+session's records and invalidates cursors. `quit` ends the recorder and discards
+memory-only history.
+
+`status`, state mutations, list/show/body and import return `capture.Reply` under
+`data`: `sensitive`, optional `status`, `records`, `record`, `body`, and
+`next_cursor`. Status includes session/revision/state, profile/backend/owner,
+scope/body limit, record/byte/drop/truncation counts and `read_only`. Lists and
+show omit body bytes while preserving all original metadata values. Human
+output uses minute precision for record timestamps; JSON retains timestamp
+formats. `apps` returns `{apps:[{process,process_path,app_path}],sensitive:true}`
+from recorded identities and currently observable engine connections; an empty
+list means no process identities were observed.
+
+List accepts optional JSON `{cursor,limit,query,kind,stage,process_path,domain}`.
+The default page limit is 100 and the maximum is 200. Search includes original
+content. Cursor values are opaque. Stable record IDs identify HTTP exchanges or
+WebSocket messages; messages include `parent_id` for their handshake. Snapshot
+names are `request_original`, `request_actual`, `response_original`,
+`response_actual`, `message_original`, and `message_actual`. Body reads use
+nonnegative decoded-byte offsets and return base64 `data`, `offset`,
+`next_offset`, `eof` and collection `state`; LIMIT defaults to 256 KiB and may be
+1 through 262144. Complete empty bodies, truncation, collection cutoff and
+failures remain distinct.
+
+Export streams raw native NDJSON (default) or HAR, rejects `--json`, refuses an
+existing file and creates files with mode 0600. `-` writes raw stdout. Native
+archives contain a versioned session header, records, body chunks and a required
+end marker; HAR retains WebSocket information in named extensions. Import streams
+a native archive from a private file or stdin, validates it before replacing the
+retained stopped session, and creates an offline stopped/read-only session.
+Import during recording or pause fails. Imported history cannot be cleared or
+resumed; a new explicit start may replace it. Truncated/invalid imports leave
+existing history unchanged.
+
+`fixture RECORD STAGE` returns a local preview fixture from complete original
+snapshots. STAGE is `request`, `response`, `exchange`, `websocket_client`, or
+`websocket_server`; WebSocket fixtures retrieve their original HTTP handshake.
+Incomplete bodies cannot become fixtures. `draft RECORD FILE|-` reads
+`{stage,id,operations,match?,position?,enable?,on_error?,range_mode?,redirect_consent?}`
+and returns `{base_rule_version,position,rule,fixture?,enable}`. Defaults are
+insertion at the end, disabled candidate, `on_error:block`, and an exact original
+host/method/path match. Query/header predicates require an explicit `match`.
+Incomplete original bodies permit a metadata-derived draft with no fixture;
+preview then reports unavailable input instead of inventing body bytes.
+
+Draft preview consumes that versioned insertion, enables the candidate only in
+an ephemeral snapshot and runs the full existing chain locally against the
+original fixture. It performs no network requests or persistence. Draft save
+checks `base_rule_version` inside the store transaction, inserts at the zero-based
+`position`, applies `enable` to the candidate rule, preserves global rewrite
+intent, and uses ordinary activation and rollback. Conflicts return
+`rewrite_conflict` without modifying the stored document. These JSON inputs use
+private owner-only regular files or stdin; use stdin for header/body values.

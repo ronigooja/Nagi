@@ -366,6 +366,7 @@ func rewriteSupervisorTick(paths nagiruntime.Paths, generation string) (bool, er
 			}
 		}
 		if !state.TUNRunning {
+			captureLifecycleStop(ctx, paths)
 			e = rewriteTeardown(ctx, paths)
 			finished = e == nil
 			return nil, e
@@ -379,7 +380,7 @@ func rewriteSupervisorTick(paths nagiruntime.Paths, generation string) (bool, er
 		if e != nil {
 			return nil, e
 		}
-		if !snapshot.Document().Enabled {
+		if !snapshot.Document().Enabled && captureActive(ctx, paths) == nil {
 			e = rewriteTeardown(ctx, paths)
 			finished = e == nil
 			return nil, e
@@ -411,6 +412,7 @@ func rewriteSupervisorTick(paths nagiruntime.Paths, generation string) (bool, er
 var rewriteSupervisorTimeout = 5 * time.Second
 
 func rewriteCleanupOwned(ctx context.Context, paths nagiruntime.Paths, run rewriteRun) error {
+	captureLifecycleStop(ctx, paths)
 	if e := rewriteShutdownRun(ctx, paths, run); e != nil {
 		return e
 	}

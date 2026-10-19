@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/capture"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/platform"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
@@ -272,6 +273,11 @@ func quitLocked(ctx context.Context, paths nagiruntime.Paths, version, commit st
 		return withLifecycleLock(paths, func() (any, error) { return nil, writeIntent(paths, "quit-ready") })
 	}); err != nil {
 		return nil, err
+	}
+	if captureStatus(ctx, paths) != nil {
+		if e := capture.Shutdown(ctx, captureSocket(paths)); e != nil {
+			return nil, captureFailure("capture_shutdown_failed")
+		}
 	}
 	completed = true
 	return map[string]any{"quit": true}, nil

@@ -18,10 +18,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/capture"
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/privileged"
 	"github.com/ronigooja/Nagi/internal/requestrewrite"
 	"golang.org/x/net/publicsuffix"
+	"path/filepath"
 	"sort"
 )
 
@@ -103,7 +105,15 @@ func rewriteCertificateValid(s string) bool {
 }
 func decodeRewritePrepare(data []byte) (rewritePrepare, error) {
 	var v rewritePrepare
-	_, err := rewriteObject(data, "version", "generation", "previous_generation", "owner_uid", "handoff_addr", "child_transport_cert", "handoff_secret", "reinjection_secret", "intercept_domains", "target_domains", "rule_version", "block_authorized_quic")
+	keys := []string{"version", "generation", "previous_generation", "owner_uid", "handoff_addr", "child_transport_cert", "handoff_secret", "reinjection_secret", "intercept_domains", "target_domains", "rule_version", "block_authorized_quic"}
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(data, &raw) != nil {
+		return v, errRewritePolicy
+	}
+	if raw["capture"] != nil {
+		keys = append(keys, "capture")
+	}
+	_, err := rewriteObject(data, keys...)
 	if err != nil || json.Unmarshal(data, &v) != nil {
 		return v, errRewritePolicy
 	}
@@ -112,8 +122,11 @@ func decodeRewritePrepare(data []byte) (rewritePrepare, error) {
 	if v.Version != control.RewriteProtocolVersion || !rewriteHex(v.Generation, 32) || v.PreviousGeneration != nil && !rewriteHex(*v.PreviousGeneration, 32) || v.OwnerUID == 0 || v.OwnerUID == ^uint32(0) || e != nil || host != "127.0.0.1" || pe != nil || n == 0 || strconv.FormatUint(n, 10) != port || !rewriteSecret(v.HandoffSecret) || !rewriteSecret(v.ReinjectionSecret) || v.HandoffSecret == v.ReinjectionSecret || !strings.HasPrefix(v.RuleVersion, "sha256:") || !rewriteHex(strings.TrimPrefix(v.RuleVersion, "sha256:"), 64) || !v.BlockAuthorizedQUIC || !rewriteCertificateValid(v.ChildTransportCert) {
 		return v, errRewritePolicy
 	}
+	if v.Capture != nil && validateCapturePolicy(raw["capture"]) != nil {
+		return v, errRewritePolicy
+	}
 	var errDomains error
-	v.InterceptDomains, errDomains = rewriteDomainPatterns(v.InterceptDomains, false)
+	v.InterceptDomains, errDomains = rewriteDomainPatterns(v.InterceptDomains, v.Capture != nil)
 	if errDomains != nil {
 		return v, errDomains
 	}
@@ -175,6 +188,8 @@ func validateRewriteControl(req privileged.Request, u *url.URL) error {
 		if e == nil && len(req.Body) == 0 && len(q) == 1 && len(q["generation"]) == 1 && rewriteHex(q.Get("generation"), 32) && u.RawQuery == "generation="+q.Get("generation") {
 			return nil
 		}
+	case req.Method == "PUT" && u.Path == "/request-rewrite/capture" && u.RawQuery == "":
+		return validateCaptureUpdate(req.Body)
 	case req.Method == "PUT" && u.Path == "/request-rewrite/session" && u.RawQuery == "":
 		_, e := decodeRewritePrepare(req.Body)
 		return e
@@ -249,7 +264,7 @@ func filterRewriteResponse(req privileged.Request, response privileged.Response)
 	}
 	switch {
 	case req.Method == "GET" && u.Path == "/request-rewrite/capabilities":
-		keys = []string{"versions", "tun_only", "original_context", "reinjection", "quic_domain_block", "max_contexts", "max_streams_per_context", "context_idle_seconds", "context_max_seconds"}
+		keys = []string{"versions", "tun_only", "original_context", "reinjection", "quic_domain_block", "max_contexts", "max_streams_per_context", "context_idle_seconds", "context_max_seconds", "capture_protocol"}
 	case req.Method == "PUT" && u.Path == "/request-rewrite/session":
 		keys = []string{"version", "generation", "engine_epoch", "reinjection_addr", "engine_transport_cert", "state"}
 	case req.Method == "POST":
@@ -257,7 +272,7 @@ func filterRewriteResponse(req privileged.Request, response privileged.Response)
 	case req.Method == "DELETE":
 		keys = []string{"closed"}
 	default:
-		keys = []string{"version", "generation", "engine_epoch", "state", "branch_enabled", "tun_running", "rule_version", "contexts", "streams", "last_error", "prepared_generation"}
+		keys = []string{"version", "generation", "engine_epoch", "state", "branch_enabled", "tun_running", "rule_version", "contexts", "streams", "last_error", "prepared_generation", "capture"}
 	}
 	out := map[string]json.RawMessage{}
 	for _, key := range keys {
@@ -298,4 +313,61 @@ func rewriteOwnerBootstrapSupported(ctx context.Context, binary, private string)
 		}
 	}
 	return false
+}
+
+func validateCapturePolicy(data []byte) error {
+	fields, e := rewriteObject(data, "session_id", "revision", "state", "scope")
+	if e != nil {
+		return e
+	}
+	scope, e := rewriteObject(fields["scope"], "domains", "process_paths", "app_paths")
+	if e != nil {
+		return e
+	}
+	var p capture.Policy
+	if json.Unmarshal(data, &p) != nil || !captureSessionID(p.SessionID) || p.Revision == 0 || (p.State != "recording" && p.State != "paused" && p.State != "stopped") {
+		return errRewritePolicy
+	}
+	if _, e = rewriteDomainPatterns(p.Scope.Domains, true); e != nil {
+		return e
+	}
+	for _, key := range []string{"process_paths", "app_paths"} {
+		var paths []string
+		if json.Unmarshal(scope[key], &paths) != nil || paths == nil || len(paths) > 256 {
+			return errRewritePolicy
+		}
+		seen := map[string]bool{}
+		for _, p := range paths {
+			if !filepath.IsAbs(p) || filepath.Clean(p) != p || len(p) > 4096 || strings.ContainsAny(p, "\x00\r\n") || seen[p] {
+				return errRewritePolicy
+			}
+			if key == "app_paths" && !strings.HasSuffix(p, ".app") {
+				return errRewritePolicy
+			}
+			seen[p] = true
+		}
+	}
+	return nil
+}
+func captureSessionID(s string) bool {
+	if len(s) < 1 || len(s) > 128 {
+		return false
+	}
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+func validateCaptureUpdate(data []byte) error {
+	fields, e := rewriteObject(data, "version", "generation", "previous_revision", "capture")
+	if e != nil {
+		return e
+	}
+	var p control.RewriteCapture
+	if json.Unmarshal(data, &p) != nil || p.Version != 2 || !rewriteHex(p.Generation, 32) || p.PreviousRevision == ^uint64(0) || p.Capture.Revision != p.PreviousRevision+1 {
+		return errRewritePolicy
+	}
+	return validateCapturePolicy(fields["capture"])
 }

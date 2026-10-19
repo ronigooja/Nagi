@@ -154,7 +154,7 @@ func RunChild() int {
 	if e != nil {
 		return 1
 	}
-	service, e := New(snapshot, tls.Certificate{Certificate: [][]byte{cert.Raw}, PrivateKey: key, Leaf: cert})
+	service, e := New(snapshot.Effective(), tls.Certificate{Certificate: [][]byte{cert.Raw}, PrivateKey: key, Leaf: cert})
 	if e != nil {
 		return 1
 	}

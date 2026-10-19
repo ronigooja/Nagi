@@ -54,6 +54,7 @@ type rewriteEngineStatus struct {
 }
 
 type rewriteRun struct {
+	CaptureSession      string      `json:"capture_session,omitempty"`
 	Version             int         `json:"version"`
 	Profile             string      `json:"profile"`
 	Backend             string      `json:"backend"`
@@ -242,7 +243,7 @@ func (a rewriteActivation) Apply(ctx context.Context, old, candidate *rewrite.Sn
 	if selected != a.profile {
 		return nil
 	}
-	if !candidate.Document().Enabled || !candidate.HasEnabledRules() {
+	if (!candidate.Document().Enabled || !candidate.HasEnabledRules()) && captureActive(ctx, a.paths) == nil {
 		return rewriteTeardown(ctx, a.paths)
 	}
 	return rewriteActivate(ctx, a.paths, a.profile, candidate)
@@ -255,7 +256,7 @@ func (a rewriteActivation) Rollback(ctx context.Context, old *rewrite.Snapshot) 
 	if selected != a.profile {
 		return nil
 	}
-	if !old.Document().Enabled || !old.HasEnabledRules() {
+	if (!old.Document().Enabled || !old.HasEnabledRules()) && captureActive(ctx, a.paths) == nil {
 		return rewriteTeardown(ctx, a.paths)
 	}
 	// A rejected candidate can leave the previous active generation untouched.
@@ -297,7 +298,7 @@ func rewriteReconcile(ctx context.Context, paths nagiruntime.Paths) error {
 	if e != nil {
 		return rewriteDomainError(e)
 	}
-	if !snapshot.Document().Enabled || !snapshot.HasEnabledRules() {
+	if (!snapshot.Document().Enabled || !snapshot.HasEnabledRules()) && captureActive(ctx, paths) == nil {
 		return rewriteLifecycleStop(ctx, paths)
 	}
 	backend, backendErr := readBackend(paths)
@@ -345,9 +346,6 @@ func rewritePrerequisites(ctx context.Context, paths nagiruntime.Paths, snapshot
 	if rewriteEffectiveUID() == 0 {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_auth")
 	}
-	if !snapshot.HasEnabledRules() {
-		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_invalid")
-	}
 	client, e := rewriteClient(paths)
 	if e != nil {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_unavailable")
@@ -381,14 +379,15 @@ func rewritePrerequisites(ctx context.Context, paths nagiruntime.Paths, snapshot
 }
 
 func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, snapshot *rewrite.Snapshot) error {
-	if !snapshot.HasEnabledRules() {
+	capturing := captureActive(ctx, paths)
+	if !snapshot.Effective().HasEnabledRules() && capturing == nil {
 		return rewriteTeardown(ctx, paths)
 	}
 	client, current, e := rewritePrerequisites(ctx, paths, snapshot)
 	if e != nil {
 		return e
 	}
-	if run, e := readRewriteRun(paths); e == nil && current.State == "active" && run.Profile == name && current.RuleVersion == snapshot.Version() && run.Generation == current.Generation && rewriteNow().Before(run.RenewAt) {
+	if run, e := readRewriteRun(paths); e == nil && current.State == "active" && run.Profile == name && current.RuleVersion == snapshot.Version() && run.Generation == current.Generation && rewriteNow().Before(run.RenewAt) && ((capturing == nil && run.CaptureSession == "") || (capturing != nil && run.CaptureSession == capturing.SessionID)) {
 		health, e := rewriteChildControl(ctx, rewriteSocket(paths, run.Generation), "GET", "/status", run.Generation)
 		if e == nil && health.Ready && health.RuleVersion == snapshot.Version() {
 			return rewriteStartSupervisor(paths, run.Generation)
@@ -438,7 +437,7 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 		v := current.Generation
 		previous = &v
 	}
-	request := control.RewritePrepare{Version: control.RewriteProtocolVersion, Generation: generation, PreviousGeneration: previous, OwnerUID: uint32(rewriteEffectiveUID()), HandoffAddr: worker.Announcement().HandoffAddr, ChildTransportCert: worker.Announcement().ChildTransportCert, HandoffSecret: handoff, ReinjectionSecret: reinjection, InterceptDomains: snapshot.InterceptDomains(), TargetDomains: snapshot.TargetDomains(), RuleVersion: snapshot.Version(), BlockAuthorizedQUIC: true}
+	request := control.RewritePrepare{Capture: capturePolicy(capturing), Version: control.RewriteProtocolVersion, Generation: generation, PreviousGeneration: previous, OwnerUID: uint32(rewriteEffectiveUID()), HandoffAddr: worker.Announcement().HandoffAddr, ChildTransportCert: worker.Announcement().ChildTransportCert, HandoffSecret: handoff, ReinjectionSecret: reinjection, InterceptDomains: snapshot.Effective().InterceptDomains(), TargetDomains: snapshot.Effective().TargetDomains(), RuleVersion: snapshot.Version(), BlockAuthorizedQUIC: true}
 	backend, e := readBackend(paths)
 	if e != nil {
 		_ = rewriteDeleteGeneration(client, generation)
@@ -454,6 +453,9 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 		return rewriteFailure("rewrite_activation_failed")
 	}
 	run := rewriteRun{EnginePID: enginePID, EngineStartIdentity: engineIdentity, OwnerUID: rewriteEffectiveUID(), StartIdentity: identity, Version: control.RewriteProtocolVersion, Profile: name, Backend: backend, Generation: generation, EngineEpoch: current.EngineEpoch, RuleVersion: snapshot.Version(), PID: worker.PID(), CreatedAt: rewriteNow(), RenewAt: rewriteNow().Add(24*time.Hour - 6*time.Minute)}
+	if capturing != nil {
+		run.CaptureSession = capturing.SessionID
+	}
 	if oldErr == nil {
 		oldRun.Previous = nil
 		run.Previous = &oldRun
@@ -488,6 +490,11 @@ func rewriteActivate(ctx context.Context, paths nagiruntime.Paths, name string, 
 		return rewriteFailure("rewrite_state_uncertain")
 	}
 	configured := child.Configuration{Generation: generation, EngineEpoch: prepared.EngineEpoch, ReinjectionAddr: prepared.ReinjectionAddr, EngineTransportCert: prepared.EngineTransportCert, HandoffSecret: handoff, ReinjectionSecret: reinjection}
+	if capturing != nil {
+		configured.Capture = capturePolicy(capturing)
+		configured.RecorderSocket = captureSocket(paths)
+		configured.BodyLimit = capturing.BodyLimit
+	}
 	if e = worker.Configure(configured); e != nil {
 		_ = rewriteDeleteGeneration(client, generation)
 		return rewriteFailure("rewrite_activation_failed")
@@ -696,6 +703,7 @@ func rewriteTeardown(ctx context.Context, paths nagiruntime.Paths) error {
 // Lifecycle operations need no rewrite API when this feature has never owned
 // a generation. Explicit disable always uses rewriteTeardown for recovery.
 func rewriteLifecycleStop(ctx context.Context, paths nagiruntime.Paths) error {
+	captureLifecycleStop(ctx, paths)
 	_, e := readRewriteRun(paths)
 	if errors.Is(e, os.ErrNotExist) {
 		return nil
@@ -713,6 +721,10 @@ func rewriteMutation(args []string) bool {
 		return false
 	}
 	switch args[1] {
+	case "draft":
+		return len(args) > 2 && args[2] == "save"
+	case "capture":
+		return len(args) > 2 && (args[2] == "start" || args[2] == "pause" || args[2] == "resume" || args[2] == "stop" || args[2] == "import" || args[2] == "clear")
 	case "enable", "disable", "import":
 		return true
 	case "scripts", "rules":
