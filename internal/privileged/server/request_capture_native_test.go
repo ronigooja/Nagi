@@ -2,7 +2,8 @@ package server
 
 // Explicit platform acceptance, never enabled by ordinary tests. Linux callers
 // must place this test in a fresh network namespace with loopback up. macOS
-// callers must explicitly authorize its single documentation-address route.
+// callers must explicitly authorize temporary network-service DNS management
+// and the single documentation-address route.
 import (
 	"context"
 	"crypto/tls"
@@ -17,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"syscall"
@@ -30,9 +32,11 @@ import (
 	"github.com/ronigooja/Nagi/internal/privileged"
 	domain "github.com/ronigooja/Nagi/internal/requestrewrite"
 	"github.com/ronigooja/Nagi/internal/requestrewriteservice"
+	"github.com/ronigooja/Nagi/internal/traffic"
 )
 
 type nativeCaptureMessage struct {
+	UID            int
 	Action         string
 	Config         requestrewriteservice.Configuration
 	Request        capture.Request
@@ -54,6 +58,9 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 	if binary == "" || os.Geteuid() != 0 {
 		t.Skip("requires root, isolated network, explicit NAGI_CAPTURE_NATIVE_ENGINE")
 	}
+	if runtime.GOOS == "darwin" && os.Getenv("NAGI_CAPTURE_NATIVE_MACOS") != "1" {
+		t.Skip("requires explicit NAGI_CAPTURE_NATIVE_MACOS=1 for temporary service DNS and scoped route")
+	}
 	if runtime.GOOS == "linux" {
 		self, e := os.Readlink("/proc/self/ns/net")
 		if e != nil {
@@ -72,6 +79,10 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(root)
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Ancestors are root-owned; only the child subtree is ordinary-UID writable.
 	if err = os.Chmod(root, 0755); err != nil {
 		t.Fatal(err)
@@ -90,6 +101,14 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 	}
 	// go test's build directory can be private to root.
 	childExe := filepath.Join(root, "test-child")
+	appPath := ""
+	if runtime.GOOS == "darwin" {
+		appPath = filepath.Join(root, "CaptureFixture.app")
+		childExe = filepath.Join(appPath, "Contents", "Helpers", "test-child")
+		if err = os.MkdirAll(filepath.Dir(childExe), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	in, err := os.Open(exe)
 	if err != nil {
 		t.Fatal(err)
@@ -140,15 +159,29 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 		b, _ := io.ReadAll(decoder.Buffered())
 		t.Fatalf("child startup: %v %s", err, b)
 	}
+	if hello.UID != owner {
+		t.Fatalf("traffic child UID %d, want %d", hello.UID, owner)
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if runtime.GOOS == "darwin" {
+		// sudo may preserve the ordinary user's HOME; root fixtures must not use it.
+		home = "/private/var"
 	}
 	trustedRoot, err := os.MkdirTemp(home, ".nagi-native-root-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(trustedRoot)
+	retainTrustedRoot := false
+	defer func() {
+		if !retainTrustedRoot {
+			os.RemoveAll(trustedRoot)
+		} else {
+			t.Logf("retained root fixture for DNS recovery: %s", trustedRoot)
+		}
+	}()
 	trustedBinary := filepath.Join(trustedRoot, "mihomo")
 	src, err := os.Open(binary)
 	if err != nil {
@@ -171,7 +204,33 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 		}
 	}
 	cfg := filepath.Join(source, "fixture.yaml")
-	yaml := ("mixed-port: 0\nport: 0\nsocks-port: 0\nlog-level: silent\nfind-process-mode: always\ndns: {enable: false, fake-ip-range: 198.19.255.1/24}\nhosts: {'api.fixture.example': 127.0.0.1}\nsniffer:\n  enable: true\n  override-destination: true\n  sniff:\n    HTTP: {ports: [1-65535], override-destination: true}\ntun:\n  enable: true\n  stack: gvisor\n  auto-route: true\n  auto-detect-interface: false\n  route-address: [198.51.100.1/32]\n  dns-hijack: []\nrules: ['MATCH,DIRECT']\n")
+	dnsConfig := "dns: {enable: false, fake-ip-range: 198.19.255.1/24}"
+	var baselineDNS traffic.DNSState
+	var baselineRoutes map[string]string
+	if runtime.GOOS == "darwin" {
+		baselineDNS, err = traffic.NewDNS(private).Status(context.Background())
+		if err != nil || baselineDNS.Managed {
+			t.Fatalf("cannot snapshot unmanaged macOS service DNS: %v", err)
+		}
+		baselineRoutes = nativeCaptureRoutes(t)
+		out, e := exec.Command("/usr/sbin/scutil", "--dns").Output()
+		if e != nil {
+			t.Fatal(e)
+		}
+		upstream := ""
+		for _, line := range strings.Split(string(out), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) == 3 && strings.HasPrefix(fields[0], "nameserver[") && net.ParseIP(fields[2]) != nil {
+				upstream = fields[2]
+				break
+			}
+		}
+		if upstream == "" {
+			t.Fatal("no baseline resolver; refusing temporary TUN DNS")
+		}
+		dnsConfig = fmt.Sprintf("dns: {enable: true, enhanced-mode: redir-host, fake-ip-range: 198.19.255.1/24, nameserver: [%q], default-nameserver: [%q]}", upstream, upstream)
+	}
+	yaml := ("mixed-port: 0\nport: 0\nsocks-port: 0\nlog-level: silent\nfind-process-mode: always\n" + dnsConfig + "\nhosts: {'api.fixture.example': 127.0.0.1}\nsniffer:\n  enable: true\n  override-destination: true\n  sniff:\n    HTTP: {ports: [1-65535], override-destination: true}\ntun:\n  enable: true\n  stack: gvisor\n  auto-route: true\n  auto-detect-interface: false\n  route-address: [198.51.100.1/32]\n  dns-hijack: []\nrules: ['MATCH,DIRECT']\n")
 	if err = os.WriteFile(cfg, []byte(yaml), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +245,20 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 			}
 		}
 		if e := h.Close(); e != nil {
+			retainTrustedRoot = true
 			t.Errorf("close root engine: %v", e)
+		}
+		if runtime.GOOS == "darwin" {
+			after, e := traffic.NewDNS(private).Status(context.Background())
+			if e != nil || after.Managed || !reflect.DeepEqual(after.Services, baselineDNS.Services) {
+				retainTrustedRoot = true
+				t.Errorf("macOS DNS restoration mismatch: error=%v managed=%v before=%v after=%v", e, after.Managed, baselineDNS.Services, after.Services)
+			}
+			if afterRoutes := nativeCaptureRoutes(t); !reflect.DeepEqual(afterRoutes, baselineRoutes) {
+				t.Errorf("macOS route restoration mismatch: before=%v after=%v", baselineRoutes, afterRoutes)
+			} else {
+				t.Logf("macOS exact static/DHCP DNS restored for %d network services; documentation/default routes restored", len(baselineDNS.Services))
+			}
 		}
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -238,6 +310,20 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 	response := helperCall(privileged.Request{Operation: privileged.Start, ConfigPath: cfg, Profile: "fixture"})
 	if !response.Running {
 		t.Fatal("root engine not running")
+	}
+	if runtime.GOOS == "darwin" {
+		activeRoutes := nativeCaptureRoutes(t)
+		if activeRoutes["default"] != baselineRoutes["default"] {
+			t.Fatal("default route changed during scoped TUN fixture")
+		}
+		if !strings.Contains(activeRoutes["198.51.100.1"], "interface: utun") || !strings.Contains(activeRoutes["198.51.100.1"], "destination: 198.51.100.1") {
+			t.Fatal("documentation /32 did not enter actual utun")
+		}
+		activeDNS, e := h.dnsManager().Status(ctx)
+		if e != nil || !activeDNS.Managed || len(activeDNS.Conflicts) != 0 {
+			t.Fatalf("helper did not manage TUN DNS: %+v %v", activeDNS, e)
+		}
+		t.Log("actual utun owns only documentation /32; default route unchanged; helper DNS managed without conflicts")
 	}
 	request := func(method, path string, v any) privileged.Response {
 		t.Helper()
@@ -319,17 +405,41 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 		t.Fatalf("original response body: %+v", body)
 	}
 	httpCount := 1
-	if runtime.GOOS == "linux" {
-		traffic("https")
-		httpCount++
-	}
+	traffic("https")
+	httpCount++
 	traffic("websocket")
 	rows = waitCount(httpCount + 3)
 	messages := 0
+	stages := map[string]bool{}
+	httpsCaptured := false
 	for _, r := range rows {
+		if r.Kind == "http" && r.Snapshots["request_original"].Scheme == "https" {
+			httpsCaptured = true
+		}
 		if r.Kind == "websocket" {
 			messages++
+			stages[r.Stage] = true
+			if r.ParentID == "" {
+				t.Fatal("WebSocket message lost its HTTP parent")
+			}
+			var b *capture.BodyChunk
+			for end := time.Now().Add(8 * time.Second); time.Now().Before(end); {
+				b = exchange(nativeCaptureMessage{Action: "recorder", Request: capture.Request{Action: "body", RecordID: r.ID, Snapshot: "message_original", Limit: 1024}}).Reply.Body
+				if b != nil && string(b.Data) == "native-message" {
+					break
+				}
+				time.Sleep(20 * time.Millisecond)
+			}
+			if b == nil || string(b.Data) != "native-message" {
+				t.Fatalf("original WebSocket body: %+v", b)
+			}
 		}
+	}
+	if !httpsCaptured {
+		t.Fatal("missing original HTTPS record")
+	}
+	if !stages[domain.StageWebSocketClient] || !stages[domain.StageWebSocketServer] {
+		t.Fatalf("WebSocket direction stages: %v", stages)
 	}
 	if messages != 2 {
 		t.Fatalf("bidirectional messages: %d", messages)
@@ -367,7 +477,17 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 	if len(list()) != count {
 		t.Fatal("nonmatching process captured")
 	}
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == "darwin" {
+		update(capture.Scope{Domains: []string{"api.fixture.example"}, ProcessPaths: []string{}, AppPaths: []string{appPath}}, "recording")
+		traffic("http")
+		waitCount(count + 1)
+		count++
+		update(capture.Scope{Domains: []string{"api.fixture.example"}, ProcessPaths: []string{}, AppPaths: []string{appPath + "-not-an-app.app"}}, "recording")
+		traffic("http")
+		if len(list()) != count {
+			t.Fatal("nonmatching app captured")
+		}
+	} else {
 		update(capture.Scope{Domains: []string{"api.fixture.example"}, ProcessPaths: []string{}, AppPaths: []string{"/Applications/Fictitious.app"}}, "recording")
 		traffic("http")
 		if len(list()) != count {
@@ -379,8 +499,18 @@ func TestCaptureNativeRestrictedTUN(t *testing.T) {
 	if len(list()) != count {
 		t.Fatal("paused capture admitted record")
 	}
+	exchange(nativeCaptureMessage{Action: "recorder", Request: capture.Request{Action: "stop", SessionID: policy.SessionID}})
+	policy.Revision++
+	policy.State = "stopped"
+	exchange(nativeCaptureMessage{Action: "capture", Config: requestrewriteservice.Configuration{Capture: &policy}})
+	request("PUT", "/request-rewrite/capture", control.RewriteCapture{Version: 2, Generation: spec.Generation, PreviousRevision: policy.Revision - 1, Capture: policy})
+	traffic("http")
+	if len(list()) != count {
+		t.Fatal("stopped capture admitted record")
+	}
 	request("GET", "/request-rewrite/status", nil)
-	t.Logf("actual OS TUN root-helper acceptance passed: ordinary UID %d HTTP/HTTPS(Linux) + bidirectional WebSocket, original process/credential/body, exact process scope, unknown app exclusion, capture revision updates; platform=%s rewrite=%s", owner, runtime.GOOS, os.Getenv("NAGI_CAPTURE_NATIVE_REWRITE"))
+	helperCall(privileged.Request{Operation: privileged.Stop})
+	t.Logf("actual OS TUN root-helper acceptance passed: ordinary UID %d HTTP/HTTPS + bidirectional WebSocket, original process/credential/body, exact process scope, app scope, capture pause/stop revision updates; platform=%s rewrite=%s", owner, runtime.GOOS, os.Getenv("NAGI_CAPTURE_NATIVE_REWRITE"))
 }
 
 func nativeCaptureChild(t *testing.T) {
@@ -440,6 +570,12 @@ func nativeCaptureChild(t *testing.T) {
 	ca := tls.Certificate{Certificate: [][]byte{caCert.Raw}, PrivateKey: caKey}
 	roots := x509.NewCertPool()
 	roots.AppendCertsFromPEM(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCert.Raw}))
+	// Force private roots even on macOS, whose system verifier ignores SSL_CERT_FILE.
+	// This applies only to this isolated child; no system trust store is changed.
+	if e = os.Setenv("GODEBUG", os.Getenv("GODEBUG")+",x509usefallbackroots=1"); e != nil {
+		t.Fatal(e)
+	}
+	x509.SetFallbackRoots(roots)
 	service, e := requestrewriteservice.New(snapshot, ca)
 	if e != nil {
 		t.Fatal(e)
@@ -483,7 +619,7 @@ func nativeCaptureChild(t *testing.T) {
 	defer tr.CloseIdleConnections()
 	client := &http.Client{Transport: tr, Timeout: 15 * time.Second}
 	encoder, decoder := json.NewEncoder(os.Stdout), json.NewDecoder(os.Stdin)
-	_ = encoder.Encode(nativeCaptureMessage{Announcement: service.Announcement(), Port: port})
+	_ = encoder.Encode(nativeCaptureMessage{Announcement: service.Announcement(), Port: port, UID: os.Getuid()})
 	for {
 		var m nativeCaptureMessage
 		if e := decoder.Decode(&m); e != nil {
@@ -557,4 +693,28 @@ func nativeCaptureChild(t *testing.T) {
 		}
 		_ = encoder.Encode(r)
 	}
+}
+
+// Compare only stable route fields: counters/expiry can change without a route edit.
+func nativeCaptureRoutes(t *testing.T) map[string]string {
+	t.Helper()
+	result := map[string]string{}
+	for _, destination := range []string{"default", "198.51.100.1"} {
+		out, err := exec.Command("/sbin/route", "-n", "get", destination).CombinedOutput()
+		if err != nil {
+			t.Fatalf("snapshot route %s: %v", destination, err)
+		}
+		var stable []string
+		for _, line := range strings.Split(string(out), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) > 1 {
+				switch fields[0] {
+				case "destination:", "mask:", "gateway:", "interface:", "flags:":
+					stable = append(stable, strings.Join(fields, " "))
+				}
+			}
+		}
+		result[destination] = strings.Join(stable, "\n")
+	}
+	return result
 }

@@ -1,7 +1,8 @@
 # Request capture and quick rewrite rules
 
-Status: implemented in source with software verification; native live TUN, trust,
-privileged-helper and release acceptance remain separately pending. This document
+Status: implemented with software verification and native Linux/macOS TUN/helper
+checks. Interactive App, sleep/wake, sustained resource and release acceptance
+remain separately pending. This document
 owns the current capture protocol, responsibilities and failure behavior. See the
 [verification record](../development/request-rewrite-acceptance.md#capture-verification)
 for evidence and outstanding platform checks.
@@ -99,8 +100,9 @@ HAR uses named extensions for WebSocket data. Imported archives are offline.
 
 The implemented source includes HTTP/HTTPS, both WebSocket directions,
 stream-safe collection, the existing rewrite operation set, macOS/CLI/menu
-interfaces and native/HAR archives. Real native TUN and helper acceptance remain
-required delivery gates. Fixtures cannot substitute for real platform acceptance.
+interfaces and native/HAR archives. Native Linux/macOS TUN and authenticated helper checks have passed for the
+scenarios in the verification record. Interactive App, sleep/wake and sustained
+resource checks remain delivery gates; software fixtures cannot establish them.
 
 
 ## Observation and failure recovery

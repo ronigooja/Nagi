@@ -100,8 +100,10 @@ No Nagi tag, release archive or GitHub Release is created by this implementation
 This section records capture-specific evidence separately from the preceding v2
 rewrite ledger. The current [capture design](../design/request-capture.md) and
 [user guide](../guides/request-capture.md) distinguish implemented behavior from
-platform acceptance. The capture engine source used for these checks is
-`da88dc0d710f78a659bc36251b2ab18310aa4ebd`; installation/update availability still
+platform acceptance. The initial capture engine source used for the software checks below is
+`da88dc0d710f78a659bc36251b2ab18310aa4ebd`; the final macOS TUN checks use
+`a5df21a6a339a651bb50dca73b30f7679dbd0436`, which also supplies original Darwin
+socket UID attribution. Installation/update availability still
 requires a matching Nagi and engine release. This commit is published on the
 declared fork's `nagi/request-capture` branch. A fresh depth-one fetch confirmed
 the exact commit before advancing `engine.lock`; the default locked build without
@@ -112,7 +114,7 @@ the exact commit before advancing `engine.lock`; the default locked build withou
 | Terminal menu | `go test ./internal/menu` and `go test -race ./internal/menu` pass. Capture journeys cover private stdin scope, failed-form retention and EOF/cancel discard, observed/uncertain status and stop recovery, raw Authorization/Cookie/query/body display with minute timestamps and Enter pause, cursor batches and stale-read clearing, fixture/body access, archive allowlisting and versioned quick-rule save conflicts without automatic retry. |
 | CLI/runtime | Recorder, service, capture draft and command tests exercise bounded original records and body states, streaming archives, strict JSON/scope, reconciliation and uncertain-session recovery. Runtime integration evidence is supplied by the ordinary-UID coordinator fixture described below. |
 | Native App source | An isolated ARM64 macOS 14 checkout with Apple Swift 6.0.3 passed `swift test` (182 tests, zero failures) and `swift build -c release`. After the final RFC 6901 invalid-index correction, the focused 12-test capture-draft suite and release build passed again. Tests cover transport/stdin/raw values, window-owned session lifetime, cancellation, operation ordering, insertion/enable, exact matching, profile/version binding, incomplete originals, preview and save conflicts. These are automated source/model checks. |
-| Outstanding native acceptance | macOS actual TUN/helper and app-bundle attribution, certificate trust and application stores, interactive App behavior, sleep/wake and sustained resource measurement still require native acceptance. Linux actual TUN/helper evidence is recorded below. |
+| Outstanding native acceptance | Interactive App behavior, sleep/wake, application-specific certificate stores and sustained resource measurement still require native acceptance. Linux/macOS actual TUN/helper and macOS model/CLI/trust evidence are recorded below. |
 
 The native source checks used an isolated development checkout and touched no
 ordinary user services or traffic settings. The full test and final focused/release
@@ -207,17 +209,50 @@ NAGI_CAPTURE_NATIVE_ENGINE=/path/to/reviewed-mihomo GO=/path/to/go \
   bash scripts/test-request-capture-native-linux.sh
 ```
 
-The portable helper fixture was also attempted on native macOS. Its temporary
-socket must use root-controlled `/private/var`; `/private/var/run` is group
-writable on this host and correctly fails the helper's ancestor check. With the
-safe socket path, helper start reached the real TUN DNS prerequisite and rejected
-the fixture's disabled DNS with `TUN DNS requires running mihomo DNS enabled`.
-The macOS helper automatically manages network-service DNS during TUN startup;
-this test did not enable DNS takeover of ordinary services. The fixture uses a
-distinct `198.19.255.1/24` fake-IP range and only `198.51.100.1/32` routing. Its
-processes and temporary state were removed after failure; the test destination
-returned to the host's original default route. This is a recorded blocked
-acceptance attempt, not a macOS TUN/helper pass.
+### Actual macOS TUN and root helper
+
+On ARM64 macOS 14.8.9 with engine
+`a5df21a6a339a651bb50dca73b30f7679dbd0436`, the portable helper fixture passed
+capture-only and rewrite-coexistence variants through an actual `utun` interface
+(2.24 seconds and 2.01 seconds respectively). It uses the same
+restricted root-engine/helper boundary and ordinary UID 65534 recorder, rewrite
+service and local HTTP/HTTPS/WebSocket origins as the Linux test. An executable
+inside a fictitious `.app/Contents/Helpers` directory verifies exact executable
+attribution and outermost bundle inclusion/exclusion. HTTPS uses a private Go
+fallback certificate pool in the child process; it neither installs a CA nor
+changes system trust.
+
+The normal helper TUN lifecycle temporarily manages macOS network-service DNS.
+Before startup, the test snapshots every service's static DNS list or DHCP state,
+the default route and the documentation destination route. It preserves the
+existing resolver as mihomo's DNS upstream, uses local hosts for fixture traffic,
+a distinct `198.19.255.1/24` fake-IP range and only `198.51.100.1/32` routing.
+During activation, it asserts that the documentation /32 enters `utun`, the
+default route is unchanged and helper DNS has no ownership conflicts. The socket
+uses root-controlled `/private/var`; `/private/var/run` is group writable on this
+host and correctly rejected by the helper's ancestor check.
+
+HTTP/HTTPS original credentials and bodies, both WebSocket directions, original
+socket UID 65534, exact process and bundle matching, capture revisions, pause and
+stop are verified. The coexistence variant additionally checks rewriting while capture is excluded,
+paused or stopped. Explicit helper stop and deferred close restore DNS through
+the production journal, which preserves external changes rather than overwriting
+them. After successful and failed attempts, the test checks exact static/DHCP
+DNS for all five network services and original/default routes. A failed
+restoration retains its private root journal for recovery. Test processes and temporary state are removed.
+
+Reproduce only after authorizing the temporary DNS transaction and scoped route;
+the script refuses an already running mihomo rather than interrupting it:
+
+```sh
+sudo env NAGI_CAPTURE_NATIVE_MACOS=1 \
+  NAGI_CAPTURE_NATIVE_ENGINE=/path/to/reviewed-mihomo GO=/path/to/go \
+  bash scripts/test-request-capture-native-macos.sh
+```
+
+These checks use an in-process helper server and its actual authenticated Unix
+socket, not an installed LaunchDaemon. They do not replace full CLI supervisor
+coverage, interactive App acceptance, sleep/wake or sustained resource checks.
 
 Both older rewrite engine and coordinator scripts passed again against the
 published capture engine source. A preceding rerun failed because the build
