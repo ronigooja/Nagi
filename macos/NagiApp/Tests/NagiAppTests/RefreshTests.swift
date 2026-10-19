@@ -49,6 +49,23 @@ import XCTest
         XCTFail("Condition did not become true")
     }
 
+    func testPeriodicAppRefreshSkipsRewriteStatusUntilMenuOpens() async {
+        let commands = Commands(), model = commands.model()
+        var rewriteReads = 0
+        model.requestRewrite.onStatusChange = { rewriteReads += 1 }
+        defer { model.pauseForSleep() }
+
+        await model.refresh()
+        await Task.yield()
+        XCTAssertEqual(rewriteReads, 0)
+        XCTAssertNil(model.requestRewrite.error)
+
+        _ = await model.refreshMenuData()
+        await waitUntil { rewriteReads == 1 && !model.requestRewrite.isReading }
+        // The deliberately missing fixture CLI proves that a status read was attempted.
+        XCTAssertNotNil(model.requestRewrite.error)
+    }
+
     func testTrafficSamplesAndResetDoNotNotifyMenuChanges() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("nagi-traffic-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

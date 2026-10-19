@@ -107,7 +107,6 @@ private struct RewriteHelp: View {
             if let error = localError ?? presentation.model.error { Text(error).foregroundColor(.red).fixedSize(horizontal: false, vertical: true) }
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Refresh") { presentation.model.refresh() }
                 RewriteHelp(text: "All match conditions apply to the original message. A wildcard domain excludes its apex. Operations run in list order. Changing the URL scheme, host or port requires an allowed destination; path and query edits do not. Cancel discards the draft.")
                 Spacer()
                 Button("Save Rule") { submit() }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
@@ -185,7 +184,13 @@ private struct RewriteHelp: View {
         do {
             let bytes = try draft.json(); localError = nil
             let arguments = originalID.map { ["rules", "update", $0, "-"] } ?? ["rules", "add", "-"]
-            Task { if await presentation.model.perform(arguments, input: bytes, profile: profile) { dismiss() } }
+            Task {
+                if await presentation.model.perform(arguments, input: bytes, profile: profile) { dismiss() }
+                else {
+                    localError = presentation.model.error
+                    presentation.model.refresh()
+                }
+            }
         } catch { localError = error.localizedDescription }
     }
 }
@@ -258,14 +263,19 @@ struct RewriteOperationEditor: View {
             if let error = localError ?? presentation.model.error { Text(error).foregroundColor(.red) }
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Refresh") { presentation.model.refresh() }
                 RewriteHelp(text: "Define synchronous transform(input). Return {action: 'unchanged'}, {action: 'block'}, or {action: 'replace', message: {...}}. Scripts run only through a rule's Run script operation, without network or file access. Source limit: 64 KiB.")
                 Spacer()
                 Button("Save Script") {
                     do {
                         let bytes = try draft.json(); localError = nil
                         let args = originalID.map { ["scripts", "update", $0, "-"] } ?? ["scripts", "add", "-"]
-                        Task { if await presentation.model.perform(args, input: bytes, profile: profile) { dismiss() } }
+                        Task {
+                            if await presentation.model.perform(args, input: bytes, profile: profile) { dismiss() }
+                            else {
+                                localError = presentation.model.error
+                                presentation.model.refresh()
+                            }
+                        }
                     } catch { localError = error.localizedDescription }
                 }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
             }

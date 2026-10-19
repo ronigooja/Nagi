@@ -31,11 +31,9 @@ import Foundation
     private var visible = false, blocked = false, suspended = false
     private var generation: UInt64 = 0
     private var readTask: Task<Void, Never>?
-    private var timer: Task<Void, Never>?
     private var pendingWindowRead = false
-    private let interval: UInt64
-    init(read: @escaping Run, submit: @escaping Run, export: @escaping Export, interval: UInt64 = 5_000_000_000) {
-        self.read = read; self.submit = submit; self.export = export; self.exportRead = export; self.interval = interval
+    init(read: @escaping Run, submit: @escaping Run, export: @escaping Export) {
+        self.read = read; self.submit = submit; self.export = export; self.exportRead = export
     }
     convenience init(cli: NagiCLIClient = NagiCLIClient()) {
         self.init(read: { try await cli.rewrite($0, input: $1) }, submit: { try await cli.rewrite($0, input: $1) }, export: { try await cli.rewriteExport($0) })
@@ -51,20 +49,11 @@ import Foundation
     private func updateActivity() {
         if blocked || suspended { pauseReads(); return }
         if visible {
-            if timer == nil {
-                timer = Task { [weak self] in
-                    while !Task.isCancelled {
-                        guard let self else { return }
-                        do { try await Task.sleep(nanoseconds: self.interval) } catch { return }
-                        self.refresh()
-                    }
-                }
-            }
             if readTask == nil { refresh() } else { pendingWindowRead = true }
         }
     }
     private func pauseReads() {
-        generation &+= 1; readTask?.cancel(); sensitiveReadTask?.cancel(); timer?.cancel(); timer = nil
+        generation &+= 1; readTask?.cancel(); sensitiveReadTask?.cancel()
         pendingWindowRead = false; stale = true; listsFresh = false
     }
     func waitForCancelledRead() async {

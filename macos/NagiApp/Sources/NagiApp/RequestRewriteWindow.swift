@@ -30,6 +30,9 @@ import SwiftUI
         }
         window.contentView = NSHostingView(rootView: RequestRewriteView(presentation: presentation))
         window.center()
+        observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.refreshOnForeground() }
+        })
         for name in [NSApplication.didHideNotification, NSApplication.didUnhideNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.updateVisibility() }
@@ -46,6 +49,11 @@ import SwiftUI
     private func updateVisibility() {
         model.setVisible((window as? ConnectionsWindow)?.readingPaused == false && window?.isVisible == true && window?.isMiniaturized == false && !NSApp.isHidden)
     }
+    private func refreshOnForeground() {
+        // Opening and foreground events share a read when they arrive together.
+        if !model.isReading { model.refresh() }
+    }
+    func windowDidBecomeKey(_ notification: Notification) { refreshOnForeground() }
     func windowWillClose(_ notification: Notification) { model.setVisible(false) }
     func windowWillMiniaturize(_ notification: Notification) { (window as? ConnectionsWindow)?.beginMiniaturization() }
     func windowDidMiniaturize(_ notification: Notification) { updateVisibility() }

@@ -346,7 +346,8 @@ enum EngineState { case starting, running, stopped, unavailable }
         _ = await requestRefresh(scope)
     }
     @discardableResult func refreshMenuData() async -> Bool {
-        await requestRefresh(.menu)
+        requestRewrite.refreshStatus()
+        return await requestRefresh(.menu)
     }
 
     // One worker owns reads. Concurrent callers share its current pass; mutations
@@ -391,7 +392,6 @@ enum EngineState { case starting, running, stopped, unavailable }
         var scope = scope
         var subscriptionsRefreshed = true
         if scope.contains(.status) {
-            requestRewrite.refreshStatus()
             capture.refreshStatus()
             do {
                 let value = try await runCommand(["status"])

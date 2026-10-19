@@ -54,6 +54,45 @@ final class RequestRewriteDocumentTests: XCTestCase {
         for _ in 0..<200 { if predicate() { return }; try await Task.sleep(nanoseconds: 5_000_000) }
         XCTFail("Condition did not become true")
     }
+    func testWindowReadsOnOpenManualRefreshMutationAndResume() async throws {
+        var reads: [[String]] = [], mutations: [[String]] = []
+        let model = RequestRewriteModel(read: { args, _ in
+            reads.append(args)
+            return try self.ready(args)
+        }, submit: { args, _ in mutations.append(args); return try self.json("{}") }, export: { _ in Data() })
+        let snapshot = [["status"], ["scripts", "list", "--profile", "work"], ["rules", "list", "--profile", "work"]]
+        defer { model.setVisible(false) }
+
+        model.setVisible(true)
+        try await eventually { model.canManage && !model.isReading }
+        XCTAssertEqual(reads, snapshot)
+        model.setVisible(true)
+        await Task.yield()
+        XCTAssertEqual(reads, snapshot)
+
+        model.refresh()
+        try await eventually { !model.isReading }
+        XCTAssertEqual(reads.count, 6)
+        let saved = await model.perform(["disable"])
+        XCTAssertTrue(saved)
+        try await eventually { !model.isReading }
+        XCTAssertEqual(reads.count, 9)
+        XCTAssertEqual(mutations, [["disable"]])
+
+        model.setVisible(false)
+        model.refresh()
+        XCTAssertEqual(reads.count, 9)
+        model.setVisible(true)
+        try await eventually { model.canManage && !model.isReading }
+        XCTAssertEqual(reads.count, 12)
+
+        model.setSuspended(true); model.setSuspended(false)
+        try await eventually { model.canManage && !model.isReading }
+        XCTAssertEqual(reads.count, 15)
+        model.setBlocked(true); model.setBlocked(false)
+        try await eventually { model.canManage && !model.isReading }
+        XCTAssertEqual(reads, Array(repeating: snapshot, count: 6).flatMap { $0 })
+    }
     func testSingleReadSlotCancellationAndReopenRejectObsoleteResult() async throws {
         var calls = 0, cancelled = 0
         let model = RequestRewriteModel(read: { args, _ in
@@ -63,7 +102,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
                 catch { cancelled += 1; throw error }
             }
             return try self.ready(args)
-        }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() })
         model.setVisible(true)
         try await eventually { calls == 1 }
         for _ in 0..<10 { model.refresh() }
@@ -78,7 +117,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
         let model = RequestRewriteModel(read: { args, _ in
             if fail { throw CLIError.command("request_rewrite_error", "rewrite_state_uncertain") }
             return try self.ready(args)
-        }, submit: { args, _ in mutations.append(args); return try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        }, submit: { args, _ in mutations.append(args); return try self.json("{}") }, export: { _ in Data() })
         model.setVisible(true); try await eventually { model.canManage }
         fail = true; model.refresh(); try await eventually { model.stale && !model.isReading }
         XCTAssertFalse(model.canManage); XCTAssertFalse(model.canEnable); XCTAssertTrue(model.canOperate)
@@ -92,7 +131,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
         var submitted: [(args: [String], input: Data?)] = []
         let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { args, data in
             submitted.append((args, data)); throw CLIError.command("request_rewrite_error", "rewrite_invalid")
-        }, export: { _ in Data() }, interval: 60_000_000_000)
+        }, export: { _ in Data() })
         model.setVisible(true); try await eventually { model.canManage }
         let input = Data(#"{"id":"new","body_access":"none"}"#.utf8)
         let success = await model.perform(["scripts", "add", "-"], input: input, profile: "work")
@@ -104,7 +143,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
     func testSensitiveEditReadsCancelAndDrainOnSleepSettingsAndClose() async throws {
         for gate in ["sleep", "settings", "close"] {
             var entered = false, cancelled = false
-            let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+            let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() })
             model.exportRead = { args in
                 XCTAssertEqual(args, ["export", "-", "--profile", "work"])
                 entered = true
@@ -129,7 +168,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
         let model = RequestRewriteModel(read: { args, _ in
             if args == ["status"] { return try self.json("{\"profile\":\"\(profile)\",\"enabled_intent\":false,\"actual\":\"disabled\",\"tun_running\":true}") }
             return try self.ready(args)
-        }, submit: { _, _ in submitted += 1; return try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        }, submit: { _, _ in submitted += 1; return try self.json("{}") }, export: { _ in Data() })
         model.setVisible(true); try await eventually { model.canManage }
         profile = "personal"
         model.refreshStatus(); try await eventually { model.status?.profile == "personal" && !model.isReading }
@@ -140,7 +179,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
     }
     func testClosingUnsubmittedDraftDoesNotDispatchMutation() async throws {
         var submitted = 0
-        let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in submitted += 1; return try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in submitted += 1; return try self.json("{}") }, export: { _ in Data() })
         model.setVisible(true); try await eventually { model.canManage }
         var draft = RewriteRuleDraft(); draft.id = "unsaved"; draft.domain = "api.service.example"
         draft.operations.append(RewriteOperationDraft())
@@ -155,7 +194,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
             submitted += 1
             await withCheckedContinuation { finish = $0 }
             return try self.json("{}")
-        }, export: { _ in Data() }, interval: 60_000_000_000)
+        }, export: { _ in Data() })
         model.setVisible(true); try await eventually { model.canManage }
         let task = Task { await model.perform(["disable"]) }
         try await eventually { submitted == 1 }
@@ -177,7 +216,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
             exports += 1
             await withCheckedContinuation { release = $0 }
             return Data()
-        }, interval: 60_000_000_000)
+        })
         let task = Task { try await model.exportFile(["export", "/private/fictitious-export.json", "--profile", "work"]) }
         try await eventually { exports == 1 }
         XCTAssertTrue(model.operationInProgress)
@@ -192,7 +231,7 @@ final class RequestRewriteDocumentTests: XCTestCase {
     func testOnlyOneSensitiveEditExportCanStart() async throws {
         var exports = 0
         var release: CheckedContinuation<Data, Error>?
-        let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() })
         model.exportRead = { _ in exports += 1; return try await withCheckedThrowingContinuation { release = $0 } }
         model.setVisible(true); try await eventually { model.canManage }
         let first = Task { try await model.sensitiveRule(id: "rule", profile: "work") }
@@ -256,7 +295,7 @@ extension RequestRewriteDocumentTests {
 
 @MainActor extension RequestRewriteModelTests {
     func testSensitiveScriptReadsRawSourceWithoutOrdinaryListDisclosure() async throws {
-        let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() })
         model.exportRead = { args in
             XCTAssertEqual(args, ["export", "-", "--profile", "work"])
             return Data(#"{"version":2,"enabled":false,"rules":[],"scripts":[{"id":"api","body_access":"none","source":"function transform(x){return x}"}]}"#.utf8)
@@ -274,7 +313,7 @@ extension RequestRewriteDocumentTests {
         let model = RequestRewriteModel(read: { args, _ in
             if args == ["status"] { return try self.json(#"{"profile":"work","enabled_intent":false,"actual":"disabled","tun_running":false,"config_version":2}"#) }
             return try self.json(args.first == "scripts" ? #"{"scripts":[]}"# : #"{"rules":[]}"#)
-        }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() })
         model.setVisible(true); try await eventually { model.canManage }
         XCTAssertTrue(model.canEnable)
         model.setVisible(false); await model.waitForCancelledRead()

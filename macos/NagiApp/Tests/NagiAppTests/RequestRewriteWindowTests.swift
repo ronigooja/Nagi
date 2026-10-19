@@ -12,7 +12,7 @@ import AppKit
         }, submit: { args, _ in
             commands.append(args)
             return try JSONDecoder().decode(JSONValue.self, from: Data("{}".utf8))
-        }, export: { _ in Data() }, interval: 60_000_000_000)
+        }, export: { _ in Data() })
         let controller = RequestRewriteWindowController(model: model)
         let window = try XCTUnwrap(controller.window)
         XCTAssertEqual(window.title, "Nagi Request Rewrite")
@@ -43,7 +43,7 @@ import AppKit
                     "actual": .stringValue("disabled"), "enabled_intent": .boolValue(false)])
             }
             return .objectValue([args.first == "scripts" ? "scripts" : "rules": .arrayValue([])])
-        }, submit: { _, _ in .objectValue([:]) }, export: { _ in Data() }, interval: 60_000_000_000)
+        }, submit: { _, _ in .objectValue([:]) }, export: { _ in Data() })
         let controller = RequestRewriteWindowController(model: model)
         let window = try XCTUnwrap(controller.window)
         defer { window.close() }
