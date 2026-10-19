@@ -5,5 +5,14 @@
   "cli.diff.warning.removed": "代理或组已移除；请检查所选节点和规则目标。",
   "cli.diff.warning.order": "代理或组的顺序已更改；请检查首选项和显示顺序。",
   "cli.diff.warning.exposure": "网络暴露设置已更改；请检查绑定和认证设置。",
-  "cli.diff.warning.invalid_yaml": "{arg0}；仍可查看行差异"
+  "cli.diff.warning.invalid_yaml": "{arg0}；仍可查看行差异",
+  "cli.display.provider": "提供方",
+  "cli.display.group": "代理组",
+  "cli.display.node": "节点",
+  "cli.display.subscription": "订阅",
+  "cli.display.profile": "配置方案",
+  "cli.display.override": "本地覆盖",
+  "cli.display.bind": "绑定",
+  "cli.display.unbind": "解除绑定",
+  "cli.capture.recovery.stop_required": "capture_state_uncertain；停止此会话以恢复；运行 `nagi rewrite capture status`"
 }

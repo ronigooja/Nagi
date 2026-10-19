@@ -3,7 +3,7 @@
     "name": "string",
     "interval": "number",
     "source": "string",
-    "enabled": "boolean"
+    "enabled": "string"
   },
   "cli.output.write.subscription_s_follows_subscription_configuration_and_mihomo_def": {
     "name": "string"
@@ -14,7 +14,7 @@
     "interval": "number",
     "source": "string",
     "enabled": "string",
-    "lazy": "boolean"
+    "lazy": "string"
   },
   "cli.output.write.diagnostics": {},
   "cli.output.write.nagi_doctor": {},

@@ -123,7 +123,7 @@ func stateText(w io.Writer, state string) string {
 	switch strings.ToLower(state) {
 	case "unexpected exit", "running", "stopped", "unknown", "unavailable", "available", "removed", "enabled", "disabled", "active", "inactive", "automatic", "fixed", "paused", "managed", "unmanaged", "unsupported", "attention", "partial", "warning", "failed", "failure", "error", "conflict", "healthy", "unhealthy", "ok", "none", "yes", "no", "true", "false", "rule", "rules", "global", "direct", "proxy", "mixed", "user", "system", "privileged", "doh", "stale":
 		return text(w, "cli.state."+strings.ReplaceAll(strings.ToLower(state), " ", "_"), state)
-	case "prepared", "starting", "uncertain", "blocked", "absent", "idle", "generated", "missing", "invalid", "trusted", "untrusted", "expired", "request", "response", "websocket_client", "websocket_server", "fragment", "full", "block", "forward_original":
+	case "provider", "group", "node", "subscription", "profile", "override", "bind", "unbind", "prepared", "starting", "uncertain", "blocked", "absent", "idle", "generated", "missing", "invalid", "trusted", "untrusted", "expired", "request", "response", "websocket_client", "websocket_server", "fragment", "full", "block", "forward_original":
 		return text(w, "cli.display."+strings.ToLower(state), state)
 	default:
 		return state

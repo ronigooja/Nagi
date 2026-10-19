@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "status": "implementation-in-progress",
   "languages": [
     "en",
@@ -9,7 +9,8 @@
   "pointer_standard": "RFC 6901",
   "descriptor": {
     "id": "nonempty semantic string",
-    "args": "optional object of exact named scalar arguments; omit when empty"
+    "args": "optional object of exact named scalar arguments; omit when empty",
+    "argument_messages": "optional map from existing string argument names to source descriptors; invalid child independently falls back to original scalar; maximum depth 8 and 64 child nodes"
   },
   "argument_scalar_types": [
     "string",
@@ -933,6 +934,7 @@
       "arg0": "string",
       "arg1": "string"
     },
+    "cli.capture.recovery.stop_required": {},
     "cli.diff.warning.dns": {},
     "cli.diff.warning.exposure": {},
     "cli.diff.warning.invalid_yaml": {
@@ -945,6 +947,7 @@
       "arg0": "string"
     },
     "cli.display.absent": {},
+    "cli.display.bind": {},
     "cli.display.block": {},
     "cli.display.blocked": {},
     "cli.display.expired": {},
@@ -952,16 +955,23 @@
     "cli.display.fragment": {},
     "cli.display.full": {},
     "cli.display.generated": {},
+    "cli.display.group": {},
     "cli.display.idle": {},
     "cli.display.invalid": {},
     "cli.display.missing": {},
+    "cli.display.node": {},
     "cli.display.not_after": {},
     "cli.display.not_before": {},
+    "cli.display.override": {},
     "cli.display.prepared": {},
+    "cli.display.profile": {},
+    "cli.display.provider": {},
     "cli.display.request": {},
     "cli.display.response": {},
     "cli.display.starting": {},
+    "cli.display.subscription": {},
     "cli.display.trusted": {},
+    "cli.display.unbind": {},
     "cli.display.uncertain": {},
     "cli.display.untrusted": {},
     "cli.display.websocket_client": {},
@@ -2746,7 +2756,7 @@
       "name": "string",
       "interval": "number",
       "source": "string",
-      "enabled": "boolean"
+      "enabled": "string"
     },
     "cli.output.write.proxy_group.message": {
       "group": "string"
@@ -2769,7 +2779,7 @@
       "interval": "number",
       "source": "string",
       "enabled": "string",
-      "lazy": "boolean"
+      "lazy": "string"
     },
     "cli.output.write.subscription_s_follows_subscription_configuration_and_mihomo_def": {
       "name": "string"
@@ -33332,5 +33342,36 @@
     "system.rewritescript.invalid.output": {},
     "system.rewritescript.limit": {},
     "system.rewritescript.timeout": {}
-  }
+  },
+  "composition_cases": [
+    {
+      "descriptor": {
+        "id": "cli.language.invalid",
+        "args": {
+          "value": "ORIGINAL ARG"
+        },
+        "argument_messages": {
+          "value": {
+            "id": "cli.language.missing"
+          }
+        }
+      },
+      "expected_child": "cli.language.missing"
+    },
+    {
+      "descriptor": {
+        "id": "cli.language.invalid",
+        "args": {
+          "value": "ORIGINAL ARG"
+        },
+        "argument_messages": {
+          "value": 42,
+          "absent": {
+            "id": "cli.language.missing"
+          }
+        }
+      },
+      "expected_child": null
+    }
+  ]
 }

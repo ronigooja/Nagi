@@ -9,5 +9,14 @@
   "cli.diff.warning.exposure": {},
   "cli.diff.warning.invalid_yaml": {
     "arg0": "string"
-  }
+  },
+  "cli.display.provider": {},
+  "cli.display.group": {},
+  "cli.display.node": {},
+  "cli.display.subscription": {},
+  "cli.display.profile": {},
+  "cli.display.override": {},
+  "cli.display.bind": {},
+  "cli.display.unbind": {},
+  "cli.capture.recovery.stop_required": {}
 }

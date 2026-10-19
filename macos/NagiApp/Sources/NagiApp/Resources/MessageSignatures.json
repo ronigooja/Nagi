@@ -806,6 +806,7 @@
     "arg0": "string",
     "arg1": "string"
   },
+  "cli.capture.recovery.stop_required": {},
   "cli.diff.warning.dns": {},
   "cli.diff.warning.exposure": {},
   "cli.diff.warning.invalid_yaml": {
@@ -818,6 +819,7 @@
     "arg0": "string"
   },
   "cli.display.absent": {},
+  "cli.display.bind": {},
   "cli.display.block": {},
   "cli.display.blocked": {},
   "cli.display.expired": {},
@@ -825,16 +827,23 @@
   "cli.display.fragment": {},
   "cli.display.full": {},
   "cli.display.generated": {},
+  "cli.display.group": {},
   "cli.display.idle": {},
   "cli.display.invalid": {},
   "cli.display.missing": {},
+  "cli.display.node": {},
   "cli.display.not_after": {},
   "cli.display.not_before": {},
+  "cli.display.override": {},
   "cli.display.prepared": {},
+  "cli.display.profile": {},
+  "cli.display.provider": {},
   "cli.display.request": {},
   "cli.display.response": {},
   "cli.display.starting": {},
+  "cli.display.subscription": {},
   "cli.display.trusted": {},
+  "cli.display.unbind": {},
   "cli.display.uncertain": {},
   "cli.display.untrusted": {},
   "cli.display.websocket_client": {},
@@ -2616,7 +2625,7 @@
     "unavailable": "string"
   },
   "cli.output.write.provider_s_download_interval_d_seconds_s_enabled_t": {
-    "enabled": "boolean",
+    "enabled": "string",
     "interval": "number",
     "name": "string",
     "source": "string"
@@ -2640,7 +2649,7 @@
     "enabled": "string",
     "interval": "number",
     "kind": "string",
-    "lazy": "boolean",
+    "lazy": "string",
     "name": "string",
     "source": "string"
   },

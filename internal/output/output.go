@@ -54,7 +54,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 	case RewriteResult:
 		return writeRewrite(w, v)
 	case profile.ProviderInterval:
-		return line(w, renderText(w, "cli.output.write.provider_s_download_interval_d_seconds_s_enabled_t", map[string]any{"name": fmt.Sprint(v.Name), "interval": v.IntervalSeconds, "source": fmt.Sprint(v.Source), "enabled": v.Enabled}, fmt.Sprintf("provider %s: download interval %d seconds (%s); enabled %t", v.Name, v.IntervalSeconds, v.Source, v.Enabled)))
+		return line(w, renderText(w, "cli.output.write.provider_s_download_interval_d_seconds_s_enabled_t", map[string]any{"name": fmt.Sprint(v.Name), "interval": v.IntervalSeconds, "source": stateText(w, v.Source), "enabled": stateText(w, fmt.Sprint(v.Enabled))}, fmt.Sprintf("provider %s: download interval %d seconds (%s); enabled %t", v.Name, v.IntervalSeconds, v.Source, v.Enabled)))
 	case profile.Healthcheck:
 		enabled := stateText(w, "unknown")
 		if v.Enabled != nil {
@@ -64,11 +64,11 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			if err := line(w, renderText(w, "cli.output.write.subscription_s_follows_subscription_configuration_and_mihomo_def", map[string]any{"name": fmt.Sprint(v.Name)}, fmt.Sprintf("subscription %s: follows subscription configuration and mihomo defaults", v.Name))); err != nil {
 				return err
 			}
-		} else if err := line(w, renderText(w, "cli.output.write.s_s_interval_d_seconds_s_enabled_s_lazy_t", map[string]any{"kind": fmt.Sprint(v.Kind), "name": fmt.Sprint(v.Name), "interval": v.IntervalSeconds, "source": fmt.Sprint(v.Source), "enabled": fmt.Sprint(enabled), "lazy": v.Lazy}, fmt.Sprintf("%s %s: interval %d seconds (%s); enabled %s; lazy %t", v.Kind, v.Name, v.IntervalSeconds, v.Source, enabled, v.Lazy))); err != nil {
+		} else if err := line(w, renderText(w, "cli.output.write.s_s_interval_d_seconds_s_enabled_s_lazy_t", map[string]any{"kind": stateText(w, v.Kind), "name": fmt.Sprint(v.Name), "interval": v.IntervalSeconds, "source": stateText(w, v.Source), "enabled": fmt.Sprint(enabled), "lazy": stateText(w, fmt.Sprint(v.Lazy))}, fmt.Sprintf("%s %s: interval %d seconds (%s); enabled %s; lazy %t", v.Kind, v.Name, v.IntervalSeconds, v.Source, enabled, v.Lazy))); err != nil {
 			return err
 		}
 		if v.TestURL != "" {
-			if err := line(w, renderText(w, "cli.output.write.test_url.message", map[string]any{"url": fmt.Sprint(v.TestURL), "source": fmt.Sprint(v.URLSource)}, "Test URL: "+fmt.Sprint(v.TestURL)+" ("+fmt.Sprint(v.URLSource)+")")); err != nil {
+			if err := line(w, renderText(w, "cli.output.write.test_url.message", map[string]any{"url": fmt.Sprint(v.TestURL), "source": stateText(w, v.URLSource)}, "Test URL: "+fmt.Sprint(v.TestURL)+" ("+fmt.Sprint(v.URLSource)+")")); err != nil {
 				return err
 			}
 		}
@@ -401,9 +401,9 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			}
 		}
 		if targets, ok := v["targets"].([]string); ok {
-			return line(w, renderText(w, "cli.output.writehumanmap.tailscale_s_d_s_targets_in_profile_s_s", map[string]any{"action": fmt.Sprint(v["action"]), "count": len(targets), "kind": fmt.Sprint(v["kind"]), "profile": fmt.Sprint(v["profile"]), "state": fmt.Sprint(state)}, fmt.Sprintf("Tailscale %s: %d %s targets in profile %s. %s", v["action"], len(targets), v["kind"], v["profile"], state)))
+			return line(w, renderText(w, "cli.output.writehumanmap.tailscale_s_d_s_targets_in_profile_s_s", map[string]any{"action": stateText(w, fmt.Sprint(v["action"])), "count": len(targets), "kind": stateText(w, fmt.Sprint(v["kind"])), "profile": fmt.Sprint(v["profile"]), "state": fmt.Sprint(state)}, fmt.Sprintf("Tailscale %s: %d %s targets in profile %s. %s", v["action"], len(targets), v["kind"], v["profile"], state)))
 		}
-		return line(w, renderText(w, "cli.output.writehumanmap.tailscale_s_in_profile_s_s", map[string]any{"action": fmt.Sprint(v["action"]), "profile": fmt.Sprint(v["profile"]), "state": fmt.Sprint(state)}, fmt.Sprintf("Tailscale %s in profile %s. %s", v["action"], v["profile"], state)))
+		return line(w, renderText(w, "cli.output.writehumanmap.tailscale_s_in_profile_s_s", map[string]any{"action": stateText(w, fmt.Sprint(v["action"])), "profile": fmt.Sprint(v["profile"]), "state": fmt.Sprint(state)}, fmt.Sprintf("Tailscale %s in profile %s. %s", v["action"], v["profile"], state)))
 	}
 
 	if v["saved"] == true && v["profile"] != nil && v["action"] == nil {
@@ -635,7 +635,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				return err
 			}
 		}
-		return line(w, renderText(w, "cli.output.writehumanmap.rule_s_v_effective_configuration_was_validated_running_mihomo_wa", map[string]any{"name": fmt.Sprint(name), "action": fmt.Sprint(v["action"])}, fmt.Sprintf("Rule %s: %v. Effective configuration was validated; running mihomo was reloaded if active.", name, v["action"])))
+		return line(w, renderText(w, "cli.output.writehumanmap.rule_s_v_effective_configuration_was_validated_running_mihomo_wa", map[string]any{"name": fmt.Sprint(name), "action": stateText(w, fmt.Sprint(v["action"]))}, fmt.Sprintf("Rule %s: %v. Effective configuration was validated; running mihomo was reloaded if active.", name, v["action"])))
 	}
 	if running, ok := v["running"].(bool); ok {
 		state := "stopped"

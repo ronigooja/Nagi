@@ -5,5 +5,14 @@
   "cli.diff.warning.removed": "A proxy or group was removed; check selections and rule targets.",
   "cli.diff.warning.order": "Proxy or group order changed; check first-choice and display order.",
   "cli.diff.warning.exposure": "Network exposure setting changed; check bind and authentication settings.",
-  "cli.diff.warning.invalid_yaml": "{arg0}; line diff remains available"
+  "cli.diff.warning.invalid_yaml": "{arg0}; line diff remains available",
+  "cli.display.provider": "provider",
+  "cli.display.group": "group",
+  "cli.display.node": "node",
+  "cli.display.subscription": "subscription",
+  "cli.display.profile": "profile",
+  "cli.display.override": "override",
+  "cli.display.bind": "bind",
+  "cli.display.unbind": "unbind",
+  "cli.capture.recovery.stop_required": "capture_state_uncertain; stop this session to recover; run `nagi rewrite capture status`"
 }

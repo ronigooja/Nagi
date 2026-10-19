@@ -172,7 +172,7 @@ func captureCommand(ctx context.Context, o rewriteArguments, p nagiruntime.Paths
 		observed := captureObserved(ctx, p, before)
 		if observed.State == "uncertain" {
 			if action != "stop" {
-				return nil, captureFailure("capture_state_uncertain; stop this session to recover")
+				return nil, &operationReason{code: "capture_state_uncertain", cause: fail("capture_error", messageError("cli.capture.recovery.stop_required", "capture_state_uncertain; stop this session to recover; run `nagi rewrite capture status`"))}
 			}
 			captureLifecycleStop(ctx, p)
 			if e := rewriteTeardown(ctx, p); e != nil {
