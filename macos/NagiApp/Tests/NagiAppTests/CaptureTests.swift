@@ -551,6 +551,12 @@ extension CaptureTests {
         await wait { self.descendants(window.contentView, of: NSTableView.self).contains { $0.numberOfRows == 80 } }
         let table = try XCTUnwrap(descendants(window.contentView, of: NSTableView.self).first { $0.numberOfRows == 80 })
         XCTAssertEqual(table.tableColumns.count, 4)
+        // Offscreen automatic-height rows retain AppKit's estimated row height.
+        table.scrollRowToVisible(40)
+        await wait {
+            window.contentView?.layoutSubtreeIfNeeded()
+            return table.view(atColumn: 1, row: 40, makeIfNecessary: false) != nil
+        }
         XCTAssertGreaterThanOrEqual(table.rect(ofRow: 40).height, 40)
         table.selectRowIndexes(IndexSet(integer: 40), byExtendingSelection: false)
         await wait { model.selectedID == "record-040" && !model.readingBody }
