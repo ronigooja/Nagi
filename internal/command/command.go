@@ -22,6 +22,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/installation"
 	"github.com/ronigooja/Nagi/internal/installtx"
 	"github.com/ronigooja/Nagi/internal/menu"
@@ -136,7 +137,11 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		}
 	}
 	ctx := context.WithValue(context.Background(), languageContextKey{}, locale)
-	if data, isHelp, err := requestedHelp(filtered); isHelp {
+	helpLanguage := locale
+	if jsonMode {
+		helpLanguage = i18n.New(i18n.English)
+	}
+	if data, isHelp, err := requestedHelp(filtered, helpLanguage); isHelp {
 		if err != nil {
 			output.WriteErrorCause(stderr, jsonMode, locale, "usage", err)
 			return 2

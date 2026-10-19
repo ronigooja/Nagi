@@ -189,26 +189,61 @@ func findSpec(path string) *commandSpec {
 	return nil
 }
 
-func topHelp() string {
+// Help prose uses the stable command path and field identity as semantic keys.
+// Command syntax, examples and command lookup always use their original values.
+func helpLocale(locales []i18n.Context) i18n.Context {
+	if len(locales) > 0 {
+		return locales[0]
+	}
+	return i18n.New(i18n.English)
+}
+
+func helpText(locale i18n.Context, id, fallback string) string {
+	return locale.Render(i18n.NewMessage(id, nil, fallback, nil))
+}
+
+func (spec *commandSpec) helpText(locale i18n.Context, field string) string {
+	var fallback string
+	switch field {
+	case "summary":
+		fallback = spec.summary
+	case "detail":
+		fallback = spec.detail
+	case "hint":
+		fallback = spec.hint
+	}
+	if fallback == "" {
+		return ""
+	}
+	return helpText(locale, "help.command."+strings.ReplaceAll(spec.path, " ", ".")+"."+field, fallback)
+}
+
+const globalHelpSyntax = "nagi [--json] [--lang en|zh-Hans] <command> [arguments]"
+
+func topHelp(locales ...i18n.Context) string {
+	locale := helpLocale(locales)
 	var b strings.Builder
-	b.WriteString("Nagi manages a local mihomo process.\n\nUsage: nagi [--json] <command> [arguments]\n       nagi help [command [subcommand]]\n\nCommands:\n")
+	b.WriteString(helpText(locale, "help.top.intro", "Nagi manages a local mihomo process."))
+	fmt.Fprintf(&b, "\n\n%s %s\n       nagi help [command [subcommand]]\n\n%s\n", helpText(locale, "help.heading.usage", "Usage:"), globalHelpSyntax, helpText(locale, "help.heading.commands", "Commands:"))
 	for _, spec := range commandSpecs {
 		if strings.Contains(spec.path, " ") {
 			continue
 		}
-		fmt.Fprintf(&b, "  %-22s %s\n", spec.syntax, spec.summary)
+		fmt.Fprintf(&b, "  %-22s %s\n", spec.syntax, spec.helpText(locale, "summary"))
 	}
-	b.WriteString("\nRun `nagi help COMMAND` or `nagi COMMAND --help` for details.\n")
+	fmt.Fprintf(&b, "\n%s\n\n%s\n", helpText(locale, "help.top.next", "Run `nagi help COMMAND` or `nagi COMMAND --help` for details."), helpText(locale, "help.language", ""))
 	return b.String()
 }
 
-func specHelp(spec *commandSpec) string {
-	return fmt.Sprintf("Usage: nagi %s\n\n%s\n\nExample: %s\n", spec.syntax, spec.detail, spec.example)
+func specHelp(spec *commandSpec, locales ...i18n.Context) string {
+	locale := helpLocale(locales)
+	return fmt.Sprintf("%s nagi %s\n\n%s\n\n%s %s\n", helpText(locale, "help.heading.usage", "Usage:"), spec.syntax, spec.helpText(locale, "detail"), helpText(locale, "help.heading.example", "Example:"), spec.example)
 }
 
-func requestedHelp(args []string) (string, bool, error) {
+func requestedHelp(args []string, locales ...i18n.Context) (string, bool, error) {
+	locale := helpLocale(locales)
 	if len(args) == 0 {
-		return topHelp(), true, nil
+		return topHelp(locale), true, nil
 	}
 	help := args[0] == "help"
 	path := make([]string, 0, len(args))
@@ -226,12 +261,12 @@ func requestedHelp(args []string) (string, bool, error) {
 		path = path[1:]
 	}
 	if len(path) == 0 {
-		return topHelp(), true, nil
+		return topHelp(locale), true, nil
 	}
 	if spec := findSpec(strings.Join(path, " ")); spec != nil {
-		return specHelp(spec), true, nil
+		return specHelp(spec, locale), true, nil
 	}
-	return "", true, fmt.Errorf("unknown help topic or extra arguments\nUsage: nagi help [command [subcommand]]\nRun `nagi help` to list commands")
+	return "", true, i18n.NewMessage("help.error.topic", nil, "unknown help topic or extra arguments\nUsage: nagi help [command [subcommand]]\nRun `nagi help` to list commands", nil)
 }
 
 func validateInvocation(args []string) error {
@@ -248,7 +283,7 @@ func validateInvocation(args []string) error {
 	}
 	root := findSpec(args[0])
 	if root == nil {
-		return fmt.Errorf("unknown command\nUsage: nagi [--json] <command> [arguments]\nRun `nagi help` to list commands")
+		return i18n.NewMessage("help.error.command", nil, "unknown command\nUsage: "+globalHelpSyntax+"\nRun `nagi help` to list commands", nil)
 	}
 	spec := root
 	consumed := 1
@@ -457,6 +492,153 @@ func validateInvocation(args []string) error {
 	return nil
 }
 
+// Hint categories are semantic identities shared by commands with the same
+// authored guidance. Usage resources embed that guidance, keeping descriptor
+// arguments independent of the selected display language.
+var helpHintCategories = map[string]string{
+	"config reload":                    "config.reload",
+	"connections close":                "connections.close",
+	"connections show":                 "connections.close",
+	"profile import":                   "profile.import",
+	"profile override apply-default":   "profile.override.apply-default",
+	"profile remove":                   "profile.remove",
+	"profile use":                      "profile.use",
+	"proxy auto":                       "proxy.auto",
+	"proxy delay":                      "proxy.delay",
+	"proxy delays":                     "proxy.delays",
+	"proxy provider add":               "proxy.provider.add",
+	"proxy provider remove":            "proxy.provider.remove",
+	"proxy restore":                    "proxy.restore",
+	"proxy search":                     "proxy.search",
+	"proxy select":                     "proxy.select",
+	"proxy show":                       "proxy.delays",
+	"proxy tailscale":                  "proxy.tailscale.add",
+	"proxy tailscale add":              "proxy.tailscale.add",
+	"proxy tailscale bind":             "proxy.tailscale.add",
+	"proxy tailscale edit":             "proxy.tailscale.add",
+	"proxy tailscale list":             "proxy.tailscale.add",
+	"proxy tailscale remove":           "proxy.tailscale.add",
+	"proxy tailscale show":             "proxy.tailscale.add",
+	"proxy tailscale targets":          "proxy.tailscale.add",
+	"proxy tailscale unbind":           "proxy.tailscale.add",
+	"proxy test":                       "proxy.test",
+	"proxy test group":                 "proxy.test.group",
+	"proxy test provider":              "proxy.test.provider",
+	"request-rewrite":                  "request-rewrite.ca.export",
+	"request-rewrite ca":               "request-rewrite.ca.export",
+	"request-rewrite ca export":        "request-rewrite.ca.export",
+	"request-rewrite ca generate":      "request-rewrite.ca.export",
+	"request-rewrite ca status":        "request-rewrite.ca.export",
+	"request-rewrite ca trust":         "request-rewrite.ca.export",
+	"request-rewrite ca trust install": "request-rewrite.ca.export",
+	"request-rewrite ca trust remove":  "request-rewrite.ca.export",
+	"request-rewrite capture":          "request-rewrite.ca.export",
+	"request-rewrite capture apps":     "request-rewrite.ca.export",
+	"request-rewrite capture body":     "request-rewrite.ca.export",
+	"request-rewrite capture check":    "request-rewrite.ca.export",
+	"request-rewrite capture clear":    "request-rewrite.ca.export",
+	"request-rewrite capture draft":    "request-rewrite.ca.export",
+	"request-rewrite capture export":   "request-rewrite.ca.export",
+	"request-rewrite capture fixture":  "request-rewrite.ca.export",
+	"request-rewrite capture import":   "request-rewrite.ca.export",
+	"request-rewrite capture list":     "request-rewrite.ca.export",
+	"request-rewrite capture pause":    "request-rewrite.ca.export",
+	"request-rewrite capture resume":   "request-rewrite.ca.export",
+	"request-rewrite capture show":     "request-rewrite.ca.export",
+	"request-rewrite capture start":    "request-rewrite.ca.export",
+	"request-rewrite capture status":   "request-rewrite.ca.export",
+	"request-rewrite capture stop":     "request-rewrite.ca.export",
+	"request-rewrite disable":          "request-rewrite.ca.export",
+	"request-rewrite draft":            "request-rewrite.ca.export",
+	"request-rewrite draft preview":    "request-rewrite.ca.export",
+	"request-rewrite draft save":       "request-rewrite.ca.export",
+	"request-rewrite enable":           "request-rewrite.ca.export",
+	"request-rewrite export":           "request-rewrite.ca.export",
+	"request-rewrite import":           "request-rewrite.ca.export",
+	"request-rewrite preview":          "request-rewrite.ca.export",
+	"request-rewrite rules":            "request-rewrite.ca.export",
+	"request-rewrite rules add":        "request-rewrite.ca.export",
+	"request-rewrite rules disable":    "request-rewrite.ca.export",
+	"request-rewrite rules enable":     "request-rewrite.ca.export",
+	"request-rewrite rules list":       "request-rewrite.ca.export",
+	"request-rewrite rules remove":     "request-rewrite.ca.export",
+	"request-rewrite rules reorder":    "request-rewrite.ca.export",
+	"request-rewrite rules show":       "request-rewrite.ca.export",
+	"request-rewrite rules update":     "request-rewrite.ca.export",
+	"request-rewrite scripts":          "request-rewrite.ca.export",
+	"request-rewrite scripts add":      "request-rewrite.ca.export",
+	"request-rewrite scripts list":     "request-rewrite.ca.export",
+	"request-rewrite scripts remove":   "request-rewrite.ca.export",
+	"request-rewrite scripts show":     "request-rewrite.ca.export",
+	"request-rewrite scripts source":   "request-rewrite.ca.export",
+	"request-rewrite scripts update":   "request-rewrite.ca.export",
+	"request-rewrite status":           "request-rewrite.ca.export",
+	"request-rewrite validate":         "request-rewrite.ca.export",
+	"rewrite":                          "rewrite.ca.export",
+	"rewrite ca":                       "rewrite.ca.export",
+	"rewrite ca export":                "rewrite.ca.export",
+	"rewrite ca generate":              "rewrite.ca.export",
+	"rewrite ca status":                "rewrite.ca.export",
+	"rewrite ca trust":                 "rewrite.ca.export",
+	"rewrite ca trust install":         "rewrite.ca.export",
+	"rewrite ca trust remove":          "rewrite.ca.export",
+	"rewrite capture":                  "rewrite.ca.export",
+	"rewrite capture apps":             "rewrite.ca.export",
+	"rewrite capture body":             "rewrite.ca.export",
+	"rewrite capture check":            "rewrite.ca.export",
+	"rewrite capture clear":            "rewrite.ca.export",
+	"rewrite capture draft":            "rewrite.ca.export",
+	"rewrite capture export":           "rewrite.ca.export",
+	"rewrite capture fixture":          "rewrite.ca.export",
+	"rewrite capture import":           "rewrite.ca.export",
+	"rewrite capture list":             "rewrite.ca.export",
+	"rewrite capture pause":            "rewrite.ca.export",
+	"rewrite capture resume":           "rewrite.ca.export",
+	"rewrite capture show":             "rewrite.ca.export",
+	"rewrite capture start":            "rewrite.ca.export",
+	"rewrite capture status":           "rewrite.ca.export",
+	"rewrite capture stop":             "rewrite.ca.export",
+	"rewrite disable":                  "rewrite.ca.export",
+	"rewrite draft":                    "rewrite.ca.export",
+	"rewrite draft preview":            "rewrite.ca.export",
+	"rewrite draft save":               "rewrite.ca.export",
+	"rewrite enable":                   "rewrite.ca.export",
+	"rewrite export":                   "rewrite.ca.export",
+	"rewrite import":                   "rewrite.ca.export",
+	"rewrite preview":                  "rewrite.ca.export",
+	"rewrite rules":                    "rewrite.ca.export",
+	"rewrite rules add":                "rewrite.ca.export",
+	"rewrite rules disable":            "rewrite.ca.export",
+	"rewrite rules enable":             "rewrite.ca.export",
+	"rewrite rules list":               "rewrite.ca.export",
+	"rewrite rules remove":             "rewrite.ca.export",
+	"rewrite rules reorder":            "rewrite.ca.export",
+	"rewrite rules show":               "rewrite.ca.export",
+	"rewrite rules update":             "rewrite.ca.export",
+	"rewrite scripts":                  "rewrite.ca.export",
+	"rewrite scripts add":              "rewrite.ca.export",
+	"rewrite scripts list":             "rewrite.ca.export",
+	"rewrite scripts remove":           "rewrite.ca.export",
+	"rewrite scripts show":             "rewrite.ca.export",
+	"rewrite scripts source":           "rewrite.ca.export",
+	"rewrite scripts update":           "rewrite.ca.export",
+	"rewrite status":                   "rewrite.ca.export",
+	"rewrite validate":                 "rewrite.ca.export",
+	"rules connection":                 "rules.connection",
+	"rules disable":                    "rules.disable",
+	"rules enable":                     "rules.disable",
+	"rules remove":                     "rules.disable",
+	"rules test":                       "rules.test",
+	"subscription apply":               "subscription.apply",
+	"subscription key":                 "subscription.key",
+	"subscription preview":             "subscription.key",
+	"subscription remove":              "subscription.key",
+	"subscription schedule":            "subscription.key",
+	"subscription update":              "subscription.key",
+	"subscription watch":               "subscription.watch",
+	"traffic watch":                    "traffic.watch",
+}
+
 func syntaxError(problem any, spec *commandSpec) error {
 	var original string
 	var descriptor i18n.Descriptor
@@ -486,7 +668,10 @@ func syntaxError(problem any, spec *commandSpec) error {
 		descriptor.Args = map[string]any{}
 	}
 	descriptor.Args["syntax"] = spec.syntax
-	descriptor.Args["hint"] = hint
 	descriptor.Args["path"] = spec.path
+	if category := helpHintCategories[spec.path]; category != "" {
+		return i18n.NewMessage("help.usage."+descriptor.ID+"."+category, descriptor.Args, message, nil)
+	}
+	descriptor.Args["hint"] = hint
 	return i18n.NewMessage(descriptor.ID+".usage", descriptor.Args, message, nil)
 }
