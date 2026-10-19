@@ -168,7 +168,7 @@ func TestAdvancedRetainsAllFeatureEntrypoints(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"Current Configuration", "DNS", "Routing Rules", "Connections", "Start at Login", "Nagi Maintenance"}
+		want := []string{"Current Configuration", "DNS", "Routing Rules", "Request Rewrite", "Connections", "Start at Login", "Nagi Maintenance"}
 		if goos == "darwin" {
 			want = append(want, "Privileged helper")
 		}

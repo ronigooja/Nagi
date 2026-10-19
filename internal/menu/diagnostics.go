@@ -115,6 +115,7 @@ func advancedPageForOS(goos string) *Page {
 			{Label: "Current Configuration", Next: configurationPage},
 			{Label: "DNS", Next: DNSPage},
 			{Label: "Routing Rules", Next: RulesPage},
+			{Label: "Request Rewrite", Next: RequestRewritePage},
 			{Label: "Connections", Next: ConnectionsPage},
 			{Label: "Start at Login", Next: ServicePage},
 			{Label: "Nagi Maintenance", Next: MaintenancePage},

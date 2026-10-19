@@ -152,3 +152,45 @@ func (r *commandRunner) Stream(ctx context.Context, args []string, out io.Writer
 	}
 	return Result{}
 }
+
+// RawRunner is restricted to explicit request-rewrite document/public CA exports.
+// Raw data is for the selected sensitive workflow, never ordinary presentation.
+type RawRunner interface {
+	RunRaw(context.Context, []string) Result
+}
+
+func (r *commandRunner) RunRaw(ctx context.Context, args []string) Result {
+	if ctx.Err() != nil {
+		return Result{Code: 1, Error: &CLIError{Message: "Export cancelled"}}
+	}
+	valid := len(args) == 3 && args[0] == "request-rewrite" && args[1] == "export"
+	if len(args) == 5 && args[0] == "request-rewrite" && args[1] == "export" && args[3] == "--profile" && args[4] != "" {
+		valid = true
+	}
+	if len(args) == 4 && args[0] == "request-rewrite" && args[1] == "ca" && args[2] == "export" {
+		valid = true
+	}
+	if valid {
+		destination := args[2]
+		if args[1] == "ca" {
+			destination = args[3]
+		}
+		if destination == "" || (strings.HasPrefix(destination, "-") && destination != "-") {
+			valid = false
+		}
+	}
+	for _, arg := range args {
+		if arg == "--json" {
+			valid = false
+		}
+	}
+	if !valid {
+		return Result{Code: 1, Error: &CLIError{Message: "Unsupported raw command"}}
+	}
+	var stdout, stderr bytes.Buffer
+	code := r.run(args, &stdout, &stderr)
+	if code != 0 {
+		return Result{Code: code, Error: &CLIError{Message: "Export failed; check destination permissions, existence, and request-rewrite status"}}
+	}
+	return Result{Data: stdout.String()}
+}
