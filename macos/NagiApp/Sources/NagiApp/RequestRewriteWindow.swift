@@ -109,6 +109,7 @@ private struct RewriteEditorSession: Identifiable {
             }
         }
         .padding(18)
+        .nativeFormControls()
         .onChange(of: model.status?.profile) { _ in selectedScript = nil; selectedRule = nil }
         .sheet(item: $ruleSession) { session in
             RewriteRuleEditor(presentation: presentation, draft: session.draft, originalID: session.originalID, profile: session.profile)

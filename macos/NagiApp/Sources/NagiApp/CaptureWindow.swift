@@ -89,7 +89,7 @@ import SwiftUI
         // URL/header has a much larger intrinsic size than the available space.
         GeometryReader { geometry in
             content.frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
-        }
+        }.nativeFormControls()
     }
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -232,7 +232,7 @@ import SwiftUI
                         .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
                 }.frame(height: 52)
             } else {
-                TextEditor(text: text).frame(height: 52).border(Color.secondary.opacity(0.3))
+                TextEditor(text: text).frame(height: 52).nativeTextSurface()
                     .disabled(!model.canEditScope)
             }
         }.font(.system(.caption, design: .monospaced))

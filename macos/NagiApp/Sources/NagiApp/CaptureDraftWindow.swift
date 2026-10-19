@@ -54,6 +54,7 @@ import SwiftUI
             Divider()
             actions
         }.padding(20)
+            .nativeFormControls()
             .disclosureGroupStyle(CaptureDraftDisclosureStyle())
             .task { await model.prepare() }
             .onChange(of: needsDestinationConsent) { needed in
@@ -166,7 +167,7 @@ import SwiftUI
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.caption).foregroundColor(.secondary)
             TextEditor(text: text).font(.system(.body, design: .monospaced)).frame(height: 64)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.25)))
+                .nativeTextSurface()
                 .accessibilityLabel(label)
         }.help("JSON object mapping names to arrays of values, for example {\"X-Example\":[\"value\"]}. Leave blank to match any value.")
     }
@@ -314,6 +315,7 @@ private struct CaptureOperationEditor: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(draft.kind == "json_set" ? "JSON value" : "Replacement body").font(.caption).foregroundColor(.secondary)
                     TextEditor(text: $draft.value).font(.system(.body, design: .monospaced)).frame(height: 120)
+                        .nativeTextSurface()
                         .accessibilityLabel(draft.kind == "json_set" ? "JSON value" : "Replacement body")
                 }
             } else if ["header_set", "header_append", "trailer_set", "url_set", "method_set", "status_set"].contains(draft.kind) {
@@ -369,6 +371,7 @@ private struct CaptureOperationEditor: View {
                 Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
             }
         }.padding(20).frame(minWidth: 680, idealWidth: 800, minHeight: 460, idealHeight: 560)
+            .nativeFormControls()
             .task { await model.preview() }
     }
     private var resultText: String {

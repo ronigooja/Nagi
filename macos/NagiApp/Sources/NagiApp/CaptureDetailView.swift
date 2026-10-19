@@ -23,6 +23,7 @@ enum CaptureDetailSection: String, CaseIterable {
                 }.foregroundColor(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .nativeFormControls()
         .onChange(of: model.selectedID) { _ in jsonPointer = ""; jsonRulePresented = false }
     }
     private func detail(_ record: CaptureRecord) -> some View {
@@ -197,8 +198,7 @@ enum CaptureDetailSection: String, CaseIterable {
                 model.createRule(field: CaptureFieldSelection(kind: "text", selectedText: selected, value: selected, stage: record.stage))
             })
             .frame(minHeight: 80, maxHeight: .infinity)
-            .background(Color(nsColor: .textBackgroundColor))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.2)))
+            .nativeTextSurface()
         }
     }
     private var bodyFormat: some View {

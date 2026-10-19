@@ -113,6 +113,7 @@ private struct RewriteHelp: View {
                 Button("Save Rule") { submit() }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
             }
         }.padding(22).frame(width: 800, height: 740)
+            .nativeFormControls()
             .disabled(presentation.model.operationInProgress)
             .interactiveDismissDisabled(presentation.model.operationInProgress)
             .onAppear {
@@ -196,6 +197,7 @@ private struct RewritePredicateEditor: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label).font(.caption).foregroundColor(.secondary)
             TextEditor(text: $text).font(.system(.body, design: .monospaced)).frame(height: 55)
+                .nativeTextSurface()
                 .accessibilityLabel(label).help("JSON object mapping names to string arrays, for example {\"X-Demo\":[\"example\"]}. Leave blank to match any value.")
         }
     }
@@ -215,6 +217,7 @@ struct RewriteOperationEditor: View {
             if ["json_set", "body_set"].contains(draft.kind) {
                 Text(draft.kind == "json_set" ? "JSON value" : "Replacement body").font(.caption)
                 TextEditor(text: $draft.value).font(.system(.body, design: .monospaced)).frame(minHeight: 70)
+                    .nativeTextSurface()
                     .accessibilityLabel(draft.kind == "json_set" ? "JSON value" : "Replacement body")
             } else if ["header_set", "header_append", "trailer_set", "url_set", "method_set", "status_set"].contains(draft.kind) {
                 RewriteField(draft.kind == "status_set" ? "Status (200–599)" : "Value", text: $draft.value)
@@ -250,6 +253,7 @@ struct RewriteOperationEditor: View {
             Picker("Body access", selection: $draft.bodyAccess) { Text("Metadata only").tag("none"); Text("Buffered body (up to 8 MiB)").tag("buffer") }
             Text("JavaScript").font(.caption).foregroundColor(.secondary)
             TextEditor(text: $draft.source).font(.system(.body, design: .monospaced))
+                .nativeTextSurface()
                 .accessibilityLabel("JavaScript source")
             if let error = localError ?? presentation.model.error { Text(error).foregroundColor(.red) }
             HStack {
@@ -266,6 +270,7 @@ struct RewriteOperationEditor: View {
                 }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
             }
         }.padding(22).frame(width: 780, height: 620)
+            .nativeFormControls()
             .disabled(presentation.model.operationInProgress)
             .interactiveDismissDisabled(presentation.model.operationInProgress)
     }
@@ -356,12 +361,12 @@ struct RewritePreviewDraft {
                 Text(presentation.model.preview ?? "No preview result")
                     .font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxHeight: .infinity).padding(8).background(Color.secondary.opacity(0.06))
-        }.padding()
+        }.padding().nativeFormControls()
     }
     private var requestForm: some View {
         GroupBox("Original request") {
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
+                HStack(alignment: .bottom) {
                     Picker("Scheme", selection: $draft.scheme) { Text("https").tag("https"); Text("http").tag("http") }.frame(width: 150)
                     RewriteField("Host", text: $draft.host)
                     RewriteField("Port", text: $draft.port).frame(width: 70)
@@ -403,6 +408,7 @@ private struct RewritePreviewHeaderEditor: View {
         VStack(alignment: .leading) {
             Text(label).font(.caption).foregroundColor(.secondary)
             TextEditor(text: $text).font(.system(.body, design: .monospaced)).frame(height: 55)
+                .nativeTextSurface()
                 .accessibilityLabel(label).help("One Name: value pair per line.")
         }
     }
@@ -414,6 +420,7 @@ private struct RewritePreviewBodyEditor: View {
         VStack(alignment: .leading) {
             Picker("Body input", selection: $encoding) { Text("UTF-8").tag("utf8"); Text("Base64 binary").tag("base64") }
             TextEditor(text: $bodyText).font(.system(.body, design: .monospaced)).frame(height: 65)
+                .nativeTextSurface()
                 .accessibilityLabel("Body")
         }
     }
