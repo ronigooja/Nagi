@@ -4,7 +4,8 @@ This record separates v2 software evidence from native platform acceptance and
 release availability. The [design](../design/request-rewrite.md) defines behavior;
 the [CLI reference](../reference/cli.md#tun-request-rewrite) defines public syntax.
 All fixtures use temporary private state, fictitious names and local origins.
-No real OS TUN, system CA trust or installed user service was changed.
+No real OS TUN, system CA trust or installed user service was changed. Capture
+evidence and native source verification added later are recorded separately below.
 
 ## Source and environment
 
@@ -18,9 +19,11 @@ Nagi release binaries have not been published for this change.
 
 The Nagi v2 configuration, immutable request/response/message pipeline, fixed
 QuickJS/WASM runner, CLI and terminal menu have software tests. The macOS source
-uses the CLI interface; Swift/framework tooling is unavailable on this host.
-Native Swift compilation/tests, packaging, keychain trust, UI and TUN/backend
-acceptance remain **unverified**. Cross-compilation is only Go build evidence.
+uses the CLI interface. Swift/framework tooling is unavailable on this Linux host;
+later native compilation and automated-test evidence is recorded in the capture
+section below. Interactive UI, packaging for this capture change, keychain trust
+and TUN/backend acceptance remain **unverified**. Cross-compilation is only Go
+build evidence.
 
 ## Verification ledger
 
@@ -90,3 +93,46 @@ memory. Those budgets are not a whole-process memory ceiling.
 Before advertising installation/update availability, build and inspect matching
 Nagi release artifacts using the [release gate](release.md#request-rewrite-release-gate).
 No Nagi tag, release archive or GitHub Release is created by this implementation.
+
+
+## Capture verification
+
+This section records capture-specific evidence separately from the preceding v2
+rewrite ledger. The current [capture design](../design/request-capture.md) and
+[user guide](../guides/request-capture.md) distinguish implemented behavior from
+platform acceptance. The capture engine source used for these checks is
+`da88dc0d710f78a659bc36251b2ab18310aa4ebd`; installation/update availability still
+requires a matching Nagi and engine release.
+
+| Layer | Evidence and limits |
+| --- | --- |
+| Terminal menu | `go test ./internal/menu` and `go test -race ./internal/menu` pass. Capture journeys cover private stdin scope, failed-form retention and EOF/cancel discard, observed/uncertain status and stop recovery, raw Authorization/Cookie/query/body display with minute timestamps and Enter pause, cursor batches and stale-read clearing, fixture/body access, archive allowlisting and versioned quick-rule save conflicts without automatic retry. |
+| CLI/runtime | Recorder, service, capture draft and command tests exercise bounded original records and body states, streaming archives, strict JSON/scope, reconciliation and uncertain-session recovery. Runtime integration evidence is supplied by the ordinary-UID coordinator fixture described below. |
+| Native App source | An isolated ARM64 macOS 14 checkout with Apple Swift 6.0.3 passed `swift test` (182 tests, zero failures) and `swift build -c release`. After the final RFC 6901 invalid-index correction, the focused 12-test capture-draft suite and release build passed again. Tests cover transport/stdin/raw values, window-owned session lifetime, cancellation, operation ordering, insertion/enable, exact matching, profile/version binding, incomplete originals, preview and save conflicts. These are automated source/model checks. |
+| Outstanding native acceptance | Actual OS TUN routing and process attribution, certificate trust and application stores, privileged-helper capture, real application HTTP/HTTPS and both WebSocket directions, interactive App behavior, sleep/wake and sustained resource measurement still require native acceptance. |
+
+The native source checks used an isolated development checkout and touched no
+ordinary user services or traffic settings. The full test and final focused/release
+logs were retained on the native development host as development artifacts;
+those local paths are not runtime requirements.
+
+For a reproducible capture coordinator check, use the capture engine revision
+above with the repository harness:
+
+```sh
+MIHOMO_DIR=/path/to/clean/capture-engine GO=/path/to/go \
+  bash scripts/test-request-capture-coordinator.sh
+```
+
+The harness runs the real CLI, child, recorder, controller, mTLS handoff and
+reinjection as an isolated ordinary UID. It injects synthetic TUN connections
+rather than creating an OS TUN device. Verified cases include zero-rule HTTP and
+both WebSocket directions, original UID/process path and raw credentials/bodies,
+pause/resume without a generation swap, suppression of globally disabled stored
+rules, rule-save revision preparation and certificate-renewal history retention,
+raw stdout export, rejection of engines without capture capability, TUN disable,
+engine exit/restart without automatic resume and profile/quit teardown. This proves software coordination;
+it does not prove OS route installation, root-helper policy or application trust.
+Run the [native and release gates](#native-and-release-gates), adding App and
+terminal capture start/scope/apps/list/show/body/clear/import/export/fixture and
+quick-rule preview/save journeys, before claiming platform delivery complete.

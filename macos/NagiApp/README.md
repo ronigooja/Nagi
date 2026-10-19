@@ -73,8 +73,13 @@ the list. Sorting and refresh preserve selection by record ID. Select an exchang
 to inspect request/response snapshots, headers, trailers, body collection state,
 matched rules and its WebSocket message timeline. Raw text, formatted JSON, hex
 and before/after body comparisons are available. Header, URL, status and selected
-body text context menus expose the selected field to the quick-rule editor when
-that editor is installed; a JSON pointer selects a structured body field.
+body text context menus open a quick-rule draft from the selected original field;
+a JSON pointer selects a structured body field. The draft supports the full
+existing operation set, match predicates, insertion position and enable-on-save.
+Preview runs the existing chain locally against original complete snapshots;
+save uses the CLI version check and activation transaction. A failure or conflict
+retains the draft. Incomplete originals can derive metadata rules without an
+invented preview body.
 
 Captured URLs, query parameters, Authorization, Cookie and body values are shown,
 searched and copied directly. Native archives and HAR exports include this
@@ -92,8 +97,9 @@ mutations and quit cleanup share the App operation gate.
 
 The native source compiles and has model, transport and window lifecycle tests.
 Live TUN, trust, privileged-helper and capture-to-rule acceptance remain separate
-platform checks. The shared contract is in the
-[capture design](../../docs/design/request-capture.md).
+platform checks. See the [capture guide](../../docs/guides/request-capture.md),
+[shared design](../../docs/design/request-capture.md) and
+[verification record](../../docs/development/request-rewrite-acceptance.md#capture-verification).
 
 Dialog text fields use AppKit's standard editing commands: **⌘V** to paste, **⌘C** to copy, **⌘X** to cut, **⌘A** to select all, **⌘Z** to undo, and **⇧⌘Z** to redo when available. The app installs an Edit menu and routes these commands to the focused input, including the editable provider group selector. After changing this menu, verify shortcuts on macOS in both Add Provider… and Add and Apply Subscription…, including after a validation error keeps a dialog open.
 

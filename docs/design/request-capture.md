@@ -1,7 +1,10 @@
 # Request capture and quick rewrite rules
 
-Status: accepted implementation contract; implementation and platform acceptance
-are in progress. This document owns the capture protocol and operation boundary.
+Status: implemented in source with software verification; native live TUN, trust,
+privileged-helper and release acceptance remain separately pending. This document
+owns the current capture protocol, responsibilities and failure behavior. See the
+[verification record](../development/request-rewrite-acceptance.md#capture-verification)
+for evidence and outstanding platform checks.
 The existing [rewrite design](request-rewrite.md) owns transformation semantics.
 
 ## Ownership and authorization
@@ -94,6 +97,55 @@ collection stops. Rule generation changes retain recorder history. Records are
 memory-only unless explicitly exported. Archives are versioned streaming NDJSON;
 HAR uses named extensions for WebSocket data. Imported archives are offline.
 
-HTTP/HTTPS, both WebSocket directions, stream-safe collection, all existing
-operations, macOS/CLI/menu, archives, native TUN and helper acceptance are required
-for completion. Fixtures cannot substitute for real platform acceptance.
+The implemented source includes HTTP/HTTPS, both WebSocket directions,
+stream-safe collection, the existing rewrite operation set, macOS/CLI/menu
+interfaces and native/HAR archives. Real native TUN and helper acceptance remain
+required delivery gates. Fixtures cannot substitute for real platform acceptance.
+
+
+## Observation and failure recovery
+
+The CLI reports capture status from observed recorder, engine and child state,
+including generation, engine epoch, selected profile, backend and actual TUN
+availability. A recorder state alone is insufficient proof of active collection.
+A mismatch reports `state:uncertain`, retains `recorder_state` and provides a
+session-specific stop recovery command. Pause/resume reject uncertain sessions.
+Stop tears down an uncertain generation and retains history; rewriting may need
+explicit reactivation afterward. A coherent pause/resume/stop changes only capture
+policy, preserving the rule generation and open streams. Startup failure tears
+down partial activation rather than leaving collection claimed active.
+
+Scope inputs use rewrite domain validation, bounded/deduplicated arrays and clean
+absolute process/application paths. Application paths must identify the outermost
+`.app` bundle. Malformed, ambiguous or duplicate JSON fields fail before state
+changes. Archives validate before replacing retained stopped history; failed and
+truncated imports preserve the previous session.
+
+## Interaction and sensitive presentation
+
+The native App capture window owns a distinct session token. Closing it stops
+only its own session; hiding, minimizing or sleeping cancels reads without
+resuming collection on return. Capture mutations share the existing App operation
+gate with settings and quit. The list and snapshot views display original
+content, including URLs, headers, trailers and bodies. Body views support text,
+JSON, hex and original/actual comparison. Context selections feed a local quick
+rule draft through the CLI; operation validation and saving remain CLI work.
+
+The terminal menu is under Settings & Maintenance → Request Rewrite → Original Capture. It
+uses existing command runners for status, scoped start, application discovery,
+record listing/show, decoded-offset body chunks, session controls, fixtures,
+archives and versioned drafts. Resource lists use the standard ten-entry numeric
+pagination and an explicit next-batch action for recorder cursors. Original
+metadata/body views bypass ordinary redaction and styles and pause until Enter;
+ordinary page context and errors retain their existing presentation boundary.
+There is no reveal operation or extra consent after an explicit capture action.
+
+Quick-rule operation forms build a selection; `capture draft` supplies the base
+rule version, original match and optional complete fixture. The menu binds preview
+and save to the selected profile, retains the versioned candidate after failure
+and never retries a mutation automatically. Complete JSON editing covers advanced
+predicates, every operation, insertion order and policy fields. EOF discards an
+unfinished form. Advanced private-file and batch flows remain ordinary CLI
+operations. User steps belong in the [capture guide](../guides/request-capture.md)
+and exact syntax belongs in the
+[CLI reference](../reference/cli.md#original-request-capture-and-capture-derived-drafts).

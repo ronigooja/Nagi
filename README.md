@@ -18,7 +18,8 @@ Use the macOS menu bar app for daily controls, live traffic rates, and active co
 - **Configuration profiles:** import, switch, export, back up, restore, and compare profiles; apply local overrides separately from source configuration.
 - **DNS leak prevention:** encrypted DoH, TUN DNS interception, and mihomo resolution of proxied destinations in the default settings; apply those DNS safeguards over a subscription profile while retaining its nodes, groups, and routing rules.
 - **Low-latency proxying:** in a macOS-to-Linux LAN VLESS TCP+TLS benchmark, Nagi measured 5.42 ms median for new connections and 0.32 ms for reused requests with the server's default TCP ACK settings. A reference Shadowrocket run measured 53.36 ms and 0.55 ms; the runs took place on different dates and network conditions, so these figures are indicative only. See the [benchmark notes](docs/development/benchmarks.md).
-- **Request rewrite:** `nagi rewrite` (also `nagi request-rewrite`) and terminal forms for private per-profile rules for requests, responses and bidirectional WebSocket messages, isolated JavaScript, local previews, explicit CA/trust management and supervised TUN-only activation. A native macOS management window has a source implementation, with native build and acceptance unverified. Source builds use the [published pinned engine](docs/development/build-and-test.md#request-rewrite-coordinator); availability through installation or `nagi update` requires a matching Nagi release. See the [verification matrix](docs/development/request-rewrite-acceptance.md).
+- **Request rewrite:** `nagi rewrite` (also `nagi request-rewrite`) and terminal forms for private per-profile rules for requests, responses and bidirectional WebSocket messages, isolated JavaScript, local previews, explicit CA/trust management and supervised TUN-only activation. The native macOS management and capture windows compile and have automated tests; interactive TUN and trust acceptance remains pending. Source builds use the [published pinned engine](docs/development/build-and-test.md#request-rewrite-coordinator); availability through installation or `nagi update` requires a matching Nagi release. See the [verification matrix](docs/development/request-rewrite-acceptance.md).
+- **Original request capture:** explicit TUN HTTP/HTTPS and bidirectional WebSocket recording, original headers/cookies/bodies, scoped sessions, native/HAR archives and capture-derived versioned rewrite drafts through the CLI, terminal menu and native macOS source. See the [capture guide](docs/guides/request-capture.md) and [verification status](docs/development/request-rewrite-acceptance.md#capture-verification).
 - **Routing and DNS:** custom rules, imported rule sets, domain/IP rule tests, rule/global/direct modes, DNS-over-HTTPS (DoH) policy, and domain-specific DNS exceptions.
 - **Traffic access:** macOS system proxy settings, TUN controls on macOS and Linux, and proxy listener and LAN access settings.
 - **Monitoring and recovery:** connection inspection and closure, live logs, read-only diagnostics, and login startup services.
@@ -83,6 +84,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [Proxy providers](docs/guides/proxy-providers.md): add a node source, attach it to a group, and refresh its nodes.
 - [Rules](docs/guides/rules.md): active rules, custom rules, and rule sets.
 - [Startup and recovery](docs/guides/startup.md): login service, stale state, and rechecks.
+- [Request capture](docs/guides/request-capture.md): original traffic, scoped sessions, archives and quick rewrite drafts.
 - [Diagnostics](docs/guides/diagnostics.md): redacted health and security checks.
 
 ### Reference and design
@@ -95,6 +97,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.
 - [Request rewrite CLI](docs/reference/cli.md#tun-request-rewrite), [design](docs/design/request-rewrite.md) and [decision](docs/decisions/0011-rule-driven-content-rewrite.md): implemented CLI/coordinator and terminal forms, plus source-reviewed macOS controls, against the published pinned engine; [native acceptance and Nagi release publication remain pending](docs/development/request-rewrite-acceptance.md).
+- [Capture design](docs/design/request-capture.md): engine capture policy, recorder protocol, session recovery and draft transactions.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
 - [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
 - [Per-profile rules decision](docs/decisions/0008-per-profile-rules.md): isolated rule ownership and subscription validation.
