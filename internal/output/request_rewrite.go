@@ -51,6 +51,8 @@ func writeRewrite(w io.Writer, v RewriteResult) error {
 				value = stateText(w, "unknown")
 			}
 			switch p.key {
+			case "last_error", "recovery":
+				value = fieldText(w, "/"+p.key, fmt.Sprint(value))
 			case "enabled_intent", "tun_running", "service_running", "saved", "valid", "exported", "backend", "trust", "state":
 				value = stateText(w, fmt.Sprint(value))
 			}

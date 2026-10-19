@@ -40,7 +40,10 @@ type Envelope struct {
 
 func Write(w io.Writer, jsonMode bool, data any) error {
 	if jsonMode {
-		return json.NewEncoder(w).Encode(Envelope{OK: true, Data: data})
+		return json.NewEncoder(w).Encode(Envelope{OK: true, Data: data, Messages: CollectMessages(data)})
+	}
+	if result, ok := data.(i18n.Result); ok {
+		return Write(messageWriter{Writer: w, source: result}, false, result.Value)
 	}
 	switch v := data.(type) {
 	case CaptureResult:
@@ -69,7 +72,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 				return err
 			}
 		}
-		return line(w, v.Reason)
+		return line(w, RenderMessageField(v, "/reason", v.Reason, writerLanguage(w)))
 	case string:
 		return line(w, v)
 	case Candidates:
@@ -92,7 +95,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			}
 		}
 		for _, check := range v.Checks {
-			if err := line(w, "["+stateValue(w, strings.ToUpper(check.Status))+"] "+check.Name+": "+check.Message); err != nil {
+			if err := line(w, "["+stateValue(w, strings.ToUpper(check.Status))+"] "+RenderMessageField(check, "/name", check.Name, writerLanguage(w))+": "+RenderMessageField(check, "/message", check.Message, writerLanguage(w))); err != nil {
 				return err
 			}
 		}
@@ -108,7 +111,7 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 			}
 		}
 		for _, check := range v.Checks {
-			if err := line(w, "["+stateValue(w, strings.ToUpper(check.Status))+"] "+check.Name+": "+check.Message); err != nil {
+			if err := line(w, "["+stateValue(w, strings.ToUpper(check.Status))+"] "+RenderMessageField(check, "/name", check.Name, writerLanguage(w))+": "+RenderMessageField(check, "/message", check.Message, writerLanguage(w))); err != nil {
 				return err
 			}
 		}
@@ -457,6 +460,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			}
 		}
 		if currentErr, ok := v["current_error"].(string); ok && currentErr != "" {
+			currentErr = fieldText(w, "/current_error", currentErr)
 			return line(w, renderText(w, "cli.output.writehumanmap.warning_selected_profile_is_unavailable.message", map[string]any{"detail": fmt.Sprint(currentErr)}, "Warning: selected profile is unavailable: "+fmt.Sprint(currentErr)))
 		}
 		return nil
@@ -645,6 +649,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			return err
 		}
 		if profileErr, ok := v["profile_error"].(string); ok && profileErr != "" {
+			profileErr = fieldText(w, "/profile_error", profileErr)
 			if err := line(w, renderText(w, "cli.output.writehumanmap.warning_selected_profile_is_unavailable.message", map[string]any{"detail": fmt.Sprint(profileErr)}, "Warning: selected profile is unavailable: "+fmt.Sprint(profileErr))); err != nil {
 				return err
 			}
@@ -893,7 +898,7 @@ func writePreview(w io.Writer, p subscription.Preview) error {
 		}
 	}
 	for _, change := range p.Changes {
-		if err := line(w, "  "+change.Kind+" "+change.Path+": "+change.Behavior); err != nil {
+		if err := line(w, "  "+change.Kind+" "+change.Path+": "+RenderMessageField(change, "/behavior", change.Behavior, writerLanguage(w))); err != nil {
 			return err
 		}
 	}

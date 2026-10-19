@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/output"
 	"github.com/ronigooja/Nagi/internal/profile"
 	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
@@ -255,6 +256,14 @@ func rewriteResult(v any) (any, error) {
 	}
 	var out output.RewriteResult
 	e = json.Unmarshal(b, &out)
+
+	if messages := output.CollectMessages(v); len(messages) != 0 {
+		relative := map[string]i18n.Descriptor{}
+		for pointer, descriptor := range messages {
+			relative[strings.TrimPrefix(pointer, "/data")] = descriptor
+		}
+		return i18n.Result{Value: out, Messages: relative}, e
+	}
 	return out, e
 }
 func rewriteExport(path string, data []byte) (any, error) {

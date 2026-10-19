@@ -93,6 +93,9 @@ func WithLanguage(w io.Writer, locale i18n.Context) io.Writer {
 }
 
 func writerLanguage(w io.Writer) i18n.Context {
+	if annotated, ok := w.(messageWriter); ok {
+		return writerLanguage(annotated.Writer)
+	}
 	if localized, ok := w.(localizedWriter); ok {
 		return localized.locale
 	}
@@ -105,6 +108,10 @@ func text(w io.Writer, id, fallback string) string {
 
 func underlyingWriter(w io.Writer) io.Writer {
 	for {
+		if annotated, ok := w.(messageWriter); ok {
+			w = annotated.Writer
+			continue
+		}
 		localized, ok := w.(localizedWriter)
 		if !ok {
 			return w
@@ -130,4 +137,18 @@ func stateText(w io.Writer, state string) string {
 
 func renderText(w io.Writer, id string, args map[string]any, english string) string {
 	return writerLanguage(w).RenderDescriptor(i18n.Descriptor{ID: id, Args: args}, english)
+}
+
+// messageWriter retains source associations only for explicitly rendered fields.
+// Raw bytes continue directly to the original writer.
+type messageWriter struct {
+	io.Writer
+	source any
+}
+
+func fieldText(w io.Writer, pointer, fallback string) string {
+	if annotated, ok := w.(messageWriter); ok {
+		return RenderMessageField(annotated.source, pointer, fallback, writerLanguage(w))
+	}
+	return fallback
 }
