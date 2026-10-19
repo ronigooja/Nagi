@@ -175,7 +175,7 @@ func rewriteEnabledFixture(t *testing.T) *rewrite.Snapshot {
 	t.Helper()
 	d := rewrite.Empty().Document()
 	d.Enabled = true
-	d.Rules = []rewrite.Rule{{ID: "api", Enabled: true, Stage: rewrite.StageRequest, Match: rewrite.Match{Domain: "api.service.example"}, OnError: "skip", RedirectConsent: []rewrite.Consent{}, Operations: []rewrite.Operation{{Op: "header_set", Name: "X-Fixture", Value: json.RawMessage(`"fixture"`)}}}}
+	d.Rules = []rewrite.Rule{{ID: "api", Enabled: true, Stage: rewrite.StageRequest, Match: rewrite.Match{Domain: "api.service.example"}, OnError: "block", RedirectConsent: []rewrite.Consent{}, Operations: []rewrite.Operation{{Op: "header_set", Name: "X-Fixture", Value: json.RawMessage(`"fixture"`)}}}}
 	s, e := rewrite.Compile(d)
 	if e != nil {
 		t.Fatal(e)

@@ -87,7 +87,7 @@ func TestRewriteRealRestrictedOwnerAndReload(t *testing.T) {
 			if owner > 0 && (len(flags) != 1 || flags[0] != "--request-rewrite-owner-uid=1000") || owner == 0 && len(flags) != 0 {
 				t.Fatal("incorrect trusted owner bootstrap argument")
 			}
-			snapshot, e := domain.Compile(domain.Document{Version: 2, Rules: []domain.Rule{{ID: "api", Enabled: true, Stage: domain.StageRequest, Match: domain.Match{Domain: "api.service.example"}, OnError: "skip", RedirectConsent: []domain.Consent{}, Operations: []domain.Operation{{Op: "header_set", Name: "X-Fixture", Value: json.RawMessage(`"fixture"`)}}}}, Scripts: []domain.Script{}})
+			snapshot, e := domain.Compile(domain.Document{Version: 2, Rules: []domain.Rule{{ID: "api", Enabled: true, Stage: domain.StageRequest, Match: domain.Match{Domain: "api.service.example"}, OnError: "block", RedirectConsent: []domain.Consent{}, Operations: []domain.Operation{{Op: "header_set", Name: "X-Fixture", Value: json.RawMessage(`"fixture"`)}}}}, Scripts: []domain.Script{}})
 			if e != nil {
 				t.Fatal(e)
 			}
