@@ -9,6 +9,7 @@ import SwiftUI
 @MainActor final class CaptureWindowController: NSWindowController, NSWindowDelegate {
     let model: CaptureModel
     private var observers: [NSObjectProtocol] = []
+    private var draftWindow: CaptureDraftWindowController?
     init(model: CaptureModel) {
         self.model = model
         let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1240, height: 820), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -18,9 +19,18 @@ import SwiftUI
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
         window.contentView = NSHostingView(rootView: CaptureView(presentation: CapturePresentation(model)))
         window.center()
+        model.onCreateRule = { [weak self] context in self?.createRule(context) }
         for name in [NSApplication.didHideNotification, NSApplication.didUnhideNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateVisibility() } })
         }
+    }
+    private func createRule(_ context: CaptureSelectionContext) {
+        if let draftWindow { draftWindow.present(); return }
+        guard let run = model.draftRun else { return }
+        let controller = CaptureDraftWindowController(model: CaptureDraftModel(context: context, run: run))
+        draftWindow = controller
+        controller.onClose = { [weak self] in self?.draftWindow = nil }
+        controller.present()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
@@ -153,6 +163,8 @@ import SwiftUI
                 }
                 if let snapshot = record.snapshots[model.selectedSnapshotName] {
                     Text("Body: \(snapshot.bodyState) · \(snapshot.captured) captured / \(snapshot.bodySize) bytes\(snapshot.messageType.map { " · " + $0 } ?? "")").font(.caption).foregroundColor(.secondary)
+                    if let method = snapshot.method { Text("Method: \(method)").contextMenu { Button("Create Rule from Method…") { model.createRule(field: CaptureFieldSelection(kind: "method", value: method, stage: record.stage)) } } }
+                    if let query = snapshot.query, !query.isEmpty { Text("Query: \(query)").textSelection(.enabled).contextMenu { Button("Create Rule from Query…") { model.createRule(field: CaptureFieldSelection(kind: "query", value: query, stage: record.stage)) } } }
                     if let status = snapshot.status { Text("Status: \(status)").contextMenu { Button("Create Rule from Status…") { model.createRule(field: CaptureFieldSelection(kind: "status", value: String(status), stage: record.stage)) } } }
                     ScrollView {
                         VStack(alignment: .leading, spacing: 3) {

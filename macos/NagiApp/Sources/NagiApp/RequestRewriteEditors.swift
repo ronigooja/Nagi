@@ -115,7 +115,7 @@ private struct RewritePredicateEditor: View {
     }
 }
 
-private struct RewriteOperationEditor: View {
+struct RewriteOperationEditor: View {
     @Binding var draft: RewriteOperationDraft
     let stage: String
     var body: some View {
