@@ -71,7 +71,7 @@ Ordinary commands accept `--json`; JSON envelopes and error codes form the app i
 
 Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). Supported mihomo YAML subscriptions can be applied as profiles; the [CLI reference](docs/reference/cli.md) defines the format and replacement behavior.
 
-The English/Simplified Chinese localization foundation is under implementation. Invocation-scoped language contexts and additive JSON message descriptors preserve machine data; see the [localization design](docs/design/localization.md) for implemented foundations and remaining scope.
+English/Simplified Chinese resources now cover CLI presentation, terminal menu sessions and the native App. Immutable invocation contexts and additive JSON message descriptors preserve machine data. Backend diagnostics, coverage integration and native interactive acceptance remain in progress; see the [localization design](docs/design/localization.md) for current scope and evidence.
 
 ## Services, builds, and validation
 

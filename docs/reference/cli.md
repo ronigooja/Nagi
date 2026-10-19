@@ -8,7 +8,7 @@ Run `nagi`, `nagi help`, `nagi -h`, or `nagi --help` for top-level help. Use `na
 
 Valid help requests exit with status `0`, even if runtime configuration is invalid or mihomo is unavailable. With `--json`, help text is a string in the success envelope's `data` field. Unknown help topics and incorrect argument counts exit with status `2` and show the relevant usage or help syntax. Argument counts and the `logs` integer range are checked before runtime configuration is read.
 
-## Language selection foundation
+## Language selection
 
 `--lang en` or `--lang zh-Hans` selects the human presentation language when
 placed before the command, for example `nagi --lang zh-Hans --json status`.
@@ -18,13 +18,19 @@ automatic locales fall back to English. Missing, repeated, empty, or unsupported
 explicit language options exit with usage status `2`. Command operands remain
 command-owned, so a resource named `--lang` is preserved after the command.
 
-Localization is in progress: the initial foundation translates language-option
-errors; command help, other results and the terminal menu remain English until
-migration. JSON values retain their original English strings. Typed messages may
+Human command errors, output labels and terminal menu pages support both
+languages. Command help and backend diagnostic migration are being integrated;
+unannotated messages retain English fallback. JSON values retain their original
+English strings. Typed messages may
 add optional `messages` metadata mapping existing string JSON Pointers to
 `{"id":"semantic.id","args":{"name":"value"}}`; absent or invalid metadata
 must preserve the original response. The [localization design](../design/localization.md)
 defines argument types, fallback and migration status.
+
+Human traffic samples and certificate validity times display timestamps at minute
+precision. Machine-readable `sampled_at` and stored timestamps retain their
+documented formats. Generated completion scripts and candidate values are
+language-independent raw content.
 
 ## Commands
 
@@ -120,7 +126,7 @@ Text `subscription list` displays available update, expiry, and next-due timesta
 
 ## Terminal menu
 
-`nagi menu` opens an English, line-oriented menu and preserves terminal scrollback. The home page shows mihomo state and the current profile, followed by these fixed entries:
+`nagi menu` opens a line-oriented menu in the invocation's resolved language and preserves terminal scrollback. The home page shows mihomo state and the current profile, followed by these fixed entries:
 
 | Number | Entry | Contents |
 | --- | --- | --- |
@@ -376,7 +382,7 @@ Replace `Node A`, `Proxy Group`, and `CONNECTION_ID` with names and IDs from you
 
 ## Shell completion
 
-`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Completions cover command names, subcommands, global flags, supported mode/shell and DNS policy values, DNS query record types, and local files for profile import, export, and override set. Healthcheck actions complete `group` or `provider` and then names from the selected local effective profile through `completion candidates healthcheck-targets group|provider|subscription`, without a running engine. Context node tests complete group members or `completion candidates provider-nodes PROVIDER` so same-name provider nodes retain their owner. At completion time, other proxy group, node, and provider names are queried from the running engine; an unreachable engine yields no dynamic proxy candidates. For `profile override apply-default NAME --dns-proxy`, group candidates instead come from the named profile's local effective configuration, so the running engine may be stopped or using another profile. Profile and subscription names are queried from local stores without exposing URLs. `subscription key` completes subscription names and then local files or `clear`. `completion candidates groups|nodes [GROUP]|providers|profile|subscription|rules|profile-groups NAME` returns newline-separated text or a JSON string array; `profile-groups NAME` reads eligible DNS proxy groups from that profile without contacting the engine. `rules` reads stored rule, bundle, and set names from the selected profile without contacting the engine; Bash, Zsh, and Fish use these candidates for `rules remove`, `rules enable`, and `rules disable`. Tailscale completion reads local `tailscale-nodes` and `tailscale-targets node|provider|subscription` candidates while stopped; add/edit options complete their flags, including `--auth-key` and `--auth-key-stdin`, and optional Auth Key files. `completion candidates tailscale-nodes|tailscale-targets node|provider|subscription` returns only names, without keys or file paths. Connection IDs are not completed.
+`completion bash`, `completion zsh`, and `completion fish` print scripts for the selected shell. Text mode prints the script directly; `--json` returns it as the envelope's string `data`. Generation does not require mihomo or a valid selected profile. Global-prefix completion offers `--lang`, `en` and `zh-Hans` and skips the language value before determining the command context. Completions cover command names, subcommands, global flags, supported mode/shell and DNS policy values, DNS query record types, and local files for profile import, export, and override set. Healthcheck actions complete `group` or `provider` and then names from the selected local effective profile through `completion candidates healthcheck-targets group|provider|subscription`, without a running engine. Context node tests complete group members or `completion candidates provider-nodes PROVIDER` so same-name provider nodes retain their owner. At completion time, other proxy group, node, and provider names are queried from the running engine; an unreachable engine yields no dynamic proxy candidates. For `profile override apply-default NAME --dns-proxy`, group candidates instead come from the named profile's local effective configuration, so the running engine may be stopped or using another profile. Profile and subscription names are queried from local stores without exposing URLs. `subscription key` completes subscription names and then local files or `clear`. `completion candidates groups|nodes [GROUP]|providers|profile|subscription|rules|profile-groups NAME` returns newline-separated text or a JSON string array; `profile-groups NAME` reads eligible DNS proxy groups from that profile without contacting the engine. `rules` reads stored rule, bundle, and set names from the selected profile without contacting the engine; Bash, Zsh, and Fish use these candidates for `rules remove`, `rules enable`, and `rules disable`. Tailscale completion reads local `tailscale-nodes` and `tailscale-targets node|provider|subscription` candidates while stopped; add/edit options complete their flags, including `--auth-key` and `--auth-key-stdin`, and optional Auth Key files. `completion candidates tailscale-nodes|tailscale-targets node|provider|subscription` returns only names, without keys or file paths. Connection IDs are not completed.
 
 Load the script in the corresponding shell:
 

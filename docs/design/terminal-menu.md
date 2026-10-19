@@ -139,3 +139,20 @@ Framework and feature tests inject runners to verify dispatch, numeric navigatio
 The October 2026 verification passed the Go and menu tests, Linux PTY journeys (three-selection proxy switching with spaces, repeated form cancellation, literal text including zero, both streams, EOF, and exit without stopping mihomo), and Darwin source compilation. The final locked mihomo source was separately built and exercised through focused engine regression and isolated Nagi runtime checks. Full mihomo package testing remains limited by the documented listener/inbound timeout and offline nested dependencies. macOS menu-bar interactive acceptance still requires a macOS host.
 
 The T6 request-rewrite menu verification passed injected-runner journeys, menu race tests, the full Go suite, Darwin ARM64 cross-compilation and an isolated Linux PTY journey under an ordinary UID. The PTY used a freshly built compatible engine from source commit `d7c0a70776e4e698bee43f2044e7fa91d2d67d7b` through the existing runtime override, with the release lock unchanged. It covered domain/rule CRUD and failure recovery, all operation forms and ordering, destination consent, sensitive preview/import/export, CA/public export, repeated interruption, EOF before Submit and menu exit while the engine remained running. TUN was disabled: enable correctly refused with `rewrite_tun_required`. No live interception, rewrite-child persistence or macOS trust result is claimed by those menu checks. Private fixture CA/configuration files were removed after verification.
+
+## Localization
+
+A session owns an immutable English or Simplified Chinese language context.
+`NewSessionWithLanguage` binds it to page factories, forms and feedback; the
+CLI passes the invocation context into `Run`. The production runner copies its
+language per session and prefixes child reads, operations and streams with
+`--lang`, keeping submitted business arguments unchanged. Concurrent reads never
+mutate a global language preference.
+
+Stable page/item identities and protocol values drive navigation and styling.
+Translated labels never determine root navigation, selection or severity.
+Optional message descriptors render existing string targets by exact JSON
+Pointer; invalid metadata preserves original text and never mutates result data.
+Requested raw configuration, logs, diffs, exports, capture values and child stream
+bytes bypass descriptor substitution. See the [localization design](localization.md)
+for the catalog, fallback and acceptance contract.

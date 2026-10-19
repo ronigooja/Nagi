@@ -11,14 +11,23 @@ message metadata contract, terminology, and migration accounting. The
 JSON fields and exit codes; the [terminal menu design](terminal-menu.md) and
 [UI rules](../development/ui-design.md) retain their interaction requirements.
 
-## Implemented foundation
+## Implemented migration checkpoint
 
-Phase A provides immutable Go language contexts, prefix-only language selection,
-typed messages with preserved English errors and causes, additive JSON metadata,
-and native App resource/package support. The three language-option messages are
-translated; broad CLI, menu and native interface migration remains in progress.
-The App preserves original business values and resolves optional descriptors at
-presentation boundaries across normal, rewrite, capture and streaming transports.
+The CLI now translates source-owned command errors and human output labels,
+empty states and operation feedback. The terminal menu has bilingual pages,
+forms, navigation, retained-value failure feedback and semantic state styling.
+Its command runner carries the session language into independent reads and
+child streams. The native App has bilingual AppKit/SwiftUI resources, plural
+forms, stable picker identities and typed error origins. Its descriptor-aware
+presentation covers normal, rewrite, capture and streaming transports while
+preserving original business values. Raw configuration, logs, completion scripts,
+exports, previews and captured content retain their existing contracts.
+
+Coverage is still being integrated: command-help migration, Nagi-owned backend
+diagnostics and nested successful-result descriptors require the follow-on
+checkpoint. Unannotated messages retain their original English. Native automated
+resource and layout checks are evidence distinct from manual acceptance; known
+baseline layout assertions and interactive acceptance remain unresolved.
 
 Go catalog modules live under `internal/i18n/catalogs/en` and `zh-Hans`. Each
 module declares its exact argument signatures in
@@ -27,8 +36,11 @@ argument-name/type object (`{}` for no arguments). Supported types are `string`,
 `number` and `boolean`. Loading rejects duplicate keys/IDs, language/schema ID
 drift, invalid plural forms, and inconsistent placeholders. Plural messages use
 a numeric `count` and `one`/`other` forms; Chinese may define only `other`.
-The Go and native App foundation tests consume the shared contract fixture to
-check initial IDs, typed argument fallback and resource agreement.
+The Go and native App tests consume the shared contract fixture to check
+registered fixture IDs, typed argument fallback and resource agreement. The
+maintained native bridge is regenerated with
+`python3 macos/NagiApp/Tools/update-message-catalog.py` after producer catalogs
+change; it checks named signatures and retains English fallback for unknown IDs.
 
 The App uses its installed resource bundle before SwiftPM's development fallback;
 packaging includes both localizations and the existing menu image. Localized
@@ -207,7 +219,11 @@ user-visible messages. Concatenated strings and Swift interpolation can produce
 multiple fragments; some apparent prose is protocol or an example. Multiline
 literals, generated labels, dynamic backend diagnostics and imported content
 require the boundary review above. The checklist must never be used by itself
-to claim complete localization. No entry is marked implemented in this phase.
+to claim complete localization. The 793 menu candidates have individual source-owner audits: 756 translated,
+34 preserved protocol/import/unit/format/sentinel occurrences and three
+internal-only sentinels whose public validation is localized. The TSV includes
+per-row reasons. Other areas remain pending the integration audit; migrated
+resources alone do not change their inventory status.
 
 | Area | Candidate occurrences | Primary work |
 | --- | ---: | --- |
@@ -267,8 +283,7 @@ presentation without changing typed operation data:
 
 ## Migration ownership and acceptance
 
-Phase A establishes contracts/resources and this audit; it does not complete
-feature catalogs. Parallel Phase B ownership should be exact and disjoint:
+The source-owner migration checkpoints retain separate responsibilities:
 
 | Owner | Files and resources | Required review |
 | --- | --- | --- |

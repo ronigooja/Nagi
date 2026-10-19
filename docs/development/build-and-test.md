@@ -161,3 +161,31 @@ go test -race ./...
 The coordinator script checks the exact clean engine commit, builds a temporary source fixture and CLI, and runs all commands under an ordinary UID (65534 when the Linux test runner is root). It uses real engine Unix control/mTLS channels and an explicitly synthetic internal TUN identity, never an OS TUN. Isolated CA generation/public export and `SSL_CERT_FILE`/`SSL_CERT_DIR` exercise trust without modifying an OS trust store. The fixture verifies persistent child/supervisor readiness, repeated enable, rejected-probe rule rollback with the original supervisor alive, CAS cutover, child crash blocking and explicit recovery, trust-root removal and fresh assessment, scheduled transport-certificate renewal, engine-exit cleanup, same-epoch config reload, profile switches, zero-rule idle transitions, TUN teardown and quit. Temporary state and artifacts are removed. Empty generation lock files contain no secrets and may remain during a user session.
 
 The helper fixture covers a real restricted root engine, authenticated fixed-UID bootstrap, mTLS synthetic probe, reload retention, mismatched/unbound owner rejection and redacted status. Unit/race fixtures cover incomplete capability limits, actionable CLI prerequisite reasons, uncertain publish/disable, retained two-generation ownership, blocked-generation retirement, shutdown failure, private journal permissions and FIFO-safe root-store reads. These checks passed on Linux; CLI cross-builds cover Linux/macOS AMD64/ARM64. Actual Linux/macOS TUN/helper capture, source identity and route/DNS restoration, plus isolated native macOS trust installation/removal, are recorded in the [capture verification ledger](request-rewrite-acceptance.md#capture-verification). Manual macOS interaction and sleep/wake remain unverified. Raw request fixtures, explicit rule exports and explicitly viewed engine configurations/logs may contain sensitive content and must not be attached to ordinary diagnostics.
+
+## Localization verification
+
+Catalog/schema parity and strict descriptor arguments are checked by Go tests;
+`internal/i18n/contract_test.go` and the native `LocalizationTests` also consume
+`docs/design/localization-contract.json`. After changing producer catalogs, run
+`python3 macos/NagiApp/Tools/update-message-catalog.py` and include the generated
+native resources in the same change. This generator is a maintenance step,
+not a runtime translation dependency.
+
+The Phase B integration checkpoint passed focused command, output, menu and
+catalog tests. Earlier source-owner race checks, bilingual Linux PTY menu flows,
+native English/Chinese resource/transport tests and App packaging passed. These
+checks do not establish final integrated full-suite or manual native acceptance.
+On an isolated macOS checkout, run `swift test --package-path macos/NagiApp` and
+`make build app`, inspect both packaged language directories, signature JSON and
+menu PDF, and verify the relocated bundle without the development directory.
+Use per-process language preferences for automated English/Chinese runs; leave
+the host's preferences and installed user App untouched.
+
+Native migration tests reproduced five known assertions in three baseline layout
+tests: capture draft button discovery, Connections minimum height, and rewrite
+window horizontal repositioning. They remain visible acceptance gates. Manual
+checks must cover all window families, preferred/per-App language and restart,
+long text, focused/disabled controls, keyboard/editor interaction, scrolling,
+light/dark appearance and minimum window size. The
+[localization design](../design/localization.md) tracks migration status separately
+from these native gates.

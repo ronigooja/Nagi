@@ -101,3 +101,28 @@ func TestConcurrentHumanOutputLanguages(t *testing.T) {
 	}
 	group.Wait()
 }
+
+func TestRewriteProtocolPresentationPreservesIdentity(t *testing.T) {
+	value := RewriteResult{"actual": "blocked", "state": "generated", "trust": "untrusted", "not_before": "2026-10-19T12:34:56Z", "rules": []any{map[string]any{"id": "request", "enabled": true, "stage": "request", "range_mode": "fragment", "on_error": "forward_original"}}}
+	var human, machine bytes.Buffer
+	locale := i18n.New(i18n.SimplifiedChinese)
+	if err := WriteLocalized(&human, false, locale, value); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"受阻", "已生成", "未信任", "生效时间", "请求", "片段", "转发原始内容", "request"} {
+		if !strings.Contains(human.String(), want) {
+			t.Fatalf("missing %q in %s", want, human.String())
+		}
+	}
+	if strings.Contains(human.String(), ":56") {
+		t.Fatal("human timestamp includes seconds")
+	}
+	if err := WriteLocalized(&machine, true, locale, value); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"actual":"blocked"`, `"id":"request"`, `"stage":"request"`, `2026-10-19T12:34:56Z`} {
+		if !strings.Contains(machine.String(), want) {
+			t.Fatalf("changed original JSON %q: %s", want, machine.String())
+		}
+	}
+}

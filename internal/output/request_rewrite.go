@@ -41,7 +41,7 @@ func writeRewrite(w io.Writer, v RewriteResult) error {
 		return line(w, string(b))
 	}
 	if actual, ok := v["actual"]; ok {
-		if err := line(w, renderText(w, "cli.output.writerewrite.request_rewrite_v", map[string]any{"state": fmt.Sprint(actual)}, fmt.Sprintf("Request rewrite: %v", actual))); err != nil {
+		if err := line(w, renderText(w, "cli.output.writerewrite.request_rewrite_v", map[string]any{"state": stateText(w, fmt.Sprint(actual))}, fmt.Sprintf("Request rewrite: %v", actual))); err != nil {
 			return err
 		}
 	}
@@ -63,7 +63,7 @@ func writeRewrite(w io.Writer, v RewriteResult) error {
 		if value, ok := v[key].(string); ok {
 			t, e := time.Parse(time.RFC3339Nano, value)
 			if e == nil && !t.IsZero() {
-				if err := line(w, strings.ReplaceAll(key, "_", " ")+": "+t.Local().Format("2006-01-02 15:04")); err != nil {
+				if err := line(w, text(w, "cli.display."+key, strings.ReplaceAll(key, "_", " "))+": "+t.Local().Format("2006-01-02 15:04")); err != nil {
 					return err
 				}
 			}
@@ -108,7 +108,7 @@ func writeRewriteRule(w io.Writer, index int, v any) error {
 	if index > 0 {
 		prefix = fmt.Sprintf("%d. ", index)
 	}
-	return line(w, renderText(w, "cli.output.writerewriterule.s_v_enabled_v_stage_v_range_v_match_v_operations_v_on_error_v", map[string]any{"prefix": fmt.Sprint(prefix), "id": fmt.Sprint(m["id"]), "enabled": fmt.Sprint(m["enabled"]), "stage": fmt.Sprint(m["stage"]), "range": fmt.Sprint(m["range_mode"]), "match": fmt.Sprint(m["match"]), "operations": fmt.Sprint(m["operations"]), "on_error": fmt.Sprint(m["on_error"])}, fmt.Sprintf("%s%v  enabled=%v  stage=%v  range=%v  match=%v  operations=%v  on_error=%v", prefix, m["id"], m["enabled"], m["stage"], m["range_mode"], m["match"], m["operations"], m["on_error"])))
+	return line(w, renderText(w, "cli.output.writerewriterule.s_v_enabled_v_stage_v_range_v_match_v_operations_v_on_error_v", map[string]any{"prefix": fmt.Sprint(prefix), "id": fmt.Sprint(m["id"]), "enabled": stateText(w, fmt.Sprint(m["enabled"])), "stage": stateText(w, fmt.Sprint(m["stage"])), "range": stateText(w, fmt.Sprint(m["range_mode"])), "match": fmt.Sprint(m["match"]), "operations": fmt.Sprint(m["operations"]), "on_error": stateText(w, fmt.Sprint(m["on_error"]))}, fmt.Sprintf("%s%v  enabled=%v  stage=%v  range=%v  match=%v  operations=%v  on_error=%v", prefix, m["id"], m["enabled"], m["stage"], m["range_mode"], m["match"], m["operations"], m["on_error"])))
 }
 
 func writeRewriteScript(w io.Writer, v any) error {

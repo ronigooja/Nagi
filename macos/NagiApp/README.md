@@ -24,6 +24,35 @@ The app uses command results to update mode, proxy selection, TUN, system proxy,
 
 **Profiles → Apply Default Runtime Settings to Current Profile** applies runtime settings through the current profile's local override while retaining its nodes, providers, groups, and rules. Selecting the checked action restores the previous override. See the [default runtime settings contract](../../docs/reference/cli.md#local-profile-files-and-overrides).
 
+## Language and resources
+
+The App supports English and Simplified Chinese through macOS preferred and
+per-App language selection. Restart the App after changing that preference;
+already-open windows do not refresh their language in place. CLI environment
+language settings do not override the App's selected resource language.
+
+AppKit and SwiftUI interface strings, plural counters, tooltips, accessibility
+labels and known protocol display states use `NagiResources.bundle`. Names,
+configuration, scripts, previews and captured original traffic retain their
+original content. CLI response values remain unchanged; optional typed message
+descriptors localize supported diagnostics at presentation boundaries. Missing,
+unknown or malformed metadata preserves the original response text.
+
+After adding CLI producer messages, maintainers regenerate the checked-in native
+signatures and bilingual descriptor resources from the repository root:
+
+```sh
+python3 macos/NagiApp/Tools/update-message-catalog.py
+```
+
+Packaging includes `en.lproj`, `zh-Hans.lproj`, `MessageSignatures.json` and the
+existing menu PDF. The installed resource bundle is preferred over the SwiftPM
+development fallback. Native automated bilingual tests and relocated/package
+resource checks have passed at the migration checkpoint. Manual interaction,
+focus/scrolling and complete light/dark/minimum-size acceptance remain pending;
+three existing layout tests still have five baseline assertion failures. See the
+[localization design](../../docs/design/localization.md) for coverage and gates.
+
 ## Node latency and automatic checks
 
 Open **Proxy Groups → GROUP** to see ordinary nodes' latest engine latency, **Failed**, **Untested**, or **Unknown**. Successful measurements below one millisecond display **<1 ms**. Node tooltips show the measurement time to the minute and sanitized test origin. Nested groups show their name, selection mark, and the latest measurement of their actual selected ordinary leaf, without the leaf's name. If that leaf is a built-in action, the group shows **DIRECT** or **REJECT** instead of a measurement. A group shows **Unknown** when no unique leaf can be resolved. LoadBalance has no inferred unique leaf state. DIRECT and REJECT entries keep only their names and existing selection marks. Opening menus reads existing state without starting a test; selecting a node immediately refreshes actual group state.
