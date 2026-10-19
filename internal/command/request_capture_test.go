@@ -22,16 +22,28 @@ func startTestCaptureRecorder(t *testing.T, p nagiruntime.Paths) {
 		t.Fatal(e)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- capture.Serve(ctx, captureSocket(p), os.Geteuid()) }()
+	done := make(chan struct{})
+	var serveErr error
+	go func() {
+		serveErr = capture.Serve(ctx, captureSocket(p), os.Geteuid())
+		close(done)
+	}()
 	t.Cleanup(func() { cancel(); <-done })
+	var lastErr error
 	for i := 0; i < 100; i++ {
+		select {
+		case <-done:
+			t.Fatalf("recorder exited before becoming ready: %v", serveErr)
+		default:
+		}
 		if _, e := capture.Call(context.Background(), captureSocket(p), capture.Request{Action: "status"}); e == nil {
 			return
+		} else {
+			lastErr = e
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatal("recorder not ready")
+	t.Fatalf("recorder not ready: %v", lastErr)
 }
 func TestCaptureCLIInvalidArgumentsBeforeRuntime(t *testing.T) {
 	invalidTestConfigDir(t, t.TempDir())

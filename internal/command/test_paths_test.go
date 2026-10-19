@@ -13,6 +13,16 @@ import (
 // the current platform while keeping both HOME and XDG data inside the fixture.
 func isolatedTestPaths(t *testing.T, root string) nagiruntime.Paths {
 	t.Helper()
+	// Darwin's Unix socket address has room for at most 103 path bytes.
+	// Test names in t.TempDir paths can exhaust that before capture.sock.
+	if runtime.GOOS == "darwin" && len(filepath.Join(root, "Library", "Application Support", "Nagi", "runtime", "capture.sock")) >= 104 {
+		shortRoot, err := os.MkdirTemp("/private/tmp", "ngt-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(shortRoot) })
+		root = shortRoot
+	}
 	t.Setenv("HOME", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))

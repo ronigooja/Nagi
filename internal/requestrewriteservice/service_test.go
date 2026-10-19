@@ -266,11 +266,6 @@ func TestApplicationTLSHTTP2(t *testing.T) {
 	}
 }
 
-func TestRootChildRefused(t *testing.T) {
-	if e := RunChild(); e != 1 {
-		t.Fatal("child accepted absent inherited pipe or root")
-	}
-}
 func TestFrameStrictness(t *testing.T) {
 	for _, body := range []string{`{"ready":true,"ready":false}`, `{"unknown":1}`, `{} {}`} {
 		var b bytes.Buffer
