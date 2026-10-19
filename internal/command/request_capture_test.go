@@ -301,7 +301,7 @@ func TestCapturePartialPublishHasExplicitStopRecovery(t *testing.T) {
 func TestCaptureOptionsRejectDuplicateKeysBeforeMutation(t *testing.T) {
 	p := isolatedTestPaths(t, t.TempDir())
 	startTestCaptureRecorder(t, p)
-	for _, input := range []string{`{"query":"one","query":"two"}`, `{"limit":10,"limit":20}`} {
+	for _, input := range []string{`{"query":"one","query":"two"}`, `{"limit":10,"limit":20}`, `{"Limit":10}`, `null`} {
 		code, _, err := rewriteCLIRun(t, input, "--json", "rewrite", "capture", "list", "-")
 		if code != 1 || !strings.Contains(err, "capture_options_invalid") {
 			t.Fatal(code, err)
