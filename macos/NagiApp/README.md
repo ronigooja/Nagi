@@ -96,8 +96,9 @@ capture, and later restart does not resume it. Settings operations, capture
 mutations and quit cleanup share the App operation gate.
 
 The native source compiles and has model, transport and window lifecycle tests.
-Live TUN, trust, privileged-helper and capture-to-rule acceptance remain separate
-platform checks. See the [capture guide](../../docs/guides/request-capture.md),
+Actual Linux/macOS TUN and helper fixtures, native trust cleanup and the
+model-to-CLI capture-to-rule chain have verification evidence. Manual menu-bar
+clicks and sleep/wake acceptance remain unverified. See the [capture guide](../../docs/guides/request-capture.md),
 [shared design](../../docs/design/request-capture.md) and
 [verification record](../../docs/development/request-rewrite-acceptance.md#capture-verification).
 

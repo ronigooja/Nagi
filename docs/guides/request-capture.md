@@ -4,8 +4,8 @@ This guide covers explicitly starting original-content capture, inspecting HTTP
 and WebSocket traffic, keeping archives and creating local rewrite drafts. The
 [CLI reference](../reference/cli.md#original-request-capture-and-capture-derived-drafts)
 owns exact arguments and schemas; the [capture design](../design/request-capture.md)
-explains ownership and failure handling. Source implementation and software tests
-do not establish native TUN coverage; see the
+explains ownership and failure handling. Actual Linux/macOS TUN and helper fixtures, native App model tests and the
+capture-to-rule CLI chain have separate evidence and coverage limits in the
 [verification record](../development/request-rewrite-acceptance.md#capture-verification).
 
 ## Prepare traffic access
