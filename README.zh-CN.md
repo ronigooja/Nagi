@@ -99,6 +99,7 @@ Nagi 使用 [mihomo](https://github.com/MetaCubeX/mihomo) 实现代理协议、D
 ### 开发与发布
 
 - [构建与测试](docs/development/build-and-test.md)：锁定版本的构建和测试。
+- [引擎维护](docs/development/engine-maintenance.md)：fork 主线集成、上游同步与版本锁定验证。
 - [安装与更新](docs/development/install.md)：GitHub Release 安装、本地构建产物、更新和移除。
 - [CLI 易用性规则](docs/development/cli-usability.md)：命令帮助、人类可读输出、可操作的错误信息和兼容性检查。
 - [发布流程](docs/development/release.md)：版本规则、发布检查和发布说明要求。

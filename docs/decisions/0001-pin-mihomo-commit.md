@@ -14,7 +14,7 @@ Nagi builds and launches a separately maintained mihomo executable. The CLI and 
 
 ## Decision
 
-Nagi records an exact mihomo commit in `engine.lock`. The build accepts a local checkout only at that commit, or fetches the declared ref and verifies the commit is reachable from it. The available fork's `main` branch is the current ref. A dedicated customization branch may replace it in a future lock update.
+Nagi records an exact mihomo commit in `engine.lock`. The build accepts a local checkout only at that commit, or fetches the declared ref and verifies the commit is reachable from it. The fork's `main` branch is the long-lived integration branch for Nagi customizations and the current lock ref. Publish and verify integrated engine changes before advancing the pin, following the [engine maintenance workflow](../development/engine-maintenance.md).
 
 ## Consequences
 

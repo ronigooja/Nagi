@@ -106,9 +106,15 @@ platform acceptance. The initial capture engine source used for software checks 
 `a5df21a6a339a651bb50dca73b30f7679dbd0436`, which also supplies original Darwin
 socket UID attribution. Installation/update availability still
 requires a matching Nagi and engine release. This commit is published on the
-declared fork's `nagi/request-capture` branch. A fresh depth-one fetch confirmed
+declared fork's `main` branch after a fast-forward on 2026-10-19. It was initially
+published on `nagi/request-capture`. A fresh depth-one fetch of that feature branch confirmed
 the exact commit before advancing `engine.lock`; the default locked build without
-`MIHOMO_DIR` passed and reported this commit as `mihomo_commit`.
+`MIHOMO_DIR` passed and reported this commit as `mihomo_commit`. On 2026-10-19,
+a fresh fetch of remote `main` confirmed the same commit; the default locked
+Linux ARM64 build with Go 1.26.4 passed for mihomo (`with_gvisor`) and Nagi, and
+`nagi --json version` reported the locked commit. This checks mainline source
+availability and builds; it does not add native platform acceptance or publish
+release artifacts.
 
 | Layer | Evidence and limits |
 | --- | --- |

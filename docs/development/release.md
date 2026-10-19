@@ -5,6 +5,8 @@ Release assets consumed by `scripts/install.sh`. `make release` builds the CLI
 and mihomo archives for Linux and macOS. If `bin/Nagi.app` exists, the release
 script includes it in the archive matching the macOS host architecture.
 
+Before preparing a release with engine changes, complete the [engine maintenance workflow](engine-maintenance.md), including remote `main` verification and a locked build. Publishing engine source alone does not publish Nagi installation artifacts.
+
 ## Version numbers
 
 Published Nagi releases use a project-specific versioning convention with a

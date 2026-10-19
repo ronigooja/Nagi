@@ -108,6 +108,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 ### Development and releases
 
 - [Build and test](docs/development/build-and-test.md): locked builds and tests.
+- [Engine maintenance](docs/development/engine-maintenance.md): fork integration, upstream synchronization, and verified pin updates.
 - [Request rewrite verification](docs/development/request-rewrite-acceptance.md): local software evidence, platform gaps and release gates.
 - [Installation and updates](docs/development/install.md): GitHub Release installation, local artifacts, updating, and removal.
 - [CLI usability rules](docs/development/cli-usability.md): command help, human output, actionable errors, and compatibility checks.
