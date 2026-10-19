@@ -149,7 +149,7 @@ Operations have exactly the fields listed below, plus optional explicit
 
 Header names must be valid tokens and values cannot contain controls. Header
 values are at most 8192 bytes. Host, length, framing, encoding, connection,
-upgrade, proxy authentication and private channel fields are adapter-owned and
+upgrade, `Sec-WebSocket-*`, proxy authentication and private channel fields are adapter-owned and
 cannot be edited. Trailers additionally reject authentication, routing,
 representation and response-control fields. Script outputs use the same checks.
 
@@ -163,7 +163,9 @@ forward order, checking input/output sizes at each layer.
 
 Only operations requiring a body buffer it. Header-only HTTP/SSE transformations
 preserve streaming. Body changes update length/encoding/framing and invalidate
-ETag and representation digests. HEAD, 204, 205 and 304 retain their protocol
+ETag and representation digests in headers and existing trailers. Trailer invalidation
+follows each successful body operation; a later explicit permitted trailer edit
+uses its stored position in the operation sequence. HEAD, 204, 205 and 304 retain their protocol
 body restrictions. A valid WebSocket handshake produces 101; rules cannot
 manufacture protocol upgrade headers or a 101 status. Body and trailer edits
 read to completion before commit. Trailer-only edits run at stream EOF;
@@ -173,8 +175,13 @@ HTTP/1.1 chunking and HTTP/2 trailing headers remain adapter responsibilities.
 
 `fragment` retains Range/If-Range. Single `Content-Range` and
 `multipart/byteranges` responses are transformed per fragment. Every fragment
-must retain its byte length. JSON operations require each fragment to be a
-complete JSON value. Boundaries and Content-Range remain consistent.
+must retain its original encoded byte length at stage commit; intermediate
+operations may change length within the ordinary size limits. JSON operations
+require each fragment to be a complete JSON value. Boundaries and Content-Range
+remain consistent. Buffered scripts run once per fragment for each operation,
+using the same current metadata baseline across that operation; their metadata
+changes must agree across fragments. Multipart metadata shares the workspace
+and has an additional 8 MiB admission limit.
 
 `full` explicitly asks for the complete representation. Before sending, evaluate
 original request predicates of candidate body rules and remove Range/If-Range
@@ -239,6 +246,9 @@ A type change requires an explicit `type` output or operation `message_type`.
 Malformed output, oversized fields, invalid UTF-8 text and unauthorized targets
 fail validation.
 
+The original metadata graph is deeply frozen before user source runs, and the
+`original` input property cannot be replaced.
+
 QuickJS executes in a fresh wazero instance per call. No filesystem, environment,
 process, network, downloaded module, real clock or random source is exposed.
 Timeout/cancellation destroys the instance. The executable artifact, compiler,
@@ -250,12 +260,17 @@ errors never print source, body or guest exception stacks.
 
 The HTTP/1.1 Upgrade path uses pinned `github.com/coder/websocket` at message
 level. Each side negotiates its own handshake and no-context-takeover
-permessage-deflate. The protocol library owns masking, fragmentation, UTF-8,
-ping/pong and close frames. The adapter preserves buffered first-frame data,
+permessage-deflate. The protocol library owns masking, fragmentation, ping/pong and close frames.
+The adapter validates UTF-8 text in both edited and streaming directions,
+retaining only an incomplete rune between streaming reads; invalid text closes
+with status 1007 without completing an invalid message. The adapter preserves buffered first-frame data,
 serializes messages in each direction, propagates backpressure and closes both
 sides on cancellation, generation retirement or failure. Connections requiring
 no message editing retain streaming forwarding; editable messages are bounded
-to 8 MiB. Extended CONNECT and HTTP/3 are outside this scope.
+to 8 MiB. Request handshake operations run normally, including buffered scripts over the
+complete empty HTTP entity. The final handshake request must remain GET without
+a body or trailers; violations are protocol failures and cannot use original
+fallback. Extended CONNECT and HTTP/3 are outside this scope.
 
 ## Engine and private channel v2
 
@@ -299,6 +314,8 @@ Inherited startup pipes carry configuration without argv/environment secrets.
 Private child control authenticates peer UID and generation and returns status,
 readiness and redacted counters. Ordinary counters cover stage hits, failures,
 fallback, resource exhaustion, script timeout and abnormal WebSocket closure.
+A successful original fallback still increments its failure category; only fixed
+internal codes reach counters.
 Raw traffic, source and arbitrary errors never enter these records.
 
 ## Preview and verification

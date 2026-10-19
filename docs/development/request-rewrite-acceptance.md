@@ -1,128 +1,92 @@
-# Request rewrite verification
+# Content rewrite verification
 
-This document records combined request rewrite software verification and the
-remaining platform and release gates. It is an engineering acceptance record,
-not a claim that the feature is available in a published release. Commands and
-fields remain authoritative in the [CLI reference](../reference/cli.md#tun-request-rewrite);
-contracts and limits remain in the [design](../design/request-rewrite.md).
+This record separates v2 software evidence from native platform acceptance and
+release availability. The [design](../design/request-rewrite.md) defines behavior;
+the [CLI reference](../reference/cli.md#tun-request-rewrite) defines public syntax.
+All fixtures use temporary private state, fictitious names and local origins.
+No real OS TUN, system CA trust or installed user service was changed.
 
-## Verified source and environment
+## Source and environment
 
-Verification on 2026-10-18 used Nagi source
-`35ba854b0e8ef6f7620735038302a7a4431e6483`, including the terminal forms and macOS
-UI source, and clean mihomo source
-`d7c0a70776e4e698bee43f2044e7fa91d2d67d7b`. The host was Linux ARM64 with Go
-1.26.4, Python 3 and Bash. Swift and macOS frameworks were unavailable; no tools
-were downloaded for native acceptance.
+The 2026-10-18 verification host is Linux ARM64 with Go 1.26.4, Python 3 and Bash.
+The implementing mihomo commit is
+`84369733b97b897a04a70e507183eda22e38e0c6`, published on
+`https://github.com/ronigooja/mihomo.git`, ref `request-rewrite-v2`, and recorded
+in `engine.lock`. Publishing that engine branch and fetching it back verified
+that the declared source object is available. Nagi release binaries have not
+been published for this change.
 
-The domain library, service, coordinator, helper interfaces, CLI and terminal
-forms are implemented and Linux-verified. The macOS menu/window source was
-independently reviewed; its 27 Swift test fixtures were written but **not run**.
-Swift compilation, tests, packaging and native interactions remain unverified.
-T8 local software verification passed; complete platform and release acceptance
-has not passed.
+The Nagi v2 configuration, immutable request/response/message pipeline, fixed
+QuickJS/WASM runner, CLI and terminal menu have software tests. The macOS source
+uses the CLI interface; Swift/framework tooling is unavailable on this host.
+Native Swift compilation/tests, packaging, keychain trust, UI and TUN/backend
+acceptance remain **unverified**. Cross-compilation is only Go build evidence.
 
-During that combined-source verification, `engine.lock` still recorded
-`9a449c5797f7c855067f15be69fa659d13f6ce88`; fixtures used the reviewed d7 source
-stated above. No publication or pin change was performed during that earlier
-verification. The subsequent engine publication
-and pin update are recorded below. Native and complete release acceptance remain
-unverified.
+## Verification ledger
 
-## Published engine pin verification (2026-10-18)
-
-Engine source commit `d7c0a70776e4e698bee43f2044e7fa91d2d67d7b` is published
-on `https://github.com/ronigooja/mihomo.git`, ref `main`. A fresh checkout from
-that declared remote/ref verified the exact commit and the locked
-`./scripts/build.sh` built the engine with `with_gvisor` and the matching CLI
-without `MIHOMO_DIR`. `engine.lock` now records this commit.
-
-The locked CLI version reports the matching `mihomo_commit`. Isolated ordinary
-startup, configuration validation and request-rewrite capability/status checks
-passed with TUN disabled; these checks do not enable interception, install OS
-trust or establish platform acceptance. The Go suite and installer integration
-passed through `make test`.
-
-No Nagi source push, tag, release archive or GitHub Release was created for this
-pin update. Matching source builds are available through
-[the locked build instructions](build-and-test.md#request-rewrite-coordinator);
-ordinary installation and `nagi update` require a matching Nagi release.
-
-## Automated and interactive checks
-
-The following checks passed against the combined source. Builds went to
-throwaway locations; tests used isolated state rather than an installed Nagi
-instance.
-
-| Check | Evidence and scope |
+| Check | Evidence |
 | --- | --- |
-| `make test` | Complete Go suite and `scripts/test-install.sh`; installer regression fixtures passed. This does not establish native macOS installation or power-loss recovery. |
-| `go test -race ./internal/menu ./internal/command ./internal/requestrewrite ./internal/requestrewriteservice ./internal/privileged/...` | All affected packages passed, including CLI transactions, menu dispatch, child/control channels and helper policy. |
-| `go vet ./...`; `go mod verify` | Passed; all module contents verified. |
-| CLI cross-builds with `CGO_ENABLED=0` | Linux AMD64/ARM64 and Darwin AMD64/ARM64 passed. Darwin compilation is not Swift compilation or native runtime acceptance. |
-| Engine `go test -race -tags with_gvisor ./tunnel ./hub/route ./component/configpolicy -run Rewrite -count=1` | Passed against the same clean engine commit during independent baseline verification; the subsequent Nagi UI changes did not modify that engine. |
-| `scripts/test-request-rewrite-engine.sh` | Exact-source HTTP/TLS local origin roundtrips in Rule, Global and Direct passed. |
-| `scripts/test-request-rewrite-coordinator.sh` | Ordinary-UID CLI/child/supervisor lifecycle and failure/recovery integration passed. |
-| `NAGI_REWRITE_TEST_ENGINE=... go test -race ./internal/privileged/server -run '^TestRewriteRealRestrictedOwnerAndReload$' -count=1 -v` | Passed with a freshly built reviewed engine: restricted root startup, bound/unbound owner rejection, mTLS probe and reload. TUN remained disabled. |
-| Real Linux PTY against the combined CLI | Domain CRUD and failed dependent-consent removal, ordered operation editing, rule add/edit/toggle/reorder/remove, destination consent and error policy, stdin/file preview, import/export/validate, public CA export and failure retention, repeated Ctrl-C and EOF before Submit passed. Exiting the menu left the fixture engine running; enable without actual TUN was rejected. |
-| Documentation | Changed relative destinations/anchors, command paths, version identifiers, examples and `git diff --check` were reviewed. |
+| Shared transformations | Unit tests cover rule-derived intercept/target sets, original matching, stage order and rollback, final target permission for built-in/script operations, exact JSON numbers, pointer traversal and response body restrictions. |
+| Body/Range utilities | Unit/race checks cover identity/gzip/zlib/Brotli/Zstandard and three layers, charset losslessness, RE2 captures, single/multipart equal-length fragments, cancellation, output limits and EOF trailers. |
+| Script isolation | Real guest tests cover an 8 MiB binary base64 roundtrip under the one-second production deadline, timeout, cancellation, allocation exhaustion, invalid output, deterministic fresh instances, absent host capabilities and two-instance admission. The throughput case is explicitly skipped under race instrumentation; other isolation cases run under race. |
+| Guest reproducibility | Pinned QuickJS and WASI SDK input checksums, runner checksum, WASM checksum and licenses are tracked. A second temporary-directory build reproduced the artifact. See [guest reproduction](rewrite-script-guest.md). |
+| CLI/menu/output | Unit/race/vet checks cover scripts CRUD/reference protection/source sensitivity, rules, current invalid input, five staged preview kinds, complete JSON drafts, completion and output. |
+| Engine | `go test ./...` passed, including the existing long-running inbound suite; rewrite-focused race checks and Linux/Darwin AMD64/ARM64 builds passed. |
+| Publication | Engine branch push and subsequent fetch returned the identical locked commit. |
 
-For reproducible automated integration commands and fixture prerequisites, use
-[Build and test](build-and-test.md#private-request-rewrite-service). The PTY run
-used the independent terminal review harness with fictitious forms and local
-files; it was an interactive acceptance exercise rather than a new committed
-test framework.
+## Combined-source verification (2026-10-18)
 
-## Coverage matrix
+The integrated source passed the following checks on Linux ARM64. The complete
+race suite passed before final review fixes; all five affected packages passed
+race again after those fixes. Native platform gates remain separate below.
 
-“Software fixture” means the tested boundary below, not a real OS network
-capture. The engine source fixture calls the real tunnel with synthetic TUN
-metadata over `net.Pipe` and configured local hosts. The coordinator fixture
-uses real engine APIs and authenticated channels with synthetic TUN state.
-Neither creates an OS TUN, installs OS trust, changes routes or uses real
-subscriptions.
+| Command or fixture | Result |
+| --- | --- |
+| `make test GO=/path/to/go` | Passed, including all Go packages and installer integration. |
+| `go test -race ./...` | Passed. |
+| `go test -race ./internal/requestrewrite ./internal/requestrewriteservice ./internal/command ./internal/menu ./internal/rewritescript` | Passed on the final combined code, including final Range length, trailer invalidation, UTF-8 close, handshake operations, field limits, fallback counters and failure-policy ownership. |
+| `go vet ./...`, `go mod verify` | Passed; direct dependencies and checksums normalized with `go mod tidy`. |
+| `go test ./internal/requestrewrite -run '^$' -fuzz '^FuzzDocument$' -fuzztime=10s` | Passed: 378,594 executions. |
+| `go test ./internal/requestrewrite -run '^$' -fuzz '^FuzzBodyEncodings$' -fuzztime=10s` | Passed: 35,354 executions. |
+| `scripts/test-request-rewrite-engine.sh` with the clean locked checkout | Passed HTTP and HTTPS in Rule/Global/Direct modes, including request targets/gzip/exact numbers, response original matching, actual isolated scripts, gzip response bodies and EOF trailers. |
+| `scripts/test-request-rewrite-coordinator.sh` with the clean locked checkout | Passed ordinary-UID child/supervisor, CAS rollback/cutover, crash blocking/recovery, trust refresh, certificate renewal, engine-exit/reload, idle, TUN teardown and quit fixtures. |
+| `NAGI_REWRITE_TEST_ENGINE=/path/to/locked/mihomo go test ./internal/privileged/server -run Rewrite -count=1 -v` | Passed the real restricted engine owner/reload fixture and strict helper schemas. |
+| `scripts/build.sh` without `MIHOMO_DIR` | Passed fresh remote ref fetch, locked engine build and CLI build. |
+| CLI `scripts/build.sh cli` for Linux/Darwin AMD64/ARM64 | Passed all four targets. |
+| Offline `scripts/build-rewrite-script-guest.sh` plus `go test ./internal/rewritescript -count=1` | Passed reproduction of the final read-only original-metadata guest and real 8 MiB throughput test. |
+| Changed Markdown relative links/anchors, shell syntax and `git diff --check` | Passed. |
 
-| Requirement | Verified evidence | Remaining acceptance |
-| --- | --- | --- |
-| HTTP/HTTPS and changed destinations | Real engine/service local HTTP and TLS origins on nonstandard ports; Host, SNI, path/query, gzip JSON and exact large integers; all three routing modes. | Real TUN capture of HTTP/TLS on standard and nonstandard ports, IPv4/IPv6 and fake-IP across supported backends. |
-| Identity, routing, DNS and ordinary UDP | Engine race fixtures preserve supplied process/UID/source/inbound metadata, select changed-target native rules and mode outbounds, exercise fake-IP with sniffer disabled, cancellation of native rule DNS and internal bypass/UDP classification. | Real application identity discovery and transit; real DNS, unrelated UDP and node/internal traffic remaining ordinary through OS capture. Synthetic metadata does not prove process lookup. |
-| Transformations and persistence | Domain tests cover original matching, ordered cumulative operations, destination consent, JSON Pointer/number precision, gzip/8 MiB validation, rollback, private files and profile isolation; CLI/coordinator tests cover transactional live changes and failures. | Sustained whole-system traffic during edits and subscription/profile/backend transitions on native hosts. |
-| TLS and application protocols | Service fixtures reject untrusted/wrong-host upstream TLS without forwarding and redact errors; HTTP/2 concurrency/authority/independent cancellation, HTTP/1 framing, streaming, truncated responses and buffered WebSocket first frames are tested. | Real certificate-pinned and client-certificate applications, production HTTP/2/WebSocket/stream compatibility and application-specific trust stores. Pinning/mTLS failures must remain visible; no success is inferred from ordinary TLS tests. |
-| QUIC and hidden domains | Engine fixtures block recognized authorized QUIC, preserve unrelated/unknown UDP and skip internal traffic. | Real QUIC identification/fallback and hidden-domain coverage. Unknown UDP, ECH and unidentifiable traffic are not proof of interception; no HTTP/3 proxy is implemented. |
-| Authentication and resource cleanup | Engine/service tests cover role/pin/validity checks, bad secrets, replay, epochs/generations, expiry, bounds, heartbeat loss, original abort, half-close, backpressure, pending DNS/dial deadlines and reservation release. | Sustained full-runtime CPU/RSS/file-descriptor/goroutine measurements across native capture, backend failures and suspend/resume. |
-| Lifecycle and failure recovery | Coordinator integration covers persistent child/supervisor, repeated enable, rejected probe rollback, CAS cutover, child SIGKILL blocking and explicit recovery, isolated trust-root removal/restore, certificate renewal, engine death cleanup, reload, profile switch, TUN teardown and quit. Unit tests cover uncertain publication/disable and retained ownership. | Real TUN/backend/helper failures, native suspend/wake and OS lifecycle races. A synthetic teardown is not an OS interface teardown test. |
-| Three entry points | CLI and terminal Go/race/PTY checks passed. App source/API/concurrency review and Swift fixtures cover CLI-only dispatch, serialized mutations, stale reads, drafts and quit coordination. | Run Swift tests/package and native menu/window/forms/keyboard/file-picker/minimize/hide/sleep/quit/error-recovery checks. Source review does not establish executable App behavior. |
-| CA and sensitive data | Throwaway CA generation/public-only exports, private storage, sanitized ordinary output and temporary root-file assessment passed. Rule/request input uses stdin or private files; raw exports/previews are explicit sensitive operations. | Native login-keychain trust install/remove, application trust, authorization dialogs and separate Linux distribution/application trust instructions. No OS trust operation was performed in these checks. |
-| Build, installation and release | Four CLI targets compile; Go installer regressions pass. Subsequent published-pin verification passed a fresh remote checkout, locked engine/CLI build and isolated ordinary startup/capability checks. | Native App/helper/service installation and matching Nagi release artifacts. Source availability does not establish native acceptance or release-binary availability. |
+One combined test run performed concurrently with race checks failed the existing
+`TestCancelledAuthorizationKillsDescendantsAndAllowsRetry` maintenance-lock
+assertion. Its isolated five-run repeat and the subsequent serial complete
+`make test` passed. The cause of that single failure was not established; no
+unrelated installer behavior was changed.
 
-Resource reservations are logical admission limits. In particular, the 64 MiB
-workspace budget is **not** a whole-process heap/RSS ceiling. Earlier isolated
-near-8-MiB JSON pressure evidence measured about 84 MB Go heap and 100 MiB RSS;
-this is not a sustained full-runtime benchmark. Original TCP FIN can represent
-a valid half-close, and EOF behind backpressure is not always immediately
-observable. Pending engine DNS/dial work is bounded to five seconds; idle and
-absolute context limits provide further cleanup, as specified in the design.
+Service fixtures cover HTTP/1.1 and HTTP/2 response bodies/trailers, compressed
+WebSocket negotiation in both directions, preserved first-frame bytes, oversized
+edited messages without partial forwarding, streaming messages above 8 MiB,
+invalid UTF-8 close 1007, and executed request-handshake operations. These are
+local software fixtures, not native TUN or public-network acceptance.
 
-## Remaining host and release gates
+## Native and release gates
 
-On disposable, explicitly approved native hosts, repeat the matrix with a real
-TUN and both user and privileged backends where supported. Record OS/architecture,
-engine and Nagi commits, stack/address family/fake-IP settings, local origin
-observations, actual process/routing identity, failure outcomes and retained
-state after recovery. Include unrelated DNS/UDP traffic, domain-visible QUIC,
-service/engine death, occupied ports/prepare failure, backend/profile changes,
-suspend/wake and bounded resource measurements. Use only throwaway CA material,
-private state and local fixture origins.
+Run on native macOS: `swift test --package-path macos/NagiApp`, `make build app`,
+and the [App acceptance flow](../../macos/NagiApp/README.md#request-rewrite).
+Exercise rule/script forms, all stage previews, keyboard cancellation, retained
+drafts after failures, sensitive file/stdin flows, window close, quit, sleep/wake,
+trust installation/removal and helper authorization. Record actual OS/version,
+backend and retained state after each failure.
 
-On macOS, run `swift test --package-path macos/NagiApp` and `make build app` first,
-then exercise the [App request rewrite flow](../../macos/NagiApp/README.md#request-rewrite)
-and native trust/helper/TUN lifecycle. Check all daily forms, failure-retained
-drafts, sensitive stdin/export boundaries, window reuse and close preserving the
-service, and App Quit cleanup plus failure recovery. Record an unavailable gate
-as **unverified**, never as passed by cross-compilation or source inspection.
+On supported native hosts, verify actual TUN capture, source/process identity,
+fake-IP/address-family behavior, Rule/Global/Direct, unrelated DNS/UDP, visible
+QUIC fallback and system lifecycle recovery. Synthetic TUN metadata and private
+mTLS fixtures prove software boundaries, not OS route installation. Certificate
+pinning/client certificates and unidentifiable/ECH traffic remain coverage limits.
 
-The published engine pin, fresh-fetch locked build and ordinary startup/capability
-checks are recorded above. Before a Nagi release, inspect matching release
-artifacts and follow [the release gate](release.md#request-rewrite-release-gate).
-These open host and release gates prevent a claim of complete end-to-end
-acceptance.
+Measure sustained host heap/RSS, CPU, descriptors and goroutines separately from
+the 64 MiB logical conversion workspace and 128 MiB per-instance WASM linear
+memory. Those budgets are not a whole-process memory ceiling.
+
+Before advertising installation/update availability, build and inspect matching
+Nagi release artifacts using the [release gate](release.md#request-rewrite-release-gate).
+No Nagi tag, release archive or GitHub Release is created by this implementation.
