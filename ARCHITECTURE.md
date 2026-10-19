@@ -71,6 +71,8 @@ Ordinary commands accept `--json`; JSON envelopes and error codes form the app i
 
 Nagi uses a private Unix Socket by default. Its default profile does not expose a TCP controller. Profiles, subscription metadata, cache, runtime files, and logs occupy separate per-user directories. The path rules and write behavior are in the [runtime design](docs/design/runtime.md). Supported mihomo YAML subscriptions can be applied as profiles; the [CLI reference](docs/reference/cli.md) defines the format and replacement behavior.
 
+The English/Simplified Chinese localization foundation is under implementation. Invocation-scoped language contexts and additive JSON message descriptors preserve machine data; see the [localization design](docs/design/localization.md) for implemented foundations and remaining scope.
+
 ## Services, builds, and validation
 
 Installed CLI maintenance reuses the transactional artifact installer embedded from `scripts/installer.sh`; whole updates use the verified release's installer. The CLI owns release selection, download verification, service preparation, and recovery. An independent file journal permits recovery before reading the installation record; runtime activation refuses a pending transaction until recovery completes. The macOS App requests update preparation through the CLI, which downloads, verifies, and obtains any required authorization before the App exits through its ordinary quit flow. A detached updater installs the prepared package and reopens the App after success; after failure, it persists a sanitized CLI-owned error and attempts to reopen the App for recovery. See the [maintenance design](docs/design/installation.md).

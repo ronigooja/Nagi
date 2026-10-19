@@ -1,0 +1,5 @@
+{
+  "cli.language.invalid": {"value": "string"},
+  "cli.language.missing": {},
+  "cli.language.duplicate": {}
+}

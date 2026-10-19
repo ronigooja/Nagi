@@ -89,6 +89,7 @@ Nagi 使用 [mihomo](https://github.com/MetaCubeX/mihomo) 实现代理协议、D
 - [DNS 配置](docs/reference/cli.md#dns-policy-and-checks)：DoH 策略、域名例外设置和配置检查。
 - [macOS 特权 TUN 辅助程序](docs/reference/cli.md#traffic-access)：TUN 接入的安装和后端选择。
 - [架构](ARCHITECTURE.md)：系统边界和模块关系。
+- [本地化设计](docs/design/localization.md)：英文／简体中文基础设施，整体实现进行中。
 - [macOS 连接窗口设计](docs/design/connections-window.md)：快照调度、取消和操作协调。
 - [终端菜单设计](docs/design/terminal-menu.md)：当前菜单的职责、导航、命令调用和故障处理。
 - [运行时设计](docs/design/runtime.md)：进程、Socket、配置和恢复行为。

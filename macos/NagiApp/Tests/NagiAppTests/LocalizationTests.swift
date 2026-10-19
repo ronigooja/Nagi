@@ -6,6 +6,39 @@ final class LocalizationTests: XCTestCase {
         try XCTUnwrap(NagiResources.bundle.url(forResource: language.lowercased(), withExtension: "lproj").flatMap(Bundle.init(url:)))
     }
 
+    func testSharedContractAndCatalogParity() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let bytes = try Data(contentsOf: root.appendingPathComponent("docs/design/localization-contract.json"))
+        let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        let ids = try XCTUnwrap(fixture["initial_ids"] as? [String: [String: Any]])
+        for (id, spec) in ids {
+            let signature = try XCTUnwrap(spec["args"] as? [String: String])
+            let descriptor = MessageDescriptor(id: id, args: signature.mapValues { _ in .string("example") })
+            for language in ["en", "zh-Hans"] {
+                var expected = try XCTUnwrap(spec[language] as? String)
+                for name in signature.keys { expected = expected.replacingOccurrences(of: "{\(name)}", with: "example") }
+                XCTAssertEqual(descriptor.render(original: "ORIGINAL", bundle: try bundle(language)), expected)
+            }
+        }
+        let invalid = try XCTUnwrap(fixture["invalid_descriptors"] as? [[String: Any]])
+        for item in invalid {
+            guard let raw = item["descriptor"] else { continue }
+            let data = try JSONSerialization.data(withJSONObject: raw)
+            if let descriptor = try? JSONDecoder().decode(MessageDescriptor.self, from: data) {
+                XCTAssertEqual(descriptor.render(original: "ORIGINAL"), "ORIGINAL")
+            }
+        }
+        var keys: Set<String>?
+        for language in ["en", "zh-Hans"] {
+            let url = try XCTUnwrap(try bundle(language).url(forResource: "Localizable", withExtension: "strings"))
+            let dictionary = try XCTUnwrap(NSDictionary(contentsOf: url) as? [String: String])
+            if let keys { XCTAssertEqual(Set(dictionary.keys), keys) }
+            keys = Set(dictionary.keys)
+        }
+    }
+
     func testInstalledBundleWinsAfterRelocationWithoutDevelopmentFallback() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("nagi-relocated-\(UUID().uuidString)")
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }

@@ -14,8 +14,7 @@
   "argument_scalar_types": [
     "string",
     "number",
-    "boolean",
-    "null"
+    "boolean"
   ],
   "initial_ids": {
     "cli.language.invalid": {
@@ -95,6 +94,15 @@
     },
     {
       "descriptor": {
+        "id": "cli.language.invalid",
+        "args": {
+          "value": null
+        }
+      },
+      "reason": "null argument"
+    },
+    {
+      "descriptor": {
         "id": "cli.language.missing",
         "args": {
           "extra": "unexpected"
@@ -116,5 +124,5 @@
     }
   ],
   "fallback": "Preserve original English target; optional metadata failure must not reject valid base response.",
-  "ownership": "Go owns internal/i18n catalogs. App owns native interface and CLI message catalogs. This fixture is specification data; Phase A tests do not consume it automatically."
+  "ownership": "Go owns internal/i18n catalogs. App owns native interface and CLI message catalogs. Go and native App Phase A tests consume this shared fixture."
 }

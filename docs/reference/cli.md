@@ -8,6 +8,24 @@ Run `nagi`, `nagi help`, `nagi -h`, or `nagi --help` for top-level help. Use `na
 
 Valid help requests exit with status `0`, even if runtime configuration is invalid or mihomo is unavailable. With `--json`, help text is a string in the success envelope's `data` field. Unknown help topics and incorrect argument counts exit with status `2` and show the relevant usage or help syntax. Argument counts and the `logs` integer range are checked before runtime configuration is read.
 
+## Language selection foundation
+
+`--lang en` or `--lang zh-Hans` selects the human presentation language when
+placed before the command, for example `nagi --lang zh-Hans --json status`.
+`--lang=zh-Hans` is equivalent. Without an explicit selection, the first nonempty
+`NAGI_LANG`, `LC_ALL`, `LC_MESSAGES`, or `LANG` determines the language; unsupported
+automatic locales fall back to English. Missing, repeated, empty, or unsupported
+explicit language options exit with usage status `2`. Command operands remain
+command-owned, so a resource named `--lang` is preserved after the command.
+
+Localization is in progress: the initial foundation translates language-option
+errors; command help, other results and the terminal menu remain English until
+migration. JSON values retain their original English strings. Typed messages may
+add optional `messages` metadata mapping existing string JSON Pointers to
+`{"id":"semantic.id","args":{"name":"value"}}`; absent or invalid metadata
+must preserve the original response. The [localization design](../design/localization.md)
+defines argument types, fallback and migration status.
+
 ## Commands
 
 | Command | Result or effect |

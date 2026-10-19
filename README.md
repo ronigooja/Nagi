@@ -93,6 +93,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [DNS configuration](docs/reference/cli.md#dns-policy-and-checks): DoH policy, domain exceptions, and configuration checks.
 - [macOS privileged TUN helper](docs/reference/cli.md#traffic-access): installation and backend selection for TUN access.
 - [Architecture](ARCHITECTURE.md): system boundaries and module relationships.
+- [Localization design](docs/design/localization.md): English/Simplified Chinese foundation; implementation in progress.
 - [macOS connections window](docs/design/connections-window.md): snapshot scheduling, cancellation, and operation coordination.
 - [Terminal menu design](docs/design/terminal-menu.md): current menu responsibilities, navigation, command dispatch, and failure behavior.
 - [Runtime design](docs/design/runtime.md): process, socket, configuration, and recovery behavior.

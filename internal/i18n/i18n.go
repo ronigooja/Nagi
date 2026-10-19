@@ -70,6 +70,8 @@ func NewMessage(id string, args map[string]any, fallback string, cause error) *M
 	for key, value := range args {
 		if scalar(value) {
 			copied[key] = value
+		} else {
+			copied[key] = invalidArgument{}
 		}
 	}
 	return &Message{Descriptor{id, copied}, fallback, cause}
@@ -107,24 +109,17 @@ func (c Context) RenderDescriptor(d Descriptor, fallback string) string {
 	if !ok {
 		return fallback
 	}
-	english, ok := catalogs[English][d.ID]
+	_, ok = catalogs[English][d.ID]
 	if !ok {
 		return fallback
 	}
-	template := english.text(d.Args)
-	if template == "" {
-		return fallback
-	}
-	expected := placeholders.FindAllStringSubmatch(template, -1)
-	required := map[string]bool{}
-	for _, match := range expected {
-		required[match[1]] = true
-	}
-	if len(required) != len(d.Args) {
+	signature, ok := argumentSchemas[d.ID]
+	if !ok || len(signature) != len(d.Args) {
 		return fallback
 	}
 	for key, value := range d.Args {
-		if !required[key] || !scalar(value) || (d.ID == "cli.language.invalid" && key == "value" && !isString(value)) {
+		kind, exists := signature[key]
+		if !exists || !matchesType(value, kind) {
 			return fallback
 		}
 	}
@@ -142,15 +137,15 @@ func (c Context) RenderDescriptor(d Descriptor, fallback string) string {
 }
 func scalar(value any) bool {
 	switch v := value.(type) {
-	case nil, string, bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+	case string, bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		return true
 	case float64:
 		return !math.IsNaN(v) && !math.IsInf(v, 0)
 	case float32:
 		return !math.IsNaN(float64(v)) && !math.IsInf(float64(v), 0)
 	case json.Number:
-		_, err := v.Float64()
-		return err == nil
+		number, err := v.Float64()
+		return err == nil && !math.IsNaN(number) && !math.IsInf(number, 0)
 	}
 	return false
 }
@@ -172,8 +167,9 @@ func (e entry) text(args map[string]any) string {
 
 var placeholders = regexp.MustCompile(`\{([A-Za-z][A-Za-z0-9_]*)\}`)
 
-//go:embed catalogs/*/*.json
+//go:embed catalogs/*/*.json catalogs/*.arguments.json
 var files embed.FS
+var argumentSchemas = loadArgumentSchemas()
 var catalogs = loadCatalogs()
 
 func loadCatalogs() map[Language]map[string]entry {
@@ -190,6 +186,9 @@ func loadCatalogs() map[Language]map[string]entry {
 				panic(err)
 			}
 			var raw map[string]json.RawMessage
+			if err = uniqueJSON(data); err != nil {
+				panic(err)
+			}
 			if err = json.Unmarshal(data, &raw); err != nil {
 				panic(err)
 			}
@@ -208,6 +207,9 @@ func loadCatalogs() map[Language]map[string]entry {
 		}
 
 		result[language] = items
+	}
+	if err := validateCatalogs(result, argumentSchemas); err != nil {
+		panic(err)
 	}
 	return result
 }

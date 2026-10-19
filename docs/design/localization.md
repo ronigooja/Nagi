@@ -11,6 +11,30 @@ message metadata contract, terminology, and migration accounting. The
 JSON fields and exit codes; the [terminal menu design](terminal-menu.md) and
 [UI rules](../development/ui-design.md) retain their interaction requirements.
 
+## Implemented foundation
+
+Phase A provides immutable Go language contexts, prefix-only language selection,
+typed messages with preserved English errors and causes, additive JSON metadata,
+and native App resource/package support. The three language-option messages are
+translated; broad CLI, menu and native interface migration remains in progress.
+The App preserves original business values and resolves optional descriptors at
+presentation boundaries across normal, rewrite, capture and streaming transports.
+
+Go catalog modules live under `internal/i18n/catalogs/en` and `zh-Hans`. Each
+module declares its exact argument signatures in
+`internal/i18n/catalogs/<module>.arguments.json`, mapping every message ID to an
+argument-name/type object (`{}` for no arguments). Supported types are `string`,
+`number` and `boolean`. Loading rejects duplicate keys/IDs, language/schema ID
+drift, invalid plural forms, and inconsistent placeholders. Plural messages use
+a numeric `count` and `one`/`other` forms; Chinese may define only `other`.
+The Go and native App foundation tests consume the shared contract fixture to
+check initial IDs, typed argument fallback and resource agreement.
+
+The App uses its installed resource bundle before SwiftPM's development fallback;
+packaging includes both localizations and the existing menu image. Localized
+resources are selected at process launch; restart the App after changing its
+macOS language preference. Live refresh of existing windows is not implemented.
+
 ## Ownership and engine boundary
 
 Localization belongs to Nagi presentation. The pinned mihomo revision is
@@ -85,8 +109,8 @@ tracks this fixture contract, not a new CLI envelope version.
   valid only when `data` itself is a string; nested string fields such as
   `/data/message`, `/data/checks/0/message` and `/error/message` may be annotated.
 - A descriptor contains a nonempty stable `id` and optional `args` object.
-  Argument values are JSON scalars: string, finite number, boolean or null.
-  Container arguments are invalid. Empty arguments should be omitted.
+  Argument values are JSON scalars: string, finite number or boolean. Null and
+  container arguments are invalid. Empty arguments should be omitted.
 - IDs describe semantic events, never English sentence text. A producer creates
   the descriptor where the event is known. Consumers must not infer IDs by
   matching, hashing, parsing or translating an English sentence.
