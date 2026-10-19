@@ -53,6 +53,7 @@ func ProfilePage() *Page { return profileListPage() }
 func profileListPage() *Page {
 	return &Page{Title: "Profiles", Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Empty: "No profiles found. Choose Import a profile.", Actions: []Item{
+			{Label: "Current Configuration", Next: configurationPage},
 			{Label: "Import a profile", Navigate: importProfile},
 		}}
 		var data menuProfiles

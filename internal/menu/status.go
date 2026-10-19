@@ -29,7 +29,7 @@ func statusSummary(result Result) string {
 		return "Mihomo: unknown | Profile: unknown. Status unavailable."
 	}
 	if result.Error != nil {
-		return "Mihomo: unknown | Profile: unknown. Status unavailable: " + result.Error.Message + ". Try `nagi status` or Troubleshooting."
+		return "Mihomo: unknown | Profile: unknown. Status unavailable: " + result.Error.Message + ". Try `nagi status` or Connections & Troubleshooting."
 	}
 	data, ok := result.Data.(map[string]any)
 	if !ok {

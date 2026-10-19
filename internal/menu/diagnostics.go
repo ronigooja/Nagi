@@ -82,18 +82,19 @@ func loginStartupSummary(result Result) string {
 func DiagnosticsPage() *Page { return diagnosticsPageForOS(runtime.GOOS) }
 
 func diagnosticsPageForOS(goos string) *Page {
-	return &Page{Title: "Troubleshooting", Load: func(_ context.Context, _ *Session) (PageView, error) {
+	return &Page{Title: "Connections & Troubleshooting", Load: func(_ context.Context, _ *Session) (PageView, error) {
 		items := []Item{
+			{Label: "Connections", Next: ConnectionsPage},
+			{Label: "Logs and traffic", Next: LogsPage},
 			{Label: "Basic checks", Args: []string{"doctor"}},
 			{Label: "Detailed diagnostics", Args: []string{"diagnostics"}},
 			{Label: "Export diagnostics", Action: exportDiagnostics},
-			{Label: "Logs and traffic", Next: LogsPage},
 			{Label: "Repair startup state", Args: []string{"startup", "check"}},
 			{Label: "Clean stale runtime records", Args: []string{"recover"}, Impact: "Clears records left by an unexpected exit"},
 			{Label: "Show version", Args: []string{"version"}},
 		}
 
-		return PageView{Actions: items}, nil
+		return PageView{Context: "Inspect connections and logs, then run basic checks or detailed diagnostics. Use repair and cleanup for startup or stale runtime state.", Actions: items}, nil
 	}}
 }
 
@@ -112,17 +113,15 @@ func AdvancedPage() *Page { return advancedPageForOS(runtime.GOOS) }
 func advancedPageForOS(goos string) *Page {
 	return &Page{Title: "Settings & Maintenance", Load: func(_ context.Context, _ *Session) (PageView, error) {
 		items := []Item{
-			{Label: "Current Configuration", Next: configurationPage},
-			{Label: "DNS", Next: DNSPage},
 			{Label: "Routing Rules", Next: RulesPage},
+			{Label: "DNS", Next: DNSPage},
 			{Label: "Request Rewrite", Next: RequestRewritePage},
-			{Label: "Connections", Next: ConnectionsPage},
 			{Label: "Start at Login", Next: ServicePage},
-			{Label: "Nagi Maintenance", Next: MaintenancePage},
 		}
 		if goos == "darwin" {
 			items = append(items, Item{Label: "Privileged helper", Next: func() *Page { return helperPageForOS(goos) }})
 		}
+		items = append(items, Item{Label: "Nagi Maintenance", Next: func() *Page { return maintenancePageForOS(goos) }})
 		return PageView{Actions: items}, nil
 	}}
 }
@@ -130,14 +129,13 @@ func advancedPageForOS(goos string) *Page {
 func MaintenancePage() *Page { return maintenancePageForOS(runtime.GOOS) }
 
 func maintenancePageForOS(goos string) *Page {
-	items := []Item{}
+	items := []Item{{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates Nagi, mihomo and any installed App; resets the default profile"}}
 	if goos == "darwin" {
 		items = append(items,
 			Item{Label: "Install menu bar App", Args: []string{"app", "install"}, Impact: "Installs the App for this Nagi version"},
 			Item{Label: "Uninstall menu bar App", Args: []string{"app", "uninstall"}, Impact: "Quit the App and disable its login item first"},
 		)
 	}
-	items = append(items, Item{Label: "Update Nagi", Args: []string{"update"}, Impact: "Updates Nagi, mihomo and any installed App; resets the default profile"})
 	uninstallImpact := "Removes Nagi and services; keeps user data"
 	if goos == "darwin" {
 		uninstallImpact = "Removes Nagi, App, helper and services; keeps user data"

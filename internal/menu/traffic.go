@@ -15,37 +15,41 @@ func init() {
 	RegisterPage("logs", LogsPage)
 }
 
-func trafficTitle() string {
-	if runtime.GOOS == "darwin" {
+func trafficTitle() string { return trafficTitleForOS(runtime.GOOS) }
+
+func trafficTitleForOS(goos string) string {
+	if goos == "darwin" {
 		return "System Proxy & TUN"
 	}
 	return "TUN & LAN"
 }
 
-func TrafficPage() *Page {
-	return &Page{Title: trafficTitle(), Load: func(ctx context.Context, s *Session) (PageView, error) {
+func TrafficPage() *Page { return trafficPageForOS(runtime.GOOS) }
+
+func trafficPageForOS(goos string) *Page {
+	return &Page{Title: trafficTitleForOS(goos), Load: func(ctx context.Context, s *Session) (PageView, error) {
 		items := []Item{
-			{Label: "TUN details", Args: []string{"tun", "status"}},
 			{Label: "Enable TUN", Args: []string{"tun", "enable"}},
 			{Label: "Disable TUN", Args: []string{"tun", "disable"}},
+			{Label: "TUN details", Args: []string{"tun", "status"}},
 			{Label: "Listener ports", Args: []string{"ports", "status"}},
-			{Label: "LAN access details", Args: []string{"lan", "status"}},
 			{Label: "Enable LAN access", Impact: "Exposes listeners on the selected interface", Action: enableLAN},
 			{Label: "Disable LAN access", Args: []string{"lan", "disable"}, Impact: "Binds listeners to loopback"},
+			{Label: "LAN access details", Args: []string{"lan", "status"}},
 		}
 		tun := statePage("TUN", []string{"tun", "status"}, []string{"enabled"}, items[:3]...)
 		lan := statePage("LAN Access", []string{"lan", "status"}, []string{"enabled", "bind_address"}, items[4:]...)
 		items = []Item{{Label: "TUN", Next: func() *Page { return tun }}, {Label: "LAN Access", Next: func() *Page { return lan }}, items[3]}
-		if runtime.GOOS == "darwin" {
+		if goos == "darwin" {
 			system := statePage("System Proxy", []string{"system-proxy", "status"}, []string{"enabled"},
-				Item{Label: "System proxy details", Args: []string{"system-proxy", "status"}},
 				Item{Label: "Enable system proxy", Args: []string{"system-proxy", "enable"}},
-				Item{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Impact: "Restores OS proxy settings saved by Nagi"})
+				Item{Label: "Disable system proxy", Args: []string{"system-proxy", "disable"}, Impact: "Restores OS proxy settings saved by Nagi"},
+				Item{Label: "System proxy details", Args: []string{"system-proxy", "status"}})
 			items = append([]Item{{Label: "System Proxy", Next: func() *Page { return system }}}, items...)
 
 		}
 		commands := [][]string{{"tun", "status"}, {"ports", "status"}, {"lan", "status"}}
-		if runtime.GOOS == "darwin" {
+		if goos == "darwin" {
 			commands = append(commands, []string{"system-proxy", "status"})
 		}
 		results := s.fetchReads(ctx, commands)
@@ -54,7 +58,7 @@ func TrafficPage() *Page {
 			pageStatusResult(results[1], "Listener ports", "http", "socks", "mixed"),
 			pageStatusResult(results[2], "LAN", "enabled", "bind_address"),
 		}
-		if runtime.GOOS == "darwin" {
+		if goos == "darwin" {
 			summary = append(summary, pageStatusResult(results[3], "System proxy", "enabled"))
 		}
 		return PageView{Context: strings.Join(summary, "\n"), Actions: items}, nil

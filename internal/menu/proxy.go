@@ -53,7 +53,7 @@ func proxyGroupsPage() *Page {
 		}
 		if err := decodeMenuResult(s.Fetch(ctx, "proxy", "groups"), &data); err != nil {
 			view.Context = "Mihomo: unknown | Proxy group state: unknown"
-			view.ReadErrorHint = "Open Troubleshooting to check status and logs, then return here."
+			view.ReadErrorHint = "Open Connections & Troubleshooting to check status and logs, then return here."
 			view.Actions = append(view.Actions, Item{Label: "Start / Stop", Next: RuntimePage})
 			var status struct {
 				Running        *bool `json:"running"`
@@ -65,10 +65,10 @@ func proxyGroupsPage() *Page {
 				switch {
 				case *status.Running:
 					view.Context = "Mihomo: running | Proxy group state: unknown"
-					view.ReadErrorHint = "Check logs in Troubleshooting; use Start / Stop if a restart is needed."
+					view.ReadErrorHint = "Check logs in Connections & Troubleshooting; use Start / Stop if a restart is needed."
 				case status.UnexpectedExit:
 					view.Context = "Mihomo: stopped (unexpected exit) | Proxy group state: unavailable"
-					view.ReadErrorHint = "Check logs and clean stale runtime records in Troubleshooting, then start mihomo through Start / Stop."
+					view.ReadErrorHint = "Check logs and clean stale runtime records in Connections & Troubleshooting, then start mihomo through Start / Stop."
 				default:
 					view.Context = "Mihomo: stopped | Proxy group state: unavailable"
 					view.ReadErrorHint = "Start mihomo through Start / Stop, then return here."

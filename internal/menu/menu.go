@@ -84,11 +84,11 @@ type rootEntry struct{ key, label string }
 var rootEntries = []rootEntry{
 	{"runtime", "Start / Stop"},
 	{"proxy", "Select Node"},
-	{"subscription", "Subscriptions"},
-	{"profile", "Profiles"},
 	{"mode", "Proxy Mode"},
 	{"traffic", trafficTitle()},
-	{"diagnostics", "Troubleshooting"},
+	{"subscription", "Subscriptions"},
+	{"profile", "Profiles"},
+	{"diagnostics", "Connections & Troubleshooting"},
 	{"advanced", "Settings & Maintenance"},
 }
 
