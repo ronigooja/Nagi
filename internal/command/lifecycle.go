@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +58,7 @@ func readIntent(paths nagiruntime.Paths) (string, error) {
 	}
 	intent := strings.TrimSpace(string(data))
 	if intent != "running" && intent != "stopped" && intent != "quit-pending" && intent != "quit-ready" {
-		return "", fmt.Errorf("invalid engine intent at %s", intentPath(paths))
+		return "", messageError("cli.error.lifecycle.invalid_engine_intent_at_s", "invalid engine intent at %s", intentPath(paths))
 	}
 	return intent, nil
 }
@@ -106,7 +106,7 @@ func execute(ctx context.Context, args []string, version, commit string) (any, e
 				return nil, intentErr
 			}
 			if intent == "quit-pending" && args[0] != "startup" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
-				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes"))
+				return nil, fail("lifecycle_busy", messageError("cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes", "Nagi quit is in progress; retry after it completes"))
 			}
 			switching := rewriteSwitch(args) && !transactionalMutation(args)
 			previousBackend, _ := readBackend(paths)
@@ -179,7 +179,7 @@ func executeLockedLifecycle(ctx context.Context, args []string, version, commit 
 			if intent, err := readIntent(paths); err != nil {
 				return nil, err
 			} else if intent == "quit-pending" {
-				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes, or run `nagi quit` again if the prior quit was interrupted"))
+				return nil, fail("lifecycle_busy", messageError("cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes_or_run_nagi_quit_a", "Nagi quit is in progress; retry after it completes, or run `nagi quit` again if the prior quit was interrupted"))
 			}
 			if err := writeIntent(paths, "running"); err != nil {
 				return nil, err
@@ -188,7 +188,7 @@ func executeLockedLifecycle(ctx context.Context, args []string, version, commit 
 			if intent, err := readIntent(paths); err != nil {
 				return nil, err
 			} else if intent == "quit-pending" {
-				return nil, fail("lifecycle_busy", errors.New("Nagi quit is in progress; retry after it completes, or run `nagi quit` again if the prior quit was interrupted"))
+				return nil, fail("lifecycle_busy", messageError("cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes_or_run_nagi_quit_a", "Nagi quit is in progress; retry after it completes, or run `nagi quit` again if the prior quit was interrupted"))
 			}
 			if err := writeIntent(paths, "stopped"); err != nil {
 				return nil, err
@@ -224,7 +224,7 @@ func executeLockedLifecycle(ctx context.Context, args []string, version, commit 
 	})
 	if command == "start" && (err == nil || errors.Is(err, engine.ErrAlreadyRunning)) {
 		if resumeErr := service.ResumeIfEnabled(); resumeErr != nil {
-			return nil, fmt.Errorf("mihomo is running but login monitor could not resume: %w", resumeErr)
+			return nil, messageError("cli.error.lifecycle.mihomo_is_running_but_login_monitor_could_not_resume_w", "mihomo is running but login monitor could not resume: %w", resumeErr)
 		}
 	}
 	return result, err
@@ -261,7 +261,7 @@ func quitLocked(ctx context.Context, paths nagiruntime.Paths, version, commit st
 		}
 	}()
 	if err := pauseMonitor(); err != nil {
-		return nil, fmt.Errorf("quit could not pause the login monitor; run `nagi startup status` and retry: %w", err)
+		return nil, messageError("cli.error.lifecycle.quit_could_not_pause_the_login_monitor_run_nagi_startup_status_and_r", "quit could not pause the login monitor; run `nagi startup status` and retry: %w", err)
 	}
 	_, err = withNamedLock(paths, "config.lock", func() (any, error) {
 		return withLifecycleLock(paths, func() (any, error) { return executeInternal(ctx, []string{"stop"}, version, commit) })
@@ -287,5 +287,5 @@ func quitRollbackError(cause, rollbackErr error) error {
 	if rollbackErr == nil {
 		return cause
 	}
-	return fmt.Errorf("%w; could not clear pending quit state: %v; repair Nagi's state directory and retry `nagi quit`", cause, rollbackErr)
+	return messageError("cli.error.lifecycle.w_could_not_clear_pending_quit_state_v_repair_nagi_s_state_directory", "%w; could not clear pending quit state: %v; repair Nagi's state directory and retry `nagi quit`", cause, rollbackErr)
 }

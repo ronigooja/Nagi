@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
+
 	"io"
 	"os"
 	"os/signal"
@@ -73,20 +73,20 @@ func startupWatchStep(ctx context.Context, call func(...string) (any, error)) er
 	}
 	check, ok := result.(map[string]any)
 	if !ok {
-		return errors.New("startup check returned an unexpected result")
+		return messageError("cli.error.startup_watch.startup_check_returned_an_unexpected_result", "startup check returned an unexpected result")
 	}
 	if check["running"] == true {
 		if check["control_api"] != true {
-			return errors.New("mihomo is running but its control API is unavailable; inspect `nagi logs`")
+			return messageError("cli.error.startup_watch.mihomo_is_running_but_its_control_api_is_unavailable_inspect_nagi_lo", "mihomo is running but its control API is unavailable; inspect `nagi logs`")
 		}
 		if message, ok := check["system_dns_error"].(string); ok && message != "" {
-			return fmt.Errorf("system DNS recheck failed: %s; inspect `nagi startup check`", message)
+			return messageError("cli.error.startup_watch.system_dns_recheck_failed_s_inspect_nagi_startup_check", "system DNS recheck failed: %s; inspect `nagi startup check`", message)
 		}
 		if message, ok := check["system_proxy_error"].(string); ok && message != "" {
-			return fmt.Errorf("system proxy recheck failed: %s; inspect `nagi startup check`", message)
+			return messageError("cli.error.startup_watch.system_proxy_recheck_failed_s_inspect_nagi_startup_check", "system proxy recheck failed: %s; inspect `nagi startup check`", message)
 		}
 		if proxyCheck, ok := check["system_proxy"].(traffic.RecheckResult); ok && proxyCheck.Managed && proxyCheck.Status != "current" && proxyCheck.Status != "reasserted" {
-			return fmt.Errorf("system proxy needs attention (%s); inspect `nagi startup check`", proxyCheck.Status)
+			return messageError("cli.error.startup_watch.system_proxy_needs_attention_s_inspect_nagi_startup_check", "system proxy needs attention (%s); inspect `nagi startup check`", proxyCheck.Status)
 		}
 		return nil
 	}

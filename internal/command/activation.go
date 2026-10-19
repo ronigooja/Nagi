@@ -5,17 +5,17 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
+
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
 )
 
-var errActivationUnconfirmed = errors.New("mihomo configuration activation is unconfirmed")
+var errActivationUnconfirmed = messageError("cli.error.activation.mihomo_configuration_activation_is_unconfirmed", "mihomo configuration activation is unconfirmed")
 
 // A failed transport request can outlive its caller in mihomo. Until its
 // activation ID is observed, a later rollback cannot establish final state.
-var errActivationMayStillApply = errors.New("mihomo configuration PUT may still apply")
+var errActivationMayStillApply = messageError("cli.error.activation.mihomo_configuration_put_may_still_apply", "mihomo configuration PUT may still apply")
 
 // activateConfig uses mihomo's activation marker as evidence that the
 // requested configuration actually became active. A timed-out PUT may still
@@ -44,9 +44,9 @@ func activateConfig(ctx context.Context, client *control.Client, path string) er
 		select {
 		case <-checkCtx.Done():
 			if err != nil {
-				return fmt.Errorf("%w: %w after PUT error: %v", errActivationUnconfirmed, errActivationMayStillApply, err)
+				return messageError("cli.error.activation.w_w_after_put_error_v", "%w: %w after PUT error: %v", errActivationUnconfirmed, errActivationMayStillApply, err)
 			}
-			return fmt.Errorf("%w: current marker %s", errActivationUnconfirmed, current.ActivationID)
+			return messageError("cli.error.activation.w_current_marker_s", "%w: current marker %s", errActivationUnconfirmed, current.ActivationID)
 		case <-time.After(200 * time.Millisecond):
 		}
 	}

@@ -51,7 +51,7 @@ func TestLegacyEnvelopeOmitsMessages(t *testing.T) {
 	}
 }
 
-func TestWrappedMessageRetainsDescriptorAndCause(t *testing.T) {
+func TestWrappedMessagePreservesAdditionalContextAndCause(t *testing.T) {
 	cause := errors.New("sentinel")
 	message := i18n.NewMessage("cli.language.missing", nil, "--lang requires a language; use en or zh-Hans.", cause)
 	wrapped := fmt.Errorf("context: %w", message)
@@ -64,7 +64,7 @@ func TestWrappedMessageRetainsDescriptorAndCause(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
 		t.Fatal(err)
 	}
-	if env.Messages["/error/message"].ID != "cli.language.missing" || env.Error.Message != message.Error() {
+	if len(env.Messages) != 0 || env.Error.Message != wrapped.Error() {
 		t.Fatal(out.String())
 	}
 }

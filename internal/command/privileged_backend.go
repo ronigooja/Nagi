@@ -3,8 +3,7 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
+
 	"net"
 	"net/http"
 	"os"
@@ -47,7 +46,7 @@ func (b helperBackend) call(ctx context.Context, req privileged.Request) (privil
 	}
 	conn, err := dialer.DialContext(ctx, "unix", socketPath)
 	if err != nil {
-		return empty, fmt.Errorf("privileged helper unavailable; run `nagi privileged-helper status`: %w", err)
+		return empty, messageError("cli.error.privileged_backend.privileged_helper_unavailable_run_nagi_privileged_helper_status_w", "privileged helper unavailable; run `nagi privileged-helper status`: %w", err)
 	}
 	defer conn.Close()
 	deadline := time.Now().Add(31 * time.Second)
@@ -62,7 +61,7 @@ func (b helperBackend) call(ctx context.Context, req privileged.Request) (privil
 	}
 	resp, err := privileged.ReadResponse(conn)
 	if err != nil {
-		return empty, fmt.Errorf("read privileged helper response: %w", err)
+		return empty, messageError("cli.error.privileged_backend.read_privileged_helper_response_w", "read privileged helper response: %w", err)
 	}
 	if err := resp.Validate(); err != nil {
 		return empty, err
@@ -79,7 +78,7 @@ func (b helperBackend) call(ctx context.Context, req privileged.Request) (privil
 		case "response_too_large":
 			return resp, control.ErrResponseTooLarge
 		}
-		return resp, fmt.Errorf("privileged helper rejected %s: %s", req.Operation, resp.Error)
+		return resp, messageError("cli.error.privileged_backend.privileged_helper_rejected_s_s", "privileged helper rejected %s: %s", req.Operation, resp.Error)
 	}
 	return resp, nil
 }
@@ -90,7 +89,7 @@ func (b helperBackend) Start(ctx context.Context) (engine.Status, error) {
 		return engine.Status{}, err
 	}
 	if !resp.Running {
-		return engine.Status{}, errors.New("privileged helper did not report a running mihomo process")
+		return engine.Status{}, messageError("cli.error.privileged_backend.privileged_helper_did_not_report_a_running_mihomo_process", "privileged helper did not report a running mihomo process")
 	}
 	return b.statusFromResponse(resp), nil
 }
@@ -126,7 +125,7 @@ func (b helperBackend) Logs(ctx context.Context, lines int) ([]string, error) {
 	}
 	var result []string
 	if err := json.Unmarshal(resp.Body, &result); err != nil {
-		return nil, fmt.Errorf("decode helper logs: %w", err)
+		return nil, messageError("cli.error.privileged_backend.decode_helper_logs_w", "decode helper logs: %w", err)
 	}
 	return result, nil
 }
@@ -153,7 +152,7 @@ func (f helperFollowResult) Follow(ctx context.Context, emit func(string) error)
 		}
 		var lines []string
 		if err := json.Unmarshal(resp.Body, &lines); err != nil {
-			return fmt.Errorf("decode helper logs: %w", err)
+			return messageError("cli.error.privileged_backend.decode_helper_logs_w_95", "decode helper logs: %w", err)
 		}
 		for _, line := range lines {
 			if err := emit(strings.TrimSuffix(line, "\n")); err != nil {
@@ -194,7 +193,7 @@ func (b helperBackend) controlClient() *control.Client {
 		}
 		if out != nil && resp.Status != http.StatusNoContent && len(resp.Body) != 0 {
 			if err := json.Unmarshal(resp.Body, out); err != nil {
-				return fmt.Errorf("decode mihomo response: %w", err)
+				return messageError("cli.error.privileged_backend.decode_mihomo_response_w", "decode mihomo response: %w", err)
 			}
 		}
 		return nil
@@ -213,7 +212,7 @@ func (b helperBackend) controlClient() *control.Client {
 				return err
 			}
 			if raw.Up == nil || raw.Down == nil || raw.UpTotal == nil || raw.DownTotal == nil || *raw.Up < 0 || *raw.Down < 0 || *raw.UpTotal < 0 || *raw.DownTotal < 0 {
-				return errors.New("mihomo traffic sample contains missing or negative counters")
+				return messageError("cli.error.privileged_backend.mihomo_traffic_sample_contains_missing_or_negative_counters", "mihomo traffic sample contains missing or negative counters")
 			}
 			if err := receive(control.TrafficSample{UploadBPS: *raw.Up, DownloadBPS: *raw.Down, UploadTotal: *raw.UpTotal, DownloadTotal: *raw.DownTotal}); err != nil {
 				return err

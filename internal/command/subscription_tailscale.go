@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/subscription"
@@ -34,21 +33,21 @@ func subscriptionTailscaleTargets(cache *subscription.Store, profiles *profile.S
 }
 func mutateSubscriptionTailscale(ctx context.Context, cache *subscription.Store, profiles *profile.Store, profileName, action, node string, targets []string) error {
 	if len(targets) != 1 {
-		return errors.New("select exactly one subscription associated with the selected profile")
+		return messageError("cli.error.subscription_tailscale.select_exactly_one_subscription_associated_with_the_selected_profile", "select exactly one subscription associated with the selected profile")
 	}
 	entry, err := cache.Find(targets[0])
 	if err != nil {
 		return err
 	}
 	if entry.Profile != profileName {
-		return errors.New("subscription is not associated with the selected profile; run `nagi subscription apply NAME` first")
+		return messageError("cli.error.subscription_tailscale.subscription_is_not_associated_with_the_selected_profile_run_nagi_su", "subscription is not associated with the selected profile; run `nagi subscription apply NAME` first")
 	}
 	source, err := profiles.Show(profileName)
 	if err != nil {
 		return err
 	}
 	if action == "bind" && subscription.Hash(source) != entry.SourceHash {
-		return errors.New("subscription source profile changed; run `nagi subscription apply NAME` before binding")
+		return messageError("cli.error.subscription_tailscale.subscription_source_profile_changed_run_nagi_subscription_apply_name", "subscription source profile changed; run `nagi subscription apply NAME` before binding")
 	}
 	return profiles.MutateSubscriptionTailscale(ctx, profileName, entry.Name, action, node)
 }

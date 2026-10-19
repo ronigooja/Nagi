@@ -14,7 +14,7 @@ var stateWords = regexp.MustCompile(`(?i)\b(unexpected exit|running|stopped|unkn
 var profileField = regexp.MustCompile(`(?i)(?:selected\s+)?profile\s*:\s*([^|\n,.(;]+)`)
 
 func StylesEnabled(w io.Writer) bool {
-	file, ok := w.(*os.File)
+	file, ok := underlyingWriter(w).(*os.File)
 	term := os.Getenv("TERM")
 	return ok && terminal.IsTerminal(file) && term != "" && term != "dumb" && os.Getenv("NO_COLOR") == ""
 }
@@ -134,10 +134,11 @@ func stateColor(word string) string {
 }
 
 func stateValue(w io.Writer, value string) string {
+	display := stateText(w, value)
 	if value == "" || !StylesEnabled(w) {
-		return value
+		return display
 	}
-	return "\x1b[" + stateColor(value) + "m" + value + "\x1b[0m"
+	return "\x1b[" + stateColor(value) + "m" + display + "\x1b[0m"
 }
 
 // StyleStateValue colors a field value without inspecting its surrounding label.
@@ -166,4 +167,13 @@ func yesNo(value bool) string {
 		return "yes"
 	}
 	return "no"
+}
+
+// StyleProtocolState chooses styling from a stable protocol token, independently
+// of its localized display text. Resource names must use profile styling instead.
+func StyleProtocolState(token, display string, enabled bool) string {
+	if display == "" || !enabled {
+		return display
+	}
+	return "\x1b[" + stateColor(token) + "m" + display + "\x1b[0m"
 }

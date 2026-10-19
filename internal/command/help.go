@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/installation"
+	"github.com/ronigooja/Nagi/internal/output"
 	"github.com/ronigooja/Nagi/internal/profile"
 )
 
@@ -240,7 +242,7 @@ func validateInvocation(args []string) error {
 			if spec == nil {
 				spec = findSpec("request-rewrite")
 			}
-			return syntaxError(e.Error(), spec)
+			return syntaxError(e, spec)
 		}
 		return nil
 	}
@@ -253,133 +255,133 @@ func validateInvocation(args []string) error {
 
 	for spec.maxArgs == -1 {
 		if len(args) == consumed {
-			return syntaxError("missing subcommand", spec)
+			return syntaxError(messageError("cli.error.validation.missing_subcommand", "missing subcommand"), spec)
 		}
 		parent := spec
 		spec = findSpec(strings.Join(args[:consumed+1], " "))
 		if spec == nil {
-			return syntaxError("unknown subcommand", parent)
+			return syntaxError(messageError("cli.error.validation.unknown_subcommand", "unknown subcommand"), parent)
 		}
 		consumed++
 	}
 
 	n := len(args) - consumed
 	if n < spec.minArgs {
-		return syntaxError("missing argument", spec)
+		return syntaxError(messageError("cli.error.validation.missing_argument", "missing argument"), spec)
 	}
 	if spec.maxArgs >= 0 && n > spec.maxArgs {
-		return syntaxError("too many arguments", spec)
+		return syntaxError(messageError("cli.error.validation.too_many_arguments", "too many arguments"), spec)
 	}
 	if spec.path == "uninstall" && n == 1 && args[consumed] != "--purge-data" {
-		return syntaxError("expected --purge-data", spec)
+		return syntaxError(messageError("cli.error.validation.expected_purge_data", "expected --purge-data"), spec)
 	}
 	if spec.path == "profile override apply-default" && n != 1 && (n != 3 || args[consumed+1] != "--dns-proxy" || strings.TrimSpace(args[consumed+2]) == "") {
-		return syntaxError("expected --dns-proxy GROUP", spec)
+		return syntaxError(messageError("cli.error.validation.expected_dns_proxy_group", "expected --dns-proxy GROUP"), spec)
 	}
 	if n == 1 && (spec.path == "update" || spec.path == "app install" || spec.path == "app update") {
 		value := args[consumed]
 		if !(spec.path == "update" && (value == "--terminal" || value == "--app")) && !installation.ValidTag(value) {
-			return syntaxError("TAG must be vX.Y.Z (an optional release suffix is allowed)", spec)
+			return syntaxError(messageError("cli.error.validation.tag_must_be_vx_y_z_an_optional_release_suffix_is_allowed", "TAG must be vX.Y.Z (an optional release suffix is allowed)"), spec)
 		}
 	}
 	if strings.HasPrefix(spec.path, "proxy tailscale ") {
 		if _, err := tailscaleArguments(args); err != nil {
-			return syntaxError(err.Error(), spec)
+			return syntaxError(err, spec)
 		}
 	}
 
 	if spec.path == "proxy healthcheck show" && n == 3 && args[5] != "--full-url" {
-		return syntaxError("expected --full-url", spec)
+		return syntaxError(messageError("cli.error.validation.expected_full_url", "expected --full-url"), spec)
 	}
 	if strings.HasPrefix(spec.path, "proxy healthcheck ") && !strings.HasPrefix(spec.path, "proxy healthcheck url") {
 		if args[3] != "group" && args[3] != "provider" && args[3] != "subscription" {
-			return syntaxError("KIND must be group, provider, or subscription", spec)
+			return syntaxError(messageError("cli.error.validation.kind_must_be_group_provider_or_subscription", "KIND must be group, provider, or subscription"), spec)
 		}
 		if strings.TrimSpace(args[4]) == "" {
-			return syntaxError("NAME is required", spec)
+			return syntaxError(messageError("cli.error.validation.name_is_required", "NAME is required"), spec)
 		}
 		if args[2] == "set" {
 			v, e := strconv.Atoi(args[5])
 			if e != nil || v < 1 || v > 31536000 {
-				return syntaxError("SECONDS must be an integer from 1 to 31536000", spec)
+				return syntaxError(messageError("cli.error.validation.seconds_must_be_an_integer_from_1_to_31536000", "SECONDS must be an integer from 1 to 31536000"), spec)
 			}
 		}
 	}
 
 	if strings.HasPrefix(spec.path, "proxy healthcheck url ") {
 		if args[4] != "group" && args[4] != "provider" && args[4] != "subscription" {
-			return syntaxError("KIND must be group, provider, or subscription", spec)
+			return syntaxError(messageError("cli.error.validation.kind_must_be_group_provider_or_subscription", "KIND must be group, provider, or subscription"), spec)
 		}
 		if strings.TrimSpace(args[5]) == "" {
-			return syntaxError("NAME is required", spec)
+			return syntaxError(messageError("cli.error.validation.name_is_required", "NAME is required"), spec)
 		}
 		if args[3] == "set" {
 			if err := profile.ValidateHealthcheckURL(args[6]); err != nil {
-				return syntaxError(err.Error(), spec)
+				return syntaxError(err, spec)
 			}
 		}
 	}
 	if strings.HasPrefix(spec.path, "proxy provider interval ") {
 		if err := profile.ValidateProviderRemoval(args[4]); err != nil {
-			return syntaxError(err.Error(), spec)
+			return syntaxError(err, spec)
 		}
 		if args[3] == "set" {
 			if _, err := providerSeconds(args[5]); err != nil {
-				return syntaxError(err.Error(), spec)
+				return syntaxError(err, spec)
 			}
 		}
 	}
 
 	if spec.path == "proxy provider remove" {
 		if err := profile.ValidateProviderRemoval(args[3]); err != nil {
-			return syntaxError(err.Error(), spec)
+			return syntaxError(err, spec)
 		}
 	}
 	if spec.path == "proxy provider add" {
 		interval, _, err := providerAddOptions(args)
 		if err != nil {
-			return syntaxError(err.Error(), spec)
+			return syntaxError(err, spec)
 		}
 		if err := profile.ValidateProviderInput(args[3], args[4], args[5], interval); err != nil {
-			return syntaxError(err.Error(), spec)
+			return syntaxError(err, spec)
 		}
 	}
 	if spec.path == "subscription add" {
 		if _, err := subscriptionAddOptions(args); err != nil {
-			return syntaxError(err.Error(), spec)
+			return syntaxError(err, spec)
 		}
 	}
 	if spec.path == "subscription schedule" {
 		if args[3] != "off" {
 			seconds, err := strconv.ParseInt(args[3], 10, 64)
 			if err != nil || seconds < 1 || seconds > 31536000 {
-				return syntaxError("SECONDS must be 1..31536000 or off", spec)
+				return syntaxError(messageError("cli.error.validation.seconds_must_be_1_31536000_or_off", "SECONDS must be 1..31536000 or off"), spec)
 			}
 		}
 	}
 	if spec.path == "completion candidates" {
 		if n == 2 && (args[2] == "rewrite-scripts" || args[2] == "rewrite-rules") && !rewriteID(args[3]) {
-			return syntaxError("invalid PROFILE", spec)
+			return syntaxError(messageError("cli.error.validation.invalid_profile", "invalid PROFILE"), spec)
 		}
 		if args[2] != "rewrite-scripts" && args[2] != "rewrite-rules" && args[2] != "profile" && args[2] != "rules" && args[2] != "subscription" && args[2] != "profile-groups" && args[2] != "groups" && args[2] != "nodes" && args[2] != "providers" && args[2] != "provider-nodes" && args[2] != "tailscale-nodes" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
-			return syntaxError("RESOURCE must be profile, subscription, rules, rewrite-scripts, rewrite-rules, profile-groups, groups, nodes, providers, tailscale-nodes, tailscale-targets, or healthcheck-targets", spec)
+			return syntaxError(messageError("cli.error.validation.resource_must_be_profile_subscription_rules_rewrite_scripts_rewrite_rules_p", "RESOURCE must be profile, subscription, rules, rewrite-scripts, rewrite-rules, profile-groups, groups, nodes, providers, tailscale-nodes, tailscale-targets, or healthcheck-targets"), spec)
 		}
 		if n == 2 && args[2] != "rewrite-scripts" && args[2] != "rewrite-rules" && args[2] != "nodes" && args[2] != "provider-nodes" && args[2] != "profile-groups" && args[2] != "tailscale-targets" && args[2] != "healthcheck-targets" {
-			return syntaxError("second argument is only valid for rewrite-scripts, rewrite-rules, nodes, provider-nodes, profile-groups, tailscale-targets, or healthcheck-targets", spec)
+			return syntaxError(messageError("cli.error.validation.second_argument_is_only_valid_for_rewrite_scripts_rewrite_rules_nodes_provi", "second argument is only valid for rewrite-scripts, rewrite-rules, nodes, provider-nodes, profile-groups, tailscale-targets, or healthcheck-targets"), spec)
 		}
 		if args[2] == "healthcheck-targets" && (n != 2 || args[3] != "group" && args[3] != "provider" && args[3] != "subscription") {
-			return syntaxError("healthcheck-targets requires group, provider, or subscription", spec)
+			return syntaxError(messageError("cli.error.validation.healthcheck_targets_requires_group_provider_or_subscription", "healthcheck-targets requires group, provider, or subscription"), spec)
 		}
 
 		if n == 2 && args[2] == "tailscale-targets" && args[3] != "node" && args[3] != "provider" && args[3] != "subscription" {
-			return syntaxError("KIND must be node, provider, or subscription", spec)
+			return syntaxError(messageError("cli.error.validation.kind_must_be_node_provider_or_subscription", "KIND must be node, provider, or subscription"), spec)
 		}
 
 		if n == 1 && args[2] == "provider-nodes" {
-			return syntaxError("provider-nodes requires PROVIDER", spec)
+			return syntaxError(messageError("cli.error.validation.provider_nodes_requires_provider", "provider-nodes requires PROVIDER"), spec)
 		}
 		if n == 1 && args[2] == "profile-groups" {
-			return syntaxError("profile-groups requires NAME", spec)
+			return syntaxError(messageError("cli.error.validation.profile_groups_requires_name", "profile-groups requires NAME"), spec)
 		}
 	}
 	if spec.path == "logs" && n == 1 {
@@ -388,20 +390,20 @@ func validateInvocation(args []string) error {
 		}
 		count, err := strconv.Atoi(args[1])
 		if err != nil || count < 1 || count > 10000 {
-			return syntaxError("lines must be an integer from 1 to 10000", spec)
+			return syntaxError(messageError("cli.error.validation.lines_must_be_an_integer_from_1_to_10000", "lines must be an integer from 1 to 10000"), spec)
 		}
 	}
 	if spec.path == "proxy test" {
-		return syntaxError("choose group or provider", spec)
+		return syntaxError(messageError("cli.error.validation.choose_group_or_provider", "choose group or provider"), spec)
 	}
 	if spec.path == "proxy test group" || spec.path == "proxy test provider" {
 		if strings.TrimSpace(args[3]) == "" || strings.TrimSpace(args[4]) == "" {
-			return syntaxError("owner and node required", spec)
+			return syntaxError(messageError("cli.error.validation.owner_and_node_required", "owner and node required"), spec)
 		}
 	}
 	if spec.path == "proxy delay" || spec.path == "proxy delays" {
 		if strings.TrimSpace(args[2]) == "" {
-			return syntaxError("proxy node or group required", spec)
+			return syntaxError(messageError("cli.error.validation.proxy_node_or_group_required", "proxy node or group required"), spec)
 		}
 		target := "https://www.gstatic.com/generate_204"
 		if n >= 2 {
@@ -409,57 +411,82 @@ func validateInvocation(args []string) error {
 		}
 		u, err := url.Parse(target)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
-			return syntaxError("URL must be an absolute HTTP(S) URL without userinfo", spec)
+			return syntaxError(messageError("cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo", "URL must be an absolute HTTP(S) URL without userinfo"), spec)
 		}
 		if n == 3 {
 			timeout, err := strconv.Atoi(args[4])
 			if err != nil || timeout < 1 || timeout > 30000 {
-				return syntaxError("timeout must be an integer from 1 to 30000 milliseconds", spec)
+				return syntaxError(messageError("cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds", "timeout must be an integer from 1 to 30000 milliseconds"), spec)
 			}
 		}
 	}
 	if spec.path == "rules add" {
 		if strings.TrimSpace(args[2]) == "" || strings.TrimSpace(args[3]) == "" || strings.TrimSpace(args[5]) == "" {
-			return syntaxError("NAME, TYPE, and TARGET are required", spec)
+			return syntaxError(messageError("cli.error.validation.name_type_and_target_are_required", "NAME, TYPE, and TARGET are required"), spec)
 		}
 	}
 	if spec.path == "rules test" {
 		if _, err := ruleTestArguments(args); err != nil {
-			return syntaxError(err.Error(), spec)
+			return syntaxError(err, spec)
 		}
 	}
 	if spec.path == "rules import" {
 		if err := validateRuleImportArguments(args); err != nil {
-			return syntaxError(err.Error(), spec)
+			return syntaxError(err, spec)
 		}
 	}
 	if spec.path == "lan enable" && n == 1 && net.ParseIP(args[2]) == nil {
-		return syntaxError("ADDRESS must be an IPv4 or IPv6 address", spec)
+		return syntaxError(messageError("cli.error.validation.address_must_be_an_ipv4_or_ipv6_address", "ADDRESS must be an IPv4 or IPv6 address"), spec)
 	}
 	if spec.path == "diagnostics" && n == 2 {
 		if args[1] != "export" || !filepath.IsAbs(args[2]) {
-			return syntaxError("export requires an absolute output path", spec)
+			return syntaxError(messageError("cli.error.validation.export_requires_an_absolute_output_path", "export requires an absolute output path"), spec)
 		}
 	}
 	if spec.path == "mode" && n == 1 {
 		if args[1] != "rule" && args[1] != "global" && args[1] != "direct" && args[1] != "saved" {
-			return syntaxError("mode must be rule, global, or direct", spec)
+			return syntaxError(messageError("cli.error.validation.mode_must_be_rule_global_or_direct", "mode must be rule, global, or direct"), spec)
 		}
 	}
 	if spec.path == "mode" && n == 2 && (args[1] != "save" || args[2] != "rule" && args[2] != "global" && args[2] != "direct") {
-		return syntaxError("mode save requires rule, global, or direct", spec)
+		return syntaxError(messageError("cli.error.validation.mode_save_requires_rule_global_or_direct", "mode save requires rule, global, or direct"), spec)
 	}
 	if spec.path == "connections close" && strings.TrimSpace(args[2]) == "" {
-		return syntaxError("connection ID required", spec)
+		return syntaxError(messageError("cli.error.validation.connection_id_required", "connection ID required"), spec)
 	}
 	return nil
 }
 
-func syntaxError(problem string, spec *commandSpec) error {
-	message := fmt.Sprintf("%s\nUsage: nagi %s", problem, spec.syntax)
+func syntaxError(problem any, spec *commandSpec) error {
+	var original string
+	var descriptor i18n.Descriptor
+	switch value := problem.(type) {
+	case *i18n.Message:
+		original = value.Error()
+		descriptor = value.Descriptor()
+	case error:
+		original = value.Error()
+		if message, ok := value.(*i18n.Message); ok {
+			descriptor = message.Descriptor()
+		}
+	case string:
+		original = value
+	}
+	message := fmt.Sprintf("%s\nUsage: nagi %s", original, spec.syntax)
+	hint := ""
 	if spec.hint != "" {
-		message += "\n" + spec.hint
+		hint = "\n" + spec.hint
+		message += hint
 	}
 	message += "\nRun `nagi help " + spec.path + "` for details"
-	return fmt.Errorf("%s", message)
+	if descriptor.ID == "" {
+		descriptor = i18n.Descriptor{ID: "cli.error.validation.external", Args: map[string]any{"problem": output.RedactError(original)}}
+	}
+	if descriptor.Args == nil {
+		descriptor.Args = map[string]any{}
+	}
+	descriptor.Args["syntax"] = spec.syntax
+	descriptor.Args["hint"] = hint
+	descriptor.Args["path"] = spec.path
+	return i18n.NewMessage(descriptor.ID+".usage", descriptor.Args, message, nil)
 }

@@ -3,11 +3,10 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"reflect"
 	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // profileDiff reports changed lines after trimming the shared prefix and suffix.
@@ -56,10 +55,10 @@ type StructuralChange struct {
 func structuralDiff(before, after []byte) ([]StructuralChange, []string, error) {
 	var oldTree, newTree any
 	if err := yaml.Unmarshal(before, &oldTree); err != nil {
-		return nil, nil, fmt.Errorf("current profile is not valid YAML: %w", err)
+		return nil, nil, messageError("cli.error.profile_diff.current_profile_is_not_valid_yaml_w", "current profile is not valid YAML: %w", err)
 	}
 	if err := yaml.Unmarshal(after, &newTree); err != nil {
-		return nil, nil, fmt.Errorf("comparison profile is not valid YAML: %w", err)
+		return nil, nil, messageError("cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w", "comparison profile is not valid YAML: %w", err)
 	}
 	changes := []StructuralChange{}
 	walkStructure("", oldTree, newTree, &changes)
@@ -82,7 +81,7 @@ func structuralDiff(before, after []byte) ([]StructuralChange, []string, error) 
 	}
 	warnings = uniqueStrings(warnings)
 	if _, err := json.Marshal(changes); err != nil {
-		return nil, nil, fmt.Errorf("structural YAML values cannot be represented in JSON: %w", err)
+		return nil, nil, messageError("cli.error.profile_diff.structural_yaml_values_cannot_be_represented_in_json_w", "structural YAML values cannot be represented in JSON: %w", err)
 	}
 	return changes, warnings, nil
 }

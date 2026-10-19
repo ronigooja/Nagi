@@ -2,8 +2,7 @@ package command
 
 import (
 	"context"
-	"errors"
-	"fmt"
+
 	"github.com/ronigooja/Nagi/internal/capture"
 	"github.com/ronigooja/Nagi/internal/output"
 	"github.com/ronigooja/Nagi/internal/proxy"
@@ -23,43 +22,43 @@ type captureInputKey struct{}
 type captureOutputKey struct{}
 
 func captureFailure(code string) error {
-	return fail("capture_error", fmt.Errorf("%s; run `nagi rewrite capture status`", code))
+	return fail("capture_error", messageError("cli.error.request_capture.s_run_nagi_rewrite_capture_status", "%s; run `nagi rewrite capture status`", code))
 }
 func validateCaptureArguments(o rewriteArguments) error {
 	if o.profile != "" {
-		return errors.New("capture uses the selected profile; --profile is not accepted")
+		return messageError("cli.error.request_capture.capture_uses_the_selected_profile_profile_is_not_accepted", "capture uses the selected profile; --profile is not accepted")
 	}
 	action := strings.TrimPrefix(o.path, "request-rewrite capture ")
 	switch action {
 	case "body":
 		if _, e := strconv.ParseUint(o.values[2], 10, 63); e != nil {
-			return errors.New("OFFSET must be a nonnegative byte offset")
+			return messageError("cli.error.request_capture.offset_must_be_a_nonnegative_byte_offset", "OFFSET must be a nonnegative byte offset")
 		}
 		if len(o.values) > 3 {
 			n, e := strconv.Atoi(o.values[3])
 			if e != nil || n < 1 || n > capture.MaxChunk {
-				return errors.New("LIMIT must be 1..262144")
+				return messageError("cli.error.request_capture.limit_must_be_1_262144", "LIMIT must be 1..262144")
 			}
 		}
 		switch o.values[1] {
 		case "request_original", "request_actual", "response_original", "response_actual", "message_original", "message_actual":
 		default:
-			return errors.New("unknown snapshot")
+			return messageError("cli.error.request_capture.unknown_snapshot", "unknown snapshot")
 		}
 	case "export":
 		if len(o.values) > 1 && o.values[1] != "native" && o.values[1] != "har" {
-			return errors.New("format must be native or har")
+			return messageError("cli.error.request_capture.format_must_be_native_or_har", "format must be native or har")
 		}
 	case "fixture":
 		switch o.values[1] {
 		case "request", "response", "exchange", "websocket_client", "websocket_server":
 		default:
-			return errors.New("unknown fixture stage")
+			return messageError("cli.error.request_capture.unknown_fixture_stage", "unknown fixture stage")
 		}
 	}
 	for _, v := range o.values {
 		if strings.ContainsAny(v, "\x00\r\n") {
-			return errors.New("invalid argument")
+			return messageError("cli.error.request_capture.invalid_argument", "invalid argument")
 		}
 	}
 	return nil
@@ -381,25 +380,25 @@ func captureImportInput(ctx context.Context, p nagiruntime.Paths, path string) (
 	if path != "-" {
 		info, e := os.Lstat(path)
 		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
-			return capture.Status{}, errors.New("capture_private_file_required")
+			return capture.Status{}, messageError("cli.error.request_capture.capture_private_file_required", "capture_private_file_required")
 		}
 		f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 		if e != nil {
-			return capture.Status{}, errors.New("capture_input_unavailable")
+			return capture.Status{}, messageError("cli.error.request_capture.capture_input_unavailable", "capture_input_unavailable")
 		}
 		defer f.Close()
 		actual, e := f.Stat()
 		if e != nil || !os.SameFile(info, actual) || !actual.Mode().IsRegular() || actual.Mode().Perm()&0077 != 0 {
-			return capture.Status{}, errors.New("capture_private_file_required")
+			return capture.Status{}, messageError("cli.error.request_capture.capture_private_file_required", "capture_private_file_required")
 		}
 		owner, ok := actual.Sys().(*syscall.Stat_t)
 		if !ok || int(owner.Uid) != os.Getuid() {
-			return capture.Status{}, errors.New("capture_private_file_required")
+			return capture.Status{}, messageError("cli.error.request_capture.capture_private_file_required", "capture_private_file_required")
 		}
 		reader = f
 	}
 	if reader == nil {
-		return capture.Status{}, errors.New("capture_input_unavailable")
+		return capture.Status{}, messageError("cli.error.request_capture.capture_input_unavailable", "capture_input_unavailable")
 	}
 	return capture.Import(ctx, captureSocket(p), reader)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -25,17 +24,17 @@ type trafficOutputError struct{ err error }
 
 func (e *trafficOutputError) Error() string { return e.err.Error() }
 
-func runTrafficWatch(stdout, stderr io.Writer, jsonMode bool) int {
+func runTrafficWatch(parent context.Context, stdout, stderr io.Writer, jsonMode bool) int {
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	paths, err := nagiruntime.Resolve()
 	if err != nil {
-		output.WriteError(stderr, jsonMode, "internal_error", err.Error())
+		output.WriteErrorCause(stderr, jsonMode, LanguageContext(ctx), "internal_error", err)
 		return 1
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	client, err := controlClientForCurrentBackend(paths)
 	if err != nil {
-		output.WriteError(stderr, jsonMode, "internal_error", err.Error())
+		output.WriteErrorCause(stderr, jsonMode, LanguageContext(ctx), "internal_error", err)
 		return 1
 	}
 	return watchTraffic(ctx, client, stdout, stderr, jsonMode)
@@ -51,7 +50,9 @@ func watchTraffic(ctx context.Context, client *control.Client, stdout, stderr io
 			}
 			return nil
 		}
-		if _, err := fmt.Fprintf(stdout, "Upload: %d B/s (total %d B)  Download: %d B/s (total %d B)  Sampled: %s\n", item.UploadBPS, item.UploadTotal, item.DownloadBPS, item.DownloadTotal, item.SampledAt); err != nil {
+		sampleTime := time.Now().UTC().Format("2006-01-02 15:04 MST")
+		message := messageError("cli.stream.traffic.sample", "Upload: %d B/s (total %d B)  Download: %d B/s (total %d B)  Sampled: %s", item.UploadBPS, item.UploadTotal, item.DownloadBPS, item.DownloadTotal, sampleTime)
+		if _, err := stdout.Write([]byte(LanguageContext(ctx).Render(output.SafeMessage(message)) + "\n")); err != nil {
 			return &trafficOutputError{err}
 		}
 		return nil
@@ -64,6 +65,6 @@ func watchTraffic(ctx context.Context, client *control.Client, stdout, stderr io
 	if errors.As(err, &writeErr) {
 		code = "output_error"
 	}
-	output.WriteError(stderr, jsonMode, code, err.Error())
+	output.WriteErrorCause(stderr, jsonMode, LanguageContext(ctx), code, err)
 	return 1
 }

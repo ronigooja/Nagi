@@ -6,7 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
-	"fmt"
+
 	"io"
 	"os"
 	"os/exec"
@@ -93,7 +93,7 @@ func requestRewriteCATrust(ctx context.Context, paths nagiruntime.Paths, install
 	}
 	if runtime.GOOS != "darwin" {
 		status, _ := requestRewriteCAStatus(paths)
-		return status, fail("request_rewrite_error", fmt.Errorf("rewrite_trust_manual: export the public certificate with `nagi request-rewrite ca export FILE`, then use your distribution or application certificate trust settings; removal must use the same store; run `nagi request-rewrite ca status` afterwards"))
+		return status, fail("request_rewrite_error", messageError("cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request", "rewrite_trust_manual: export the public certificate with `nagi request-rewrite ca export FILE`, then use your distribution or application certificate trust settings; removal must use the same store; run `nagi request-rewrite ca status` afterwards"))
 	}
 	if os.Geteuid() == 0 {
 		return rewrite.CAStatus{}, rewriteFailure("rewrite_auth")
@@ -191,19 +191,19 @@ func rewriteFreshSystemRoots() (*x509.CertPool, error) {
 			continue
 		}
 		if len(entries) > 4096 {
-			return nil, fmt.Errorf("certificate store limit")
+			return nil, messageError("cli.error.request_rewrite_trust.certificate_store_limit", "certificate store limit")
 		}
 		for _, entry := range entries {
 			if !entry.IsDir() && read(filepath.Join(dir, entry.Name())) {
 				loaded = true
 			}
 			if total > 16<<20 {
-				return nil, fmt.Errorf("certificate store limit")
+				return nil, messageError("cli.error.request_rewrite_trust.certificate_store_limit", "certificate store limit")
 			}
 		}
 	}
 	if !loaded {
-		return nil, fmt.Errorf("certificate store unavailable")
+		return nil, messageError("cli.error.request_rewrite_trust.certificate_store_unavailable", "certificate store unavailable")
 	}
 	return roots, nil
 }

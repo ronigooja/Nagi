@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"gopkg.in/yaml.v3"
+
 	"io"
 	"net"
 	"os"
@@ -24,7 +25,6 @@ import (
 	"github.com/ronigooja/Nagi/internal/profile"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/traffic"
-	"gopkg.in/yaml.v3"
 )
 
 var tunDNSOS = runtime.GOOS
@@ -72,17 +72,17 @@ func syncTUNDNS(ctx context.Context, paths nagiruntime.Paths, client *control.Cl
 		}
 		status, err := m.Status(ctx)
 		if err != nil || !status.Running {
-			return traffic.DNSState{}, errors.New("cannot identify running mihomo for DNS exit recovery; inspect `nagi status`")
+			return traffic.DNSState{}, messageError("cli.error.tun_dns.cannot_identify_running_mihomo_for_dns_exit_recovery_inspect_nagi_st", "cannot identify running mihomo for DNS exit recovery; inspect `nagi status`")
 		}
 		pid = status.PID
 	}
 	state, err := manager.Sync(ctx, pid, targets)
 	if err != nil {
-		return state, fmt.Errorf("system DNS takeover failed; use `nagi privileged-helper install` and `nagi privileged-helper enable` for administrator DNS access: %w", err)
+		return state, messageError("cli.error.tun_dns.system_dns_takeover_failed_use_nagi_privileged_helper_install_and_na", "system DNS takeover failed; use `nagi privileged-helper install` and `nagi privileged-helper enable` for administrator DNS access: %w", err)
 	}
 	if err = startExitWatcher(paths, pid); err != nil {
 		_, restoreErr := manager.Disable(context.Background())
-		return state, errors.Join(fmt.Errorf("cannot start DNS exit recovery watcher: %w", err), restoreErr)
+		return state, errors.Join(messageError("cli.error.tun_dns.cannot_start_dns_exit_recovery_watcher_w", "cannot start DNS exit recovery watcher: %w", err), restoreErr)
 	}
 	return state, nil
 }
@@ -103,7 +103,7 @@ func waitTUNAdapter(ctx context.Context, client *control.Client) (map[string]any
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-deadline.C:
-			return nil, errors.New("TUN adapter is not up; inspect `nagi tun status` and `nagi logs` and grant OS TUN permissions")
+			return nil, messageError("cli.error.tun_dns.tun_adapter_is_not_up_inspect_nagi_tun_status_and_nagi_logs_and_gran", "TUN adapter is not up; inspect `nagi tun status` and `nagi logs` and grant OS TUN permissions")
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
@@ -153,7 +153,7 @@ func startWithTUNDNS(ctx context.Context, paths nagiruntime.Paths, manager lifec
 		defer cancel()
 		restoreErr := restoreTUNDNS(recovery, paths)
 		_, stopErr := manager.Stop(recovery)
-		return nil, fail("tun_error", errors.Join(fmt.Errorf("TUN DNS startup failed; mihomo shutdown attempted: %w", syncErr), restoreErr, stopErr))
+		return nil, fail("tun_error", errors.Join(messageError("cli.error.tun_dns.tun_dns_startup_failed_mihomo_shutdown_attempted_w", "TUN DNS startup failed; mihomo shutdown attempted: %w", syncErr), restoreErr, stopErr))
 	}
 	return result, err
 }
@@ -241,7 +241,7 @@ func changeRuntimeTUN(ctx context.Context, paths nagiruntime.Paths, client *cont
 		actionErr = client.Get(ctx, "/configs", &cfg)
 		tun, _ := cfg["tun"].(map[string]any)
 		if actionErr == nil && (tun["enable"] == true) != requested {
-			actionErr = errors.New("mihomo did not report the requested TUN state; inspect `nagi logs` and OS TUN permissions")
+			actionErr = messageError("cli.error.tun_dns.mihomo_did_not_report_the_requested_tun_state_inspect_nagi_logs_and_", "mihomo did not report the requested TUN state; inspect `nagi logs` and OS TUN permissions")
 		}
 		if actionErr == nil {
 			_, actionErr = synchronizeTUNDNS(ctx, paths, client, 0)
@@ -257,9 +257,9 @@ func changeRuntimeTUN(ctx context.Context, paths nagiruntime.Paths, client *cont
 		_, rollbackErr = synchronizeTUNDNS(recovery, paths, client, 0)
 	}
 	if rollbackErr != nil {
-		return nil, errors.Join(actionErr, fmt.Errorf("TUN/DNS rollback failed; inspect `nagi tun status` and retry `nagi tun disable`: %w", rollbackErr))
+		return nil, errors.Join(actionErr, messageError("cli.error.tun_dns.tun_dns_rollback_failed_inspect_nagi_tun_status_and_retry_nagi_tun_d", "TUN/DNS rollback failed; inspect `nagi tun status` and retry `nagi tun disable`: %w", rollbackErr))
 	}
-	return nil, fmt.Errorf("TUN change failed; prior TUN and DNS state restored: %w", actionErr)
+	return nil, messageError("cli.error.tun_dns.tun_change_failed_prior_tun_and_dns_state_restored_w", "TUN change failed; prior TUN and DNS state restored: %w", actionErr)
 }
 
 // Current engines expose DNS.enable. For older engines, prefer a recorded image
@@ -267,7 +267,7 @@ func changeRuntimeTUN(ctx context.Context, paths nagiruntime.Paths, client *cont
 // effective configuration until the transaction records its running image.
 func validateTUNDNS(paths nagiruntime.Paths, cfg, tun map[string]any) error {
 	if tun["auto-route"] != true {
-		return errors.New("TUN DNS takeover requires auto-route; run `nagi dns tun on`")
+		return messageError("cli.error.tun_dns.tun_dns_takeover_requires_auto_route_run_nagi_dns_tun_on", "TUN DNS takeover requires auto-route; run `nagi dns tun on`")
 	}
 	hijack := false
 	switch values := tun["dns-hijack"].(type) {
@@ -285,11 +285,11 @@ func validateTUNDNS(paths nagiruntime.Paths, cfg, tun map[string]any) error {
 		}
 	}
 	if !hijack {
-		return errors.New("TUN DNS takeover requires port 53 interception; run `nagi dns tun on`")
+		return messageError("cli.error.tun_dns.tun_dns_takeover_requires_port_53_interception_run_nagi_dns_tun_on", "TUN DNS takeover requires port 53 interception; run `nagi dns tun on`")
 	}
 	if dns, ok := cfg["dns"].(map[string]any); ok {
 		if dns["enable"] != true {
-			return errors.New("TUN DNS takeover requires mihomo DNS enabled; run `nagi dns set direct HTTPS_DOH_URL` before enabling TUN")
+			return messageError("cli.error.tun_dns.tun_dns_takeover_requires_mihomo_dns_enabled_run_nagi_dns_set_direct", "TUN DNS takeover requires mihomo DNS enabled; run `nagi dns set direct HTTPS_DOH_URL` before enabling TUN")
 		}
 		return nil
 	}
@@ -315,7 +315,7 @@ func validateTUNDNS(paths nagiruntime.Paths, cfg, tun map[string]any) error {
 		} `yaml:"dns"`
 	}
 	if yaml.Unmarshal(data, &parsed) != nil || !parsed.DNS.Enable {
-		return errors.New("TUN DNS takeover requires mihomo DNS enabled; run `nagi dns set direct HTTPS_DOH_URL` before enabling TUN")
+		return messageError("cli.error.tun_dns.tun_dns_takeover_requires_mihomo_dns_enabled_run_nagi_dns_set_direct", "TUN DNS takeover requires mihomo DNS enabled; run `nagi dns set direct HTTPS_DOH_URL` before enabling TUN")
 	}
 	return nil
 }
@@ -395,7 +395,7 @@ func restoreRuntimeTUN(ctx context.Context, client *control.Client, before map[s
 	}
 	actual, _ := cfg["tun"].(map[string]any)
 	if !reflect.DeepEqual(tunRuntimeSnapshot(actual), expected) {
-		return errors.New("mihomo did not confirm the prior temporary TUN settings")
+		return messageError("cli.error.tun_dns.mihomo_did_not_confirm_the_prior_temporary_tun_settings", "mihomo did not confirm the prior temporary TUN settings")
 	}
 	return nil
 }

@@ -8,12 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/capture"
 	"github.com/ronigooja/Nagi/internal/control"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/profile"
 	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
 	child "github.com/ronigooja/Nagi/internal/requestrewriteservice"
@@ -74,18 +76,23 @@ type rewriteRun struct {
 }
 
 func rewriteFailure(code string) error {
+	id := "cli.rewrite.failure.recovery"
 	next := "run `nagi request-rewrite status` or `nagi request-rewrite disable`"
 	switch code {
 	case "rewrite_capability_missing":
+		id = "cli.rewrite.failure.engine_update"
 		next = "a matching engine update is required; use `nagi update` once published, or build the reviewed development engine as documented in docs/development/build-and-test.md#request-rewrite-coordinator"
 	case "rewrite_tun_required":
+		id = "cli.rewrite.failure.tun_required"
 		next = "run `nagi tun enable`, then retry `nagi request-rewrite enable`"
 	case "rewrite_ca_required":
+		id = "cli.rewrite.failure.ca_required"
 		next = "run `nagi request-rewrite ca generate`, then explicitly install trust"
 	case "rewrite_ca_trust_required":
+		id = "cli.rewrite.failure.trust_required"
 		next = "run `nagi request-rewrite ca trust install`; on Linux export the public CA and use your distribution/application trust settings"
 	}
-	return fail("request_rewrite_error", fmt.Errorf("%s; %s", code, next))
+	return fail("request_rewrite_error", i18n.NewMessage(id, map[string]any{"code": code}, fmt.Sprintf("%s; %s", code, next), nil))
 }
 func rewriteDomainError(err error) error {
 	if err == nil {

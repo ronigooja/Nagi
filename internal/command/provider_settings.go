@@ -1,7 +1,6 @@
 package command
 
 import (
-	"errors"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"strconv"
 )
@@ -12,7 +11,7 @@ func providerSeconds(raw string) (int, error) {
 	}
 	n, err := strconv.Atoi(raw)
 	if err != nil || n < 1 || n > 31536000 {
-		return 0, errors.New("SECONDS must be off or an integer from 1 to 31536000")
+		return 0, messageError("cli.error.provider_settings.seconds_must_be_off_or_an_integer_from_1_to_31536000", "SECONDS must be off or an integer from 1 to 31536000")
 	}
 	return n, nil
 }
@@ -31,7 +30,7 @@ func providerAddOptions(args []string) (int, []string, error) {
 		return n, nil, nil
 	}
 	if len(rest) != 2 || rest[0] != "--test-url" {
-		return 0, nil, errors.New("expected [SECONDS|off] [--test-url URL]")
+		return 0, nil, messageError("cli.error.provider_settings.expected_seconds_off_test_url_url", "expected [SECONDS|off] [--test-url URL]")
 	}
 	if err := profile.ValidateHealthcheckURL(rest[1]); err != nil {
 		return 0, nil, err

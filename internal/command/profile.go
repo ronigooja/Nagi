@@ -5,7 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"gopkg.in/yaml.v3"
+
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +19,6 @@ import (
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
-	"gopkg.in/yaml.v3"
 )
 
 const defaultProfileBase = `mixed-port: 17890
@@ -94,11 +94,11 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 			return e
 		}
 		if strings.TrimSpace(string(data)) == "" {
-			return errors.New("empty profile")
+			return messageError("cli.error.profile.empty_profile", "empty profile")
 		}
 		resolved, err := exec.LookPath(binary)
 		if err != nil {
-			return fmt.Errorf("mihomo executable unavailable; set NAGI_MIHOMO_BIN to a mihomo executable: %w", err)
+			return messageError("cli.error.profile.mihomo_executable_unavailable_set_nagi_mihomo_bin_to_a_mihomo_execut", "mihomo executable unavailable; set NAGI_MIHOMO_BIN to a mihomo executable: %w", err)
 		}
 		if err := os.MkdirAll(filepath.Join(paths.ConfigDir, "profiles"), 0700); err != nil {
 			return err
@@ -126,7 +126,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
 				if hasTailscale {
-					return errors.New("profile validation failed; Tailscale diagnostics are private; validate a local copy with mihomo -t --check-json")
+					return messageError("cli.error.profile.profile_validation_failed_tailscale_diagnostics_are_private_validate", "profile validation failed; Tailscale diagnostics are private; validate a local copy with mihomo -t --check-json")
 				}
 				var result struct {
 					Errors []struct {
@@ -139,9 +139,9 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 					first := result.Errors[0]
 					return &profile.ValidationError{Path: first.Path, Code: first.Code, Message: first.Message}
 				}
-				return errors.New("profile validation failed; validate a local copy with mihomo -t --check-json -f FILE -d DIRECTORY")
+				return messageError("cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_", "profile validation failed; validate a local copy with mihomo -t --check-json -f FILE -d DIRECTORY")
 			}
-			return errors.New("could not run mihomo validation; check NAGI_MIHOMO_BIN and executable permissions, then retry")
+			return messageError("cli.error.profile.could_not_run_mihomo_validation_check_nagi_mihomo_bin_and_executable", "could not run mihomo validation; check NAGI_MIHOMO_BIN and executable permissions, then retry")
 		}
 		return nil
 	}
@@ -167,7 +167,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		}
 		if ctx.Value(skipSelectionRestoreKey{}) != true {
 			if _, err := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, current, proxy.NewService(client)); err != nil {
-				return fmt.Errorf("mihomo reloaded, but saved proxy selections were not fully restored: %w", err)
+				return messageError("cli.error.profile.mihomo_reloaded_but_saved_proxy_selections_were_not_fully_restored_w", "mihomo reloaded, but saved proxy selections were not fully restored: %w", err)
 			}
 		}
 		return nil
@@ -310,7 +310,7 @@ func startAndVerify(ctx context.Context, manager lifecycleBackend, client *contr
 	}
 	if actual.MixedPort != expected {
 		_, _ = manager.Stop(ctx)
-		return nil, fail("startup_error", fmt.Errorf("profile %s requested mixed port %d, but mihomo reports %d; inspect nagi logs", profileName, expected, actual.MixedPort))
+		return nil, fail("startup_error", messageError("cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l", "profile %s requested mixed port %d, but mihomo reports %d; inspect nagi logs", profileName, expected, actual.MixedPort))
 	}
 	return status, nil
 }

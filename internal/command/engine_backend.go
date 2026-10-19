@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,14 +37,14 @@ func readBackend(paths nagiruntime.Paths) (string, error) {
 	}
 	mode := strings.TrimSpace(string(data))
 	if mode != userBackend && mode != privilegedBackend {
-		return "", fmt.Errorf("invalid engine backend in %s", backendPath(paths))
+		return "", messageError("cli.error.engine_backend.invalid_engine_backend_in_s", "invalid engine backend in %s", backendPath(paths))
 	}
 	return mode, nil
 }
 
 func writeBackend(paths nagiruntime.Paths, mode string) error {
 	if mode != userBackend && mode != privilegedBackend {
-		return errors.New("unknown engine backend")
+		return messageError("cli.error.engine_backend.unknown_engine_backend", "unknown engine backend")
 	}
 	if err := os.MkdirAll(paths.ConfigDir, 0700); err != nil {
 		return err

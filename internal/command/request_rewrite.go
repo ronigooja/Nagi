@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+
 	"io"
 	"os"
 	"strings"
@@ -39,7 +39,7 @@ func rewriteID(s string) bool {
 func parseRewriteArguments(args []string) (rewriteArguments, error) {
 	o := rewriteArguments{}
 	if len(args) < 2 {
-		return o, errors.New("missing subcommand")
+		return o, messageError("cli.error.request_rewrite.missing_subcommand", "missing subcommand")
 	}
 	n := 2
 	if args[1] == "scripts" || args[1] == "rules" || args[1] == "ca" || args[1] == "capture" || args[1] == "draft" {
@@ -49,37 +49,37 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 		n = 4
 	}
 	if len(args) < n {
-		return o, errors.New("missing subcommand")
+		return o, messageError("cli.error.request_rewrite.missing_subcommand", "missing subcommand")
 	}
 	o.path = strings.Join(args[:n], " ")
 	spec := findSpec(o.path)
 	if spec == nil || spec.maxArgs == -1 {
-		return o, errors.New("unknown subcommand")
+		return o, messageError("cli.error.request_rewrite.unknown_subcommand", "unknown subcommand")
 	}
 	for i := n; i < len(args); i++ {
 		if args[i] == "--profile" {
 			if o.profile != "" || i+1 >= len(args) || !rewriteID(args[i+1]) {
-				return o, errors.New("--profile requires one valid profile name")
+				return o, messageError("cli.error.request_rewrite.profile_requires_one_valid_profile_name", "--profile requires one valid profile name")
 			}
 			o.profile = args[i+1]
 			i++
 			continue
 		}
 		if strings.HasPrefix(args[i], "--") {
-			return o, errors.New("unknown option")
+			return o, messageError("cli.error.request_rewrite.unknown_option", "unknown option")
 		}
 		o.values = append(o.values, args[i])
 	}
 	allowProfile := args[1] != "status" && args[1] != "enable" && args[1] != "disable" && args[1] != "ca"
 	if o.profile != "" && !allowProfile {
-		return o, errors.New("--profile is only valid for scripts, rules, import, export, validate and preview")
+		return o, messageError("cli.error.request_rewrite.profile_is_only_valid_for_scripts_rules_import_export_validate_and_p", "--profile is only valid for scripts, rules, import, export, validate and preview")
 	}
 	min, max := rewriteArity(o.path)
 	if len(o.values) < min {
-		return o, errors.New("missing argument")
+		return o, messageError("cli.error.request_rewrite.missing_argument", "missing argument")
 	}
 	if len(o.values) > max {
-		return o, errors.New("too many arguments")
+		return o, messageError("cli.error.request_rewrite.too_many_arguments", "too many arguments")
 	}
 	if args[1] == "capture" {
 		if err := validateCaptureArguments(o); err != nil {
@@ -88,10 +88,10 @@ func parseRewriteArguments(args []string) (rewriteArguments, error) {
 	}
 	action := args[n-1]
 	if (args[1] == "scripts" || args[1] == "rules") && (action == "show" || action == "source" || action == "update" || action == "remove" || action == "enable" || action == "disable") && !rewriteID(o.values[0]) {
-		return o, errors.New("ID must contain 1..128 ASCII letters, digits, _ or -")
+		return o, messageError("cli.error.request_rewrite.id_must_contain_1_128_ascii_letters_digits_or", "ID must contain 1..128 ASCII letters, digits, _ or -")
 	}
 	if input := o.inputFile(); input != "" && input != "-" && (strings.Contains(input, "://") || strings.ContainsAny(input, "\x00\r\n")) {
-		return o, errors.New("FILE must be a local private file or - for stdin")
+		return o, messageError("cli.error.request_rewrite.file_must_be_a_local_private_file_or_for_stdin", "FILE must be a local private file or - for stdin")
 	}
 	return o, nil
 }

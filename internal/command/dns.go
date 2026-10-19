@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"gopkg.in/yaml.v3"
 	"net"
 	"net/url"
 	"os"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/profile"
-	"gopkg.in/yaml.v3"
 )
 
 var dnsDomain = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$`)
@@ -23,7 +23,7 @@ func dnsBootstrapURL(raw string) error {
 	}
 	parsed, _ := url.Parse(raw)
 	if net.ParseIP(parsed.Hostname()) == nil {
-		return errors.New("bootstrap DoH URL must use an IP address to avoid a DNS resolution cycle")
+		return messageError("cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c", "bootstrap DoH URL must use an IP address to avoid a DNS resolution cycle")
 	}
 	return nil
 }
@@ -31,7 +31,7 @@ func dnsBootstrapURL(raw string) error {
 func dnsURL(raw string, allowPlain bool) error {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" {
-		return errors.New("DNS server must be a URL without credentials, query, or fragment")
+		return messageError("cli.error.dns.dns_server_must_be_a_url_without_credentials_query_or_fragment", "DNS server must be a URL without credentials, query, or fragment")
 	}
 	if u.Scheme == "https" && u.Path != "" {
 		return nil
@@ -42,7 +42,7 @@ func dnsURL(raw string, allowPlain bool) error {
 			return nil
 		}
 	}
-	return errors.New("DNS server must be an HTTPS DoH URL; explicit exceptions may use udp://IP:53 or tcp://IP:53")
+	return messageError("cli.error.dns.dns_server_must_be_an_https_doh_url_explicit_exceptions_may_use_udp_", "DNS server must be an HTTPS DoH URL; explicit exceptions may use udp://IP:53 or tcp://IP:53")
 }
 
 func dnsOverride(store *profile.Store, name string) (map[string]any, error) {
@@ -95,7 +95,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		}
 		var cfg map[string]any
 		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return nil, fail("dns_error", errors.New("selected profile is not valid YAML"))
+			return nil, fail("dns_error", messageError("cli.error.dns.selected_profile_is_not_valid_yaml", "selected profile is not valid YAML"))
 		}
 		dns, _ := cfg["dns"].(map[string]any)
 		tun, _ := cfg["tun"].(map[string]any)
@@ -232,7 +232,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		}
 		domain := strings.ToLower(args[3])
 		if !dnsDomain.MatchString(domain) {
-			return nil, fail("dns_error", errors.New("exception domain must be a DNS suffix such as lan or corp.example"))
+			return nil, fail("dns_error", messageError("cli.error.dns.exception_domain_must_be_a_dns_suffix_such_as_lan_or_corp_example", "exception domain must be a DNS suffix such as lan or corp.example"))
 		}
 		key := "+." + domain
 		override, err := dnsOverride(store, name)
@@ -241,7 +241,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 		}
 		dns := dnsSection(override)
 		if dns["enable"] != true || len(stringList(dns["nameserver"])) == 0 {
-			return nil, fail("dns_error", errors.New("run `nagi dns set direct URL` or `nagi dns set proxy NODE URL` first"))
+			return nil, fail("dns_error", messageError("cli.error.dns.run_nagi_dns_set_direct_url_or_nagi_dns_set_proxy_node_url_first", "run `nagi dns set direct URL` or `nagi dns set proxy NODE URL` first"))
 		}
 		policy, _ := dns["nameserver-policy"].(map[string]any)
 		if policy == nil {
@@ -277,7 +277,7 @@ func dnsCommand(ctx context.Context, args []string, store *profile.Store, name s
 				} `yaml:"dns"`
 			}
 			if err := yaml.Unmarshal(data, &cfg); err != nil || !cfg.DNS.Enable || !encryptedServers(cfg.DNS.NameServer) || !encryptedServers(cfg.DNS.DefaultNameserver) {
-				return nil, fail("dns_error", errors.New("configure encrypted DNS with `nagi dns set` before enabling TUN interception"))
+				return nil, fail("dns_error", messageError("cli.error.dns.configure_encrypted_dns_with_nagi_dns_set_before_enabling_tun_interc", "configure encrypted DNS with `nagi dns set` before enabling TUN interception"))
 			}
 		}
 		override, err := dnsOverride(store, name)
@@ -382,10 +382,10 @@ func containsDNS(values []string, want string) bool {
 
 func dnsProxyNode(store *profile.Store, name, group string) error {
 	if strings.TrimSpace(group) == "" {
-		return errors.New("proxy node name is required")
+		return messageError("cli.error.dns.proxy_node_name_is_required", "proxy node name is required")
 	}
 	if group == "RULES" || group == "DIRECT" {
-		return errors.New("reserved mihomo proxy name cannot be used for pinned DNS")
+		return messageError("cli.error.dns.reserved_mihomo_proxy_name_cannot_be_used_for_pinned_dns", "reserved mihomo proxy name cannot be used for pinned DNS")
 	}
 	data, err := store.Effective(name)
 	if err != nil {
@@ -393,12 +393,12 @@ func dnsProxyNode(store *profile.Store, name, group string) error {
 	}
 	var cfg dnsBindingConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return errors.New("selected profile is not valid YAML")
+		return messageError("cli.error.dns.selected_profile_is_not_valid_yaml", "selected profile is not valid YAML")
 	}
 	if validDNSBinding(cfg, group) {
 		return nil
 	}
-	return errors.New("proxy target not found in selected profile; choose a non-direct node or proxy group from the effective YAML")
+	return messageError("cli.error.dns.proxy_target_not_found_in_selected_profile_choose_a_non_direct_node_", "proxy target not found in selected profile; choose a non-direct node or proxy group from the effective YAML")
 }
 
 type dnsBindingConfig struct {
@@ -442,18 +442,18 @@ func validateDNSProxyTargets(data []byte) error {
 		} `yaml:"proxy-groups"`
 	}
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return errors.New("effective profile is not valid YAML")
+		return messageError("cli.error.dns.effective_profile_is_not_valid_yaml", "effective profile is not valid YAML")
 	}
 	for _, server := range cfg.DNS.NameServer {
 		parsed, err := url.Parse(server)
 		if err != nil {
-			return errors.New("invalid DNS upstream URL")
+			return messageError("cli.error.dns.invalid_dns_upstream_url", "invalid DNS upstream URL")
 		}
 		if parsed.Fragment == "" || parsed.Fragment == "RULES" || parsed.Fragment == "DIRECT" {
 			continue
 		}
 		if !validDNSBinding(dnsBindingConfig{Proxies: cfg.Proxies, ProxyGroups: cfg.ProxyGroups}, parsed.Fragment) {
-			return errors.New("DNS proxy target is missing or no longer usable; update `nagi dns set proxy NAME URL` before activating this profile")
+			return messageError("cli.error.dns.dns_proxy_target_is_missing_or_no_longer_usable_update_nagi_dns_set_", "DNS proxy target is missing or no longer usable; update `nagi dns set proxy NAME URL` before activating this profile")
 		}
 	}
 	return nil
@@ -466,7 +466,7 @@ func validateManagedDNSProxyTargets(override, effective []byte) error {
 		} `yaml:"dns"`
 	}
 	if err := yaml.Unmarshal(override, &local); err != nil {
-		return errors.New("local override is not valid YAML")
+		return messageError("cli.error.dns.local_override_is_not_valid_yaml", "local override is not valid YAML")
 	}
 	if len(local.DNS.NameServer) == 0 {
 		return nil
@@ -518,12 +518,12 @@ func validateDefaultDNSLiveTarget(ctx context.Context, args []string, store *pro
 	for {
 		item, ok := response.Proxies[group]
 		if !ok || visited[group] {
-			return errors.New("DNS proxy group has no usable live selection; run `nagi proxy groups` and choose an available proxy")
+			return messageError("cli.error.dns.dns_proxy_group_has_no_usable_live_selection_run_nagi_proxy_groups_a", "DNS proxy group has no usable live selection; run `nagi proxy groups` and choose an available proxy")
 		}
 		visited[group] = true
 		switch strings.ToLower(item.Type) {
 		case "direct", "reject", "rejectdrop", "pass":
-			return errors.New("DNS proxy group currently selects a direct or rejecting adapter; select a proxy with `nagi proxy select GROUP NODE` before applying defaults")
+			return messageError("cli.error.dns.dns_proxy_group_currently_selects_a_direct_or_rejecting_adapter_sele", "DNS proxy group currently selects a direct or rejecting adapter; select a proxy with `nagi proxy select GROUP NODE` before applying defaults")
 		}
 		if len(item.All) == 0 {
 			return nil
@@ -533,7 +533,7 @@ func validateDefaultDNSLiveTarget(ctx context.Context, args []string, store *pro
 			next = item.Now
 		}
 		if next == "" {
-			return errors.New("DNS proxy group has no current proxy selection; run `nagi proxy groups` before applying defaults")
+			return messageError("cli.error.dns.dns_proxy_group_has_no_current_proxy_selection_run_nagi_proxy_groups", "DNS proxy group has no current proxy selection; run `nagi proxy groups` before applying defaults")
 		}
 		group = next
 	}

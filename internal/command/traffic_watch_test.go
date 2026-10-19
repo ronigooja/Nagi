@@ -7,11 +7,13 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 type cancelWriter struct {
@@ -122,5 +124,27 @@ func TestTrafficWatchHelpAndInvalidArgumentsWithoutRuntime(t *testing.T) {
 		if !ok || !strings.Contains(script, "traffic") || !strings.Contains(script, "watch") {
 			t.Fatalf("%s completion missing traffic watch", shell)
 		}
+	}
+}
+
+func TestTrafficWatchChineseKeepsMachineFieldsSeparate(t *testing.T) {
+	path := trafficServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("{\"up\":1,\"down\":2,\"upTotal\":3,\"downTotal\":4}\n"))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	})
+	parent, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	ctx := context.WithValue(parent, languageContextKey{}, i18n.New(i18n.SimplifiedChinese))
+	stdout := &cancelWriter{cancel: cancel}
+	var stderr bytes.Buffer
+	if code := watchTraffic(ctx, control.New(path), stdout, &stderr, false); code != 0 {
+		t.Fatal(code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "上传：1 B/s（总计 3 B）") || !strings.Contains(stdout.String(), "下载：2 B/s（总计 4 B）") {
+		t.Fatal(stdout.String())
+	}
+	if matched, _ := regexp.MatchString(`采样：\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC\n$`, stdout.String()); !matched {
+		t.Fatal("human timestamp not minute precision", stdout.String())
 	}
 }

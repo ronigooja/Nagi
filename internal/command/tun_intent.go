@@ -3,14 +3,14 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
+	"gopkg.in/yaml.v3"
+
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/ronigooja/Nagi/internal/control"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
-	"gopkg.in/yaml.v3"
 )
 
 func tunIntentPath(paths nagiruntime.Paths) string {
@@ -35,7 +35,7 @@ func savedTUNPreference(paths nagiruntime.Paths) (*bool, error) {
 	case "":
 		return nil, nil
 	default:
-		return nil, errors.New("invalid saved TUN intent")
+		return nil, messageError("cli.error.tun_intent.invalid_saved_tun_intent", "invalid saved TUN intent")
 	}
 	return &enabled, nil
 }
@@ -54,12 +54,12 @@ func applySavedTUN(paths nagiruntime.Paths, data []byte) ([]byte, error) {
 	}
 	var doc map[string]any
 	if err := yaml.Unmarshal(data, &doc); err != nil || doc == nil {
-		return nil, errors.New("profile YAML cannot be merged with saved TUN preference")
+		return nil, messageError("cli.error.tun_intent.profile_yaml_cannot_be_merged_with_saved_tun_preference", "profile YAML cannot be merged with saved TUN preference")
 	}
 	tun, ok := doc["tun"].(map[string]any)
 	if !ok {
 		if raw, exists := doc["tun"]; exists && raw != nil {
-			return nil, errors.New("saved TUN preference requires a TUN mapping")
+			return nil, messageError("cli.error.tun_intent.saved_tun_preference_requires_a_tun_mapping", "saved TUN preference requires a TUN mapping")
 		}
 		tun = map[string]any{}
 		doc["tun"] = tun
@@ -115,7 +115,7 @@ func confirmSavedTUN(ctx context.Context, paths nagiruntime.Paths, client *contr
 	}
 	tun, _ := cfg["tun"].(map[string]any)
 	if (tun["enable"] == true) != *preference {
-		return fmt.Errorf("mihomo did not activate saved TUN preference (enabled=%t); inspect `nagi tun status`, `nagi logs`, and OS TUN permissions", *preference)
+		return messageError("cli.error.tun_intent.mihomo_did_not_activate_saved_tun_preference_enabled_t_inspect_nagi_", "mihomo did not activate saved TUN preference (enabled=%t); inspect `nagi tun status`, `nagi logs`, and OS TUN permissions", *preference)
 	}
 	return nil
 }

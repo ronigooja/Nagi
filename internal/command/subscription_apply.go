@@ -2,12 +2,10 @@ package command
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"gopkg.in/yaml.v3"
+
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
@@ -17,11 +15,11 @@ import (
 )
 
 var (
-	errSourceChanged    = errors.New("source profile changed; run `nagi subscription apply NAME` to resume automatic updates")
-	errSourceUnreadable = errors.New("source profile cannot be read; inspect the profile and reapply the subscription")
-	errDNSConflict      = errors.New("local DNS proxy target is unavailable in the updated subscription; update DNS settings")
-	errRuleConflict     = errors.New("enabled custom rule target is unavailable in the updated subscription; update custom rules")
-	errChoiceConflict   = errors.New("saved proxy selections could not be reconciled with the updated subscription")
+	errSourceChanged    = messageError("cli.error.subscription_apply.source_profile_changed_run_nagi_subscription_apply_name_to_resume_au", "source profile changed; run `nagi subscription apply NAME` to resume automatic updates")
+	errSourceUnreadable = messageError("cli.error.subscription_apply.source_profile_cannot_be_read_inspect_the_profile_and_reapply_the_su", "source profile cannot be read; inspect the profile and reapply the subscription")
+	errDNSConflict      = messageError("cli.error.subscription_apply.local_dns_proxy_target_is_unavailable_in_the_updated_subscription_up", "local DNS proxy target is unavailable in the updated subscription; update DNS settings")
+	errRuleConflict     = messageError("cli.error.subscription_apply.enabled_custom_rule_target_is_unavailable_in_the_updated_subscriptio", "enabled custom rule target is unavailable in the updated subscription; update custom rules")
+	errChoiceConflict   = messageError("cli.error.subscription_apply.saved_proxy_selections_could_not_be_reconciled_with_the_updated_subs", "saved proxy selections could not be reconciled with the updated subscription")
 )
 
 // ApplyCachedSubscriptionPreservingSource preserves local overrides and valid
@@ -42,13 +40,13 @@ func ApplyCachedSubscriptionPreservingSource(ctx context.Context, paths nagirunt
 				return nil, err
 			}
 			if profiles == nil {
-				return nil, errors.New("profile store is required")
+				return nil, messageError("cli.error.subscription_apply.profile_store_is_required", "profile store is required")
 			}
 			if err = profiles.ApplySubscription(ctx, name, encoded); err != nil {
 				return nil, classifyScheduledApply(err)
 			}
 			if err = pruneSavedChoices(ctx, paths, name, encoded); err != nil {
-				return nil, fmt.Errorf("%w: %v", errChoiceConflict, err)
+				return nil, messageError("cli.error.subscription_apply.w_v", "%w: %v", errChoiceConflict, err)
 			}
 			return nil, nil
 		})
@@ -99,7 +97,7 @@ func applyScheduledCacheFactory(ctx context.Context, p nagiruntime.Paths, s *sub
 			return nil, err
 		}
 		if subscription.Hash(data) != latest.CacheVersion {
-			return nil, errors.New("cache version changed during automatic apply")
+			return nil, messageError("cli.error.subscription_apply.cache_version_changed_during_automatic_apply", "cache version changed during automatic apply")
 		}
 		encoded, _, err := normalizedCache(data)
 		if err != nil {
@@ -117,7 +115,7 @@ func applyScheduledCacheFactory(ctx context.Context, p nagiruntime.Paths, s *sub
 				return nil, classifyScheduledApply(err)
 			}
 			if err := pruneSavedChoices(ctx, p, latest.Profile, encoded); err != nil {
-				return nil, fmt.Errorf("%w: %v", errChoiceConflict, err)
+				return nil, messageError("cli.error.subscription_apply.w_v_166", "%w: %v", errChoiceConflict, err)
 			}
 			if err := s.RecordApplySuccess(latest.Name, latest.Profile, latest.CacheVersion, encoded); err != nil {
 				return nil, err
@@ -129,7 +127,7 @@ func applyScheduledCacheFactory(ctx context.Context, p nagiruntime.Paths, s *sub
 }
 func classifyScheduledApply(err error) error {
 	if strings.Contains(err.Error(), "DNS proxy target is missing") {
-		return fmt.Errorf("%w: %v", errDNSConflict, err)
+		return messageError("cli.error.subscription_apply.w_v_167", "%w: %v", errDNSConflict, err)
 	}
 	return err
 }
@@ -137,15 +135,15 @@ func validateRuleTargets(dir, profileName string, candidate []byte) error {
 	profiles := profile.NewStore(dir, nil, nil)
 	effective, err := profiles.EffectiveSubscriptionSource(profileName, candidate)
 	if err != nil {
-		return fmt.Errorf("%w: effective profile unavailable: %v", errRuleConflict, err)
+		return messageError("cli.error.subscription_apply.w_effective_profile_unavailable_v", "%w: effective profile unavailable: %v", errRuleConflict, err)
 	}
 	var doc map[string]any
 	if err := yaml.Unmarshal(effective, &doc); err != nil || doc == nil {
-		return fmt.Errorf("%w: effective profile is invalid", errRuleConflict)
+		return messageError("cli.error.subscription_apply.w_effective_profile_is_invalid", "%w: effective profile is invalid", errRuleConflict)
 	}
 	saved, err := rules.New(dir, profileName, nil).List()
 	if err != nil {
-		return fmt.Errorf("%w: rules file unreadable", errRuleConflict)
+		return messageError("cli.error.subscription_apply.w_rules_file_unreadable", "%w: rules file unreadable", errRuleConflict)
 	}
 	valid := map[string]bool{"DIRECT": true, "REJECT": true, "REJECT-DROP": true, "PASS": true, "GLOBAL": true}
 	remoteProvider := false
@@ -178,7 +176,7 @@ func validateRuleTargets(dir, profileName string, candidate []byte) error {
 		}
 		for _, target := range rules.Targets(rule) {
 			if !valid[target] && !remoteProvider {
-				return fmt.Errorf("%w: rule %s targets a missing choice; inspect `nagi rules custom` and update the rule or restore its target before retrying", errRuleConflict, rule.Name)
+				return messageError("cli.error.subscription_apply.w_rule_s_targets_a_missing_choice_inspect_nagi_rules_custom_and_upda", "%w: rule %s targets a missing choice; inspect `nagi rules custom` and update the rule or restore its target before retrying", errRuleConflict, rule.Name)
 			}
 		}
 	}
@@ -223,7 +221,7 @@ func effectiveGroups(dir, name string, candidate []byte) (map[string]map[string]
 	}
 	var doc map[string]any
 	if err := yaml.Unmarshal(effective, &doc); err != nil || doc == nil {
-		return nil, errors.New("effective profile is invalid")
+		return nil, messageError("cli.error.subscription_apply.effective_profile_is_invalid", "effective profile is invalid")
 	}
 	providers := map[string]map[string]bool{}
 	if raw, ok := doc["proxy-providers"].(map[string]any); ok {

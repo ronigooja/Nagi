@@ -50,15 +50,26 @@ func shellWords(v []string) string { return strings.Join(v, " ") }
 func bashCompletion(roots []string, children map[string][]string) string {
 	var b strings.Builder
 	b.WriteString(`_nagi_complete() {
-  local cur w root i line
+  local cur w root i line skip_lang=0
   local -a semantic=()
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
   for ((i=1; i<COMP_CWORD; i++)); do
     w="${COMP_WORDS[i]}"
+    if (( skip_lang )); then skip_lang=0; continue; fi
     [[ "$w" == "--json" || "$w" == "--help" || "$w" == "-h" ]] && continue
+    if [[ ${#semantic[@]} -eq 0 ]]; then
+      if [[ "$w" == --lang ]]; then skip_lang=1; continue; fi
+      [[ "$w" == --lang=* ]] && continue
+    fi
     semantic+=("$w")
   done
+  if (( skip_lang )); then COMPREPLY=( $(compgen -W 'en zh-Hans' -- "$cur") ); return 0; fi
+  if [[ ${#semantic[@]} -eq 0 && "$cur" == --lang=* ]]; then
+    local language_prefix="${cur#--lang=}" option
+    for option in en zh-Hans; do [[ "$option" == "$language_prefix"* ]] && COMPREPLY+=("--lang=$option"); done
+    return 0
+  fi
   if [[ ${semantic[0]} == profile && ${semantic[1]} == override && ${semantic[2]} == apply-default ]]; then
     if [[ ${#semantic[@]} -eq 3 ]]; then
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates profile 2>/dev/null); return 0
@@ -124,7 +135,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
     if [[ ${#semantic[@]} -eq 5 && ${semantic[2]} == add || ${semantic[${#semantic[@]}-1]} == --auth-key-file ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
   fi
   if [[ "$cur" == --* || "$cur" == -* ]]; then
-    COMPREPLY=( $(compgen -W '--json --help -h' -- "$cur") ); return 0
+    COMPREPLY=( $(compgen -W '--json --help -h --lang' -- "$cur") ); return 0
   fi
   if [[ ${#semantic[@]} -eq 0 ]]; then
     COMPREPLY=( $(compgen -W '`)
@@ -202,13 +213,22 @@ func zshCompletion(roots []string, children map[string][]string) string {
 	fmt.Fprintf(&b, `#compdef nagi
 _nagi() {
   local -a semantic
-  local word i
+  local word i skip_lang=0
   semantic=()
   for ((i=2; i<CURRENT; i++)); do
     word=${words[i]}
+    if (( skip_lang )); then skip_lang=0; continue; fi
     [[ $word == --json || $word == --help || $word == -h ]] && continue
+    if (( ${#semantic} == 0 )); then
+      if [[ $word == --lang ]]; then skip_lang=1; continue; fi
+      [[ $word == --lang=* ]] && continue
+    fi
     semantic+=("$word")
   done
+  if (( skip_lang )); then compadd -- en zh-Hans; return; fi
+  if (( ${#semantic} == 0 )) && [[ ${words[CURRENT]} == --lang=* ]]; then
+    compset -P '--lang='; compadd -- en zh-Hans; return
+  fi
   if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${semantic[3]} == apply-default ]]; then
     if (( ${#semantic} == 3 )); then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
     if (( ${#semantic} == 4 )); then compadd -- --dns-proxy; return; fi
@@ -259,7 +279,7 @@ _nagi() {
     if [[ ${words[CURRENT]} == --* && ( ${semantic[3]} == add || ${semantic[3]} == edit ) ]]; then compadd -- --hostname --control-url --auth-key --auth-key-stdin; [[ ${semantic[3]} == edit ]] && compadd -- --exit-node --auth-key-file; return; fi
     if (( ${#semantic} == 5 )) && [[ ${semantic[3]} == add ]] || [[ ${semantic[-1]} == --auth-key-file ]]; then _files; return; fi
   fi
-  if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h; return; fi
+  if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h --lang; return; fi
   if (( ${#semantic} == 0 )); then compadd -- %s; return; fi
   if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets healthcheck-targets; return; fi
   if (( ${#semantic} == 2 )); then
@@ -300,9 +320,24 @@ _nagi() {
 func fishCompletion(roots []string, children map[string][]string) string {
 	var b strings.Builder
 	b.WriteString(`complete -c nagi -f
+complete -c nagi -f -r -n 'test (count (__nagi_semantic)) -eq 0' -l lang -a 'en zh-Hans'
 function __nagi_semantic
   set -l out
+  set -l skip_lang 0
   for word in (commandline -opc)[2..-1]
+    if test $skip_lang -eq 1
+      set skip_lang 0
+      continue
+    end
+    if test (count $out) -eq 0
+      if test "$word" = --lang
+        set skip_lang 1
+        continue
+      end
+      if string match -q -- '--lang=*' "$word"
+        continue
+      end
+    end
     switch $word
       case --json --help -h
       case '*'

@@ -1,7 +1,6 @@
 package command
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -20,10 +19,10 @@ func checkInstallationStart(executable string, args []string) error {
 	}
 	pending, err := installation.PendingTransaction(executable)
 	if err != nil {
-		return fail("installation_recovery_required", fmt.Errorf("cannot inspect installation recovery state: %w", err))
+		return fail("installation_recovery_required", messageError("cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w", "cannot inspect installation recovery state: %w", err))
 	}
 	if pending {
-		return fail("installation_recovery_required", fmt.Errorf("an interrupted installation must be recovered before starting or reloading mihomo; run the current release's installer.sh recover --prefix %q, then check service and privileged-helper state", filepath.Dir(filepath.Dir(executable))))
+		return fail("installation_recovery_required", messageError("cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel", "an interrupted installation must be recovered before starting or reloading mihomo; run the current release's installer.sh recover --prefix %q, then check service and privileged-helper state", filepath.Dir(filepath.Dir(executable))))
 	}
 	return nil
 }

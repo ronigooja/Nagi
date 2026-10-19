@@ -135,13 +135,14 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 			filtered = append(filtered, arg)
 		}
 	}
+	ctx := context.WithValue(context.Background(), languageContextKey{}, locale)
 	if data, isHelp, err := requestedHelp(filtered); isHelp {
 		if err != nil {
-			output.WriteError(stderr, jsonMode, "usage", err.Error())
+			output.WriteErrorCause(stderr, jsonMode, locale, "usage", err)
 			return 2
 		}
 		if err := output.WriteLocalized(stdout, jsonMode, locale, data); err != nil {
-			output.WriteError(stderr, jsonMode, "output_error", err.Error())
+			output.WriteErrorCause(stderr, jsonMode, locale, "output_error", err)
 			return 1
 		}
 		return 0
@@ -153,18 +154,18 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		filtered[0] = "request-rewrite"
 	}
 	if err := validateInvocation(filtered); err != nil {
-		output.WriteError(stderr, jsonMode, "usage", err.Error())
+		output.WriteErrorCause(stderr, jsonMode, locale, "usage", err)
 		return 2
 	}
 	if len(filtered) == 1 && filtered[0] == "menu" {
 		inputFile, inputOK := stdin.(*os.File)
 		if jsonMode || !inputOK || !menu.IsTerminal(inputFile) {
-			output.WriteError(stderr, jsonMode, "usage", "menu requires interactive terminal input and output; use an ordinary command or --json for automation")
+			output.WriteMessageError(stderr, jsonMode, locale, "usage", messageError("cli.error.menu.terminal_required", "menu requires interactive terminal input and output; use an ordinary command or --json for automation"))
 			return 2
 		}
 		outFile, ok := stdout.(*os.File)
 		if !ok || !menu.IsTerminal(outFile) {
-			output.WriteError(stderr, jsonMode, "usage", "menu requires interactive terminal input and output; use an ordinary command or --json for automation")
+			output.WriteMessageError(stderr, jsonMode, locale, "usage", messageError("cli.error.menu.terminal_required", "menu requires interactive terminal input and output; use an ordinary command or --json for automation"))
 			return 2
 		}
 		runner := menu.NewInputCommandRunner(func(argv []string, input io.Reader, out, errOut io.Writer) int {
@@ -173,17 +174,16 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		return menu.Run(context.Background(), menu.NewSession(runner, stdin, stdout))
 	}
 	if len(filtered) == 2 && filtered[0] == "subscription" && filtered[1] == "watch" {
-		return runForegroundSubscriptionWatch(stdout, stderr, jsonMode, version, commit)
+		return runForegroundSubscriptionWatch(ctx, stdout, stderr, jsonMode, version, commit)
 	}
 	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
-		return runTrafficWatch(stdout, stderr, jsonMode)
+		return runTrafficWatch(ctx, stdout, stderr, jsonMode)
 	}
-	ctx := context.WithValue(context.Background(), languageContextKey{}, locale)
 	var inputErr error
 	if len(filtered) > 0 && filtered[0] == "request-rewrite" {
 		o, _ := parseRewriteArguments(filtered)
 		if jsonMode && (o.path == "request-rewrite export" || o.path == "request-rewrite ca export" || o.path == "request-rewrite capture export") {
-			output.WriteError(stderr, jsonMode, "usage", "raw export does not accept --json; omit --json and use FILE or -")
+			output.WriteMessageError(stderr, jsonMode, locale, "usage", messageError("cli.error.export.json_unsupported", "raw export does not accept --json; omit --json and use FILE or -"))
 			return 2
 		}
 		var input []byte
@@ -198,7 +198,7 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		options, _ := tailscaleArguments(filtered) // Invocation was validated above.
 		if options.AuthKey != nil {
 			var key *string
-			key, inputErr = prepareTailscaleAuthInput(filtered, stdin, stderr, jsonMode, options.stdin)
+			key, inputErr = prepareTailscaleAuthInput(filtered, stdin, stderr, jsonMode, options.stdin, locale)
 			ctx = context.WithValue(ctx, tailscaleAuthInputKey{}, tailscaleAuthInput{key: key})
 		}
 	}
@@ -236,7 +236,7 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 			return runJSONFollow(stdout, stderr, follow)
 		}
 		if err := follow.Manager.Follow(context.Background(), func(line string) error { _, err := fmt.Fprintln(stdout, line); return err }); err != nil && !errors.Is(err, context.Canceled) {
-			output.WriteError(stderr, false, "output_error", err.Error())
+			output.WriteErrorCause(stderr, false, locale, "output_error", err)
 			return 1
 		}
 		return 0
@@ -248,20 +248,20 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 				return encoder.Encode(output.Envelope{OK: true, Data: map[string]any{"line": line}})
 			})
 			if err != nil && !errors.Is(err, context.Canceled) {
-				output.WriteError(stderr, true, "output_error", err.Error())
+				output.WriteErrorCause(stderr, true, locale, "output_error", err)
 				return 1
 			}
 			return 0
 		}
 		err := follow.Follow(context.Background(), func(line string) error { _, err := fmt.Fprintln(stdout, line); return err })
 		if err != nil && !errors.Is(err, context.Canceled) {
-			output.WriteError(stderr, false, "output_error", err.Error())
+			output.WriteErrorCause(stderr, false, locale, "output_error", err)
 			return 1
 		}
 		return 0
 	}
 	if err := output.WriteLocalized(stdout, jsonMode, locale, data); err != nil {
-		output.WriteError(stderr, jsonMode, "output_error", err.Error())
+		output.WriteErrorCause(stderr, jsonMode, locale, "output_error", err)
 		return 1
 	}
 	return 0
@@ -281,7 +281,7 @@ func runJSONFollow(stdout, stderr io.Writer, follow engine.FollowResult) int {
 
 func executeInternal(ctx context.Context, args []string, version, commit string) (any, error) {
 	if len(args) == 0 {
-		return nil, fail("usage", errors.New("command required: start, stop, quit, restart, status, doctor, logs, config, profile, subscription, dns, proxy, connections, service, version"))
+		return nil, fail("usage", messageError("cli.error.command.command_required_start_stop_quit_restart_status_doctor_logs_config_p", "command required: start, stop, quit, restart, status, doctor, logs, config, profile, subscription, dns, proxy, connections, service, version"))
 	}
 	binary := os.Getenv("NAGI_MIHOMO_BIN")
 	if binary == "" {
@@ -575,10 +575,10 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 					return nil, fail("privileged_helper_error", err)
 				}
 				if !status.Installed || !status.Active {
-					return nil, fail("privileged_helper_error", errors.New("install and start the privileged helper before enabling it"))
+					return nil, fail("privileged_helper_error", messageError("cli.error.command.install_and_start_the_privileged_helper_before_enabling_it", "install and start the privileged helper before enabling it"))
 				}
 				if _, err := (helperBackend{paths: paths}).Status(ctx); err != nil {
-					return nil, fail("privileged_helper_error", fmt.Errorf("helper service is active but its authenticated socket is unavailable: %w", err))
+					return nil, fail("privileged_helper_error", messageError("cli.error.command.helper_service_is_active_but_its_authenticated_socket_is_unavailable", "helper service is active but its authenticated socket is unavailable: %w", err))
 				}
 				userEngine, err := engine.New(engine.Options{Binary: binary, ConfigPath: filepath.Join(paths.ConfigDir, "profiles", "default.yaml"), Paths: paths})
 				if err != nil {
@@ -589,7 +589,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 					return nil, err
 				}
 				if userStatus.Running {
-					return nil, fail("privileged_helper_error", errors.New("stop the user mihomo process before enabling the privileged backend"))
+					return nil, fail("privileged_helper_error", messageError("cli.error.command.stop_the_user_mihomo_process_before_enabling_the_privileged_backend", "stop the user mihomo process before enabling the privileged backend"))
 				}
 				if err := writeBackend(paths, privilegedBackend); err != nil {
 					return nil, err
@@ -603,7 +603,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 					return nil, fail("privileged_helper_error", err)
 				}
 				if st.Running {
-					return nil, fail("privileged_helper_error", errors.New("stop the privileged mihomo process before disabling the backend"))
+					return nil, fail("privileged_helper_error", messageError("cli.error.command.stop_the_privileged_mihomo_process_before_disabling_the_backend", "stop the privileged mihomo process before disabling the backend"))
 				}
 			}
 			if err := writeBackend(paths, userBackend); err != nil {
@@ -679,7 +679,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	if readsProfile {
 		profileName, profileErr = profile.NewStore(paths.ConfigDir, nil, nil).Current()
 		if profileErr != nil && command != "status" && command != "profile" && !(command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview")) {
-			return nil, fmt.Errorf("cannot read selected profile; run `nagi profile list`, then `nagi profile use NAME` to select a valid profile: %w", profileErr)
+			return nil, messageError("cli.error.command.cannot_read_selected_profile_run_nagi_profile_list_then_nagi_profile", "cannot read selected profile; run `nagi profile list`, then `nagi profile use NAME` to select a valid profile: %w", profileErr)
 		}
 		if profileName == "" {
 			profileName = "default"
@@ -755,7 +755,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err == nil {
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			if _, restoreErr := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies); restoreErr != nil {
-				return nil, fail("proxy_selection_error", fmt.Errorf("mihomo started, but saved proxy selections were not fully restored: %w", restoreErr))
+				return nil, fail("proxy_selection_error", messageError("cli.error.command.mihomo_started_but_saved_proxy_selections_were_not_fully_restored_w", "mihomo started, but saved proxy selections were not fully restored: %w", restoreErr))
 			}
 		}
 		return result, err
@@ -772,7 +772,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		if backendMode != privilegedBackend {
 			if e := restoreTUNDNS(ctx, paths); e != nil {
-				return nil, fail("tun_error", fmt.Errorf("system DNS restoration failed; engine remains running; retry `nagi stop`: %w", e))
+				return nil, fail("tun_error", messageError("cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop", "system DNS restoration failed; engine remains running; retry `nagi stop`: %w", e))
 			}
 		}
 		if runtime.GOOS == "darwin" && trafficManager.Managed() {
@@ -797,7 +797,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		if backendMode != privilegedBackend {
 			if e := restoreTUNDNS(ctx, paths); e != nil {
-				return nil, fail("tun_error", fmt.Errorf("system DNS restoration failed; engine remains running; retry `nagi stop`: %w", e))
+				return nil, fail("tun_error", messageError("cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop_12", "system DNS restoration failed; engine remains running; retry `nagi stop`: %w", e))
 			}
 		}
 		if runtime.GOOS == "darwin" && trafficManager.Managed() {
@@ -817,7 +817,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err == nil {
 			_ = recordRunningImage(paths.ConfigDir, client, configPath)
 			if _, restoreErr := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, profileName, proxies); restoreErr != nil {
-				return nil, fail("proxy_selection_error", fmt.Errorf("mihomo restarted, but saved proxy selections were not fully restored: %w", restoreErr))
+				return nil, fail("proxy_selection_error", messageError("cli.error.command.mihomo_restarted_but_saved_proxy_selections_were_not_fully_restored_", "mihomo restarted, but saved proxy selections were not fully restored: %w", restoreErr))
 			}
 		}
 		return result, err
@@ -875,7 +875,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 					return nil, err
 				}
 				if !st.Running {
-					return nil, fail("not_running", errors.New("mihomo is not running; start it before following logs"))
+					return nil, fail("not_running", messageError("cli.error.command.mihomo_is_not_running_start_it_before_following_logs", "mihomo is not running; start it before following logs"))
 				}
 				return helperFollowResult{backend: b}, nil
 			}
@@ -896,7 +896,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				return nil, err
 			}
 			if !status.Running {
-				return nil, fail("not_running", errors.New("mihomo is not running; start it before following logs"))
+				return nil, fail("not_running", messageError("cli.error.command.mihomo_is_not_running_start_it_before_following_logs", "mihomo is not running; start it before following logs"))
 			}
 			return engine.FollowResult{Manager: m}, nil
 		}
@@ -924,7 +924,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		switch args[1] {
 		case "validate":
 			if err := m.Validate(ctx); err != nil {
-				return nil, fail("invalid_config", fmt.Errorf("configuration validation failed; run `nagi config show` to inspect the selected profile and check the mihomo executable: %w", err))
+				return nil, fail("invalid_config", messageError("cli.error.command.configuration_validation_failed_run_nagi_config_show_to_inspect_the_", "configuration validation failed; run `nagi config show` to inspect the selected profile and check the mihomo executable: %w", err))
 			}
 			return map[string]any{"valid": true, "profile": profileName}, nil
 		case "show":
@@ -953,10 +953,10 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				return nil, err
 			}
 			if !status.Running {
-				return nil, fail("not_running", errors.New("mihomo is not running; start it before reloading configuration"))
+				return nil, fail("not_running", messageError("cli.error.command.mihomo_is_not_running_start_it_before_reloading_configuration", "mihomo is not running; start it before reloading configuration"))
 			}
 			if err := activateConfig(ctx, client, configPath); err != nil {
-				return nil, fail("mihomo_api_error", fmt.Errorf("configuration validated but reload failed; runtime state may still use the previous configuration: %w", err))
+				return nil, fail("mihomo_api_error", messageError("cli.error.command.configuration_validated_but_reload_failed_runtime_state_may_still_us", "configuration validated but reload failed; runtime state may still use the previous configuration: %w", err))
 			}
 			return map[string]any{"reloaded": true, "profile": profileName}, nil
 		}
@@ -1013,7 +1013,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				if args[2] == "on" {
 					action = "enable"
 				}
-				return nil, fail("dns_error", fmt.Errorf("DNS TUN setting conflicts with saved TUN preference; with mihomo running, run `nagi tun %s` first, then retry", action))
+				return nil, fail("dns_error", messageError("cli.error.command.dns_tun_setting_conflicts_with_saved_tun_preference_with_mihomo_runn", "DNS TUN setting conflicts with saved TUN preference; with mihomo running, run `nagi tun %s` first, then retry", action))
 			}
 		}
 		return dnsCommand(ctx, args, store, profileName, client)
@@ -1174,7 +1174,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				return nil, fail("proxy_provider_error", err)
 			}
 			if err := store.RemoveProvider(ctx, profileName, args[3]); err != nil {
-				return nil, fail("proxy_provider_error", fmt.Errorf("provider removal failed; inspect the selected profile and override: %w", err))
+				return nil, fail("proxy_provider_error", messageError("cli.error.command.provider_removal_failed_inspect_the_selected_profile_and_override_w", "provider removal failed; inspect the selected profile and override: %w", err))
 			}
 			return map[string]any{"provider": args[3], "profile": profileName, "removed": true}, nil
 		}
@@ -1186,7 +1186,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			interval, testURLs, _ := providerAddOptions(args)
 			created, err := store.AddProvider(ctx, profileName, args[3], args[4], args[5], interval, testURLs...)
 			if err != nil {
-				return nil, fail("proxy_provider_error", fmt.Errorf("provider addition failed; inspect `nagi profile list` and the selected profile override: %w", err))
+				return nil, fail("proxy_provider_error", messageError("cli.error.command.provider_addition_failed_inspect_nagi_profile_list_and_the_selected_", "provider addition failed; inspect `nagi profile list` and the selected profile override: %w", err))
 			}
 			return map[string]any{"provider": args[3], "group": args[5], "profile": profileName, "interval_seconds": interval, "added": true, "group_created": created}, nil
 		}
@@ -1231,7 +1231,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 	case "system-proxy":
 		if runtime.GOOS == "linux" {
-			return nil, fail("system_proxy_error", errors.New("system proxy is unsupported on Linux; configure applications to use the mihomo listener"))
+			return nil, fail("system_proxy_error", messageError("cli.error.command.system_proxy_is_unsupported_on_linux_configure_applications_to_use_t", "system proxy is unsupported on Linux; configure applications to use the mihomo listener"))
 		}
 		if args[1] == "status" {
 			state, e := trafficManager.Status(ctx)
@@ -1249,17 +1249,17 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		var cfg map[string]any
 		if e := client.Get(ctx, "/configs", &cfg); e != nil {
-			return nil, fail("system_proxy_error", fmt.Errorf("start mihomo first: %w", e))
+			return nil, fail("system_proxy_error", messageError("cli.error.command.start_mihomo_first_w", "start mihomo first: %w", e))
 		}
 		port := intField(cfg, "mixed-port")
 		if port == 0 {
 			port = intField(cfg, "port")
 		}
 		if port == 0 {
-			return nil, fail("system_proxy_error", errors.New("no HTTP or mixed listener is configured; inspect `nagi ports status`"))
+			return nil, fail("system_proxy_error", messageError("cli.error.command.no_http_or_mixed_listener_is_configured_inspect_nagi_ports_status", "no HTTP or mixed listener is configured; inspect `nagi ports status`"))
 		}
 		if cfg["allow-lan"] == true {
-			return nil, fail("system_proxy_error", errors.New("disable LAN access before enabling the system proxy, or configure a loopback-only listener"))
+			return nil, fail("system_proxy_error", messageError("cli.error.command.disable_lan_access_before_enabling_the_system_proxy_or_configure_a_l", "disable LAN access before enabling the system proxy, or configure a loopback-only listener"))
 		}
 		status, e := getLifecycle()
 		if e != nil {
@@ -1267,7 +1267,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		engineStatus, e := status.Status(ctx)
 		if e != nil || !engineStatus.Running {
-			return nil, fail("system_proxy_error", errors.New("start mihomo before enabling the system proxy"))
+			return nil, fail("system_proxy_error", messageError("cli.error.command.start_mihomo_before_enabling_the_system_proxy", "start mihomo before enabling the system proxy"))
 		}
 		state, e := trafficManager.Enable(ctx, engineStatus.PID, port)
 		if e != nil {
@@ -1275,7 +1275,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		if e := startExitWatcher(paths, engineStatus.PID); e != nil {
 			_, restoreErr := trafficManager.Disable(ctx)
-			return nil, fail("system_proxy_error", errors.Join(fmt.Errorf("cannot start exit recovery watcher: %w", e), restoreErr))
+			return nil, fail("system_proxy_error", errors.Join(messageError("cli.error.command.cannot_start_exit_recovery_watcher_w", "cannot start exit recovery watcher: %w", e), restoreErr))
 		}
 		return state, nil
 	case "tun":
@@ -1317,7 +1317,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return nil, fail("tun_error", e)
 		}
 		if e := writeTUNIntent(paths, requested); e != nil {
-			return nil, fail("tun_error", fmt.Errorf("TUN state changed but could not save startup preference: %w", e))
+			return nil, fail("tun_error", messageError("cli.error.command.tun_state_changed_but_could_not_save_startup_preference_w", "TUN state changed but could not save startup preference: %w", e))
 		}
 		if requested {
 			if e := rewriteReconcile(ctx, paths); e != nil {
@@ -1420,7 +1420,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				err = profiles.Write(ctx, profileName, updated)
 			}
 			if err != nil {
-				return nil, fail("invalid_config", fmt.Errorf("persistent mode was not saved: %w", err))
+				return nil, fail("invalid_config", messageError("cli.error.command.persistent_mode_was_not_saved_w", "persistent mode was not saved: %w", err))
 			}
 			return map[string]any{"mode": args[2], "persistent": true, "changed": true}, nil
 		}
@@ -1550,7 +1550,12 @@ func arity(args []string, n int) error {
 	}
 	return nil
 }
-func usage(message string) error { return fail("usage", errors.New(message)) }
+func usage(value any) error {
+	if err, ok := value.(error); ok {
+		return fail("usage", err)
+	}
+	return fail("usage", errors.New(fmt.Sprint(value)))
+}
 
 func profileCommand(ctx context.Context, args []string, store *profile.Store, subscriptions ...*subscription.Store) (any, error) {
 	var subs *subscription.Store
@@ -1593,7 +1598,7 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 			return nil, err
 		}
 		if len(data) > 8<<20 {
-			return nil, fail("profile_error", errors.New("profile exceeds 8 MiB"))
+			return nil, fail("profile_error", messageError("cli.error.command.profile_exceeds_8_mib", "profile exceeds 8 MiB"))
 		}
 		if err := store.ClearSubscriptionTailscale(args[2]); err != nil {
 			return nil, fail("profile_error", err)
@@ -1842,7 +1847,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 	case "add":
 		options, err := subscriptionAddOptions(args)
 		if err != nil {
-			return nil, usage(err.Error())
+			return nil, usage(err)
 		}
 		if err := store.AddWithOptions(args[2], args[3], options); err != nil {
 			return nil, fail("subscription_error", err)
@@ -1871,7 +1876,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 				return nil, fail("subscription_error", err)
 			}
 			if policy != nil && policy.Subscription == entry.Name {
-				return nil, fail("subscription_error", errors.New("subscription has a persistent Tailscale binding; unbind the subscription before removing it"))
+				return nil, fail("subscription_error", messageError("cli.error.command.subscription_has_a_persistent_tailscale_binding_unbind_the_subscript", "subscription has a persistent Tailscale binding; unbind the subscription before removing it"))
 			}
 		}
 		if entry.Profile != "" && (entry.HealthcheckIntervalSeconds != nil || entry.HealthcheckURL != nil) && profiles != nil {
@@ -1908,7 +1913,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 			existing, _, err = subscription.Document(old)
 			if err != nil {
 				if args[1] == "preview" {
-					return nil, fail("subscription_error", errors.New("existing profile cannot be parsed for preview; inspect or remove it"))
+					return nil, fail("subscription_error", messageError("cli.error.command.existing_profile_cannot_be_parsed_for_preview_inspect_or_remove_it", "existing profile cannot be parsed for preview; inspect or remove it"))
 				}
 				existing = nil
 			}
@@ -1939,7 +1944,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 			return nil, fail("subscription_error", err)
 		}
 		if err := (proxy.SelectionStore{Path: filepath.Join(profiles.Dir, "proxy-selections.json")}).Clear(args[2]); err != nil {
-			return nil, fail("subscription_error", fmt.Errorf("subscription applied but saved proxy choices could not be cleared: %w", err))
+			return nil, fail("subscription_error", messageError("cli.error.command.subscription_applied_but_saved_proxy_choices_could_not_be_cleared_w", "subscription applied but saved proxy choices could not be cleared: %w", err))
 		}
 		if err := store.RecordApplySuccess(args[2], args[2], subscription.Hash(data), merged); err != nil {
 			return nil, fail("subscription_error", err)
@@ -1972,13 +1977,13 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		}
 		current, err := profile.NewStore(configDir, nil, nil).Current()
 		if err != nil {
-			return nil, fail("proxy_selection_error", fmt.Errorf("cannot read selected profile to save choice: %w", err))
+			return nil, fail("proxy_selection_error", messageError("cli.error.command.cannot_read_selected_profile_to_save_choice_w", "cannot read selected profile to save choice: %w", err))
 		}
 		if err := service.Select(ctx, args[2], args[3]); err != nil {
 			return nil, fail("proxy_selection_error", err)
 		}
 		if err := selections.Save(current, args[2], args[3]); err != nil {
-			return nil, fail("proxy_selection_error", fmt.Errorf("selected node in running engine, but could not save choice: %w", err))
+			return nil, fail("proxy_selection_error", messageError("cli.error.command.selected_node_in_running_engine_but_could_not_save_choice_w", "selected node in running engine, but could not save choice: %w", err))
 		}
 		return map[string]any{"group": args[2], "node": args[3]}, nil
 	case "auto":
@@ -1993,7 +1998,7 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 			return nil, fail("proxy_selection_error", err)
 		}
 		if err := selections.RemoveGroup(current, args[2]); err != nil {
-			return nil, fail("proxy_selection_error", fmt.Errorf("automatic selection resumed in running engine, but saved choice could not be removed: %w", err))
+			return nil, fail("proxy_selection_error", messageError("cli.error.command.automatic_selection_resumed_in_running_engine_but_saved_choice_could", "automatic selection resumed in running engine, but saved choice could not be removed: %w", err))
 		}
 		return map[string]any{"group": args[2], "automatic": true, "saved_selection_removed": true}, nil
 	case "providers":
@@ -2072,7 +2077,7 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		if automatic {
 			current, err = profile.NewStore(configDir, nil, nil).Current()
 			if err != nil {
-				return nil, fail("proxy_selection_error", fmt.Errorf("group latency test was not started because selected profile could not be read; saved choice is unchanged: %w", err))
+				return nil, fail("proxy_selection_error", messageError("cli.error.command.group_latency_test_was_not_started_because_selected_profile_could_no", "group latency test was not started because selected profile could not be read; saved choice is unchanged: %w", err))
 			}
 		}
 		result, state, delayErr := service.DelaysKnown(ctx, g, target, timeoutMS)
@@ -2083,18 +2088,18 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 			if readErr == nil && g.Fixed != "" && observed.Fixed == "" {
 				state = proxy.DelayResetConfirmed
 			} else {
-				return nil, fmt.Errorf("group latency test failed and automatic reset is unknown; saved choice was kept; inspect `nagi proxy show %q` before `nagi proxy restore`: %w", args[2], delayErr)
+				return nil, messageError("cli.error.command.group_latency_test_failed_and_automatic_reset_is_unknown_saved_choic", "group latency test failed and automatic reset is unknown; saved choice was kept; inspect `nagi proxy show %q` before `nagi proxy restore`: %w", args[2], delayErr)
 			}
 		}
 		if automatic && state == proxy.DelayResetConfirmed {
 			if err := selections.RemoveGroup(current, args[2]); err != nil {
-				return nil, fail("proxy_selection_error", fmt.Errorf("group latency test resumed automatic selection in running engine, but saved choice could not be removed: %w", err))
+				return nil, fail("proxy_selection_error", messageError("cli.error.command.group_latency_test_resumed_automatic_selection_in_running_engine_but", "group latency test resumed automatic selection in running engine, but saved choice could not be removed: %w", err))
 			}
 			result.AutomaticReset = true
 			result.SavedSelectionRemoved = true
 		}
 		if automatic && state == proxy.DelayResetConfirmed && delayErr != nil {
-			return nil, fmt.Errorf("group latency test failed after mihomo resumed automatic selection; saved choice was removed: %w", delayErr)
+			return nil, messageError("cli.error.command.group_latency_test_failed_after_mihomo_resumed_automatic_selection_s", "group latency test failed after mihomo resumed automatic selection; saved choice was removed: %w", delayErr)
 		}
 		return result, delayErr
 	case "delay":
@@ -2115,7 +2120,7 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 func trafficConfig(ctx context.Context, client *control.Client) (map[string]any, error) {
 	var cfg map[string]any
 	if err := client.Get(ctx, "/configs", &cfg); err != nil {
-		return nil, fmt.Errorf("mihomo must be running; run `nagi start` or inspect `nagi status`: %w", err)
+		return nil, messageError("cli.error.command.mihomo_must_be_running_run_nagi_start_or_inspect_nagi_status_w", "mihomo must be running; run `nagi start` or inspect `nagi status`: %w", err)
 	}
 	return cfg, nil
 }

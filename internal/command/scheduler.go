@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -24,7 +23,7 @@ import (
 
 const schedulerHeartbeatInterval = 5 * time.Second
 
-var errSchedulerAlreadyRunning = errors.New("subscription scheduler is already running")
+var errSchedulerAlreadyRunning = messageError("cli.error.scheduler.subscription_scheduler_is_already_running", "subscription scheduler is already running")
 
 type schedulerHeartbeat struct {
 	PID int       `json:"pid"`
@@ -290,7 +289,7 @@ func applyFailureReason(err error) string {
 func runSubscriptionWatch(ctx context.Context, stdout, stderr io.Writer, jsonMode bool, version, commit string) int {
 	p, err := nagiruntime.Resolve()
 	if err != nil {
-		output.WriteError(stderr, jsonMode, "subscription_error", err.Error())
+		output.WriteErrorCause(stderr, jsonMode, LanguageContext(ctx), "subscription_error", err)
 		return 1
 	}
 	h, err := acquireScheduler(p)
@@ -299,18 +298,18 @@ func runSubscriptionWatch(ctx context.Context, stdout, stderr io.Writer, jsonMod
 		if errors.Is(err, errSchedulerAlreadyRunning) {
 			code = "scheduler_already_running"
 		}
-		output.WriteError(stderr, jsonMode, code, err.Error())
+		output.WriteErrorCause(stderr, jsonMode, LanguageContext(ctx), code, err)
 		return 1
 	}
 	defer h.Close()
 	if jsonMode {
 		if err := output.Write(stdout, true, map[string]any{"scheduler_running": true}); err != nil {
-			output.WriteError(stderr, true, "output_error", err.Error())
+			output.WriteErrorCause(stderr, true, LanguageContext(ctx), "output_error", err)
 			return 1
 		}
 	} else {
-		if _, err := fmt.Fprintln(stdout, "Subscription scheduler running; interrupt to stop."); err != nil {
-			output.WriteError(stderr, false, "output_error", err.Error())
+		if err := output.WriteMessage(stdout, false, LanguageContext(ctx), messageError("cli.stream.subscription.started", "Subscription scheduler running; interrupt to stop.")); err != nil {
+			output.WriteErrorCause(stderr, false, LanguageContext(ctx), "output_error", err)
 			return 1
 		}
 	}
@@ -318,7 +317,7 @@ func runSubscriptionWatch(ctx context.Context, stdout, stderr io.Writer, jsonMod
 	if binary == "" {
 		exe, e := os.Executable()
 		if e != nil {
-			output.WriteError(stderr, jsonMode, "subscription_error", e.Error())
+			output.WriteErrorCause(stderr, jsonMode, LanguageContext(ctx), "subscription_error", e)
 			return 1
 		}
 		binary = filepath.Join(filepath.Dir(exe), "mihomo")
@@ -362,7 +361,7 @@ func runSubscriptionWatch(ctx context.Context, stdout, stderr io.Writer, jsonMod
 			return 0
 		}
 		if err := schedulerStep(ctx, p, s, apply, time.Now().UTC()); err != nil && ctx.Err() == nil {
-			output.WriteError(stderr, jsonMode, "subscription_error", err.Error())
+			output.WriteErrorCause(stderr, jsonMode, LanguageContext(ctx), "subscription_error", err)
 		}
 		timer := time.NewTimer(schedulerDelay(s, time.Now().UTC()))
 		select {
@@ -394,8 +393,8 @@ func schedulerDelay(s *subscription.Store, now time.Time) time.Duration {
 	return delay
 }
 
-func runForegroundSubscriptionWatch(stdout, stderr io.Writer, jsonMode bool, version, commit string) int {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+func runForegroundSubscriptionWatch(parent context.Context, stdout, stderr io.Writer, jsonMode bool, version, commit string) int {
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return runSubscriptionWatch(ctx, stdout, stderr, jsonMode, version, commit)
 }

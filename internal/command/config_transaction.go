@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"gopkg.in/yaml.v3"
+
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,7 +17,6 @@ import (
 	"github.com/ronigooja/Nagi/internal/profile"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"github.com/ronigooja/Nagi/internal/traffic"
-	"gopkg.in/yaml.v3"
 )
 
 // configMutation covers operations that can replace the selected effective
@@ -163,7 +163,7 @@ func snapshotConfig(dir string) (map[string]fileImage, error) {
 		// never traverse a link offered in place of the CA directory.
 		if path == filepath.Join(dir, "request-rewrite", "ca") {
 			if !entry.IsDir() {
-				return errors.New("request rewrite CA path is not a directory")
+				return messageError("cli.error.config_transaction.request_rewrite_ca_path_is_not_a_directory", "request rewrite CA path is not a directory")
 			}
 			return filepath.SkipDir
 		}
@@ -177,7 +177,7 @@ func snapshotConfig(dir string) (map[string]fileImage, error) {
 			return nil
 		}
 		if !entry.Type().IsRegular() {
-			return fmt.Errorf("configuration path is not a regular file: %s", path)
+			return messageError("cli.error.config_transaction.configuration_path_is_not_a_regular_file_s", "configuration path is not a regular file: %s", path)
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -283,7 +283,7 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 			if priorTUN, ok := beforeCfg["tun"].(map[string]any); ok {
 				var doc map[string]any
 				if e := yaml.Unmarshal(oldEffective, &doc); e != nil || doc == nil {
-					oldErr = errors.New("prior effective configuration is invalid YAML")
+					oldErr = messageError("cli.error.config_transaction.prior_effective_configuration_is_invalid_yaml", "prior effective configuration is invalid YAML")
 				} else {
 					tun, _ := doc["tun"].(map[string]any)
 					if tun == nil {
@@ -332,14 +332,14 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 		if activeErr == nil && runtime.GOOS == "darwin" {
 			_, cfg, e := configID(ctx, client)
 			if e != nil {
-				actionErr = fmt.Errorf("configuration changed but current listener could not be read: %w", e)
+				actionErr = messageError("cli.error.config_transaction.configuration_changed_but_current_listener_could_not_be_read_w", "configuration changed but current listener could not be read: %w", e)
 			} else {
 				port := intField(cfg, "mixed-port")
 				if port == 0 {
 					port = intField(cfg, "port")
 				}
 				if e := traffic.New(paths.StateDir).SyncPort(ctx, port); e != nil {
-					actionErr = fmt.Errorf("configuration changed but managed system proxy could not be synchronized: %w", e)
+					actionErr = messageError("cli.error.config_transaction.configuration_changed_but_managed_system_proxy_could_not_be_synchron", "configuration changed but managed system proxy could not be synchronized: %w", e)
 				}
 			}
 		}
@@ -375,26 +375,26 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 	defer cancel()
 	currentID, _, checkErr := configID(recoveryCtx, client)
 	if checkErr != nil {
-		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration unconfirmed: %w", checkErr))
+		return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_restoration_unconfirmed_w", "runtime restoration unconfirmed: %w", checkErr))
 	}
 	if currentID == beforeID {
 		if _, dnsErr := synchronizeTUNDNS(recoveryCtx, paths, client, 0); dnsErr != nil {
-			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("prior runtime unchanged but DNS restoration failed: %w", dnsErr))
+			return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.prior_runtime_unchanged_but_dns_restoration_failed_w", "prior runtime unchanged but DNS restoration failed: %w", dnsErr))
 		}
 		if errors.Is(actionErr, errActivationMayStillApply) {
-			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: observed activation ID %q matches the prior configuration, but the original PUT may still apply later; after it settles, inspect `nagi status` and retry `nagi config reload`", currentID))
+			return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_recovery_incomplete_observed_activation_id_q_matches_the_pri", "runtime recovery incomplete: observed activation ID %q matches the prior configuration, but the original PUT may still apply later; after it settles, inspect `nagi status` and retry `nagi config reload`", currentID))
 		}
 		return nil, errors.Join(actionErr, fileErr)
 	}
 	if oldErr != nil {
-		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration unavailable: prior effective configuration did not validate: %w; current activation ID %s", oldErr, currentID))
+		return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_did_no", "runtime restoration unavailable: prior effective configuration did not validate: %w; current activation ID %s", oldErr, currentID))
 	}
 	if len(oldEffective) == 0 {
-		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration unavailable: prior effective configuration is empty; current activation ID %s", currentID))
+		return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_is_emp", "runtime restoration unavailable: prior effective configuration is empty; current activation ID %s", currentID))
 	}
 	file, e := os.CreateTemp(filepath.Join(paths.ConfigDir, "profiles"), ".nagi-restore-*.yaml")
 	if e != nil {
-		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration failed: %w", e))
+		return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_restoration_failed_w", "runtime restoration failed: %w", e))
 	}
 	defer os.Remove(file.Name())
 	_, e = file.Write(oldEffective)
@@ -409,11 +409,11 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 		e = activateConfig(recoveryCtx, client, recoveryPath)
 	}
 	if e != nil {
-		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restoration failed; current state is uncertain: %w", e))
+		return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_restoration_failed_current_state_is_uncertain_w", "runtime restoration failed; current state is uncertain: %w", e))
 	}
 	if priorTUN, ok := beforeCfg["tun"].(map[string]any); ok {
 		if e := restoreRuntimeTUN(recoveryCtx, client, priorTUN); e != nil {
-			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("configuration restored but prior temporary TUN settings could not be restored: %w", e))
+			return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.configuration_restored_but_prior_temporary_tun_settings_could_not_be", "configuration restored but prior temporary TUN settings could not be restored: %w", e))
 		}
 	}
 	if runtime.GOOS == "darwin" {
@@ -427,20 +427,20 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 		}
 		if e != nil {
 			if errors.Is(actionErr, errActivationMayStillApply) {
-				return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: rollback PUT was confirmed, but managed system proxy restoration failed and the original PUT may still apply later: %w; after it settles, retry `nagi config reload`", e))
+				return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_managed_s", "runtime recovery incomplete: rollback PUT was confirmed, but managed system proxy restoration failed and the original PUT may still apply later: %w; after it settles, retry `nagi config reload`", e))
 			}
-			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restored but system proxy restoration failed: %w", e))
+			return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w", "runtime restored but system proxy restoration failed: %w", e))
 		}
 	}
 	if _, dnsErr := synchronizeTUNDNS(recoveryCtx, paths, client, 0); dnsErr != nil {
-		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime restored but system DNS restoration failed: %w", dnsErr))
+		return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_restored_but_system_dns_restoration_failed_w", "runtime restored but system DNS restoration failed: %w", dnsErr))
 	}
 	if errors.Is(actionErr, errActivationMayStillApply) {
 		observedID, _, observeErr := configID(recoveryCtx, client)
 		if observeErr != nil {
-			return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: rollback PUT was confirmed, but the original PUT may still apply later; current activation ID could not be read: %w; after it settles, retry `nagi config reload`", observeErr))
+			return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_the_origi", "runtime recovery incomplete: rollback PUT was confirmed, but the original PUT may still apply later; current activation ID could not be read: %w; after it settles, retry `nagi config reload`", observeErr))
 		}
-		return nil, errors.Join(actionErr, fileErr, fmt.Errorf("runtime recovery incomplete: rollback PUT was confirmed; latest observed activation ID is %q, but the original PUT may still apply later; after it settles, inspect `nagi status` and retry `nagi config reload`", observedID))
+		return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_latest_observ", "runtime recovery incomplete: rollback PUT was confirmed; latest observed activation ID is %q, but the original PUT may still apply later; after it settles, inspect `nagi status` and retry `nagi config reload`", observedID))
 	}
-	return nil, errors.Join(actionErr, fileErr, fmt.Errorf("prior running configuration restored with a confirmed activation ID"))
+	return nil, errors.Join(actionErr, fileErr, messageError("cli.error.config_transaction.prior_running_configuration_restored_with_a_confirmed_activation_id", "prior running configuration restored with a confirmed activation ID"))
 }
