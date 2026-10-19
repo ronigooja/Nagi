@@ -14,7 +14,8 @@ func TestSharedLocalizationContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fixture struct {
-		IDs map[string]struct {
+		Producers map[string]map[string]string `json:"producer_ids"`
+		IDs       map[string]struct {
 			Args    map[string]string `json:"args"`
 			English string            `json:"en"`
 			Chinese string            `json:"zh-Hans"`
@@ -28,6 +29,19 @@ func TestSharedLocalizationContract(t *testing.T) {
 	}
 	if err = json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
+	}
+	expected := map[string]map[string]string{}
+	_, helpSchemas := messageCatalog("help.heading.usage")
+	for _, schemas := range []map[string]map[string]string{argumentSchemas, helpSchemas} {
+		for id, signature := range schemas {
+			if strings.HasPrefix(id, "menu.") && !strings.HasPrefix(id, "menu.runner.") {
+				continue
+			}
+			expected[id] = signature
+		}
+	}
+	if !reflect.DeepEqual(fixture.Producers, expected) {
+		t.Fatal("shared producer registry drift; regenerate native message catalogs")
 	}
 	for id, spec := range fixture.IDs {
 		if !reflect.DeepEqual(argumentSchemas[id], spec.Args) {

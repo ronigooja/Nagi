@@ -12,6 +12,9 @@ final class LocalizationTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent()
         let bytes = try Data(contentsOf: root.appendingPathComponent("docs/design/localization-contract.json"))
         let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        let producers = try XCTUnwrap(fixture["producer_ids"] as? [String: [String: String]])
+        let native = NativeMessageCatalog.signatures.mapValues { signature in signature.mapValues { $0.rawValue } }
+        XCTAssertEqual(producers, native, "Shared producer IDs/signatures must match the native descriptor registry")
         let ids = try XCTUnwrap(fixture["initial_ids"] as? [String: [String: Any]])
         for (id, spec) in ids {
             let signature = try XCTUnwrap(spec["args"] as? [String: String])

@@ -3,7 +3,8 @@
 
 Maintainer command only; building/running Nagi never executes this script.
 Usage: python3 macos/NagiApp/Tools/update-message-catalog.py [CATALOG_DIRECTORY]
-All descriptor modules except interactive menu resources are consumed. Human-only
+All producer modules and menu.runner descriptors are consumed. Local interactive
+menu resources remain frontend-owned. Human-only
 Go printf templates are excluded until migrated to the named descriptor contract.
 """
 import json
@@ -34,11 +35,11 @@ texts = {
 excluded = []
 for schema_file in sorted(catalogs.glob('*.arguments.json')):
     module = schema_file.name.removesuffix('.arguments.json')
-    if module == 'menu':
-        continue
     schema = json.loads(schema_file.read_text())
     translations = {lang: json.loads((catalogs / lang / (module + '.json')).read_text()) for lang in texts}
     for message_id, signature in schema.items():
+        if module == 'menu' and not message_id.startswith('menu.runner.'):
+            continue
         if any(kind not in ('string', 'number', 'boolean') for kind in signature.values()):
             raise ValueError(f'{message_id}: unsupported scalar signature')
         values = {lang: entries[message_id] for lang, entries in translations.items()}
@@ -57,6 +58,10 @@ for schema_file in sorted(catalogs.glob('*.arguments.json')):
         signatures[message_id] = signature
         for lang, value in values.items():
             texts[lang][message_id] = value
+fixture_path = app.parents[1] / 'docs/design/localization-contract.json'
+fixture = json.loads(fixture_path.read_text())
+fixture['producer_ids'] = dict(sorted(signatures.items()))
+fixture_path.write_text(json.dumps(fixture, ensure_ascii=False, indent=2) + '\n')
 resources.joinpath('MessageSignatures.json').write_text(json.dumps(signatures, ensure_ascii=False, indent=2, sort_keys=True) + '\n')
 for lang, entries in texts.items():
     lines = ['/* Named CLI/backend descriptors. Refresh with Tools/update-message-catalog.py. */']
