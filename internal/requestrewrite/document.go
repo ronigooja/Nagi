@@ -479,3 +479,26 @@ func quote(s string) string {
 	b.WriteByte('"')
 	return b.String()
 }
+
+// ValidateRuleJSON validates a standalone rule's JSON shape with the document
+// parser. Semantic validation (including script references) still requires
+// Compile with the complete document. Values never appear in returned errors.
+func ValidateRuleJSON(data []byte) error {
+	if len(data) == 0 || len(data) > MaxDocumentBytes {
+		return &Error{Code: "rewrite_limit"}
+	}
+	value, e := decodeJSON(data)
+	if e != nil {
+		return e
+	}
+	if e = schema(map[string]any{"version": json.Number("2"), "enabled": false, "rules": []any{value}, "scripts": []any{}}); e != nil {
+		return e
+	}
+	var rule Rule
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&rule) != nil {
+		return invalid()
+	}
+	return nil
+}

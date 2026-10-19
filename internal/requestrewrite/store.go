@@ -172,3 +172,13 @@ func RemoveProfile(config, profile string) error {
 	defer unlock()
 	return d.remove(profile + ".json")
 }
+
+// SaveVersion atomically checks the expected version under the document lock,
+// then persists and activates the candidate using the ordinary rollback path.
+// The caller must hold the ordinary configuration lock, as for Save.
+func (s Store) SaveVersion(ctx context.Context, candidate *Snapshot, expected string) (SaveResult, error) {
+	if expected == "" {
+		return SaveResult{}, invalid()
+	}
+	return s.save(ctx, candidate, expected)
+}
