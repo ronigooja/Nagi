@@ -118,9 +118,9 @@ func TestTrafficMutationDispatchOnceAfterReads(t *testing.T) {
 		}
 		return 0
 	})
-	selection := "1\n3\nq\n"
+	selection := "1\n2\nq\n"
 	if runtime.GOOS == "darwin" {
-		selection = "2\n3\nq\n"
+		selection = "2\n2\nq\n"
 	}
 	var out bytes.Buffer
 	if code := RunPage(context.Background(), NewSession(runner, strings.NewReader(selection), &out), TrafficPage()); code != 0 {

@@ -280,9 +280,9 @@ func TestTrafficUnknownStatusPreservesActionsAndRedacts(t *testing.T) {
 	runner := &fakeRunner{results: map[string]Result{
 		"tun status": {Error: &CLIError{Message: "failed https://secret.example/token"}},
 	}}
-	selection := "1\n3"
+	selection := "1\n2"
 	if runtime.GOOS == "darwin" {
-		selection = "2\n3" // System proxy settings precede TUN.
+		selection = "2\n2"
 	}
 	var out bytes.Buffer
 	RunPage(context.Background(), NewSession(runner, strings.NewReader(selection+"\nq\n"), &out), TrafficPage())

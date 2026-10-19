@@ -3,6 +3,7 @@ package menu
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -274,7 +275,7 @@ func TestSubscriptionMenuAddAndRemoveJourney(t *testing.T) {
 func TestProfileFailedReadPreservesImportAndClearsResources(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{"profile\x00list": {Code: 1, Error: &CLIError{Message: "cannot read profiles"}}}}
 	view, err := profileListPage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
-	if err == nil || len(view.Items) != 0 || len(view.Actions) != 1 || view.Actions[0].Navigate == nil {
+	if err == nil || len(view.Items) != 0 || len(view.Actions) != 2 || view.Actions[0].Next == nil || view.Actions[1].Navigate == nil {
 		t.Fatalf("view=%+v err=%v", view, err)
 	}
 }
@@ -445,6 +446,64 @@ func TestSettingsRefreshFailureDropsStateDependentActions(t *testing.T) {
 		RunPage(context.Background(), NewSession(runner, strings.NewReader(tc.input), &out), tc.page)
 		if strings.Count(out.String(), tc.staleLabel) != 1 || !strings.Contains(out.String(), "unavailable") || strings.Contains(out.String(), "private-token") {
 			t.Fatalf("%s stale action or unredacted error: %s", tc.page.Title, out.String())
+		}
+	}
+}
+
+func TestProfileFixedActionsRemainReachableOnEveryResourcePage(t *testing.T) {
+	for _, count := range []int{0, 1, 10, 11, 21} {
+		for _, failed := range []bool{false, true} {
+			if failed && count != 0 {
+				continue
+			}
+			for _, action := range []string{"configuration", "import"} {
+				t.Run(fmt.Sprintf("count=%d/failed=%v/%s", count, failed, action), func(t *testing.T) {
+					var names []string
+					for n := 0; n < count; n++ {
+						names = append(names, fmt.Sprintf("profile-%02d", n))
+					}
+					result := Result{Data: map[string]any{"profiles": names}}
+					if failed {
+						result = Result{Code: 1, Error: &CLIError{Message: "cannot read profiles"}}
+					}
+					last := 0
+					if count > 0 {
+						last = (count - 1) / pageSize
+					}
+					for targetPage := 0; targetPage <= last; targetPage++ {
+						runner := &fakeRunner{results: map[string]Result{"profile list": result}}
+						input := strings.Repeat("13\n", targetPage)
+						remaining := count - targetPage*pageSize
+						if remaining > pageSize {
+							remaining = pageSize
+						}
+						choice := remaining + 1
+						if action == "configuration" {
+							input += fmt.Sprintf("%d\n1\n\n0\n0\n", choice)
+						} else {
+							input += fmt.Sprintf("%d\nnew-profile\n/tmp/fictitious-profile.yaml\n0\n0\n", choice+1)
+						}
+						var out bytes.Buffer
+						RunPage(context.Background(), NewSession(runner, strings.NewReader(input), &out), profileListPage())
+						want := []string{"config", "show"}
+						if action == "import" {
+							want = []string{"profile", "import", "new-profile", "/tmp/fictitious-profile.yaml"}
+						}
+						found := 0
+						for _, call := range runner.calls {
+							if reflect.DeepEqual(call, want) {
+								found++
+							}
+						}
+						if found != 1 || strings.Contains(out.String(), "Choose a listed number") || strings.Count(out.String(), "\nProfiles\n") < 2 {
+							t.Fatalf("page=%d action dispatches=%d calls=%v output=%s", targetPage, found, runner.calls, &out)
+						}
+						if !strings.Contains(out.String(), fmt.Sprintf("%d. Current Configuration\n%d. Import a profile", choice, choice+1)) {
+							t.Fatalf("page=%d fixed action order: %s", targetPage, &out)
+						}
+					}
+				})
+			}
 		}
 	}
 }

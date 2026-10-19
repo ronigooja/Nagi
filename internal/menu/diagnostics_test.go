@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -168,10 +169,11 @@ func TestAdvancedRetainsAllFeatureEntrypoints(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"Current Configuration", "DNS", "Routing Rules", "Request Rewrite", "Connections", "Start at Login", "Nagi Maintenance"}
+		want := []string{"Routing Rules", "DNS", "Request Rewrite", "Start at Login"}
 		if goos == "darwin" {
 			want = append(want, "Privileged helper")
 		}
+		want = append(want, "Nagi Maintenance")
 		if len(view.Items) != 0 || len(view.Actions) != len(want) {
 			t.Fatalf("%s: %+v", goos, view)
 		}
@@ -189,7 +191,7 @@ func TestMaintenancePlatformActionsAndOrder(t *testing.T) {
 		want []string
 	}{
 		{goos: "linux", want: []string{"Update Nagi", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
-		{goos: "darwin", want: []string{"Install menu bar App", "Uninstall menu bar App", "Update Nagi", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
+		{goos: "darwin", want: []string{"Update Nagi", "Install menu bar App", "Uninstall menu bar App", "Uninstall Nagi", "Uninstall Nagi and clear user data"}},
 	} {
 		page := maintenancePageForOS(tt.goos)
 		view, err := page.Load(context.Background(), nil)
@@ -202,6 +204,12 @@ func TestMaintenancePlatformActionsAndOrder(t *testing.T) {
 		for i, label := range tt.want {
 			if view.Actions[i].Label != label {
 				t.Errorf("%s action %d = %q, want %q", tt.goos, i, view.Actions[i].Label, label)
+			}
+			runner := &fakeRunner{}
+			var out bytes.Buffer
+			RunPage(context.Background(), NewSession(runner, strings.NewReader(fmt.Sprintf("%d\n0\n", i+1)), &out), page)
+			if !reflect.DeepEqual(runner.calls, [][]string{view.Actions[i].Args}) || strings.Contains(out.String(), "Type yes") {
+				t.Fatalf("%s %s numeric dispatch: calls=%v output=%s", tt.goos, label, runner.calls, &out)
 			}
 		}
 	}
