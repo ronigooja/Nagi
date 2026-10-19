@@ -1,6 +1,8 @@
 # 0010 TUN request rewriting through an unprivileged Nagi service
 
-Status: accepted
+Status: superseded
+
+Superseded by [0011: rule-driven content rewrite](0011-rule-driven-content-rewrite.md). This record preserves the original request-only decision and rationale.
 
 This decision records the accepted ownership and security boundaries for opt-in HTTP/HTTPS request rewriting. The domain library, service, coordinator, helper and CLI are implemented against the published engine commit now recorded in `engine.lock`; Nagi release publication and UI/platform acceptance remain pending. Complete interfaces, semantics, lifecycle, coverage limits and acceptance tasks belong to the [request rewrite design](../design/request-rewrite.md).
 

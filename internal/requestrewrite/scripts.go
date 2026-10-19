@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"github.com/ronigooja/Nagi/internal/rewritescript"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -38,7 +40,7 @@ func (s *Snapshot) executeScript(ctx context.Context, o Operation, stage string,
 	run := scriptExecutor.run
 	scriptExecutor.RUnlock()
 	if run == nil {
-		return nil, &Error{Code: "rewrite_script_unavailable"}
+		run = isolatedScript
 	}
 	raw, e := run(ctx, script.Source, input)
 	if e != nil {
@@ -293,4 +295,41 @@ func (s *Snapshot) runMessageScript(ctx context.Context, r Rule, o Operation, st
 	}
 	current.Body, e = scriptBody(m, current.Body)
 	return current, e
+}
+
+func isolatedScript(ctx context.Context, source string, input json.RawMessage) (json.RawMessage, error) {
+	out, e := rewritescript.Execute(ctx, source, input)
+	if e == nil {
+		return out, nil
+	}
+	code := "rewrite_script_execution"
+	switch {
+	case errors.Is(e, rewritescript.ErrBusy), errors.Is(e, rewritescript.ErrLimit):
+		code = "rewrite_limit"
+	case errors.Is(e, rewritescript.ErrTimeout):
+		code = "rewrite_script_timeout"
+	case errors.Is(e, rewritescript.ErrCanceled):
+		code = "rewrite_cancelled"
+	case errors.Is(e, rewritescript.ErrOutput):
+		code = "rewrite_script_output"
+	}
+	return nil, &Error{Code: code}
+}
+
+// PrepareScripts warms the fixed guest before traffic admission. No script is
+// run during preparation, and no external capabilities are instantiated.
+func (s *Snapshot) PrepareScripts(ctx context.Context) error {
+	for _, r := range s.doc.Rules {
+		if r.Enabled {
+			for _, o := range r.Operations {
+				if o.Op == "script" {
+					if e := rewritescript.Prepare(ctx); e != nil {
+						return &Error{Code: "rewrite_script_execution"}
+					}
+					return nil
+				}
+			}
+		}
+	}
+	return nil
 }

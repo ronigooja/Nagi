@@ -22,6 +22,7 @@ import (
 // RewriteStatus reports evidence separately from persisted intent. No endpoint,
 // transport credential or application content is included in this interface.
 type RewriteStatus struct {
+	ConfigVersion         int              `json:"config_version"`
 	Profile               string           `json:"profile"`
 	EnabledIntent         bool             `json:"enabled_intent"`
 	Actual                string           `json:"actual"`
@@ -111,7 +112,7 @@ func requestRewriteStatus(ctx context.Context, paths nagiruntime.Paths) (Rewrite
 	return rewriteStatusFor(ctx, paths, name)
 }
 func rewriteStatusFor(ctx context.Context, paths nagiruntime.Paths, name string) (RewriteStatus, error) {
-	out := RewriteStatus{Profile: name, Actual: "unavailable", Recovery: "nagi request-rewrite disable"}
+	out := RewriteStatus{ConfigVersion: 2, Profile: name, Actual: "unavailable", Recovery: "nagi request-rewrite disable"}
 	snapshot, err := (rewrite.Store{ConfigDir: paths.ConfigDir, Profile: name}).Load()
 	if err != nil {
 		code := "rewrite_invalid"

@@ -2,7 +2,7 @@
 # Isolated opt-in source fixture; never starts an installed engine or OS TUN.
 set -euo pipefail
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-expected_engine=d7c0a70776e4e698bee43f2044e7fa91d2d67d7b
+expected_engine=84369733b97b897a04a70e507183eda22e38e0c6
 if [[ -z "${MIHOMO_DIR:-}" ]]; then
     echo 'Set MIHOMO_DIR to the committed request-rewrite engine checkout' >&2
     exit 2

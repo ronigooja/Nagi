@@ -188,6 +188,9 @@ func (s *Snapshot) PreviewSensitive(ctx context.Context, input []byte) (PreviewR
 	if d.Decode(&in) != nil {
 		return out, invalid()
 	}
+	if e := s.PrepareScripts(ctx); e != nil {
+		return out, e
+	}
 	req, e := in.Request.request()
 	if e != nil {
 		return out, e

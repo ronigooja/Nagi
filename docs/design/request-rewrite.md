@@ -1,329 +1,313 @@
-# TUN request rewrite
+# Rule-driven content rewrite
 
-Status: the Nagi domain library, private goproxy service, persistent ordinary-UID child/supervisor, lifecycle coordinator, privileged helper allowlist and complete CLI are implemented. macOS user trust commands are implemented but native OS trust acceptance remains unverified; Linux trust installation/removal is manual. Terminal menu forms are implemented and verified on Linux. The macOS UI has a source implementation and independent source review; native Swift build/tests, packaging and interaction remain unverified. The [verification matrix](../development/request-rewrite-acceptance.md) records combined local evidence and remaining platform/release gates. Published engine commit `d7c0a70776e4e698bee43f2044e7fa91d2d67d7b` supplies the v1 protocol and immutable privileged owner binding and is now recorded in `engine.lock`. A fresh fetch of the declared repository/ref and matching locked build verify source availability; Nagi release publication and native acceptance remain pending. Use the [development fixtures](../development/build-and-test.md#request-rewrite-coordinator) for isolated source verification. Examples use fictitious `.example` domains and symbolic secrets. [Decision 0010](../decisions/0010-tun-request-rewrite.md) records the accepted boundary; the [CLI reference](../reference/cli.md#tun-request-rewrite) defines implemented syntax.
+This document defines the current v2 rule document, deterministic transformations,
+private engine protocol and transaction boundaries. Nagi owns content operations,
+configuration, script execution, persistence and lifecycle. Mihomo owns TUN
+capture, DNS, original identity, routing and upstream connections. Native macOS
+trust, TUN and UI acceptance must be recorded separately from software fixtures;
+see the [verification record](../development/request-rewrite-acceptance.md).
+Command syntax is in the [CLI reference](../reference/cli.md#tun-request-rewrite).
+[Decision 0011](../decisions/0011-rule-driven-content-rewrite.md) records the boundary.
 
-## Ownership and scope
-
-Mihomo owns TUN ingress, DNS, protocol and domain identification, source/process identity, routing, outbound protocols, and forwarding. Nagi owns explicit domain consent, request rules, request content transformation through goproxy, CA management, configuration persistence, process supervision, and operation failures. Request content transformation is a narrow accepted extension to Nagi's management boundary; it does not introduce a second network engine or routing matcher.
-
-A single mihomo instance branches authorized application TCP traffic after TUN identification and before outbound routing into an unprivileged, persistent internal Nagi CLI subprocess. That child uses goproxy as an HTTP parser and MITM library and sends every upstream connection back to the same engine. Rule, Global, and Direct modes change final outbound selection only: all three retain the rewrite branch. Ordinary HTTP/SOCKS listeners, internal DNS (including DoH), healthchecks/provider downloads, proxy-node connections, and already reinjected traffic skip it. Source profiles and ordinary routing rules do not enable or authorize rewriting.
-
-Rewriting defaults to off and requires a verified, actually running TUN, not merely `tun.enable` in a file. Only HTTP request headers, URL components, and JSON request bodies are rewritten; responses and arbitrary byte streams are outside v1. There is no HTTP/3 engine. Identified QUIC for an authorized domain is blocked to encourage TCP fallback; unrelated UDP and QUIC pass through ordinary engine routing. Unknown domains, ECH-hidden names, missing fake-IP mappings, unsupported protocols, client certificate requirements, and certificate pinning limit coverage. Unknown traffic is forwarded normally, never claimed to have been rewritten. A recognized authorized HTTP/TLS request that fails interception is blocked by default; there is no silent direct or non-intercepting fallback.
-
-## Verified baseline and dependency gate
-
-The historical pre-implementation audit baseline Nagi commit is `50d3acd409727d2131e172bb0d4ab047cccf3a47`. Its `engine.lock` names `https://github.com/ronigooja/mihomo.git`, ref `main`, commit `9a449c5797f7c855067f15be69fa659d13f6ce88`. Inspect that object rather than a developer checkout's current HEAD. At that object:
-
-- `listener/sing_tun/server.go` installs TUN inbound identity; `tunnel/tunnel.go:handleTCPConn` preprocesses fake-IP metadata, sniffs, then calls `resolveMetadata` and the selected adapter's `DialContext`.
-- `resolveMetadata` currently performs some process lookup lazily during routing. T2 must capture that identity before handing traffic to the child, and must prevent reinjection from looking up the rewrite process instead.
-- `constant/metadata.go` carries source, destination, inbound, UID, process/path, and sniffed hostname. `INNER` identifies internal traffic. These are engine-owned facts, not client-supplied claims.
-- `hub/route/server.go` and `hub/route/configs.go` provide existing controller/config activation machinery, but no v1 request rewrite capability, context handoff, or authenticated reinjection. Existing sniffer/DNS support alone cannot implement this design. Existing HTTP/TLS sniffers extract Host/SNI, not complete verified protocol classification; TLS record fragmentation, HTTP method limitations, missing SNI and sniffer skip lists require a new bounded classifier independent of ordinary sniffer configuration. TUN DNS hijack runs before the generic tunnel. QUIC sniffing at this pin recognizes selected draft29/v1 Initial packets only; it is not HTTP/3 parsing or complete version coverage.
-
-Freeze the planned direct dependency to `github.com/elazarl/goproxy v1.9.2`, tag object/commit `a05e9220be0b6fd84566bf0d5f5880be94f3db36` (verified from the tracked release). Its `go.mod` declares Go `1.24.0`, `golang.org/x/net v0.50.0`, and `golang.org/x/text v0.34.0`; therefore the future Nagi dependency change requires Go **1.24.0 or newer**. T4 uses this release with `golang.org/x/net v0.50.0`, `golang.org/x/text v0.34.0` and `golang.org/x/sys v0.41.0`. Available development Go is `1.26.4 linux/arm64`. T4 updates the module locks, shared build/release toolchain check and build documentation together. Module verification and supported target cross-compilation are part of its checks. Do not substitute an unreleased checkout or copy untracked audit files.
-
-Release source inspection is evidence of available hooks, not proof of Nagi compatibility:
-
-| Release evidence | Required adapter and verification gate |
-| --- | --- |
-| `proxy.go:NewProxyHttpServer` uses `ProxyFromEnvironment`, a misleadingly named `tlsClientSkipVerify` whose value in `certs.go` is an empty (verifying) TLS config, and environment-derived `ConnectDial`. | Replace the transport, `ConnectDial`, and all dial paths explicitly. Set `Proxy: nil`, retain upstream TLS verification against system roots and hostname, and dial only authenticated engine reinjection. `certs.go` also has a separate MITM server `defaultTLSConfig` with `InsecureSkipVerify: true`; do not confuse it with the outbound transport. Never use the built-in CA. |
-| `https.go` shares `ConnectMitm` for plaintext and TLS based on initial bytes; `ConnectHTTPMitm` is deprecated. | Carry explicit engine protocol classification, verify bytes against it, preserve buffered bytes, and reject mismatches rather than guess or force TLS on HTTP. |
-| `http2.go` has per-stream hooks and copies `UserData`/`RoundTripper`; `AllowHTTP2` defaults false. | Keep HTTP/2 disabled until concurrent streams, authority changes, cancellation, flow control, rule snapshots, and error redaction pass adapter tests. Negotiate HTTP/1.1 initially; h2-only clients may fail. No universal HTTP/2 promise. |
-| HTTP/2 paths use `context.Background()` and some `http.Error(...err.Error()...)`; HTTP/1 paths also log context. | Bound handshakes and reads, propagate original-close cancellation, and sanitize every response/error path. A logger wrapper alone cannot redact client error bodies; disable the path or adapt it before exposure. |
-| `websocket.go` uses hijacking and relays buffered bytes; HTTP/2 removes hop-by-hop fields. | Validate HTTP/1 WebSocket handshake rewriting, buffered first frame, bidirectional closure and shutdown before claiming upgrade support. No frame rewriting, arbitrary Upgrade, h2c, or extended CONNECT in v1. Unsupported upgrades fail with a sanitized error on authorized traffic. |
-
-## Pipeline and consent
+## Traffic and ownership
 
 ```text
-application -> mihomo TUN -> identify + capture original context
-                              | unauthorized/unknown/internal -> ordinary routing
-                              | authorized HTTP/TLS
-                              v
-                    authenticated CONNECT handoff
-                              v
-                    unprivileged rewrite child
-                    parse -> authorize -> snapshot -> edit -> commit
-                              |
-                    authenticated CONNECT reinjection
-                              v
-                    mihomo restore context -> resolve new target -> route -> outbound
+application -> mihomo TUN -> identified HTTP/TLS for intercept_domains
+                                  |
+                        authenticated handoff
+                                  v
+                  ordinary-UID Nagi rewrite child
+                 request -> one upstream send -> response
+                       | WebSocket: two message streams
+                       v
+                 authenticated engine reinjection
+                       v
+              mihomo original identity -> routing -> outbound
 ```
 
-Authorization belongs to a separate per-profile rewrite document, never to routing rule syntax or a subscription. A domain is either exact (`api.service.example`) or an explicit subdomain wildcard (`*.service.example`). The wildcard matches one or more labels below that suffix and does not match `service.example`; authorize the apex separately. Normalize ASCII DNS names to lowercase with a single trailing dot removed; reject URLs, IP literals, ports, userinfo, control characters, empty labels, bare/public suffix wildcards, and implicit suffix matching. International names must be supplied as validated ASCII A-labels. No global `*` is accepted. Authorization is checked both at engine branch selection and against each HTTP request's original authority, including keep-alive and HTTP/2 coalescing. A new unauthorized authority inside an intercepted connection is blocked, not treated as consent.
+Rules provide interception scope. Every rule specifies an exact ASCII domain or
+an explicit `*.service.example` pattern; the wildcard matches one or more labels
+and excludes the apex. Normalize case and one trailing dot. Reject IP literals,
+URLs, ports, Unicode names, malformed A-labels and public-suffix wildcards. No
+independent domain authorization document exists.
 
-Cross-domain or scheme/port changes require a per-rule explicit `redirect_consent` destination list in addition to destination domain authorization in the same profile. The new destination must satisfy both lists; a rule cannot expand them at runtime. Removing destination authorization invalidates referencing rules. For example changing `api.service.example` to `mirror.service.example` requires separately authorizing `mirror.service.example` and listing it in that rule's consent. Same-domain path/query changes need no redirect consent; any scheme or port change does. Validate each operation syntactically as it runs; validate redirect consent and destination authorization against the final committed target only. Intermediate URL values cannot cause DNS, dialing or any upstream write. If the final target differs from the original, it must satisfy `redirect_consent` of **every executed matching rule containing a scheme/host/port operation**, even if a later rule overwrites that operation or it was a no-op. Header/path/query/JSON-only rules do not participate. If the final target equals the original target, redirect consent is unnecessary for all rules. This conservative contributor set is frozen for v1. The destination port must be in consent's explicit port list; only `http` and `https` schemes are supported. No automatic following of upstream redirects: return the response to the client and authorize any subsequent request independently. A target change updates URL authority, `Host`, engine target and TLS SNI together, discards old target IP/DNS/sniff-derived routing fields (including destination GeoIP/ASN caches), and invokes mihomo routing afresh with original source identity.
+`intercept_domains` is the sorted, unique union of enabled rules' domains across
+all four stages. `target_domains` adds the `redirect_consent` domains of enabled
+request rules. Each set has at most 256 entries. Target-only names do not cause
+interception or QUIC blocking. HTTPS interception occurs by domain before method,
+path or other HTTP predicates can be inspected; those predicates do not limit
+TLS decryption itself.
 
-## Frozen v1 engine control contract
+Only actual TUN application TCP traffic enters this branch. Ordinary proxy
+listeners, internal DNS, provider downloads, health checks, node connections and
+reinjected traffic retain mihomo's normal paths. Rule, Global and Direct modes
+all retain the branch and choose outbound routing after reinjection. Mihomo
+blocks recognized QUIC only for interception domains to encourage TCP fallback.
+Unknown UDP, ECH-hidden names, missing fake-IP mappings, certificate pinning and
+client certificates limit coverage. There is no additional HTTP/3 implementation.
 
-These v1 endpoints live on the existing private controller, authenticated through its existing transport/helper boundary. They are not public TCP controller routes. The helper exposes only these exact methods and bounded schemas to its bound session UID. Unknown fields, duplicate keys, multiple JSON values, and version mismatches are rejected before mutation. Common engine error body is `{"error":{"code":"rewrite_invalid","field":"version","message":"Unsupported rewrite protocol"}}`; messages never echo supplied values. HTTP codes: 400 schema, 401 channel authentication, 403 policy/UID, 409 generation/state, 413 bound exceeded, 422 unsupported capability/runtime, 503 unavailable. Success returns JSON except successful CONNECT tunnels.
+## Document and limits
 
-`GET /request-rewrite/capabilities` returns:
+A complete private JSON document has exactly these top-level fields:
 
 ```json
 {
-  "versions": [1],
-  "tun_only": true,
-  "original_context": true,
-  "reinjection": true,
-  "quic_domain_block": true,
-  "max_contexts": 1024,
-  "max_streams_per_context": 64,
-  "context_idle_seconds": 60,
-  "context_max_seconds": 3600
-}
-```
-
-A 404 or absent required boolean rejects enable with an upgrade instruction. No guessed compatibility by version string. `quic_domain_block` means authorized-domain recognition only, not comprehensive QUIC/ECH visibility. V1 requires all listed booleans and at least the listed bounds. Lower deployments may reject enable with `rewrite_limit`; do not silently change negotiated behavior.
-
-`PUT /request-rewrite/session` prepares a disabled branch and returns its engine epoch and reinjection address. Example control body (all secrets below are symbolic placeholders):
-
-```json
-{
-  "version": 1,
-  "generation": "11111111111111111111111111111111",
-  "previous_generation": null,
-  "owner_uid": 1000,
-  "handoff_addr": "127.0.0.1:43101",
-  "child_transport_cert": "<base64-DER-ephemeral-child-certificate-placeholder>",
-  "handoff_secret": "<random-32-byte-base64url-placeholder>",
-  "reinjection_secret": "<different-random-32-byte-base64url-placeholder>",
-  "domains": ["api.service.example", "mirror.service.example"],
-  "rule_version": "sha256:<canonical-document-digest-placeholder>",
-  "block_authorized_quic": true
-}
-```
-
-`generation` and `engine_epoch` are fresh 128-bit lowercase hexadecimal IDs. Secrets are independently generated 256-bit random values encoded unpadded base64url. Session fields are required; `child_transport_cert` is the public ephemeral transport certificate described below, never a private key. The response includes the engine public transport certificate, delivered to the child over its startup pipe before probing. `owner_uid` must equal authenticated helper/session identity, never authorize arbitrary UID. Loopback IPv4 addresses only, ephemeral ports 1–65535; reject unspecified, public and name-based addresses. Engine binds its own `127.0.0.1:0` reinjection listener and returns `{"version":1,"generation":"11111111111111111111111111111111","engine_epoch":"22222222222222222222222222222222","reinjection_addr":"127.0.0.1:43102","engine_transport_cert":"<base64-DER-ephemeral-engine-certificate-placeholder>","state":"prepared"}`. Repeating an identical prepare for the same generation is idempotent. At most one active (or blocked/draining) session and one prepared candidate may coexist. `previous_generation` is required and must match the current active/blocked generation, or null if none exists. A new candidate can be prepared/probed while the old branch remains active or blocked; failed preparation never removes that branch. No second active generation is allowed. A candidate uses its own registered child, secrets and certificate; the coordinator may briefly own two children during handoff. Session/control JSON is limited to 256 KiB and never logged.
-
-`POST /request-rewrite/probe` with `{"version":1,"generation":"11111111111111111111111111111111"}` exercises an authenticated synthetic handoff and reinjection without target DNS or outbound dialing; success `{"ready":true}`. A probe creates only a one-use probe context that cannot dial a destination. It verifies both process and channel readiness, not network health. The child must also report its loaded `rule_version` to the CLI.
-
-`PUT /request-rewrite/branch` takes `{"version":1,"generation":"11111111111111111111111111111111","enabled":true}` and atomically publishes the prepared domain policy only when TUN is actually active and the probe succeeded. For a candidate, `enabled:true` atomically replaces the matching previous generation's policy and loaded rule version, revokes/closes **all** old contexts/pools and publishes the candidate without a forwarding gap. It requires a fresh successful probe and heartbeat for the candidate. Old in-flight requests may be interrupted; v1 does not migrate or continue old contexts. The old child is then stopped. `enabled:false` on the active generation atomically removes the branch and QUIC block and stops context allocation before draining. Returns the status object below. Changing a prepared session never enables it. A candidate cannot replace an unrelated active generation: both prepare and publish compare its required `previous_generation` (null on first enable) against the current active/blocked generation. Mutations compare generation, serialize with config activation/TUN lifecycle, and complete within 5 seconds or return a known/uncertain result; a timed-out mutation requires a status query, never blind retry.
-
-`DELETE /request-rewrite/session?generation=11111111111111111111111111111111` refuses while enabled, then closes all contexts/listeners, zeroes secrets, and returns `{"closed":true}`. A prepared candidate may be deleted without disturbing the active/blocked branch. It is idempotent for that closed generation; stale generations cannot close a new session. `GET /request-rewrite/status` returns no endpoints, tokens or request details:
-
-```json
-{
-  "version": 1,
-  "generation": "11111111111111111111111111111111",
-  "engine_epoch": "22222222222222222222222222222222",
-  "state": "active",
-  "branch_enabled": true,
-  "tun_running": true,
-  "rule_version": "sha256:<canonical-document-digest-placeholder>",
-  "contexts": 1,
-  "streams": 1,
-  "last_error": null
-}
-```
-
-Engine states are `absent`, `prepared`, `active`, `blocked`, `draining`. Absent status keeps version/state/branch/TUN/count/error fields and omits session identity/version fields. `last_error` is null or a fixed redacted code, never raw text. Child readiness loss moves `active -> blocked`: the branch stays installed and rejects recognized authorized targets while other traffic routes normally. Restoring service stages and atomically publishes a newly probed generation against the blocked generation; the old policy stays blocking until replacement succeeds. It does not reuse old contexts or secrets. Status adds optional `prepared_generation` when a candidate exists; the remaining fields always describe the active/blocked generation, or the prepared one if no active generation exists.
-
-No user MITM CA/private key or arbitrary user path belongs in engine configuration. The helper accepts only the bound UID's registered per-run loopback addresses and public transport certificate, writes its own root-private session snapshot and injects it through its restricted control path. User YAML and subscriptions cannot supply transport endpoints, credentials, context or skip flags. Session creation is an authenticated runtime operation; generated YAML cannot turn it on. T2 supplies the restricted engine policy and exact schema; The helper implements that endpoint/schema allowlist and binds the authenticated session owner as described below. Root writes only its own private runtime snapshots and channels, and cannot read arbitrary files requested by the child. Secrets reach the child through inherited pipes or owner-only runtime files (directories `0700`, files `0600`, no-follow creation); root-owned copies use root-private paths. Never put secrets in argv, environment, URLs, profile exports, controller logs, or source YAML. Remove startup files after reading, zero on shutdown, and rotate after any engine/child restart.
-
-## Frozen v1 data channels and context lifetime
-
-Both loopback listeners first require TLS 1.3 with mutual certificate authentication before exchanging any HTTP/authentication/context/application bytes. This transport TLS is distinct from intercepted application TLS and the user CA. The child and engine each generate one ephemeral, self-signed P-256 transport certificate/key per generation, valid no longer than 24 hours, with both client/server EKUs and SAN `nagi-rewrite-child.internal` or `nagi-rewrite-engine.internal` respectively. Keys stay in the generating process. The coordinator exchanges their public DER certificates via authenticated control and private child pipes. Each peer trusts only the exact received certificate, checks its role SAN/validity and pins its SPKI; no system-root fallback or optional verification. Dial loopback addresses directly while validating that fixed role SAN. A port-reuse attacker cannot pass the handshake or receive credentials/plaintext. A child cert is usable only for its registered UID/generation. The persistent coordinator schedules a fresh staged generation before certificate expiry (at least 5 minutes beforehand), using the same probe/CAS cutover; if replacement fails or the certificate expires, recognized authorized traffic stays blocked until explicit recovery or successful replacement. Certificates are never accepted after expiry, and clock errors fail closed.
-
-Inside transport TLS, both listeners accept HTTP/1.1 CONNECT, with a 16 KiB total header limit, 5-second header/handshake timeout and no pre-auth body parsing. The sole non-CONNECT exception is the heartbeat endpoint below. Across active and candidate listeners, at most 64 pending TLS/header handshakes may exist per engine/user run; excess accepts close immediately before allocating goroutines/context state. The 5-second deadline bounds the complete TLS-plus-header stage, not each stage separately. No goproxy handler sees a request before this gate. `Authorization: Bearer ...` authenticates the channel in constant time. Wrong secret or non-loopback peer is rejected and closed before issuing any context or reaching goproxy. A loopback socket is not authentication. Internal fields are parsed and consumed by a dedicated adapter; no internal header can become an origin request header.
-
-Engine-to-child handoff example:
-
-```http
-CONNECT api.service.example:443 HTTP/1.1
-Host: api.service.example:443
-Authorization: Bearer <handoff-secret-placeholder>
-Nagi-Rewrite-Version: 1
-Nagi-Rewrite-Generation: 11111111111111111111111111111111
-Nagi-Rewrite-Epoch: 22222222222222222222222222222222
-Nagi-Rewrite-Context: <random-256-bit-context-placeholder>
-Nagi-Rewrite-Protocol: tls
-
-```
-
-`Nagi-Rewrite-Protocol` is `http` or `tls`, determined by mihomo. All displayed CONNECT messages occur inside the mutually authenticated transport TLS. After `200 Connection Established`, the bytes are the original plaintext HTTP or original TLS stream respectively. Plaintext HTTP uses `ConnectMitm` with an explicit plaintext adapter; TLS uses the per-user CA after verification of the classification. The adapter preserves prefetched bytes and rejects a TLS/plaintext mismatch. Reject duplicate/internal unknown fields and inconsistent CONNECT authority/Host. Application-supplied `Nagi-Rewrite-*` and proxy credentials are stripped before origin delivery and cannot supply context. The handoff carries no process path or UID: the engine retains them privately. A probe handoff uses the same headers plus `Nagi-Rewrite-Probe: 1`, target `nagi-rewrite-probe.invalid:443`, and protocol `http`. The child echoes a synthetic upstream CONNECT with the same probe header/context. Engine accepts only that target for a probe context and returns 200 without DNS or dialing; child exchanges a fixed `NAGI-REWRITE-PROBE-1` payload which the engine echoes then closes. Probe-only contexts expire after 5 seconds and cannot open any real target. Ordinary contexts reject the probe header.
-
-Each context binds an unpredictable 256-bit token to engine epoch, generation, owner UID, original connection and metadata. Capture original process/path, UID, source address/port, destination, TUN inbound identity, and domain attribution before the branch; unavailable process identity stays explicitly unknown. Reinjection may change only destination host/port and requires engine reauthorization against the session's destination domains. The protocol never accepts `SpecialProxy`, `SpecialRules` or equivalent outbound overrides; a target change clears destination IP/DNS mode/sniff hostname/GeoIP/ASN/remote-destination caches before native matching. Restore original inbound/source/process fields and mark an internal, unforgeable skip-branch flag, separate from metadata visible to normal listeners. Never accept a client-specified process, UID, inbound, outbound selection, or skip flag. Do not label the restored application connection `INNER`, which would change routing semantics. The engine freezes the process-lookup-completed state even if captured identity is unknown: reinjection never looks up the child. Preserve source GeoIP/ASN and clear only target-derived fields on a target change. Original target remains in private context for audit-free rollback; routing uses the new target.
-
-Child-to-engine upstream open:
-
-```http
-CONNECT mirror.service.example:443 HTTP/1.1
-Host: mirror.service.example:443
-Authorization: Bearer <reinjection-secret-placeholder>
-Nagi-Rewrite-Version: 1
-Nagi-Rewrite-Generation: 11111111111111111111111111111111
-Nagi-Rewrite-Epoch: 22222222222222222222222222222222
-Nagi-Rewrite-Context: <same-context-placeholder>
-Nagi-Rewrite-Open: 1
-
-```
-
-The open counter is a strictly increasing unsigned 64-bit integer per context, starting at 1. Engine atomically accepts only `last_open + 1` and consumes it even if outbound dialing fails; duplicate/out-of-order opens fail 409 and close. Concurrent streams serialize open allocation and acknowledgement. An ambiguous lost acknowledgement closes the context; no retry/replay of an upstream request. Authenticated possession of a context allows multiple sequential or concurrent opens only while its original connection lives and within limits, not replay across sessions. An unauthorized target returns 403; expired/closed/unknown contexts return the same 409 error without disclosing which exists. A `200` response switches to raw TCP bytes of the changed target. For HTTPS the child establishes and verifies application TLS over that tunnel using the changed SNI; for HTTP it writes plaintext. Engine performs DNS through its configured resolver and normal outbound adapters, including Direct mode. Child does no OS DNS and has no raw target dial or environment proxy fallback.
-
-The child sends `POST /_nagi/request-rewrite/heartbeat` to the reinjection listener once per second inside transport TLS, authenticated with its reinjection Bearer secret. Body (maximum 4096 bytes) is `{ "version":1, "generation":"11111111111111111111111111111111", "engine_epoch":"22222222222222222222222222222222", "rule_version":"sha256:<canonical-document-digest-placeholder>", "ready":true, "sequence":1 }`; unknown/duplicate fields fail. Response is `{ "accepted":true }`. Only a matching loaded version refreshes readiness; 3 seconds without a valid heartbeat marks the branch blocked and closes derived sockets. Heartbeats cannot create contexts or authorize targets. The child reports false readiness on local fatal failures, and never receives the general root controller socket. Heartbeats carry required integer `sequence`, starting at 1 per generation and strictly increasing for every send attempt (gaps allowed); the engine accepts only a value greater than its last accepted sequence. Duplicate/older sequences reject without refreshing readiness. A lost acknowledgement does not require a replay: the next attempt uses a newer sequence. The example above uses the first sequence. Readiness deadlines use monotonic elapsed time, not wall-clock timestamps; `ready:false` blocks immediately. A prepared candidate expires after 30 seconds without successful publication and is deleted without affecting the old branch.
-
-A context expires 60 seconds after all handoff/upstream activity stops, at an absolute age of 3600 seconds, or on observed original termination, whichever occurs first. Active streams refresh idle activity but cannot extend the absolute deadline. An observed original abort, owned close or handoff closure cancels pending work and closes derived resources. TCP FIN can be a valid write half-close, and EOF behind bounded stream backpressure is not universally observable immediately; ordinary large uploads and responses after a write half-close remain valid. The local engine bounds pending DNS/dial work to 5 seconds total, context inactivity to 60 seconds and absolute age to 3600 seconds, with a 100 ms expiry sweep. Child cancellation and explicit session deletion are additional cleanup. No packet observer or whole-body prefetch is used. Engine exit revokes all context tokens. Resource bounds: 1024 contexts/session, 64 active streams/context, 4096 upstream sockets/session, 256 concurrent body transforms with a 64 MiB logical aggregate workspace reservation (not a heap/RSS ceiling). Admission failure blocks the affected authorized request and reports `rewrite_limit`, without evicting another live context. A JSON transform reserves memory before reading; oversized requests do not defeat the aggregate bound.
-
-Upstream connection pools are partitioned by `(engine_epoch, generation, context, scheme, hostname, port, TLS policy)`; no cross-context reuse, coalescing, or proxy-wide default transport. A target change obtains a fresh partition. HTTP/2 streams may share only their own context/target partition. Closing a context closes idle and busy pooled connections. Disable automatic transport retries and redirect following; never duplicate non-idempotent requests after upstream writes. Opaque context and auth data live in Go context/adapter state rather than request headers passed to origin. Internal header removal includes all `Nagi-Rewrite-*`, `Authorization` from CONNECT, `Proxy-Authorization`, and hop-by-hop proxy fields; the application's ordinary end-server `Authorization` survives unless an explicit rule removes it.
-
-## Rule document and deterministic transformations
-
-Domain-library persistence: `config/request-rewrite/PROFILE.json`, mode `0600`, directory `0700`, separate from `config/rules` and profile sources. Per-user CA is independent under `config/request-rewrite/ca/`. Profile removal transactionally removes its rewrite document, never the user's CA. Subscription apply/update retains the target profile's local rewrite document, never imports authorization/rules/intent from feeds and never auto-enables rewriting. Switching selects only that profile's rewrite intent.
-
-`rule_version` is `sha256:` followed by 64 lowercase hexadecimal digits over the validated normalized JSON document: recursively sort object keys by UTF-8 byte order, retain array order and original JSON number tokens, remove insignificant whitespace, emit UTF-8 strings with only required JSON escapes (lowercase `\u00xx` for control characters), and no trailing newline. Normalize domain fields before hashing. This avoids float64 canonicalization; equal numeric values with different tokens may have different versions. Symbolic digest placeholders in examples deliberately do not satisfy the wire digest schema.
-
-Document limit is 256 KiB, 256 authorized domains, 1024 rules and 32 operations/rule. Stable IDs follow existing profile-name character/length constraints and are unique within each kind. Arrays define order; unknown fields, duplicate JSON keys and unsupported schema versions fail. Example complete JSON (disabled intentionally):
-
-```json
-{
-  "version": 1,
+  "version": 2,
   "enabled": false,
-  "domains": [
-    {"id":"api","pattern":"api.service.example"},
-    {"id":"mirror","pattern":"mirror.service.example"}
-  ],
-  "rules": [
-    {
-      "id":"edit-query",
-      "enabled":true,
-      "match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/v1/"},
-      "on_error":"block",
-      "redirect_consent":[],
-      "operations":[
-        {"op":"header_set","name":"X-Demo","value":"example"},
-        {"op":"header_delete","name":"X-Obsolete"},
-        {"op":"url_set","component":"query","value":"mode=example"}
-      ]
-    },
-    {
-      "id":"edit-json",
-      "enabled":false,
-      "match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/v1/"},
-      "on_error":"block",
-      "redirect_consent":[{"domain":"mirror.service.example","schemes":["https"],"ports":[443]}],
-      "operations":[
-        {"op":"json_set","pointer":"/options/demo","value":true},
-        {"op":"json_delete","pointer":"/obsolete"},
-        {"op":"url_set","component":"host","value":"mirror.service.example"}
-      ]
-    }
-  ]
+  "rules": [{
+    "id": "demo",
+    "enabled": true,
+    "stage": "response",
+    "match": {"domain": "api.service.example", "methods": ["GET"], "path_prefix": "/v1/", "status_codes": [200]},
+    "on_error": "block",
+    "range_mode": "fragment",
+    "redirect_consent": [],
+    "operations": [{"op": "header_set", "name": "X-Demo", "value": "example"}]
+  }],
+  "scripts": []
 }
 ```
 
-All top-level fields and rule fields shown above are required. Operation-specific fields are exact. Match `domain` is an exact or explicit wildcard contained within an authorized pattern; rules cannot widen consent. `methods` is a nonempty array of uppercase HTTP token methods, maximum 16, and `path_prefix` is a UTF-8 string beginning `/`, maximum 2048 bytes. It compares the original escaped URL path, with empty path treated as `/`, case sensitively, without percent decoding or path cleaning. Prefix matching is literal: `/v1/` does not match `/v10/`. Domain/method/path matching always uses the original request, never a prior rule's changes. Every matching enabled rule runs in stored order; operations act on the working result of all prior operations. No implicit stop-after-first-match.
+Unknown fields, duplicate keys, trailing JSON, invalid UTF-8, incorrect types,
+unsupported versions and malformed operation shapes fail ordinary validation.
+There is one parser and one command tree. Both command names use that tree.
+IDs contain 1–128 ASCII letters, digits, `_` or `-`.
 
-The request captures one immutable validated rule document/version at header acceptance. Rule/domain updates stage a new generation and child snapshot; each old request retains its immutable version until completion or cancellation at cutover. Engine domain policy and child version are published together with generation fencing. V1 cutover revokes all old contexts before acknowledging activation, including contexts whose consent remains unchanged; clients reconnect to use the new generation. No request observes a partial rule document and no old context acquires expanded consent. Pre-validate the complete candidate, compile matchers, validate cross-domain targets and CA/runtime requirements, then atomically save and activate through the coordinator. If persistence or activation fails, restore previous persisted intent/document and previously confirmed runtime rule version/policy, staging a fresh generation when the old generation was already revoked; never resurrect old contexts/tokens; if runtime rollback cannot be confirmed, report `uncertain` and leave recognized authorized traffic blocked. Never report success from a write alone.
-
-| Operation | Exact semantics and validation |
+| Resource | Limit |
 | --- | --- |
-| `header_set` | Required `name`, `value` strings; ASCII token name, no CR/LF/control bytes, value at most 8192 bytes. Replace all values case insensitively with one value. |
-| `header_delete` | Required `name` with the same ASCII-token validation as set; remove all values, absent is success. |
-| `url_set` | Required `component` enum `scheme`, `host`, `port`, `path`, `query`, and string `value`. Scheme is `http`/`https`; host is exact normalized authorized domain; port is decimal 1–65535; path starts `/` and is a valid escaped path; query is valid percent-encoded raw query without leading `?`. Empty query removes it. Empty port resets to scheme default; other empty values fail. Path/query reject raw `#`, control bytes, malformed percent escapes and invalid UTF-8; raw query preserves order and duplicate keys (there is no query-map normalization). No fragment or userinfo. |
-| `json_set` | Required `pointer` and arbitrary JSON `value`; replace an existing value or add an object member. All parents must exist. Arrays replace an existing index or append using `-`; numeric index equal to length is also append. Reject leading-zero/nondecimal/out-of-range array indices. Empty pointer replaces the complete document. |
-| `json_delete` | Required `pointer`; delete existing object member or array element (shifting later indices). Missing path is an error. Empty pointer and `-` are invalid deletes. |
+| Canonical or input document | 1 MiB |
+| Rules / operations per rule | 1024 / 32 |
+| Script source | 64 KiB per script |
+| Encoded or decoded body/message | 8 MiB at every conversion step |
+| Headers / Trailers | 64 KiB / 16 KiB |
+| Logical body conversion workspace | 64 MiB |
+| Body read and stage conversion | 5 seconds combined |
+| Preview input | 24 MiB, including both bodies' base64 expansion |
+| WASM instance linear memory / execution | 128 MiB / 1 second |
+| Parallel script instances | 2, with immediate resource failure when full |
 
-JSON Pointer follows RFC 6901 (`~0`, `~1` decoding); reject malformed escapes. Reject duplicate keys in input bodies to avoid ambiguous edits. Decode numbers as preserved numeric tokens (`json.Number` or equivalent), never float64: `9007199254740993` remains exact. Serialization may change whitespace, but cannot round unchanged numbers. Header operations cannot set/delete `Host`, `Content-Length`, `Transfer-Encoding`, `Content-Encoding`, `Connection`, `Upgrade`, `Trailer`, proxy authentication, or any `Nagi-Rewrite-*`; URL/body machinery owns those fields. `Authorization` and `Cookie` are permitted rule fields and are sensitive. Total request headers after edits must remain within 64 KiB. Reject request smuggling ambiguities, conflicting framing, malformed authority, and URL/Host mismatches before any upstream write.
+The conversion workspace accounts for original bytes, working copies, codecs
+and parsed values. It is an admission budget, not a Go heap or process RSS limit.
+WASM linear memory is a separate guest limit. Host JSON input/output and script
+source have separate size checks. Bodies never spill to disk. Private storage
+uses owner-only directories and files, locks, no-follow opens and atomic writes.
+CLI inputs, child startup frames, terminal drafts, App stdin/output and exports
+allow the encoding overhead of legal maximum documents and fixtures.
 
-Only a matching JSON operation buffers a body. Require `application/json` or `application/*+json` (optional UTF-8 charset only), supported `identity` or one `gzip` Content-Encoding, complete valid UTF-8 JSON and a valid gzip checksum. Accept exactly one gzip member with no trailing bytes; multiple members are rejected. Reject concatenated JSON values. Default decompressed limit is **8 MiB** and compressed input is also capped at 8 MiB; v1 exposes no tuning option. Unsupported/stacked encodings, malformed gzip, invalid JSON, excessive size, and body read timeout are operation errors. Non-JSON rules stream bodies without parsing, decompressing or imposing this JSON size limit. Reserve bounded rollback storage before consuming JSON; original bytes and metadata remain available until commit. Originals and working copies count toward the domain library's logical 64 MiB workspace admission; no body spill to disk in v1. Recompress edited gzip with gzip, retain identity without encoding, recalculate Content-Length and remove Transfer-Encoding and stale body integrity headers (`Content-MD5`, `Digest`, `Content-Digest`, `Repr-Digest`). Both the final serialized JSON and recompressed gzip, if any, must also fit 8 MiB; exceeding either is a transformation error before commit. User signatures may become invalid; v1 does not resign requests. Trailers on JSON transforms are unsupported and fail before forwarding.
+## Rule matching
 
-Default `on_error` is semantically `block` (explicit in stored v1 documents): no upstream bytes are sent; return sanitized HTTP 502 once HTTP is available, or close a failed TLS tunnel. `forward_original` is an explicit per-rule alternative for transformation errors only: discard **all** uncommitted edits from all rules for this request, stop rule evaluation, and forward the exact original request semantically, including original compressed body/headers/target and original engine routing context. It does not bypass consent, malformed framing, channel authentication, resource admission, CA/TLS validation, or upstream failures. If size/read/time failure prevents recovering a complete original, block. For a fully captured original, its body closer belongs to the request transaction; forward_original creates a fresh reader over the original compressed bytes, transfers closer ownership once to the transport and closes discarded working bodies. Partial originals are never sent. Non-JSON streaming bodies pass through without a rollback buffer because no rule consumes/edits them; header/URL rollback happens before first write. If the complete original cannot be recovered, block. Commit happens once after all operations/consent/body checks, before any upstream write. No fallback after commit or partial send, and no retry that could duplicate a request. Local errors include only a stable code and rule ID; no body fragment, URL query, credential or parser value.
+Required rule fields are `id`, `enabled`, `stage`, `match`, `on_error`,
+`redirect_consent` and `operations`. Optional `range_mode` defaults to `fragment`.
+`on_error` is `block` or `forward_original`. Stages are `request`, `response`,
+`websocket_client` and `websocket_server`.
 
-## Implemented domain support
+`match.domain` is required. Other predicates are optional:
 
-`internal/requestrewrite` implements the version 1 document schema, bounded strict JSON decoding (including duplicate-key rejection), normalized domains, deterministic digest, immutable snapshots, ordered request transformation and explicit sensitive preview. It performs no DNS, network requests, TLS interception or engine routing. `Snapshot.Transform` returns a request for the private adapter to send once; it does not activate interception. Matching uses the original authority/method/escaped path, while operations accumulate on a private request copy. Non-JSON bodies retain their original stream. Only matching JSON operations consume a body, preserve numeric tokens and original compressed bytes, and enforce identity/single-member gzip and input/output limits. Returned buffered bodies retain their resource reservation until closed; adapter consumers must always close success and rollback bodies. V1 currently reserves the full 64 MiB workspace conservatively for each admitted JSON transaction, so concurrent JSON work may receive `rewrite_limit` before the 256-transform ceiling. Tree/depth admission also rejects excessive JSON structure before building an unbounded object tree. Non-JSON streaming does not acquire that reservation. This is bounded domain admission, not evidence that the complete runtime resource gates are implemented.
-
-Domain normalization uses `golang.org/x/net` **v0.50.0** (`idna` and `publicsuffix`) with indirect `golang.org/x/text` **v0.34.0** after T4's goproxy dependency upgrade. Nagi now requires Go 1.24.0 or newer. Unicode domain input is rejected; validated ASCII A-labels are accepted. The Public Suffix List rejects wildcard consent for both ICANN and private suffixes. The domain library remains independent of goproxy; the service imports it for immutable transformations.
-
-`Store` loads missing documents as disabled empty state, supports domain/rule edits and full reorder, and validates complete immutable candidates before saving. Portable imports must be disabled and preserve independently stored intent; exports always clear enabled intent. Read summaries omit operation values; `Document`, `ExportSensitive` and `PreviewSensitive` are explicit sensitive boundaries and must not be included in ordinary status or diagnostics. Preview accepts only the supplied bounded fixture and performs no forwarding or persistence.
-
-All managed storage operations use no-follow directory/file descriptors, validate owner/private modes and regular single-link files, and use synchronized private temporary replacement. The caller must hold Nagi's configuration lock before `Store` takes its document lock. Edits use an expected-version comparison to reject concurrent changes. `Store.Save` without an `Activation` implementation saves disabled configuration only and refuses enabled intent. An injected lifecycle coordinator must confirm `Apply` and `Rollback`; activation failure restores prior bytes/absence and requests runtime rollback, while failure to confirm either restoration reports `rewrite_state_uncertain`. The [lifecycle coordinator](#lifecycle-state-and-failure-recovery) supplies runtime activation, durable generation ownership, cancellation/deadlines, generation fencing and actual status inside the ordinary recoverable configuration transaction. Profile removal invokes secure rewrite-document removal inside the existing configuration transaction. Source/profile writes and subscription apply remain independent and preserve this local document; recreation after profile removal starts without its former consent. The per-user CA survives profile deletion. Ordinary configuration snapshot/restore excludes exactly `request-rewrite/ca/` (and rejects a link at that boundary), so transactions neither copy private keys nor overwrite/delete independently managed CA state; profile documents, including `ca.json`, remain inside rollback.
-
-`CAStore.Generate` explicitly creates one P-256 self-signed CA in an atomic private `config/request-rewrite/ca/root.pem` bundle containing certificate and PKCS#8 key, refusing an existing bundle. `Status` and `ExportPublic` read only the public PEM prefix and private-file metadata; neither reads/decodes the following private key. Their `generated` state describes valid public certificate/storage metadata, not OS trust or proof that a runtime child loaded the key. Trust remains `unknown`. `LoadForChild` is the sensitive child-only boundary that checks certificate/key matching, self-signature, CA constraints, curve and validity before runtime use. Only public PEM leaves `ExportPublic`; CA generation never installs trust. T5 owns OS trust assessment/install/remove and runtime prerequisite enforcement. Machine certificate validity fields use RFC 3339 JSON timestamps; eventual human presentation must use minute precision.
-
-Domain tests cover ordered original matching, cumulative edits, final contributor consent, exact large numbers, pointer errors, gzip and bounds, complete rollback, streaming, admission, malformed framing, immutable versions, strict documents, PSL/IDNA, isolation, mutation/import behavior, activation rollback uncertainty, private path attacks, public-only CA export and subscription/profile cleanup. They do not establish live TUN, OS trust, adapter TLS, helper or UI behavior.
-
-## Implemented private service
-
-`internal/requestrewriteservice` implements one immutable generation. `New`, `Announcement`, `Configure`, `Serve` and `Close` are the in-process data-plane boundary. `StartChild`/`ChildOptions`, `Child.Configure`, `Socket`, `PID`, `Done`, `Close` and `Control` provide the internal process/control boundary for the lifecycle coordinator. The hidden executable entry point rejects root before opening CA files. It is absent from public help and completion. Startup uses length-prefixed, strict JSON records through inherited descriptors 3/4, at most 512 KiB each. The first supplies document, generation, owner UID, private CA directory and runtime directory; the second supplies engine trust, epoch, reinjection address and independent channel secrets. Public certificate/listener information and final readiness return on descriptor 4. Both descriptors close after readiness. The child starts a new session and survives startup EOF, launcher-context cancellation and transient CLI exit; it is managed through the owner-authenticated Unix control socket. No credential is placed in argv or environment. The lifecycle coordinator records PID/start identity, enforces at most active plus candidate children and composes these primitives into the shared transaction.
-
-The runtime directory is opened through no-follow directory descriptors. Ancestors must be root/owner controlled and not writable by other identities, with the root-owned sticky temporary-directory exception; the final directory is owner-private. A no-follow private regular lock file holds an exclusive lock. An existing socket is never replaced. The socket is `0600`; server and client verify Unix peer UID before operations. Only status, generation-fenced drain and shutdown are accepted. Drain stops new context admission. Shutdown closes listeners, active connections and body work. These interfaces expose no raw requests, CA material or arbitrary forwarding.
-
-The mTLS gate runs before goproxy. It checks TLS 1.3 role certificates, exact DER/SPKI, strict CRLF, distinct channel secrets, exact internal header names, raw Host/CONNECT authority, generation/epoch, context token, protocol and probe. Each child admits at most 32 pending TLS/header stages; T5's maximum two children therefore retain the 64-stage run bound. Context admission is capped at 1024. The engine enforces per-context 64 streams and session 4096 upstream sockets. Probe verifies both handoff and reinjection echoes without target dialing. Heartbeats use monotonic sequence allocation once per second.
-
-Goproxy v1.9.2 owns request hooks, HTTP forwarding, leaf signing and HTTP/1 WebSocket relay. A service-wide 256-entry leaf cache uses only the explicitly loaded user CA. The adapter validates application protocol and SNI, negotiates HTTP/1.1 or h2, uses a bounded raw HTTP/1 header gate before the standard HTTP server, and uses `x/net/http2.Server` for HTTP/2. It avoids goproxy's unbounded/background MITM parser and built-in HTTP/2 error paths. Every stream reauthorizes its own original authority and captures the immutable snapshot. Header/URL edits apply to WebSocket handshakes; `TransformUpgrade` skips JSON operations and never transforms frames. Other Upgrade, h2c and extended CONNECT remain unsupported. HTTP/2 stream cancellation preserves other streams. Upstream response errors are sanitized, and truncated bodies abort the response instead of producing a successful terminal chunk.
-
-Every upstream request uses a one-use transport, with no cross-context or cross-target pooling, automatic retries, redirects, environment proxy, target OS DNS or direct fallback. Its dialer opens authenticated reinjection only. Application TLS uses system roots, changed target hostname/SNI and normal verification; tests inject throwaway fixture roots privately. Non-JSON bodies stream without an 8 MiB cap. Transform admission/read work has a 30-second deadline; an HTTP/1 stalled body closes its connection before closing the body reader, and HTTP/2 cancels only that stream. Reservations are retained through transformed/rollback body ownership and released on close, including cancellation/error races. The 64 MiB domain workspace is a logical admission reservation, not a strict heap/RSS ceiling: an isolated near-8-MiB JSON pressure fixture measured about 84 MB peak Go heap and 100 MiB RSS. Whole-service resource/platform pressure remains a T8 gate.
-
-Local tests cover large streaming bodies, HTTP/1 pipelining and first WebSocket frame buffering, HTTP/2 cancellation and JSON deadline/re-admission, private control paths, child execution under an ordinary UID, startup EOF persistence, redaction and malformed framing. The opt-in [real engine fixture](../development/build-and-test.md#private-request-rewrite-service) verifies HTTP/TLS in Rule/Global/Direct modes, authenticated probe, changed Host/SNI, path/query, gzip JSON and exact integers through native engine reinjection. These are isolated source-fixture results, not real OS TUN, platform trust or end-user activation acceptance.
-
-## Lifecycle, state and failure recovery
-
-One coordinator shares the existing [runtime locking and recovery model](runtime.md) across CLI, menu, App, monitor, and helper. Lock order remains quit, configuration, lifecycle, engine; the rewrite session belongs inside that transaction and introduces no inverted lock. Child process ownership is per user/backend/engine epoch/generation, recorded in private PID/start identity state and supervised independently of a transient menu/window. The hidden command `nagi __nagi-request-rewrite-child` is not a public operation and receives startup descriptors rather than secret arguments. Ordinary command invocations request changes through the coordinator; they never create uncoordinated children. One staged candidate child is permitted alongside the active child only during a coordinator-owned generation replacement.
-
-The child hosts an owner-only Unix control socket beneath the existing private runtime directory, validates peer UID against its startup owner, and accepts only `GET /status`, `POST /drain`, and `POST /shutdown`. JSON bodies (maximum 4096 bytes) for POST contain exactly `version:1` and `generation`; status is read-only and returns `version`, `generation`, `rule_version`, `ready`, `contexts`, and redacted `last_error`. Drain stops admissions and returns status; shutdown closes all sockets and exits, with idempotent cleanup. This socket exposes no raw request/CA/engine forwarding operation. Startup uses a bounded private pipe record (maximum 512 KiB) containing the full validated rule snapshot, generation, owner UID, secrets and public transport trust, and a second record supplies engine epoch/address/certificate after session preparation. Child readiness is acknowledged only after both records are validated; records are consumed and descriptors closed. Transient CLI commands use the socket to manage the persistent child; child heartbeat and its internal coordinator continue after the spawning CLI exits. They do not treat normal startup-pipe EOF as shutdown. New rule documents use a fresh staged child instead of mutating a live child's snapshot.
-
-Enable sequence: validate selected profile and immutable candidate; query capability and actual TUN; verify a locally generated CA/key and required trust state for HTTPS; start child with disabled forwarding; prepare engine session; load child's rule snapshot; probe handoff and reinjection; publish branch; verify generation/version/actual state; persist enabled intent within the recoverable transaction. Missing CA, untrusted CA, missing capability, stopped TUN, or failed probe leaves enable rejected and prior intent/runtime restored. Because v1 authorizes domains rather than a protocol-specific domain subset, every enabled session requires a valid trusted CA even if the current workload is plaintext HTTP. CA generation/trust is always an explicit operation, never an enable side effect. No external network test is an enable prerequisite. The readiness probe is strictly an internal no-DNS/no-outbound channel test, not connectivity or leak detection.
-
-Disable sequence: remove engine branch and authorized QUIC block first and confirm removal; stop admitting contexts; drain existing work for at most **5 seconds**; forcibly close remaining contexts/pools; delete session; stop child; persist disabled intent. If branch removal cannot be confirmed, keep child available where possible, report uncertain state, and do not claim disabled. Force closure after the deadline is successful bounded cleanup, not original-forward fallback. The branch's removal allows new traffic to follow ordinary routing by explicit disable intent.
-
-| Trigger | Required resulting state and action |
+| Field | Meaning |
 | --- | --- |
-| TUN stop, engine stop, App Quit | Same coordinator removes branch, drains/closes child, then performs existing engine/TUN/DNS cleanup. Explicit rewrite intent is retained unless `request-rewrite disable` was requested. |
-| Engine exits unexpectedly | Contexts/tokens disappear with engine. Stop orphan child; re-enable after engine recovery only for saved enabled intent with actual TUN and full readiness checks. |
-| Child crashes or readiness heartbeat is lost | Within 3 seconds (1-second heartbeat), engine marks branch blocked and rejects recognized authorized targets. Unrelated traffic continues; no original/direct fallback. Restart through a new generation/probe or explicit disable. |
-| Profile or user/privileged backend switch | Freeze new admissions, remove old branch, drain within 5 seconds and revoke old session; validate new profile/backend and start a new session only for its own enabled intent and actual TUN. No context/pool/secret reuse across backends. Roll back the entire switch on activation failure; unknown final state is explicit. |
-| Rule/domain update | Validate before save; stage immutable child snapshot and engine domain policy; generation-fenced publish, close all old contexts at atomic generation replacement. Keep prior snapshot until commit/rollback is confirmed. No half-updated consent. |
-| Ordinary engine config reload / TUN patch | Preserve the active session, branch and epoch while TUN remains active, applying current native routing to new reinjection opens. Do not create a temporary bypass during reload. If TUN is lost, atomically stop context admission and revoke the session before completing TUN shutdown; retained intent is revalidated on recovery. An implementation unable to preserve the branch must keep recognized authorized targets blocked until a new probed generation is published. |
-| Reload times out | Query engine generation/version and existing `activation_id` where applicable. Restore disk and confirmed runtime if possible. Late/uncertain activation remains uncertain and blocked; never blindly retry or claim rollback. |
-| CA trust removed/key unavailable | Reject enable; if already active, block new intercepted TLS and require explicit recovery/disable. Never generate a replacement root silently. |
-| Menu/window closes | Child and engine continue. This is not App Quit. |
+| `methods` | Up to 16 uppercase HTTP method tokens. |
+| `path_prefix` | Prefix of the original escaped path; at most 2048 bytes. |
+| `path_regex` | RE2 expression over that escaped path; at most 8192 bytes. |
+| `query` | Object mapping query names to nonempty arrays of candidate values. Any same-name parameter value can match. |
+| `headers` | Original request headers, represented as names to candidate value arrays. |
+| `status_codes` | Original response or WebSocket handshake status codes. Unavailable in request rules. |
+| `content_types` | Media types, without parameters, from the original response/handshake. |
+| `response_headers` | Original response/handshake headers and candidate values. |
+| `message_types` | `text` and/or `binary`, for WebSocket stages only. |
 
-The implemented status schema is defined in the [CLI reference](../reference/cli.md#tun-request-rewrite). Status keeps saved intent separate from engine generation/version, nullable actual TUN/service evidence, CA metadata and redacted recovery reasons. A missing controller is unavailable evidence, not proof that rewriting is disabled. Invalid selected-profile data does not hide status or prevent runtime disable; disable reports any intent document it could not repair.
+Different predicates are ANDed; candidates within one predicate are ORed.
+Header names are case-insensitive and values remain separate. Repeated
+`Set-Cookie` values are never merged. All matching rules in a stage run in stored
+order, using original request, original upstream response or original message
+metadata for every match. Edits affect the current working message only. RE2
+expressions are validated and compiled when the document is saved.
 
-The coordinator takes the existing configuration lock before the document lock. A private atomic `request-rewrite-run.json` journal records owner/backend/profile, active or candidate generation, engine epoch, rule version, PID/start identity and renewal deadline, with at most one previous generation. It contains no channel endpoints, secrets, certificate or request content. Startup persists candidate ownership and obtains a supervisor readiness acknowledgement over an inherited pipe before preparing/publishing. A private `rs-GENERATION.sock` owner-authenticated status endpoint makes supervisor startup idempotent during rollback. Cleanup uses generation control sockets; a recorded PID is never authority to signal a process. Start identity can prove exit or PID reuse before removing a stale owned socket. On macOS, identity combines process start time (including seconds) and UID from a bounded `ps` lookup. A signal-zero existence probe confirms disappearance only on `ESRCH`, including a recheck after a failed lookup; it sends no signal. A successful lookup remains usable when the probe reports `EPERM` for a root-owned engine; permission failures without readable identity, cancellation, timeouts, malformed output and other lookup failures retain uncertain ownership. Failed shutdown or uncertain activation retains both ownership records.
+Ordinary summaries omit operation values, script source and redirect values and
+redact query/header predicate values. Raw exports, source viewing and previews
+are explicit sensitive operations and may expose credentials and full bodies.
 
-The persistent supervisor polls under the configuration lock, retires prior generations after confirmed CAS even when the new generation is blocked, cleans up after confirmed engine exit, and stages transport-certificate renewal six minutes before expiry. It never automatically recovers a crashed child. Trust loss drains admissions, producing a false heartbeat and blocked engine branch until explicit recovery or disable. Linux assessments reread bounded system root bundles/directories on each check, including standard `SSL_CERT_FILE`/`SSL_CERT_DIR` overrides; this proves only that store's acceptance, not every application's separate trust. macOS verification uses a fresh local `security verify-cert` operation. Explicit trust removal tears down rewriting first while retaining enabled intent.
+## Operations
 
-Privileged startup discovers the trusted engine binary's owner-binding flag with a bounded help query. A supporting engine receives `--request-rewrite-owner-uid=UID` from the helper's immutable authenticated `SessionUID`; user YAML and request bodies cannot set the binding. The engine accepts that flag only at restricted root startup, rejects zero/duplicate/invalid values, and requires kernel Unix peer UID zero plus the bound body owner for prepare. The helper independently checks the authenticated peer and exact owner. Old engines retain ordinary privileged startup, while rewrite prepare fails with a capability error. Only the six exact v1 control endpoints are allowed; schema validation rejects duplicate, missing, unknown or null fields and bounds all values. Ordinary root controller access never grants arbitrary rewrite ownership.
+Operations have exactly the fields listed below, plus optional explicit
+`message_type: "text" | "binary"` for WebSocket body operations or scripts.
 
-## CA, secrets and diagnostics
-
-Generate one local CA per user through an explicit command using cryptographic randomness; private key `0600` beneath `0700` directories, never embedded in a binary, root configuration or export. Public certificate export excludes the key. Trust install/remove are separate explicit platform operations through the CLI, displaying their effects; do not imply generation installs trust. Disable retains CA and trust. Removal of trust does not delete the private key. V1 provides no CA rotation/replacement/delete command. Manual replacement is outside the supported v1 interface; a later version must define a separate explicit migration and trust-removal contract before offering rotation. The child alone reads the user key, verifies key/cert match and validity, and uses a bounded 256-entry leaf-certificate cache. No root helper request accepts arbitrary key paths or exports key material. macOS user trust and Linux trust mechanisms require separate platform verification; unsupported stores return actionable unsupported errors rather than claiming trusted.
-
-Normal status/errors/logs contain only counts, stable codes, rule IDs and versions. Never log Cookie, Authorization, body, full requests, URL queries, internal secrets/context tokens or CA key. Replace goproxy's default verbose logging and error rendering, including transport/HTTP2/TLS paths. Explicit rule exports and request previews may contain sensitive header values, bodies and URLs; label that boundary before displaying or writing them, use private files, and never include them in diagnostics automatically. Preview operates on a supplied request only; it makes no network/DNS call and does not imply live interception coverage. Public CA export is distinct from private rule/request export. Ordinary diagnostics provide redacted readiness/coverage facts only.
-
-## Public CLI and UI implementation status
-
-All ordinary request rewrite commands, JSON results, sensitive file/stdin input, raw export/preview boundaries, runtime-independent help and Bash/Zsh/Fish completion are implemented. The [CLI reference](../reference/cli.md#tun-request-rewrite) is authoritative for commands, input bounds, fields, output and recovery. Rule/domain edits use the same immutable snapshot and generation activation transaction; disabled edits never start an engine, TUN or child. Preview performs no DNS or network operation. CA generation, public export and OS trust changes remain separate explicit actions.
-
-The terminal interaction is implemented; its authoritative [menu design](terminal-menu.md#request-rewrite-flow) describes current forms and dispatch behavior. The macOS interaction has a source implementation, described below, with **native build and interactive acceptance unverified**. Both entry points consume the CLI; source implementation must not be confused with platform acceptance.
-
-## Terminal menu and macOS interaction
-
-Terminal Settings gains **Request Rewrite**, with Status/Enable or Disable, Authorized Domains, Ordered Rules, Preview, CA, and Recovery pages. Explain default-off and TUN/CA prerequisites before enable. Domains support add/edit/remove; rules support add/edit/remove/toggle/reorder, header/URL/JSON operations, on-error choice and explicit destination consent. Preview accepts a local fixture through CLI input and warns of sensitive output; CA separates generation, public export, trust install and trust remove. Recovery exposes status, validation and disable even after read failures.
-
-Use existing numeric menu/navigation, ten-item pagination, `0` Back/Cancel, Ctrl-C and EOF behavior. In text fields `0`, `b`, and `q` remain literal input. Cancellation never promises to undo an ordinary command already submitted. Forms retain all values after validation or command errors and permit edit/resubmit/cancel. Cancellation/EOF before submit mutates nothing; dispatch exactly once after submission and never automatically retry. Keep local drafts in UI memory, not persisted files. Known IDs are single argv elements; complete sensitive documents go to CLI stdin, not arguments or temporary public files. Menu code performs no direct storage, engine API, rule matching, CA or trust operations.
-
-The macOS menu bar shows actual state and a daily enable/disable entry plus **Request Rewrite…**, opening an independent native window. Window pages provide equivalent status, domain and ordered-rule CRUD, toggles/reorder, preview, CA/trust, and recovery. It invokes CLI JSON/input interfaces only, with cancellable reads and serialized mutations through the existing operation coordinator. Do not hide failures behind cached state or infer active from intent. Retain editable drafts after validation/CLI failures, allow explicit resubmission and never auto-retry mutations. Cancel/close before submit mutates nothing; closing a window after submission does not promise cancellation or rollback of that operation. Closing the window or terminal menu leaves the child running. App **Quit** uses existing CLI cleanup and includes rewrite teardown before engine stop. CLI retains advanced automation, import/export, diagnostics and batch operations; the UI adds no business implementation. The macOS source implementation now provides this window through SwiftUI hosted in the existing AppKit accessory-window lifecycle. `RequestRewriteModel` owns snapshots, cancellable bounded polling and sensitive edit reads; `AppModel` serializes submitted mutations and explicit file exports with settings, connection closure and quit. Failed refreshes disable stale domain/rule actions while recovery remains available. In-memory form drafts retain failed inputs, explicit sensitive exports preserve numeric JSON tokens, and all business operations remain CLI calls. The [App guide](../../macos/NagiApp/README.md#request-rewrite) documents the source behavior and verification limits. Native Swift build/tests, packaging, macOS trust and interactive acceptance remain unverified on this Linux host; this is not a completed native acceptance claim.
-
-## Serial handoffs and acceptance matrix
-
-T1 produced the frozen design, proposed ADR and README navigation. T2–T8 follow the original ownership below; T3 domain support is implemented as described above, T4 private service and T5 CLI/coordinator/helper are implemented; T6 terminal forms are implemented and Linux-verified, and T7 macOS UI source is implemented and independently reviewed. Native T7 acceptance and T8 platform/release gates remain open; see the [combined verification record](../development/request-rewrite-acceptance.md). Each task updates its affected authoritative documentation after behavior settles and runs focused checks before handoff; failures or contract changes return to this design rather than silently drifting. Use isolated temporary homes, runtime directories, throwaway local CA/trust fixtures and local HTTP/TLS servers. Never use real subscriptions, an existing user CA, ordinary proxy ports or the shared running proxy for tests. Real macOS UI, OS trust and TUN behavior remains unverified until exercised on a suitable host.
-
-| Task | Ownership and frozen input | Required acceptance evidence |
+| `op` | Additional fields | Scope |
 | --- | --- | --- |
-| T2 | Separate mihomo repository: branch placement, protocol/domain recognition, identity capture, v1 control/data channels, context registry, rerouting, QUIC domain policy and restricted policy. Helper schema implications must be supplied to T5. | Plain HTTP/TLS handoff bytes preserved; process/UID/source/inbound survive; changed domain routes differently under Rule/Global/Direct; fake-IP handled; internal DNS/node/reinjected skip; bad auth/UID/replay/expiry/target/context bounds rejected; original close cancels resources; child crash blocks only recognized authorized targets; probe has no outbound/DNS. Build/test exact engine commit. |
-| T3 | Nagi rule/domain library, profile-local storage and CA primitives. | Ordered original matching, cumulative edits, immutable digest, final consent, precision/gzip/limits/rollback, only JSON buffers, sensitive no-network preview, private files, profile isolation, subscription preservation, explicit CA generation and public export. |
-| T4 | Nagi goproxy v1.9.2 adapter and persistent internal child; Go minimum/dependency/build changes. Consume T2 protocol and T3 immutable domain library. | No environment proxy, OS DNS, TLS skip or raw errors; context/target pool separation; header stripping, streaming, cancellation and upgrade gates; authenticated channels and child control. The private adapter enables HTTP/2 through its controlled server after local concurrency/cancellation/authority tests; it does not expose the dependency's built-in HTTP/2 MITM path. |
-| T5 | Lifecycle/coordinator, privileged helper allowlist, runtime status, platform trust, complete ordinary CLI commands/help/completion and CLI reference. | Actual TUN and explicit CA/trust prerequisites; prepare/probe/publish; bounded disable/crash recovery; shared profile/backend/TUN/engine/App Quit coordinator; durable persistence/confirmed runtime rollback/uncertainty; owner-bound helper/files/pipes with no root CA key; full command inventory, bounds, import semantics, envelope/exit/help, sensitive preview/export and redaction. |
-| T6 | Terminal Settings Request Rewrite pages through CLI only. | Daily CRUD, toggle/reorder, preview/CA/recovery; numeric navigation, retained drafts, EOF/cancel no pre-submit mutation, one dispatch, no direct API/config access; redirected/JSON menu compatibility. |
-| T7 | macOS menu state/toggle and independent window through CLI only. | Equivalent daily operations, actual vs intent, serialized mutations, stale-read handling, no secrets in argv; window close preserves service; App Quit tears down in coordinator; native build/tests and explicit interactive host result. |
-| T8 | Cross-repository integration, release pin, final docs and platform evidence. | Run combined local server/temporary CA matrix in all modes/backends; crash/race/rollback/resource tests; four target cross-builds; real macOS/TUN/trust/UI acceptance or explicit unverified report. Publish/obtain new engine commit from declared remote before any `engine.lock` change; then matching locked build and startup capability checks. No push/publication is authorized by T1. |
+| `header_set`, `header_append` | `name`, string `value` | HTTP and ordinary WebSocket handshake headers |
+| `header_delete` | `name` | Same |
+| `url_set` | `component`, string `value` | Request; component is `scheme`, `host`, `port`, `path` or `query` |
+| `method_set` | string `value` | Request; uppercase method, excluding CONNECT |
+| `status_set` | integer `value` from 200 through 599 | Final HTTP response |
+| `json_set` | `pointer`, JSON `value` | Body/message; RFC 6901 pointer, exact JSON numbers |
+| `json_delete` | `pointer` | Body/message; existing non-root value |
+| `body_set` | `encoding: "text" | "base64"`, string `value` | Complete body/message replacement |
+| `text_replace` | `pattern`, `replacement`, boolean `all` | Literal first/all replacement |
+| `regex_replace` | `pattern`, `replacement`, boolean `all` | RE2 first/all replacement with Go capture expansion, such as `${1}` |
+| `trailer_set` | `name`, string `value` | HTTP Trailers |
+| `trailer_delete` | `name` | HTTP Trailers |
+| `script` | `script` ID | Any declared stage |
 
-T2 must deliver endpoint examples and negative tests matching the exact v1 fields above, engine epoch/generation fencing, proof that routing cannot overwrite captured identity, actual TUN reporting and heartbeat definition. T4/T5 must confirm the original connection closure reaches HTTP/1, HTTP/2 (if enabled), upgrades and pooled sockets. Any required change to dependency, wire schema, limits, target authorization or failure semantics requires an explicit revision of this planned contract before implementation consumers proceed.
+Header names must be valid tokens and values cannot contain controls. Header
+values are at most 8192 bytes. Host, length, framing, encoding, connection,
+upgrade, proxy authentication and private channel fields are adapter-owned and
+cannot be edited. Trailers additionally reject authentication, routing,
+representation and response-control fields. Script outputs use the same checks.
 
-## T1 verification and open platform gates
+JSON requires a JSON media type, rejects duplicate keys and invalid UTF-8,
+preserves arbitrary-precision number text, and applies strict pointer traversal.
+Text uses declared charset, default UTF-8, with standard `x/text` encodings;
+unrepresentable or non-lossless conversions fail. Base64 replacement operates
+on bytes. Content encodings are identity, gzip, standard zlib `deflate`, Brotli
+and Zstandard, with at most three layers. Decode in reverse order and encode in
+forward order, checking input/output sizes at each layer.
 
-T1 baseline evidence is read-only `git show`/`git grep` of the exact engine object and tracked goproxy `v1.9.2` files, including go.mod, proxy.go, certs.go, https.go, http2.go and websocket.go. A local cached locked checkout supplied the engine object; no dependency installation or runtime change was needed. Manual review verifies examples against this proposed schema, relative Markdown destinations and IDs, design/ADR/README status wording, absence of real secrets, and `git diff --check`. Documentation verification is not an implementation test.
+Only operations requiring a body buffer it. Header-only HTTP/SSE transformations
+preserve streaming. Body changes update length/encoding/framing and invalidate
+ETag and representation digests. HEAD, 204, 205 and 304 retain their protocol
+body restrictions. A valid WebSocket handshake produces 101; rules cannot
+manufacture protocol upgrade headers or a 101 status. Body and trailer edits
+read to completion before commit. Trailer-only edits run at stream EOF;
+HTTP/1.1 chunking and HTTP/2 trailing headers remain adapter responsibilities.
 
-Unverified gates: real TUN capture/domain visibility/process lookup, OS trust behavior, macOS native interactions, production upgrade and HTTP/2 compatibility, and full multi-process cleanup under actual backend failures. These are T2–T8 acceptance work, not evidence that this feature exists or a prerequisite to accepting the T1 documents.
+## Range
+
+`fragment` retains Range/If-Range. Single `Content-Range` and
+`multipart/byteranges` responses are transformed per fragment. Every fragment
+must retain its byte length. JSON operations require each fragment to be a
+complete JSON value. Boundaries and Content-Range remain consistent.
+
+`full` explicitly asks for the complete representation. Before sending, evaluate
+original request predicates of candidate body rules and remove Range/If-Range
+only when their mode is full. Conflicting candidate modes fail before any
+upstream write, including candidates whose response predicates cannot yet be
+known. Send once. If the server still returns partial content, transformation
+fails under the owning rule's error policy; no second request is issued.
+
+## Transactions, errors and lifecycle
+
+One immutable snapshot owns request matching, request operations, final target
+validation, one upstream send, original response matching and response operations.
+Response errors never undo or resend the request. Local errors do not enter
+response rules. Every executed request rule that contributes a target change
+must permit the final domain, scheme and port in `redirect_consent` when the
+final target differs from the original. The engine's target set is an additional
+boundary. Scripts cannot expand either permission. URL authority, Host, TLS SNI
+and engine target move together; mihomo reroutes with original source identity
+and clears stale destination-derived metadata. HTTP redirects are returned to
+the application and are not automatically followed.
+
+Before commit, `block` returns a fixed sanitized HTTP error or closes the
+WebSocket. `forward_original` discards all edits in that stage only when the
+complete original is recoverable. Partial bodies or messages cannot be used as
+fallback. TLS verification, authentication, final target permission and protocol
+validation cannot be bypassed. After body commit, read/trailer failures terminate
+the stream; sent bytes cannot be retracted. A WebSocket message is sent only
+after its complete successful transformation.
+
+Rule saves use the generation transaction. Prepare/probe a candidate, publish
+atomically, revoke all old contexts and pools, and then retire the old child.
+Connections cannot mix rule generations. Failed activation restores stored
+configuration and confirms rollback; otherwise status is `uncertain`.
+
+Enabled intent with zero enabled rules tears down the branch and child and is
+`idle` after cleanup is confirmed. The first enabled rule requires actual TUN,
+CA, trust and engine capabilities. Removing/disabling the last rule tears down
+interception while preserving enabled intent. The overall disable clears intent
+and interception. Missing runtime evidence remains unavailable/uncertain rather
+than inferred success. CA generation, trust installation/removal and public
+export are separate explicit operations.
+
+## JavaScript contract
+
+A script is `{id,body_access,source}`. `body_access` is `none` or `buffer`.
+A referenced script cannot be removed until all referring rule operations are
+removed. Header-only scripts receive no body and cannot return one. Buffered
+scripts receive bounded decoded bytes as `message.body_base64`.
+
+The synchronous entry point is `transform(input)`. Input is
+`{stage,original,message}`. `original` contains read-only matching metadata:
+request `{method,url,headers}`, response `{status,headers}` where available,
+and original WebSocket message `{type}`. `message` contains current working
+fields. Request fields are `method`, `url`, `headers`, `trailers`; response fields
+are `status`, `headers`, `trailers`; WebSocket fields are `type`.
+
+Return exactly `{action:"unchanged"}`, `{action:"block"}`, or
+`{action:"replace",message:{...}}`. Replacement message fields are a checked
+partial update to the current working message. `body_base64` is available only
+to buffered scripts. Header maps contain arrays, preserving repeated values.
+A type change requires an explicit `type` output or operation `message_type`.
+Malformed output, oversized fields, invalid UTF-8 text and unauthorized targets
+fail validation.
+
+QuickJS executes in a fresh wazero instance per call. No filesystem, environment,
+process, network, downloaded module, real clock or random source is exposed.
+Timeout/cancellation destroys the instance. The executable artifact, compiler,
+source checksums and licenses are fixed by the
+[reproducible guest build](../development/rewrite-script-guest.md). Ordinary
+errors never print source, body or guest exception stacks.
+
+## WebSocket adaptation
+
+The HTTP/1.1 Upgrade path uses pinned `github.com/coder/websocket` at message
+level. Each side negotiates its own handshake and no-context-takeover
+permessage-deflate. The protocol library owns masking, fragmentation, UTF-8,
+ping/pong and close frames. The adapter preserves buffered first-frame data,
+serializes messages in each direction, propagates backpressure and closes both
+sides on cancellation, generation retirement or failure. Connections requiring
+no message editing retain streaming forwarding; editable messages are bounded
+to 8 MiB. Extended CONNECT and HTTP/3 are outside this scope.
+
+## Engine and private channel v2
+
+All control, handoff, reinjection, heartbeat, probe and child schemas support
+protocol version 2 only. Existing private Unix-socket authentication and helper
+owner binding apply. No user CA private key reaches mihomo or the root helper.
+Ephemeral channel certificates, two independent random 256-bit secrets, engine
+epoch, generation and one-use context tokens authenticate transport and original
+identity. Wire errors are fixed codes, never supplied values.
+
+`GET /request-rewrite/capabilities` must advertise `versions:[2]`, `tun_only`,
+`original_context`, `reinjection`, `quic_domain_block`, at least 1024 contexts,
+64 streams per context, 60-second idle and 3600-second absolute context bounds.
+Missing capabilities or another protocol version reject activation.
+
+`PUT /request-rewrite/session` accepts exactly `version`, `generation`,
+`previous_generation` (null initially), bound `owner_uid`, `handoff_addr`, public
+`child_transport_cert`, `handoff_secret`, `reinjection_secret`, `intercept_domains`,
+`target_domains`, `rule_version` and `block_authorized_quic:true`. The session
+starts prepared and disabled. Loopback endpoints and public certificates are
+validated. Response returns version, generation, engine_epoch, reinjection_addr,
+engine_transport_cert and state. The engine never receives rule bodies/scripts.
+
+`POST /request-rewrite/probe` verifies authenticated child/handoff/reinjection
+readiness with no target DNS or outbound connection. `PUT /request-rewrite/branch`
+publishes or removes a probed generation using `{version,generation,enabled}`.
+A candidate must name the current previous generation and can coexist with one
+active/blocked generation until publication. Publication closes old contexts
+atomically without a forwarding gap. `DELETE /request-rewrite/session?generation=...`
+refuses enabled sessions and removes only the named generation.
+
+`GET /request-rewrite/status` returns version, state, branch_enabled, tun_running,
+counts, sanitized last_error, and generation/engine_epoch/rule_version when
+present. Engine states are absent, prepared, active, blocked and draining. Child
+readiness loss retains a blocking branch until explicit fresh-generation
+recovery. A mutation with unknown completion requires a status query and
+confirmation; never blindly retry. Private helper schemas reject unknown fields,
+duplicates, version/authentication/owner errors and oversized frames before mutation.
+
+Inherited startup pipes carry configuration without argv/environment secrets.
+Private child control authenticates peer UID and generation and returns status,
+readiness and redacted counters. Ordinary counters cover stage hits, failures,
+fallback, resource exhaustion, script timeout and abnormal WebSocket closure.
+Raw traffic, source and arbitrary errors never enter these records.
+
+## Preview and verification
+
+Preview is local and sensitive, uses this same transformation library and script
+executor, and performs no persistence, activation, DNS or upstream send. Its
+`stage` is a single processing stage or `exchange` for request plus response.
+Fixtures include the original request and, when required, response or WebSocket
+message. Output includes matched rule IDs, per-stage outcomes and final messages.
+The [CLI reference](../reference/cli.md#tun-request-rewrite) defines exact fixtures.
+The [acceptance record](../development/request-rewrite-acceptance.md) distinguishes
+unit/race/fuzz/integration checks from native platform and release evidence.
