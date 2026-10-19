@@ -155,8 +155,9 @@ tracks this fixture contract, not a new CLI envelope version.
   argument and a known, exactly typed child ID. Missing, malformed or unknown
   children preserve that argument independently; siblings and the parent remain
   usable. Child keys are visited in sorted order. Composition is bounded to
-  eight child levels and 64 child nodes per descriptor. Bounds discard deeper
-  metadata and retain the original scalar. Producers sanitize every level before
+  eight child levels. Copying and decoding retain at most 64 child nodes;
+  rendering uses a 64-node budget including the root descriptor. Bounds discard
+  deeper metadata and retain the original scalar. Producers sanitize every level before
   serialization; no cause object or raw captured content becomes an argument.
   Older consumers ignore this optional field and display the original scalar.
 - Metadata is presentation-only. Consumers branch on `error.code`, typed state,

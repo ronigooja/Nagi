@@ -10,7 +10,7 @@
   "descriptor": {
     "id": "nonempty semantic string",
     "args": "optional object of exact named scalar arguments; omit when empty",
-    "argument_messages": "optional map from existing string argument names to source descriptors; invalid child independently falls back to original scalar; maximum depth 8 and 64 child nodes"
+    "argument_messages": "optional map from existing string argument names to source descriptors; invalid child independently falls back to original scalar; maximum child depth 8; copying/decoding at most 64 children; rendering budget 64 nodes including root"
   },
   "argument_scalar_types": [
     "string",
