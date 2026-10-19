@@ -100,6 +100,10 @@ struct CaptureReadiness: Decodable, Sendable {
     let message: String
 }
 struct CaptureReply: Decodable, Sendable {
+    var messages = CLIMessages()
+    func display(_ original: String, at pointer: String) -> String {
+        messages.display(original, at: pointer)
+    }
     let readiness: CaptureReadiness?
     let sensitive: Bool
     let status: CaptureStatus?

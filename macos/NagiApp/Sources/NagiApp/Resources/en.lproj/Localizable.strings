@@ -1,0 +1,6 @@
+/* Nagi native display strings. */
+"cli.language.invalid" = "Unsupported language %@; use en or zh-Hans.";
+"cli.language.missing" = "--lang requires a language; use en or zh-Hans.";
+"cli.language.duplicate" = "--lang may be specified only once.";
+"app.ok" = "OK";
+"app.cancel" = "Cancel";

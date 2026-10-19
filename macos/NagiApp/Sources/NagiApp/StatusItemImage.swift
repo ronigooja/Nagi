@@ -3,10 +3,7 @@ import AppKit
 /// Template artwork shared by the icon-only and traffic-rate presentations.
 @MainActor enum StatusItemImage {
     private static let symbol: NSImage? = {
-        // SwiftPM's generated accessor also embeds a build-directory fallback.
-        // Resolve the relocated resource bundle first when running inside Nagi.app.
-        let packagedURL = Bundle.main.resourceURL?.appendingPathComponent("NagiApp_NagiApp.bundle")
-        let resources = packagedURL.flatMap { Bundle(url: $0) } ?? Bundle.module
+        let resources = NagiResources.bundle
         guard let url = resources.url(forResource: "NagiMenuTemplate", withExtension: "pdf"),
               let image = NSImage(contentsOf: url) else { return nil }
         image.size = NSSize(width: 22, height: 18)

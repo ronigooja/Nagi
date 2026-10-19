@@ -46,8 +46,7 @@ struct NagiCLIClient {
             throw CLIError.invalidJSON("The request rewrite CLI returned an invalid response.")
         }
         guard envelope.ok, let data = envelope.data else {
-            throw CLIError.command(envelope.error?.code ?? "request_rewrite_error",
-                                   envelope.error?.message ?? "Request rewrite operation failed. Refresh status before retrying.")
+            throw envelope.commandError(fallbackCode: "request_rewrite_error", fallbackMessage: "Request rewrite operation failed. Refresh status before retrying.")
         }
         return data
     }
@@ -63,7 +62,7 @@ struct NagiCLIClient {
         return try await Task.detached(priority: .userInitiated) {
             let envelope = try JSONDecoder().decode(CLIEnvelope<CaptureReply>.self, from: bytes)
             guard envelope.ok, let data = envelope.data else {
-                throw CLIError.command(envelope.error?.code ?? "capture_error", envelope.error?.message ?? "Capture operation failed.")
+                throw envelope.commandError(fallbackCode: "capture_error", fallbackMessage: "Capture operation failed.")
             }
             return data
         }.value
@@ -115,7 +114,7 @@ struct NagiCLIClient {
                         if process.terminationStatus != 0 {
                             // Only the CLI's structured sanitized message may reach ordinary UI.
                             if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: error), let detail = envelope.error {
-                                throw CLIError.command(detail.code, detail.message)
+                                throw envelope.commandError(fallbackCode: detail.code, fallbackMessage: detail.message)
                             }
                             throw CLIError.command("request_rewrite_error", "Request rewrite operation failed. Refresh status before retrying.")
                         }
@@ -184,8 +183,7 @@ struct NagiCLIClient {
             guard let data = response.data else { throw CLIError.invalidJSON("The CLI omitted the data field.") }
             return data
         }
-        throw CLIError.command(response.error?.code ?? "command_failed",
-                               response.error?.message ?? "The CLI exited with status \(process.terminationStatus).")
+        throw response.commandError(fallbackCode: "command_failed", fallbackMessage: "The CLI exited with status \(process.terminationStatus).")
     }
 }
 
@@ -249,7 +247,7 @@ final class SubscriptionWatch: @unchecked Sendable {
         guard let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: data) else { return }
         lock.lock(); defer { lock.unlock() }
         if !isError && envelope.ok && envelope.data?["scheduler_running"]?.bool == true { announced = true }
-        if isError, let error = envelope.error { outputError = CLIError.command(error.code, error.message) }
+        if isError, let error = envelope.error { outputError = envelope.commandError(fallbackCode: error.code, fallbackMessage: error.message) }
     }
     func stop() {
         lock.lock(); stopped = true; lock.unlock()
@@ -273,7 +271,7 @@ final class SubscriptionWatch: @unchecked Sendable {
                 readers.wait()
                 lock.lock(); let intentional = stopped, started = announced, failure = outputError; lock.unlock()
                 if intentional { continuation.resume(returning: .stopped) }
-                else if let command = failure as? CLIError, case .command(let code, _) = command, code == "scheduler_already_running" {
+                else if let command = failure as? CLIError, command.commandCode == "scheduler_already_running" {
                     continuation.resume(returning: .duplicate)
                 } else if let failure { continuation.resume(returning: .failed(failure)) }
                 else if !started { continuation.resume(returning: .failed(CLIError.invalidJSON("Scheduler exited before announcing readiness."))) }
@@ -487,7 +485,7 @@ final class TrafficStream: @unchecked Sendable {
                     let (_, stderr, _) = output.snapshot()
                     if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: stderr),
                        let error = envelope.error {
-                        continuation.resume(throwing: CLIError.command(error.code, error.message))
+                        continuation.resume(throwing: envelope.commandError(fallbackCode: error.code, fallbackMessage: error.message))
                     } else { continuation.resume(throwing: CLIError.invalidJSON("Traffic stream exited unexpectedly.")) }
                 }
             }
@@ -495,10 +493,44 @@ final class TrafficStream: @unchecked Sendable {
     }
 }
 
-private struct CLIEnvelope<Value: Decodable>: Decodable { let ok: Bool; let data: Value?; let error: CLIMessage? }
-private struct CLIMessage: Decodable { let code: String; let message: String }
+struct CLIEnvelope<Value: Decodable>: Decodable {
+    let ok: Bool
+    let data: Value?
+    let error: CLIMessage?
+    let messages: CLIMessages
+    enum CodingKeys: String, CodingKey { case ok, data, error, messages }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try values.decode(Bool.self, forKey: .ok)
+        messages = (try? values.decode(CLIMessages.self, forKey: .messages)) ?? CLIMessages()
+        let original = try values.decodeIfPresent(Value.self, forKey: .data)
+        if let json = original as? JSONValue {
+            data = json.annotating(messages, pointer: "/data") as? Value
+        } else if var capture = original as? CaptureReply {
+            capture.messages = messages
+            data = capture as? Value
+        } else { data = original }
+        error = try values.decodeIfPresent(CLIMessage.self, forKey: .error)
+    }
+    func commandError(fallbackCode: String, fallbackMessage: String) -> CLIError {
+        let code = error?.code ?? fallbackCode
+        let original = error?.message ?? fallbackMessage
+        if let descriptor = messages.values["/error/message"] {
+            return .localizedCommand(code, original, descriptor)
+        }
+        return .command(code, original)
+    }
+}
+struct CLIMessage: Decodable { let code: String; let message: String }
 enum CLIError: LocalizedError {
     case missingCLI(String), launch(String), timeout, invalidJSON(String), command(String, String), outputTooLarge(Int)
+    case localizedCommand(String, String, MessageDescriptor)
+    var commandCode: String? {
+        switch self {
+        case .command(let code, _), .localizedCommand(let code, _, _): return code
+        default: return nil
+        }
+    }
     var errorDescription: String? {
         switch self {
         case .missingCLI(let path): return "Nagi CLI is missing at \(path). Install the CLI there."
@@ -506,6 +538,8 @@ enum CLIError: LocalizedError {
         case .timeout: return "Nagi CLI did not respond before the command timed out."
         case .invalidJSON(let reason): return "Nagi CLI response error: \(reason)"
         case .command(let code, let message): return "\(message) (\(code))"
+        case .localizedCommand(let code, let original, let descriptor):
+            return "\(descriptor.render(original: original)) (\(code))"
         case .outputTooLarge(let limit): return "Nagi CLI output exceeded \(limit / 1_048_576) MiB."
         }
     }
@@ -513,6 +547,28 @@ enum CLIError: LocalizedError {
 indirect enum JSONValue: Decodable {
     case objectValue([String: JSONValue]), arrayValue([JSONValue]), stringValue(String)
     case numberValue(Double), boolValue(Bool), null
+    case localizedString(String, MessageDescriptor)
+    func annotating(_ messages: CLIMessages, pointer: String) -> JSONValue {
+        guard !messages.values.isEmpty else { return self }
+        switch self {
+        case .objectValue(let fields):
+            return .objectValue(Dictionary(uniqueKeysWithValues: fields.map { key, value in
+                (key, value.annotating(messages, pointer: pointer + "/" + CLIMessages.escape(key)))
+            }))
+        case .arrayValue(let values):
+            return .arrayValue(values.enumerated().map { index, value in
+                value.annotating(messages, pointer: pointer + "/" + String(index))
+            })
+        case .stringValue(let original):
+            if let descriptor = messages.values[pointer] { return .localizedString(original, descriptor) }
+            return self
+        default: return self
+        }
+    }
+    var displayString: String? {
+        if case .localizedString(let original, let descriptor) = self { return descriptor.render(original: original) }
+        return string
+    }
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() { self = .null }
@@ -527,7 +583,9 @@ indirect enum JSONValue: Decodable {
         return value[key]
     }
     var array: [JSONValue] { if case .arrayValue(let value) = self { return value }; return [] }
-    var string: String? { if case .stringValue(let value) = self { return value }; return nil }
+    var string: String? {
+        switch self { case .stringValue(let value), .localizedString(let value, _): return value; default: return nil }
+    }
     var bool: Bool? { if case .boolValue(let value) = self { return value }; return nil }
     var int64: Int64? { if case .numberValue(let value) = self, value.isFinite, value >= 0, value < Double(Int64.max) { return Int64(value) }; return nil }
 }

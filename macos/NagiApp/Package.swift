@@ -3,10 +3,11 @@ import PackageDescription
 
 let package = Package(
     name: "NagiApp",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     products: [.executable(name: "NagiApp", targets: ["NagiApp"])],
     targets: [
-        .executableTarget(name: "NagiApp", resources: [.copy("Resources/NagiMenuTemplate.pdf")]),
+        .executableTarget(name: "NagiApp", resources: [.process("Resources")]),
         .testTarget(name: "NagiAppTests", dependencies: ["NagiApp"])
     ]
 )

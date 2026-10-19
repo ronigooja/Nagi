@@ -184,7 +184,7 @@ struct CaptureDraftIntent {
         switch value {
         case .objectValue(let fields): return .object(try fields.mapValues(syntax))
         case .arrayValue(let items): return .array(try items.map(syntax))
-        case .stringValue(let text): return .string(text)
+        case .stringValue(let text), .localizedString(let text, _): return .string(text)
         case .numberValue(let number):
             guard number.isFinite else { throw CLIError.invalidJSON("A draft contains an invalid numeric field.") }
             return .scalar(Int64(exactly: number).map(String.init) ?? String(number))

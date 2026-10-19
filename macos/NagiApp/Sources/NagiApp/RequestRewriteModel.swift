@@ -180,7 +180,7 @@ import Foundation
         switch value {
         case .objectValue(let fields): return "{" + fields.keys.sorted().map { RewriteJSON.string($0).text + ": " + display(fields[$0]!) }.joined(separator: ",\n") + "}"
         case .arrayValue(let items): return "[" + items.map(display).joined(separator: ", ") + "]"
-        case .stringValue(let text): return RewriteJSON.string(text).text
+        case .stringValue(let text), .localizedString(let text, _): return RewriteJSON.string(text).text
         case .numberValue(let number): return String(number)
         case .boolValue(let bool): return bool ? "true" : "false"
         case .null: return "null"
