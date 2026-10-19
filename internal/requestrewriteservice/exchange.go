@@ -29,7 +29,7 @@ type RewriteCounters struct {
 	WebSocketAbnormalCloses uint64 `json:"websocket_abnormal_closes"`
 }
 
-func (s *Service) count(stage, outcome string, err error) {
+func (s *Service) count(stage, outcome string, err error, failureCode string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch stage {
@@ -41,20 +41,28 @@ func (s *Service) count(stage, outcome string, err error) {
 		s.counters.Messages++
 	}
 	if err != nil {
-		s.counters.TransformFailures++
 		var failure *domain.Error
 		if errors.As(err, &failure) {
-			if failure.Code == "rewrite_limit" {
-				s.counters.ResourceExhaustion++
-			}
-			if failure.Code == "rewrite_script_timeout" {
-				s.counters.ScriptTimeouts++
-			}
+			failureCode = failure.Code
 		} else if errors.Is(err, errLimit) {
+			failureCode = "rewrite_limit"
+		} else {
+			failureCode = "rewrite_transform"
+		}
+	}
+	if failureCode != "" {
+		s.counters.TransformFailures++
+		if failureCode == "rewrite_limit" {
 			s.counters.ResourceExhaustion++
 		}
+		if failureCode == "rewrite_script_timeout" {
+			s.counters.ScriptTimeouts++
+		}
+	}
+	if err != nil {
 		return
 	}
+
 	if outcome != "unchanged" && outcome != "" {
 		s.counters.StageHits++
 	}
@@ -100,7 +108,7 @@ func (s *Service) transformRequest(req *http.Request, wire net.Conn, upgrade boo
 	if err == nil && (expired || !stopped) {
 		err = errUnavailable
 	}
-	s.count("request", result.Outcome, err)
+	s.count("request", result.Outcome, err, result.FailureCode)
 	if err != nil && result.Request != nil && result.Request.Body != nil {
 		result.Request.Body.Close()
 	}
@@ -124,7 +132,7 @@ func (s *Service) transformResponse(req *http.Request, resp *http.Response, wire
 	if err == nil && (expired || !stopped) {
 		err = errUnavailable
 	}
-	s.count("response", result.Outcome, err)
+	s.count("response", result.Outcome, err, result.FailureCode)
 	if err != nil {
 		if resp.Body != nil {
 			resp.Body.Close()

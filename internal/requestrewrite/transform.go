@@ -10,6 +10,7 @@ import (
 )
 
 type Result struct {
+	FailureCode string `json:"-"`
 	Request     *http.Request
 	RuleIDs     []string
 	Outcome     string

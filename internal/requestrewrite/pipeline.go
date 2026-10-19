@@ -31,6 +31,7 @@ func SetScriptExecutor(run ScriptExecutor) {
 }
 
 type ResponseResult struct {
+	FailureCode string         `json:"-"`
 	Response    *http.Response `json:"-"`
 	RuleIDs     []string       `json:"rule_ids"`
 	Outcome     string         `json:"outcome"`
@@ -41,6 +42,7 @@ type Message struct {
 	Body []byte `json:"-"`
 }
 type MessageResult struct {
+	FailureCode string   `json:"-"`
 	Message     Message  `json:"-"`
 	RuleIDs     []string `json:"rule_ids"`
 	Outcome     string   `json:"outcome"`
@@ -295,6 +297,18 @@ func invalidate(h http.Header) {
 		deleteHeader(h, k)
 	}
 }
+
+// fallbackFailureCode retains only fixed internal categories for counters.
+func fallbackFailureCode(err error) string {
+	var de *Error
+	if errors.As(err, &de) {
+		switch de.Code {
+		case "rewrite_limit", "rewrite_script_timeout":
+			return de.Code
+		}
+	}
+	return "rewrite_transform"
+}
 func transformFailure(e error, id string) error {
 	var de *Error
 	if errors.As(e, &de) {
@@ -379,6 +393,7 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 			}
 			out.Request = r
 			out.Outcome = "forward_original"
+			out.FailureCode = fallbackFailureCode(e)
 			return out, nil
 		}
 		return out, transformFailure(e, rule.ID)
@@ -580,6 +595,7 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 			}
 			out.Response = r
 			out.Outcome = "forward_original"
+			out.FailureCode = fallbackFailureCode(e)
 			return out, nil
 		}
 		return out, transformFailure(e, rule.ID)
@@ -789,6 +805,7 @@ func (s *Snapshot) TransformMessage(parent context.Context, stage string, req *h
 			if e != nil {
 				if r.OnError == "forward_original" && ctx.Err() == nil {
 					out.Outcome = "forward_original"
+					out.FailureCode = fallbackFailureCode(e)
 					return out, nil
 				}
 				return out, transformFailure(e, r.ID)

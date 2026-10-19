@@ -140,7 +140,7 @@ func (s *Service) ListenControl(runtimeDir string, ownerUID int) (string, error)
 			}
 			var version int
 			var generation string
-			if json.Unmarshal(v["version"], &version) != nil || json.Unmarshal(v["generation"], &generation) != nil || version != 1 || generation != s.config.Generation {
+			if json.Unmarshal(v["version"], &version) != nil || json.Unmarshal(v["generation"], &generation) != nil || version != 2 || generation != s.config.Generation {
 				http.Error(w, "rewrite_invalid", 409)
 				return
 			}
@@ -179,7 +179,7 @@ func Control(ctx context.Context, socket, method, path, generation string) (Stat
 		if !id(generation) {
 			return Status{}, errInvalid
 		}
-		body = `{"version":1,"generation":` + strconv.Quote(generation) + `}`
+		body = `{"version":2,"generation":` + strconv.Quote(generation) + `}`
 	}
 	transport := &http.Transport{Proxy: nil, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		conn, e := (&net.Dialer{}).DialContext(ctx, "unix", socket)

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/coder/websocket"
 	domain "github.com/ronigooja/Nagi/internal/requestrewrite"
@@ -16,6 +17,7 @@ import (
 // applicable message edit continue streaming and never reserve this workspace.
 var messageWorkspace = make(chan struct{}, 1)
 var errHandshakeResponse = errors.New("rewrite_handshake_response")
+var errTextUTF8 = errors.New("rewrite_websocket_utf8")
 
 type controlledRoundTripper func(*http.Request) (*http.Response, error)
 
@@ -169,11 +171,20 @@ func (s *Service) relayMessages(ctx context.Context, source, destination *websoc
 			if err != nil {
 				return err
 			}
-			_, copyErr := io.Copy(writer, reader)
-			closeErr := writer.Close()
+			var copyErr error
+			if kind == websocket.MessageText {
+				copyErr = copyTextMessage(writer, reader)
+			} else {
+				_, copyErr = io.Copy(writer, reader)
+			}
 			if copyErr != nil {
+				// Do not finish a partial invalid message with a final data frame.
+				if errors.Is(copyErr, errTextUTF8) {
+					return closeInvalidText(source)
+				}
 				return copyErr
 			}
+			closeErr := writer.Close()
 			if closeErr != nil {
 				return closeErr
 			}
@@ -196,6 +207,9 @@ func (s *Service) relayMessages(ctx context.Context, source, destination *websoc
 			err = errLimit
 		}
 		var result domain.MessageResult
+		if err == nil && kind == websocket.MessageText && !utf8.Valid(body) {
+			err = errTextUTF8
+		}
 		if err == nil {
 			messageType := "binary"
 			if kind == websocket.MessageText {
@@ -209,7 +223,7 @@ func (s *Service) relayMessages(ctx context.Context, source, destination *websoc
 		if err == nil && (expired || !stopped) {
 			err = errUnavailable
 		}
-		s.count(stage, result.Outcome, err)
+		s.count(stage, result.Outcome, err, result.FailureCode)
 		if err == nil {
 			kind = websocket.MessageBinary
 			if result.Message.Type == "text" {
@@ -219,7 +233,55 @@ func (s *Service) relayMessages(ctx context.Context, source, destination *websoc
 		}
 		<-messageWorkspace
 		if err != nil {
+			if errors.Is(err, errTextUTF8) {
+				return closeInvalidText(source)
+			}
 			return err
 		}
 	}
+}
+
+// copyTextMessage validates complete UTF-8 runes before forwarding them, keeping
+// at most one incomplete rune between reads. It preserves streaming/backpressure.
+func copyTextMessage(dst io.Writer, src io.Reader) error {
+	var buffer [32 * 1024]byte
+	pending := 0
+	for {
+		n, readErr := src.Read(buffer[pending:])
+		size := pending + n
+		valid := 0
+		for valid < size {
+			if !utf8.FullRune(buffer[valid:size]) {
+				break
+			}
+			r, width := utf8.DecodeRune(buffer[valid:size])
+			if r == utf8.RuneError && width == 1 {
+				return errTextUTF8
+			}
+			valid += width
+		}
+		if valid > 0 {
+			written, err := dst.Write(buffer[:valid])
+			if err != nil {
+				return err
+			}
+			if written != valid {
+				return io.ErrShortWrite
+			}
+		}
+		pending = copy(buffer[:], buffer[valid:size])
+		if readErr != nil {
+			if readErr == io.EOF {
+				if pending != 0 {
+					return errTextUTF8
+				}
+				return nil
+			}
+			return readErr
+		}
+	}
+}
+func closeInvalidText(source *websocket.Conn) error {
+	_ = source.Close(websocket.StatusInvalidFramePayloadData, "")
+	return websocket.CloseError{Code: websocket.StatusInvalidFramePayloadData}
 }

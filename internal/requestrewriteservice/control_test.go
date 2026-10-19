@@ -2,9 +2,12 @@ package requestrewriteservice
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -96,5 +99,44 @@ func TestPendingHandshakeBound(t *testing.T) {
 	b := make([]byte, 1)
 	if _, e = extra.Read(b); e == nil {
 		t.Fatal("excess handshake accepted")
+	}
+}
+
+func TestPrivateControlMutationProtocolV2Only(t *testing.T) {
+	f := newFixture(t, "127.0.0.1:1")
+	dir, e := os.MkdirTemp("", "nc-")
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer os.RemoveAll(dir)
+	socket, e := f.s.ListenControl(dir, os.Geteuid())
+	if e != nil {
+		t.Fatal(e)
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+	}}
+	defer transport.CloseIdleConnections()
+	for _, version := range []int{0, 1, 3, 2} {
+		req, e := http.NewRequest("POST", "http://rewrite.internal/drain", strings.NewReader(fmt.Sprintf(`{"version":%d,"generation":%q}`, version, f.config.Generation)))
+		if e != nil {
+			t.Fatal(e)
+		}
+		resp, e := transport.RoundTrip(req)
+		if e != nil {
+			t.Fatal(e)
+		}
+		resp.Body.Close()
+		expected := 409
+		if version == 2 {
+			expected = 200
+		}
+		if resp.StatusCode != expected {
+			t.Fatalf("version %d status %d", version, resp.StatusCode)
+		}
+		status, e := Control(context.Background(), socket, "GET", "/status", f.config.Generation)
+		if e != nil || status.Version != 2 || status.Ready != (version != 2) {
+			t.Fatal(status, e)
+		}
 	}
 }
