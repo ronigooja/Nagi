@@ -1,8 +1,96 @@
 import XCTest
 import AppKit
+import SwiftUI
 @testable import NagiApp
 
 @MainActor final class RequestRewriteWindowTests: XCTestCase {
+    func testInitialFrameAndEditorsFitSmallAndOffsetScreens() {
+        for screen in [NSRect(x: 0, y: 40, width: 1280, height: 720),
+                       NSRect(x: -1024, y: 200, width: 1024, height: 640),
+                       NSRect(x: 0, y: 0, width: 1920, height: 1080)] {
+            let frame = RequestRewriteWindowController.initialFrame(in: screen)
+            XCTAssertTrue(screen.contains(frame))
+            XCTAssertLessThan(frame.width, screen.width)
+            XCTAssertLessThan(frame.height, screen.height)
+            XCTAssertEqual(frame.midX, screen.midX, accuracy: 1)
+            XCTAssertEqual(frame.midY, screen.midY, accuracy: 1)
+            for preferred in [NSSize(width: 800, height: 740), NSSize(width: 780, height: 620)] {
+                let size = RewriteEditorLayout.size(width: preferred.width, height: preferred.height, in: screen)
+                XCTAssertLessThan(size.width, screen.width)
+                XCTAssertLessThan(size.height, screen.height)
+                XCTAssertLessThanOrEqual(size.width, preferred.width)
+                XCTAssertLessThanOrEqual(size.height, preferred.height)
+            }
+        }
+    }
+
+    func testLongContentAndTabChangesDoNotGrowWindowOrPreventShrinking() async throws {
+        _ = NSApplication.shared
+        let longValue = String(repeating: "fictitious", count: 1000)
+        var failRead = false
+        let model = RequestRewriteModel(read: { args, _ in
+            if failRead { throw CLIError.command("fixture", longValue) }
+            if args == ["status"] {
+                return .objectValue(["profile": .stringValue("work"), "actual": .stringValue("disabled"),
+                    "enabled_intent": .boolValue(false), "last_error": .stringValue(longValue),
+                    "ca": .objectValue(["fingerprint": .stringValue(longValue)])])
+            }
+            if args.first == "scripts" { return .objectValue(["scripts": .arrayValue([])]) }
+            return .objectValue(["rules": .arrayValue([.objectValue([
+                "id": .stringValue("example"), "enabled": .boolValue(true), "stage": .stringValue("request"),
+                "match": .objectValue(["domain": .stringValue("api.service.example"), "path_prefix": .stringValue("/" + longValue)])
+            ])])])
+        }, submit: { _, _ in .objectValue(["result": .stringValue(longValue)]) }, export: { _ in Data() })
+        let controller = RequestRewriteWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
+        let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
+        let initial = window.frame
+        XCTAssertTrue(screen.contains(initial))
+        controller.present()
+        for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
+        XCTAssertTrue(model.listsFresh)
+        XCTAssertEqual(model.rules.first?.path, "/" + longValue)
+        let previewed = await model.perform(["preview", "-"])
+        XCTAssertTrue(previewed)
+        for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
+        window.contentView?.layoutSubtreeIfNeeded()
+        XCTAssertEqual(window.frame, initial)
+        let host = try XCTUnwrap(window.contentView as? NSHostingView<RequestRewriteView>)
+        XCTAssertTrue(host.sizingOptions.isEmpty)
+        func findTabs(_ view: NSView) -> NSTabView? {
+            if let tabs = view as? NSTabView { return tabs }
+            return view.subviews.lazy.compactMap { findTabs($0) }.first
+        }
+        let tabs = try XCTUnwrap(findTabs(host))
+        XCTAssertEqual(tabs.numberOfTabViewItems, 5)
+        for index in 0..<tabs.numberOfTabViewItems {
+            tabs.selectTabViewItem(at: index)
+            for size in [window.minSize, initial.size, window.minSize] {
+                window.setFrame(NSRect(origin: initial.origin, size: size), display: true)
+                for _ in 0..<5 {
+                    host.layoutSubtreeIfNeeded()
+                    try await Task.sleep(nanoseconds: 20_000_000)
+                }
+                XCTAssertEqual(window.frame.width, size.width, accuracy: 1)
+                XCTAssertEqual(window.frame.height, size.height, accuracy: 1)
+            }
+        }
+        failRead = true
+        model.refresh()
+        for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }
+        XCTAssertNotNil(model.error)
+        for _ in 0..<5 {
+            host.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertEqual(window.frame.size, window.minSize)
+        window.close()
+        await model.waitForCancelledRead()
+        controller.present()
+        XCTAssertEqual(window.frame.size, window.minSize)
+    }
+
     func testWindowIsIndependentReusableAndCloseNeverStopsService() async throws {
         _ = NSApplication.shared
         var commands: [[String]] = []

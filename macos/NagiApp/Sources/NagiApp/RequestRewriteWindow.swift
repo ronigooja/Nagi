@@ -28,8 +28,16 @@ import SwiftUI
         titleObservation = presentation.$revision.sink { [weak window, weak model] _ in
             window?.title = model?.status?.profile.map { "Nagi Request Rewrite · \($0)" } ?? "Nagi Request Rewrite"
         }
-        window.contentView = NSHostingView(rootView: RequestRewriteView(presentation: presentation))
-        window.center()
+        let content = NSHostingView(rootView: RequestRewriteView(presentation: presentation))
+        // AppKit owns the frame; tab contents must not publish window size constraints.
+        content.sizingOptions = []
+        window.contentView = content
+        if let screen = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
+            window.minSize = NSSize(width: min(850, screen.width * 0.8), height: min(620, screen.height * 0.8))
+            window.setFrame(Self.initialFrame(in: screen), display: false)
+        } else {
+            window.center()
+        }
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.refreshOnForeground() }
         })
@@ -40,6 +48,11 @@ import SwiftUI
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    static func initialFrame(in screen: NSRect) -> NSRect {
+        let size = NSSize(width: min(1080, screen.width * 0.9), height: min(760, screen.height * 0.9))
+        return NSRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2,
+                      width: size.width, height: size.height)
+    }
     deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
     func present() {
         guard let window else { return }
@@ -81,6 +94,19 @@ private struct RewriteEditorSession: Identifiable {
     @State private var showingHelp = false
     private var model: RequestRewriteModel { presentation.model }
     var body: some View {
+        GeometryReader { geometry in
+            content.frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+        }
+        .nativeFormControls()
+        .onChange(of: model.status?.profile) { _ in selectedScript = nil; selectedRule = nil }
+        .sheet(item: $ruleSession) { session in
+            RewriteRuleEditor(presentation: presentation, draft: session.draft, originalID: session.originalID, profile: session.profile)
+        }
+        .sheet(item: $scriptSession) { session in
+            RewriteScriptEditor(presentation: presentation, draft: session.draft, originalID: session.originalID, profile: session.profile)
+        }
+    }
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label(model.stale ? "Status unavailable" : (model.status?.actual.capitalized ?? "Unknown"),
@@ -108,24 +134,21 @@ private struct RewriteEditorSession: Identifiable {
                 statusPage.tabItem { Text("Status") }.tag(2)
                 RewritePreviewView(presentation: presentation).tabItem { Text("Local Preview") }.tag(3)
                 caPage.tabItem { Text("Certificate & Trust") }.tag(4)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            if localError != nil || model.error != nil || model.notice != nil {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let message = localError ?? model.error { Text(message).foregroundColor(.red).textSelection(.enabled) }
+                        if let notice = model.notice { Text(notice).foregroundColor(.secondary).textSelection(.enabled) }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxHeight: 80)
             }
-            if let message = localError ?? model.error { Text(message).foregroundColor(.red).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
-            if let notice = model.notice { Text(notice).foregroundColor(.secondary).textSelection(.enabled) }
             HStack {
                 Text(model.updated.map { "Updated \(Self.time($0))" } ?? "Not updated yet").font(.caption).foregroundColor(.secondary)
                 Spacer()
             }
         }
         .padding(18)
-        .nativeFormControls()
-        .onChange(of: model.status?.profile) { _ in selectedScript = nil; selectedRule = nil }
-        .sheet(item: $ruleSession) { session in
-            RewriteRuleEditor(presentation: presentation, draft: session.draft, originalID: session.originalID, profile: session.profile)
-        }
-        .sheet(item: $scriptSession) { session in
-            RewriteScriptEditor(presentation: presentation, draft: session.draft, originalID: session.originalID, profile: session.profile)
-        }
-
     }
     static func time(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd HH:mm"; return formatter.string(from: date)
@@ -235,31 +258,32 @@ private struct RewriteEditorSession: Identifiable {
         run(["rules", "reorder", "-"], input: RewriteJSON.array(ids.map(RewriteJSON.string)).data, profile: model.status?.profile)
     }
     private var caPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Certificate") {
-                VStack(spacing: 10) {
-                    RewriteDetailRow("State", value: model.caStatus?["state"]?.string ?? "unknown")
-                    RewriteDetailRow("Trust", value: model.caStatus?["trust"]?.string ?? "unknown")
-                    RewriteDetailRow("Fingerprint", value: model.caStatus?["fingerprint"]?.string ?? "unknown")
-                    RewriteDetailRow("Valid from", value: certificateTime(model.caStatus?["not_before"]?.string))
-                    RewriteDetailRow("Valid until", value: certificateTime(model.caStatus?["not_after"]?.string))
-                }.padding(8)
-            }
-            HStack {
-                Button("Refresh CA Status") { run(["ca", "status"]) }
-                Button("Generate Local CA") { run(["ca", "generate"]) }
-                Button("Export Public Certificate…") { saveExport(certificate: true) }
-            }
-            HStack {
-                Button("Install Login Keychain Trust…") {
-                    if confirm("Trust the Nagi CA?", "Install this CA in your login keychain for request interception. macOS may request authorization. Applications with independent certificate stores need separate configuration.", action: "Install Trust") { run(["ca", "trust", "install"]) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                GroupBox("Certificate") {
+                    VStack(spacing: 10) {
+                        RewriteDetailRow("State", value: model.caStatus?["state"]?.string ?? "unknown")
+                        RewriteDetailRow("Trust", value: model.caStatus?["trust"]?.string ?? "unknown")
+                        RewriteDetailRow("Fingerprint", value: model.caStatus?["fingerprint"]?.string ?? "unknown")
+                        RewriteDetailRow("Valid from", value: certificateTime(model.caStatus?["not_before"]?.string))
+                        RewriteDetailRow("Valid until", value: certificateTime(model.caStatus?["not_after"]?.string))
+                    }.padding(8)
                 }
-                Button("Remove Login Keychain Trust…") {
-                    if confirm("Remove Nagi CA Trust?", "Stop rewriting and remove login keychain trust. The enable setting and CA are retained. Re-enable rewriting after restoring trust.", action: "Remove Trust") { run(["ca", "trust", "remove"]) }
+                HStack {
+                    Button("Refresh CA Status") { run(["ca", "status"]) }
+                    Button("Generate Local CA") { run(["ca", "generate"]) }
+                    Button("Export Public Certificate…") { saveExport(certificate: true) }
                 }
-            }
-            Spacer()
-        }.padding().disabled(!model.canOperate)
+                HStack {
+                    Button("Install Login Keychain Trust…") {
+                        if confirm("Trust the Nagi CA?", "Install this CA in your login keychain for request interception. macOS may request authorization. Applications with independent certificate stores need separate configuration.", action: "Install Trust") { run(["ca", "trust", "install"]) }
+                    }
+                    Button("Remove Login Keychain Trust…") {
+                        if confirm("Remove Nagi CA Trust?", "Stop rewriting and remove login keychain trust. The enable setting and CA are retained. Re-enable rewriting after restoring trust.", action: "Remove Trust") { run(["ca", "trust", "remove"]) }
+                    }
+                }
+            }.padding().disabled(!model.canOperate)
+        }
     }
     private func certificateTime(_ raw: String?) -> String {
         guard model.caStatus?["state"]?.string == "generated", let raw, !raw.hasPrefix("0001-"), let date = ISO8601DateFormatter().date(from: raw) else { return "unknown" }; return Self.time(date)

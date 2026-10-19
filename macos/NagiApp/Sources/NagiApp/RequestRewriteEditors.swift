@@ -1,6 +1,13 @@
 import SwiftUI
 import AppKit
 
+@MainActor enum RewriteEditorLayout {
+    static func size(width: CGFloat, height: CGFloat, in screen: NSRect? = nil) -> NSSize {
+        guard let screen = screen ?? NSScreen.main?.visibleFrame else { return NSSize(width: width, height: height) }
+        return NSSize(width: min(width, screen.width * 0.85), height: min(height, screen.height * 0.85))
+    }
+}
+
 enum RewriteLabels {
     static func stage(_ value: String) -> String {
         switch value {
@@ -69,6 +76,7 @@ private struct RewriteHelp: View {
     @State private var showingOptions = false
     @State private var showingDestinations = false
     var body: some View {
+        let size = RewriteEditorLayout.size(width: 800, height: 740)
         VStack(alignment: .leading, spacing: 12) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -111,7 +119,7 @@ private struct RewriteHelp: View {
                 Spacer()
                 Button("Save Rule") { submit() }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
             }
-        }.padding(22).frame(width: 800, height: 740)
+        }.padding(22).frame(width: size.width, height: size.height)
             .nativeFormControls()
             .disabled(presentation.model.operationInProgress)
             .interactiveDismissDisabled(presentation.model.operationInProgress)
@@ -253,6 +261,7 @@ struct RewriteOperationEditor: View {
     let profile: String
     @State private var localError: String?
     var body: some View {
+        let size = RewriteEditorLayout.size(width: 780, height: 620)
         VStack(alignment: .leading, spacing: 12) {
             RewriteField("Script name", text: $draft.id).disabled(originalID != nil)
             Picker("Body access", selection: $draft.bodyAccess) { Text("Metadata only").tag("none"); Text("Buffered body (up to 8 MiB)").tag("buffer") }
@@ -279,7 +288,7 @@ struct RewriteOperationEditor: View {
                     } catch { localError = error.localizedDescription }
                 }.keyboardShortcut(.defaultAction).help("Save to profile \(profile)")
             }
-        }.padding(22).frame(width: 780, height: 620)
+        }.padding(22).frame(width: size.width, height: size.height)
             .nativeFormControls()
             .disabled(presentation.model.operationInProgress)
             .interactiveDismissDisabled(presentation.model.operationInProgress)
