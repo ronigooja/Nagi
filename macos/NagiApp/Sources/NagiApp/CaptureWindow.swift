@@ -258,7 +258,7 @@ import SwiftUI
 
 func captureMinute(_ raw: String) -> String {
     let parser = ISO8601DateFormatter(); parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    guard let date = parser.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) else { return L10n.text("app.state.unknown") }
+    guard let date = parser.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) else { return "unknown" }
     let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd HH:mm"; return formatter.string(from: date)
 }
 

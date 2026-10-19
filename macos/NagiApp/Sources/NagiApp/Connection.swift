@@ -44,14 +44,14 @@ struct Connection: Decodable, Equatable, Sendable {
         destination = Self.address(host ?? ip, port: metadata?.destinationPort?.value)
         destinationIP = Self.address(ip, port: metadata?.destinationPort?.value)
         source = Self.address(sourceIP, port: metadata?.sourcePort?.value)
-        processPath = Self.known(metadata?.processPath) ?? L10n.text("app.ui.unknown")
-        process = Self.known(metadata?.process) ?? L10n.text("app.ui.unknown")
-        network = Self.known(metadata?.network)?.uppercased() ?? L10n.text("app.ui.unknown")
-        inbound = Self.known(metadata?.type) ?? L10n.text("app.ui.unknown")
+        processPath = Self.known(metadata?.processPath) ?? "unknown"
+        process = Self.known(metadata?.process) ?? "unknown"
+        network = Self.known(metadata?.network)?.uppercased() ?? "unknown"
+        inbound = Self.known(metadata?.type) ?? "unknown"
         chains = try c.decodeIfPresent([String].self, forKey: .chains) ?? []
-        chain = chains.isEmpty ? L10n.text("app.ui.unknown") : chains.joined(separator: " → ")
-        rule = Self.known(try c.decodeIfPresent(String.self, forKey: .rule)) ?? L10n.text("app.ui.unknown")
-        rulePayload = Self.known(try c.decodeIfPresent(String.self, forKey: .rulePayload)) ?? L10n.text("app.ui.unknown")
+        chain = chains.isEmpty ? "unknown" : chains.joined(separator: " → ")
+        rule = Self.known(try c.decodeIfPresent(String.self, forKey: .rule)) ?? "unknown"
+        rulePayload = Self.known(try c.decodeIfPresent(String.self, forKey: .rulePayload)) ?? "unknown"
         upload = try c.decodeIfPresent(Int64.self, forKey: .upload).flatMap { $0 >= 0 ? $0 : nil }
         download = try c.decodeIfPresent(Int64.self, forKey: .download).flatMap { $0 >= 0 ? $0 : nil }
         searchText = [id, destination, destinationIP, source, process, processPath, chain].joined(separator: "\n").lowercased()
@@ -62,7 +62,7 @@ struct Connection: Decodable, Equatable, Sendable {
         return value
     }
     private static func address(_ host: String?, port: String?) -> String {
-        guard let host else { return L10n.text("app.ui.unknown") }
+        guard let host else { return "unknown" }
         guard let port = known(port) else { return host }
         return host.contains(":") && !host.hasPrefix("[") ? "[\(host)]:\(port)" : "\(host):\(port)"
     }

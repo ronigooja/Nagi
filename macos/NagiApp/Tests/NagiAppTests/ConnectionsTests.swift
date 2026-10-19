@@ -12,11 +12,11 @@ final class ConnectionsTests: XCTestCase {
         {"connections":[{"id":"missing"},{"id":"full","metadata":{"host":"example.org","destinationIP":"2001:db8::1","destinationPort":"443","sourceIP":"::1","sourcePort":"1234","network":"tcp","type":"Mixed","process":"Browser","processPath":"/Applications/Browser.app/Browser"},"chains":["Node A","Proxy"],"rule":"DomainSuffix","rulePayload":"example.org","upload":9223372036854775807,"download":0}]}
         """)
         let empty = records[0]
-        XCTAssertEqual(empty.destination, "Unknown")
-        XCTAssertEqual(empty.source, "Unknown")
-        XCTAssertEqual(empty.process, "Unknown")
-        XCTAssertEqual(empty.network, "Unknown")
-        XCTAssertEqual(empty.chain, "Unknown")
+        for field in [empty.destination, empty.destinationIP, empty.source, empty.process,
+                      empty.processPath, empty.network, empty.inbound, empty.chain,
+                      empty.rule, empty.rulePayload] {
+            XCTAssertEqual(field, "unknown")
+        }
         XCTAssertNil(empty.upload)
         XCTAssertNil(empty.download)
         let full = records[1]
@@ -29,6 +29,24 @@ final class ConnectionsTests: XCTestCase {
         XCTAssertEqual(full.chain, "Node A → Proxy")
         XCTAssertEqual(try decode("{\"connections\":[]}"), [])
         XCTAssertNil(JSONValue.numberValue(Double(Int64.max)).int64)
+    }
+
+    func testTechnicalPlaceholdersAndActualNamesRemainDistinct() throws {
+        let records = try decode("""
+        {"connections":[
+          {"id":"empty","metadata":{"process":"","processPath":"","host":""}},
+          {"id":"named","metadata":{"process":"Unknown","processPath":"/opt/未知/none"},"chains":["DIRECT","running"],"rule":"MATCH","rulePayload":"none"}
+        ]}
+        """)
+        XCTAssertEqual(records[0].process, "unknown")
+        XCTAssertEqual(records[0].processPath, "unknown")
+        XCTAssertEqual(records[0].destination, "unknown")
+        XCTAssertEqual(records[1].process, "Unknown")
+        XCTAssertEqual(records[1].processPath, "/opt/未知/none")
+        XCTAssertEqual(records[1].chain, "DIRECT → running")
+        XCTAssertEqual(records[1].rulePayload, "none")
+        XCTAssertTrue(records[0].matches("unknown"))
+        XCTAssertTrue(records[1].matches("/opt/未知"))
     }
 
     func testSearchAndSortingUseStableIDsAndNumericCounters() throws {

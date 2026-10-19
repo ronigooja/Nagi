@@ -282,7 +282,7 @@ func (s *Session) renderField(key string, raw json.RawMessage, depth int, result
 	default:
 		text := fmt.Sprint(value)
 		if value == nil {
-			text = menuState(s.language, "unknown")
+			text = "unknown"
 		}
 		if original, ok := value.(string); ok {
 			text = result.message(s.language, pointer, original)
@@ -314,7 +314,11 @@ func (s *Session) renderField(key string, raw json.RawMessage, depth int, result
 				}
 			}
 			if stateField(key) {
-				text = s.stateValue(fmt.Sprint(value))
+				state := fmt.Sprint(value)
+				if value == nil {
+					state = "unknown"
+				}
+				text = s.stateValue(state)
 			}
 			if flag, ok := value.(bool); ok {
 				state := "no"

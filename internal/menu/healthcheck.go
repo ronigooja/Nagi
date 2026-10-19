@@ -125,7 +125,7 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 		if kind == "provider" && config.CanResetURL != nil && !*config.CanResetURL {
 			view.Actions = view.Actions[:len(view.Actions)-1]
 		}
-		interval := menuState(language, "unknown")
+		interval := "unknown"
 		if config.IntervalDefaulted && (config.IntervalSeconds == nil || *config.IntervalSeconds == 0) {
 			interval = menuText(language, "menu.healthcheck.healthcheck_page.original_configuration", "original configuration")
 		} else if config.IntervalSeconds != nil {
@@ -149,7 +149,7 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 			if kind == "subscription" {
 				profile = menuText(language, "menu.healthcheck.healthcheck_page.not_applied", "not applied")
 			} else {
-				profile = menuState(language, "unknown")
+				profile = "unknown"
 			}
 		}
 		view.Context = menuFormat(language, "menu.healthcheck.healthcheck_page.profile_s_interval_s_enabled_s_lazy_s_configurat", "Profile: %s\nInterval: %s; enabled: %s; lazy: %s\nConfiguration source: %s", profile, interval, state(config.Enabled), state(config.Lazy), source)
@@ -179,7 +179,7 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 func localizedmenuTestEndpoint(language i18n.Context, raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return menuState(language, "unknown")
+		return "unknown"
 	}
 	return u.Host + " (" + u.Scheme + ")"
 }

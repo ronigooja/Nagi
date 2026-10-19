@@ -21,8 +21,8 @@ struct NodeDelay {
         return reason == nil ? L10n.text("app.ui.untested") : L10n.text("app.ui.unknown")
     }
     var detail: String {
-        let measuredTime = measuredAt.map { MenuAppDelegate.subscriptionTime($0) } ?? L10n.text("app.state.unknown")
-        let measurement = L10n.format("app.ui.latest_engine_measurement_nmeasured_at_ntest_origin", String(describing: label), String(describing: measuredTime), String(describing: testOrigin ?? L10n.text("app.state.unknown")))
+        let measuredTime = measuredAt.map { MenuAppDelegate.subscriptionTime($0) } ?? "unknown"
+        let measurement = L10n.format("app.ui.latest_engine_measurement_nmeasured_at_ntest_origin", String(describing: label), String(describing: measuredTime), String(describing: testOrigin ?? "unknown"))
         return measurement + (reason.map { L10n.format("app.ui.nreason", String(describing: $0)) } ?? "")
     }
     static func parse(_ value: JSONValue?) -> [String: NodeDelay] {

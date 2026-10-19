@@ -48,7 +48,7 @@ func writeRewrite(w io.Writer, v RewriteResult) error {
 	for _, p := range []struct{ key, label string }{{"profile", text(w, "cli.output.writerewrite.profile", "Profile")}, {"enabled_intent", text(w, "cli.output.writerewrite.enabled_intent", "Enabled intent")}, {"tun_running", text(w, "cli.output.writerewrite.tun_running", "TUN running")}, {"backend", text(w, "cli.output.writerewrite.backend", "Backend")}, {"service_running", text(w, "cli.output.writerewrite.rewrite_service_running", "Rewrite service running")}, {"configured_rule_version", text(w, "cli.output.writerewrite.configured_rule_version", "Configured rule version")}, {"active_rule_version", text(w, "cli.output.writerewrite.active_rule_version", "Active rule version")}, {"generation", text(w, "cli.output.writerewrite.generation", "Generation")}, {"engine_epoch", text(w, "cli.output.writerewrite.engine_epoch", "Engine epoch")}, {"last_error", text(w, "cli.output.writerewrite.last_error", "Last error")}, {"recovery", text(w, "cli.output.writerewrite.recovery", "Recovery")}, {"saved", text(w, "cli.output.writerewrite.saved", "Saved")}, {"valid", text(w, "cli.output.writerewrite.valid", "Valid")}, {"exported", text(w, "cli.output.writerewrite.exported", "Exported")}, {"path", text(w, "cli.output.writerewrite.file", "File")}, {"state", text(w, "cli.output.writerewrite.ca", "CA")}, {"trust", text(w, "cli.output.writerewrite.os_trust", "OS trust")}, {"fingerprint", text(w, "cli.output.writerewrite.fingerprint", "Fingerprint")}} {
 		if value, ok := v[p.key]; ok {
 			if value == nil || value == "" {
-				value = stateText(w, "unknown")
+				value = "unknown"
 			}
 			switch p.key {
 			case "last_error", "recovery":

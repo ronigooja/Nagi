@@ -424,7 +424,7 @@ import AppKit
         return L10n.format("app.ui.quota_available_total_uploaded_downloaded", String(describing: subscriptionBytes(available)), String(describing: subscriptionBytes(sub.total)), String(describing: subscriptionBytes(sub.upload)), String(describing: subscriptionBytes(sub.download)))
     }
     static func subscriptionBytes(_ bytes: Int64) -> String {
-        guard bytes >= 0 else { return L10n.text("app.state.unknown") }
+        guard bytes >= 0 else { return "unknown" }
         guard bytes >= 1024 else { return "\(bytes) B" }
         let units = ["KiB", "MiB", "GiB", "TiB", "PiB", "EiB"]
         var value = Double(bytes) / 1024
@@ -844,10 +844,10 @@ private final class MenuTimestampFormatter: @unchecked Sendable {
         // Fractions do not affect minute precision; accept Go's nanoseconds too.
         guard let match = expression.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
               let seconds = Range(match.range(at: 1), in: raw),
-              let zone = Range(match.range(at: 2), in: raw) else { return L10n.text("app.state.unknown") }
+              let zone = Range(match.range(at: 2), in: raw) else { return "unknown" }
         lock.lock()
         defer { lock.unlock() }
-        guard let date = parser.date(from: String(raw[seconds]) + String(raw[zone])) else { return L10n.text("app.state.unknown") }
+        guard let date = parser.date(from: String(raw[seconds]) + String(raw[zone])) else { return "unknown" }
         if display.timeZone != timeZone { display.timeZone = timeZone }
         return display.string(from: date)
     }

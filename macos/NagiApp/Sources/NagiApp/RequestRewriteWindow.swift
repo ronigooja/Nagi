@@ -173,13 +173,13 @@ private struct RewriteEditorSession: Identifiable {
                         }
                         DisclosureGroup(L10n.text("app.ui.runtime_details")) {
                             VStack(spacing: 10) {
-                                RewriteDetailRow(L10n.text("app.ui.schema"), value: status.value["config_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown"))
-                                RewriteDetailRow(L10n.text("app.ui.backend"), value: L10n.protocolLabel(status.value["backend"]?.string ?? "unknown"))
-                                RewriteDetailRow(L10n.text("app.ui.protocol"), value: status.value["protocol_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown"))
-                                RewriteDetailRow(L10n.text("app.ui.configured_version"), value: status.value["configured_rule_version"]?.string ?? L10n.text("app.state.unknown"))
-                                RewriteDetailRow(L10n.text("app.ui.active_version"), value: status.value["active_rule_version"]?.string ?? L10n.text("app.state.unknown"))
-                                RewriteDetailRow(L10n.text("app.ui.generation"), value: status.value["generation"]?.string ?? L10n.text("app.state.unknown"))
-                                RewriteDetailRow(L10n.text("app.ui.engine_epoch"), value: status.value["engine_epoch"]?.string ?? L10n.text("app.state.unknown"))
+                                RewriteDetailRow(L10n.text("app.ui.schema"), value: status.value["config_version"]?.int64.map(String.init) ?? "unknown")
+                                RewriteDetailRow(L10n.text("app.ui.backend"), value: (status.value["backend"]?.string).map { L10n.protocolLabel($0) } ?? "unknown")
+                                RewriteDetailRow(L10n.text("app.ui.protocol"), value: status.value["protocol_version"]?.int64.map(String.init) ?? "unknown")
+                                RewriteDetailRow(L10n.text("app.ui.configured_version"), value: status.value["configured_rule_version"]?.string ?? "unknown")
+                                RewriteDetailRow(L10n.text("app.ui.active_version"), value: status.value["active_rule_version"]?.string ?? "unknown")
+                                RewriteDetailRow(L10n.text("app.ui.generation"), value: status.value["generation"]?.string ?? "unknown")
+                                RewriteDetailRow(L10n.text("app.ui.engine_epoch"), value: status.value["engine_epoch"]?.string ?? "unknown")
                             }.padding(.top, 10)
                         }
                     }.padding(2)
@@ -261,7 +261,7 @@ private struct RewriteEditorSession: Identifiable {
                     VStack(spacing: 10) {
                         RewriteDetailRow(L10n.text("app.ui.state"), value: L10n.protocolLabel(model.caStatus?["state"]?.string ?? L10n.text("app.state.unknown")))
                         RewriteDetailRow(L10n.text("app.ui.trust"), value: L10n.protocolLabel(model.caStatus?["trust"]?.string ?? L10n.text("app.state.unknown")))
-                        RewriteDetailRow(L10n.text("app.ui.fingerprint"), value: model.caStatus?["fingerprint"]?.string ?? L10n.text("app.state.unknown"))
+                        RewriteDetailRow(L10n.text("app.ui.fingerprint"), value: model.caStatus?["fingerprint"]?.string ?? "unknown")
                         RewriteDetailRow(L10n.text("app.ui.valid_from"), value: certificateTime(model.caStatus?["not_before"]?.string))
                         RewriteDetailRow(L10n.text("app.ui.valid_until"), value: certificateTime(model.caStatus?["not_after"]?.string))
                     }.padding(8)
@@ -283,7 +283,7 @@ private struct RewriteEditorSession: Identifiable {
         }
     }
     private func certificateTime(_ raw: String?) -> String {
-        guard model.caStatus?["state"]?.string == "generated", let raw, !raw.hasPrefix("0001-"), let date = ISO8601DateFormatter().date(from: raw) else { return L10n.text("app.state.unknown") }; return Self.time(date)
+        guard model.caStatus?["state"]?.string == "generated", let raw, !raw.hasPrefix("0001-"), let date = ISO8601DateFormatter().date(from: raw) else { return "unknown" }; return Self.time(date)
     }
     private func toggle() {
         if model.status?.intent == true { run(["disable"]); return }

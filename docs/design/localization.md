@@ -185,6 +185,9 @@ points and renderers. English sentence lookup is not a resource API.
 These classifications apply to every occurrence, including text nested in
 otherwise machine-readable objects.
 
+Preserve technical data values and their missing-value placeholders; localize UI
+labels and status descriptions.
+
 | Class | Treatment | Source and symbol examples |
 | --- | --- | --- |
 | Translated | Nagi-owned labels, titles, summaries, descriptions, guidance, validation, empty states, failures, notifications, accessibility text and native dialogs use semantic catalog IDs. | `internal/command/help.go:commandSpecs`, `internal/output/output.go:Write`, `internal/menu/page.go`, `macos/NagiApp/Sources/NagiApp/NagiApp.swift:MenuAppDelegate` |

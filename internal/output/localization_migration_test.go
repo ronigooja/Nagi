@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ronigooja/Nagi/internal/i18n"
+	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
 )
 
@@ -44,7 +45,7 @@ func TestLocalizedOutputPreservesRawAndResourceNames(t *testing.T) {
 }
 
 func TestLocalizedStructuredJSONIsIdentical(t *testing.T) {
-	values := []any{map[string]any{"running": false, "profile": "Running"}, proxy.Group{Name: "Running", Now: "DIRECT", All: []string{"DIRECT"}}, Raw("raw\n")}
+	values := []any{map[string]any{"running": false, "profile": "Running"}, proxy.Group{Name: "Running", Now: "DIRECT", All: []string{"DIRECT"}}, Raw("raw\n"), RewriteResult{"profile": nil, "generation": "", "enabled_intent": nil}}
 	for _, data := range values {
 		var en, zh bytes.Buffer
 		WriteLocalized(&en, true, i18n.New(i18n.English), data)
@@ -52,6 +53,36 @@ func TestLocalizedStructuredJSONIsIdentical(t *testing.T) {
 		if en.String() != zh.String() {
 			t.Fatalf("JSON changed: %s %s", &en, &zh)
 		}
+	}
+}
+
+func TestTechnicalPlaceholdersStayLiteralWhileStatesAreLocalized(t *testing.T) {
+	for _, language := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		t.Run(string(language), func(t *testing.T) {
+			locale := i18n.New(language)
+			var out bytes.Buffer
+			data := RewriteResult{"actual": "running", "profile": nil, "generation": "", "path": nil, "fingerprint": "", "enabled_intent": nil}
+			if err := WriteLocalized(&out, false, locale, data); err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"Profile: unknown", "Generation: unknown", "File: unknown", "Fingerprint: unknown", "Enabled intent: unknown", "Request rewrite: running"}
+			if language == i18n.SimplifiedChinese {
+				want = []string{"配置方案: unknown", "代次: unknown", "文件: unknown", "指纹: unknown", "启用意图: 未知", "请求改写：运行中"}
+			}
+			for _, line := range want {
+				if !strings.Contains(out.String(), line) {
+					t.Fatalf("missing %q in %s", line, &out)
+				}
+			}
+			out.Reset()
+			targets := map[string]any{"targets": []profile.TailscaleTarget{{Kind: "node", Name: "running", Type: "vless"}}}
+			if err := WriteLocalized(&out, false, locale, targets); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), "running") || !strings.Contains(out.String(), "none") || strings.Contains(out.String(), "无") {
+				t.Fatalf("technical name or placeholder translated: %s", &out)
+			}
+		})
 	}
 }
 

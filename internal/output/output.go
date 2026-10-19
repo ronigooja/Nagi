@@ -809,7 +809,7 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 		for _, t := range targets {
 			dialer := t.DialerProxy
 			if dialer == "" {
-				dialer = stateText(w, "none")
+				dialer = "none"
 			}
 			if err := line(w, renderText(w, "cli.output.writehumanmap.s_s_s_dialer_proxy_s", map[string]any{"kind": fmt.Sprint(t.Kind), "name": fmt.Sprint(t.Name), "type": fmt.Sprint(t.Type), "dialer": fmt.Sprint(dialer)}, fmt.Sprintf("%s %s (%s): dialer proxy %s", t.Kind, t.Name, t.Type, dialer))); err != nil {
 				return err

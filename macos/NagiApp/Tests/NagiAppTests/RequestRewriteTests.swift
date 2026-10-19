@@ -41,6 +41,16 @@ final class RequestRewriteDocumentTests: XCTestCase {
         XCTAssertFalse(status.canEnable); XCTAssertTrue(status.detail.contains("TUN running: unknown"))
         XCTAssertTrue(status.detail.contains("Protocol: unknown"))
     }
+
+    func testTechnicalSummaryPlaceholdersPreserveNamesAndDomain() throws {
+        let value = try JSONDecoder().decode(JSONValue.self, from: Data(#"{"id":"none","enabled":true,"stage":"request","match":{}}"#.utf8))
+        let rule = try XCTUnwrap(RewriteRuleSummary(value))
+        XCTAssertEqual(rule.id, "none")
+        XCTAssertEqual(rule.domain, "unknown")
+        let named = try JSONDecoder().decode(JSONValue.self, from: Data(#"{"id":"running","enabled":true,"stage":"request","match":{"domain":"none.example"}}"#.utf8))
+        XCTAssertEqual(RewriteRuleSummary(named)?.id, "running")
+        XCTAssertEqual(RewriteRuleSummary(named)?.domain, "none.example")
+    }
 }
 
 @MainActor final class RequestRewriteModelTests: XCTestCase {

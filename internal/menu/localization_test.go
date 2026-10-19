@@ -164,3 +164,80 @@ func TestMissingOriginalErrorTargetIgnoresOptionalDescriptor(t *testing.T) {
 		}
 	}
 }
+
+func TestTechnicalPlaceholdersAndNullStatesUseDifferentPresentation(t *testing.T) {
+	for _, language := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		t.Run(string(language), func(t *testing.T) {
+			var out bytes.Buffer
+			s := NewSessionWithLanguage(&fakeRunner{}, strings.NewReader(""), &out, i18n.New(language))
+			s.ShowResult([]string{"status"}, Result{Data: map[string]any{
+				"path": nil, "profile": nil, "generation": nil, "test_url": nil,
+				"status": nil, "state": "running",
+				"selections": map[string]any{"running": "none", "status": nil},
+			}})
+			want := []string{"path: unknown", "profile: unknown", "generation: unknown", "test endpoint: unknown", "status: unknown", "state: running"}
+			if language == i18n.SimplifiedChinese {
+				want = []string{"路径: unknown", "配置: unknown", "代次: unknown", "测试端点: unknown", "状态: 未知", "状态: 运行中"}
+			}
+			want = append(want, "running: none", "status: unknown")
+			for _, line := range want {
+				if !strings.Contains(out.String(), line) {
+					t.Fatalf("missing %q in %s", line, &out)
+				}
+			}
+			if strings.Contains(out.String(), "<nil>") {
+				t.Fatalf("null state leaked into presentation: %s", &out)
+			}
+		})
+	}
+}
+
+func TestProfilePlaceholdersStayLiteralInBothLanguages(t *testing.T) {
+	for _, language := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		locale := i18n.New(language)
+		runner := &fakeRunner{results: map[string]Result{"profile list": {Data: map[string]any{"profiles": []string{"work"}}}}}
+		s := NewSessionWithLanguage(runner, strings.NewReader(""), io.Discard, locale)
+		view, err := localizedprofileDetailPage(locale, "work").Load(context.Background(), s)
+		if err != nil || !strings.HasSuffix(view.Context, ": none") && !strings.HasSuffix(view.Context, "：none") {
+			t.Fatalf("%s absent selection: %q, %v", language, view.Context, err)
+		}
+		for _, result := range []Result{{Data: map[string]any{"running": true}}, {Code: 1}} {
+			if summary := localizedstatusSummary(locale, result); !strings.Contains(summary, "unknown") {
+				t.Fatalf("%s profile placeholder translated: %s", language, summary)
+			}
+		}
+	}
+}
+
+func TestTechnicalSettingsAndMetadataPlaceholdersStayLiteral(t *testing.T) {
+	for _, language := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		t.Run(string(language), func(t *testing.T) {
+			locale := i18n.New(language)
+			lan := localizedSettingsSummary(locale, Result{Data: map[string]any{"enabled": true}}, []string{"lan", "status"}, "LAN")
+			if !strings.HasSuffix(lan, ": unknown") {
+				t.Fatalf("address placeholder translated: %s", lan)
+			}
+			ports := localizedSettingsSummary(locale, Result{Data: map[string]any{}}, []string{"ports", "status"}, "Ports")
+			if strings.Count(ports, "unknown") != 3 {
+				t.Fatalf("port placeholders translated: %s", ports)
+			}
+			for _, placeholder := range []string{
+				localizedmenuTestEndpoint(locale, "invalid"),
+				localizedsubscriptionTime(locale, "invalid"),
+				localizedsubscriptionBytes(locale, -1),
+			} {
+				if placeholder != "unknown" {
+					t.Fatalf("technical placeholder translated: %q", placeholder)
+				}
+			}
+			runner := &fakeRunner{results: map[string]Result{
+				"proxy healthcheck show group work": {Data: map[string]any{"enabled": false, "lazy": true, "source": "override", "test_url": "invalid"}},
+			}}
+			s := NewSessionWithLanguage(runner, strings.NewReader(""), io.Discard, locale)
+			view, err := localizedhealthcheckPage(locale, "group", "work").Load(context.Background(), s)
+			if err != nil || strings.Count(view.Context, "unknown") != 3 {
+				t.Fatalf("healthcheck data placeholders: %s, %v", view.Context, err)
+			}
+		})
+	}
+}

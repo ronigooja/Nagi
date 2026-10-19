@@ -90,7 +90,7 @@ struct RewriteRuleSummary: Equatable {
     let id: String; let enabled: Bool; let stage: String; let domain: String; let methods: [String]; let path: String; let onError: String; let kinds: [String]
     init?(_ value: JSONValue) {
         guard let id = value["id"]?.string, let enabled = value["enabled"]?.bool, let stage = value["stage"]?.string else { return nil }
-        self.id = id; self.enabled = enabled; self.stage = stage; domain = value["match"]?["domain"]?.string ?? L10n.text("app.state.unknown")
+        self.id = id; self.enabled = enabled; self.stage = stage; domain = value["match"]?["domain"]?.string ?? "unknown"
         methods = value["match"]?["methods"]?.array.compactMap(\.string) ?? []
         path = value["match"]?["path_prefix"]?.string ?? L10n.text("app.ui.any_path"); onError = value["on_error"]?.string ?? "unknown"
         kinds = value["operations"]?.array.compactMap { $0.string ?? $0["op"]?.string } ?? []
@@ -109,18 +109,18 @@ struct RewriteStatus {
     var detail: String {
         let ca = value["ca"]
         return L10n.format("app.rewrite.details",
-            String(describing: profile ?? L10n.text("app.state.unknown")),
+            String(describing: profile ?? "unknown"),
             String(describing: Self.bool(intent)),
             String(describing: L10n.protocolLabel(actual)),
             String(describing: Self.bool(tunRunning)),
             String(describing: Self.bool(value["service_running"]?.bool)),
-            String(describing: value["config_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown")),
-            String(describing: value["backend"]?.string ?? L10n.text("app.state.unknown")),
-            String(describing: value["protocol_version"]?.int64.map(String.init) ?? L10n.text("app.state.unknown")),
-            String(describing: value["configured_rule_version"]?.string ?? L10n.text("app.state.unknown")),
-            String(describing: value["active_rule_version"]?.string ?? L10n.text("app.state.unknown")),
-            String(describing: value["generation"]?.string ?? L10n.text("app.state.unknown")),
-            String(describing: value["engine_epoch"]?.string ?? L10n.text("app.state.unknown")),
+            String(describing: value["config_version"]?.int64.map(String.init) ?? "unknown"),
+            String(describing: value["backend"]?.string ?? "unknown"),
+            String(describing: value["protocol_version"]?.int64.map(String.init) ?? "unknown"),
+            String(describing: value["configured_rule_version"]?.string ?? "unknown"),
+            String(describing: value["active_rule_version"]?.string ?? "unknown"),
+            String(describing: value["generation"]?.string ?? "unknown"),
+            String(describing: value["engine_epoch"]?.string ?? "unknown"),
             String(describing: L10n.protocolLabel(ca?["state"]?.string ?? L10n.text("app.state.unknown"))),
             String(describing: L10n.protocolLabel(ca?["trust"]?.string ?? L10n.text("app.state.unknown"))),
             String(describing: value["last_error"]?.displayString ?? L10n.text("app.state.none_reported")),

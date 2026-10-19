@@ -316,7 +316,7 @@ import AppKit
     }
 
     private static func bytes(_ value: Int64?) -> String {
-        guard let value else { return L10n.text("app.state.unknown") }
+        guard let value else { return "unknown" }
         return MenuAppDelegate.subscriptionBytes(value)
     }
 

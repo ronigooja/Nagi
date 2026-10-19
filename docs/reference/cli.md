@@ -19,8 +19,9 @@ explicit language options exit with usage status `2`. Command operands remain
 command-owned, so a resource named `--lang` is preserved after the command.
 
 Human command help, source-owned errors, output labels and terminal menu pages
-support both languages. Unknown or unannotated messages retain their original
-fallback. JSON values retain their original
+support both languages. Technical data fields keep their literal missing-value
+placeholders in either language. Unknown or unannotated messages retain their
+original fallback. JSON values retain their original
 English strings. Typed messages may
 add optional `messages` metadata mapping existing string JSON Pointers to
 `{"id":"semantic.id","args":{"name":"value"}}`; absent or invalid metadata

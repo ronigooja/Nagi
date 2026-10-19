@@ -36,7 +36,7 @@ func localizedSettingsSummary(language i18n.Context, result Result, command []st
 		if enabled, known := summaryBool(object["enabled"]); known && enabled {
 			var address string
 			if json.Unmarshal(object["bind_address"], &address) != nil || address == "" {
-				address = unknown
+				address = "unknown"
 			}
 			value += " — " + line(text("bind_address", "Bind Address"), address)
 		}
@@ -46,7 +46,7 @@ func localizedSettingsSummary(language i18n.Context, result Result, command []st
 		for _, port := range []struct{ key, label string }{{"http", "HTTP"}, {"socks", "SOCKS"}, {"mixed", text("mixed", "Mixed")}} {
 			var number *int
 			if json.Unmarshal(object[port.key], &number) != nil || number == nil || *number < 0 || *number > 65535 {
-				values = append(values, port.label+" "+unknown)
+				values = append(values, port.label+" unknown")
 			} else if *number > 0 {
 				values = append(values, port.label+" "+strconv.Itoa(*number))
 			}

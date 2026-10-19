@@ -476,14 +476,14 @@ func localizedsubscriptionMetadata(language i18n.Context, entry menuSubscription
 func localizedsubscriptionTime(language i18n.Context, raw string) string {
 	value, err := time.Parse(time.RFC3339Nano, raw)
 	if err != nil {
-		return menuState(language, "unknown")
+		return "unknown"
 	}
 	return value.Local().Format("2006-01-02 15:04")
 }
 
 func localizedsubscriptionBytes(language i18n.Context, bytes int64) string {
 	if bytes < 0 {
-		return menuState(language, "unknown")
+		return "unknown"
 	}
 	if bytes < 1024 {
 		return fmt.Sprintf("%d B", bytes)
