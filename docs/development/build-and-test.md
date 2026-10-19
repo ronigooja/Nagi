@@ -114,7 +114,7 @@ The matching engine shares identical node measurements across group schedulers a
 
 ## Private request rewrite service
 
-The private service requires Go 1.24.0 or newer and goproxy v1.9.2. The shared `scripts/build.sh` check applies to CLI and release builds; `go.mod`/`go.sum` lock transitive versions. `go mod verify` checks the downloaded module contents. The public CLI, lifecycle coordinator and platform trust interfaces are implemented. Menu/App request rewrite controls and native macOS trust/TUN acceptance remain pending.
+The private service requires Go 1.24.0 or newer and goproxy v1.9.2. The shared `scripts/build.sh` check applies to CLI and release builds; `go.mod`/`go.sum` lock transitive versions. `go mod verify` checks the downloaded module contents. The public CLI, lifecycle coordinator and platform trust interfaces are implemented. Terminal menu forms are implemented and verified on Linux. Native macOS controls have a source implementation, with Swift build/tests, packaging and native trust/TUN/UI acceptance unverified. The [verification matrix](request-rewrite-acceptance.md) records the combined checks and remaining release gates.
 
 Run focused race checks with an isolated test environment:
 

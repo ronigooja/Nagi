@@ -144,6 +144,18 @@ commands and removed arguments or input formats, show the replacement usage,
 and explain any changes required to scripts or input files and the treatment of
 existing saved data.
 
+## Request rewrite release gate
+
+Request rewrite currently requires the reviewed local development engine; the
+release pin lacks its protocol. Do not advertise rewrite activation as available
+through ordinary installation or `nagi update`. Before releasing this capability,
+publish the implementing engine commit to the declared repository/ref, verify it
+from a fresh fetch, then update `engine.lock` and run the matching locked build.
+No engine publication or pin change is part of the current local verification.
+The [request rewrite verification record](request-rewrite-acceptance.md) also
+requires native macOS Swift build/tests, packaging, trust/UI acceptance and real
+TUN/backend evidence before claiming those platforms accepted.
+
 ## Final checklist
 
 - [ ] Version is a new `vMAJOR.MINOR.PATCH` or explicitly identified pre-release.
