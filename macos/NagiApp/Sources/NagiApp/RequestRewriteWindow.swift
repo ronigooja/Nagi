@@ -162,7 +162,7 @@ private struct RewriteEditorSession: Identifiable {
                             VStack(spacing: 10) {
                                 RewriteDetailRow(L10n.text("app.ui.state"), value: L10n.protocolLabel(status.actual))
                                 RewriteDetailRow(L10n.text("app.ui.saved_enable_setting"), value: RewriteStatus.bool(status.intent))
-                                RewriteDetailRow("TUN running", value: RewriteStatus.bool(status.tunRunning))
+                                RewriteDetailRow(L10n.text("app.ui.tun_running"), value: RewriteStatus.bool(status.tunRunning))
                                 RewriteDetailRow(L10n.text("app.ui.rewrite_service_running"), value: RewriteStatus.bool(status.value["service_running"]?.bool))
                                 RewriteDetailRow(L10n.text("app.ui.certificate"), value: L10n.protocolLabel(status.value["ca"]?["state"]?.string ?? L10n.text("app.state.unknown")))
                                 RewriteDetailRow(L10n.text("app.ui.trust"), value: L10n.protocolLabel(status.value["ca"]?["trust"]?.string ?? L10n.text("app.state.unknown")))

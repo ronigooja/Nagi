@@ -348,6 +348,9 @@
     "backend.profile.invalid_subscription_name": {},
     "backend.profile.kind_must_be_group_or_provider": {},
     "backend.profile.kind_must_be_node_or_provider": {},
+    "backend.profile.list.failed": {
+      "arg0": "string"
+    },
     "backend.profile.local_default_settings_are_not_active_current_override_was_changed_or_no_restore_point_exists": {},
     "backend.profile.local_group_healthcheck_interval_must_be_1_31536000": {},
     "backend.profile.local_group_healthcheck_intervals_must_be_a_mapping": {},
@@ -398,6 +401,10 @@
     "backend.profile.proxy_groups_must_contain_mappings": {},
     "backend.profile.proxy_name_already_exists": {},
     "backend.profile.proxy_providers_must_be_a_mapping": {},
+    "backend.profile.read.failed": {
+      "arg0": "string",
+      "arg1": "string"
+    },
     "backend.profile.saved_default_override_state_is_invalid_inspect_the_local_default_settings_before_retrying": {},
     "backend.profile.saved_default_override_state_is_invalid_w": {
       "arg0": "string"
@@ -407,6 +414,9 @@
     "backend.profile.seconds_must_be_off_or_an_integer_from_1_to_31536000": {},
     "backend.profile.selected_profile_has_no_proxy_providers": {},
     "backend.profile.selected_profile_must_be_a_yaml_mapping": {},
+    "backend.profile.settings.failed": {
+      "arg0": "string"
+    },
     "backend.profile.subscription_binding_action_must_be_bind_or_unbind": {},
     "backend.profile.subscription_binding_would_create_a_proxy_dependency_cycle": {},
     "backend.profile.subscription_group_conflicts_with_the_managed_tailscale_node": {},
@@ -3154,6 +3164,12 @@
     },
     "cli.output.writeserviceresult.service_manager.message": {
       "manager": "string"
+    },
+    "cli.profile.export.failed": {
+      "arg0": "string"
+    },
+    "cli.profile.import.failed": {
+      "arg0": "string"
     },
     "cli.prompt.tailscale.auth_key": {},
     "cli.prompt.tailscale.auth_key.keep": {},

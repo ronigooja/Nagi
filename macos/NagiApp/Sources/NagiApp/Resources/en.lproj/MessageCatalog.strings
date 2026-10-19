@@ -150,6 +150,7 @@
 "backend.profile.invalid_subscription_name" = "invalid subscription name";
 "backend.profile.kind_must_be_group_or_provider" = "KIND must be group or provider";
 "backend.profile.kind_must_be_node_or_provider" = "KIND must be node or provider";
+"backend.profile.list.failed" = "Read profile list: %1$@";
 "backend.profile.local_default_settings_are_not_active_current_override_was_changed_or_no_restore_point_exists" = "local default settings are not active; current override was changed or no restore point exists";
 "backend.profile.local_group_healthcheck_interval_must_be_1_31536000" = "local group healthcheck interval must be 1..31536000";
 "backend.profile.local_group_healthcheck_intervals_must_be_a_mapping" = "local group healthcheck intervals must be a mapping";
@@ -198,6 +199,7 @@
 "backend.profile.proxy_groups_must_contain_mappings" = "proxy-groups must contain mappings";
 "backend.profile.proxy_name_already_exists" = "proxy NAME already exists";
 "backend.profile.proxy_providers_must_be_a_mapping" = "proxy-providers must be a mapping";
+"backend.profile.read.failed" = "Read profile %1$@: %2$@";
 "backend.profile.saved_default_override_state_is_invalid_inspect_the_local_default_settings_before_retrying" = "saved default override state is invalid; inspect the local default settings before retrying";
 "backend.profile.saved_default_override_state_is_invalid_w" = "saved default override state is invalid: %1$@";
 "backend.profile.saved_proxy_selections_are_invalid" = "saved proxy selections are invalid";
@@ -205,6 +207,7 @@
 "backend.profile.seconds_must_be_off_or_an_integer_from_1_to_31536000" = "SECONDS must be off or an integer from 1 to 31536000";
 "backend.profile.selected_profile_has_no_proxy_providers" = "selected profile has no proxy providers";
 "backend.profile.selected_profile_must_be_a_yaml_mapping" = "selected profile must be a YAML mapping";
+"backend.profile.settings.failed" = "Read selected profile settings: %1$@";
 "backend.profile.subscription_binding_action_must_be_bind_or_unbind" = "subscription binding action must be bind or unbind";
 "backend.profile.subscription_binding_would_create_a_proxy_dependency_cycle" = "subscription binding would create a proxy dependency cycle";
 "backend.profile.subscription_group_conflicts_with_the_managed_tailscale_node" = "subscription group conflicts with the managed Tailscale node";
@@ -1208,6 +1211,8 @@
 "cli.output.writeserviceresult.installed" = "Installed";
 "cli.output.writeserviceresult.service_file.message" = "Service file: %1$@";
 "cli.output.writeserviceresult.service_manager.message" = "Service manager: %1$@";
+"cli.profile.export.failed" = "Write profile export file: %1$@";
+"cli.profile.import.failed" = "Read profile import file: %1$@";
 "cli.prompt.tailscale.auth_key" = "Paste Auth Key (input is visible)";
 "cli.prompt.tailscale.auth_key.keep" = "; blank keeps the existing key";
 "cli.rewrite.failure.ca_required" = "%1$@; run `nagi request-rewrite ca generate`, then explicitly install trust";

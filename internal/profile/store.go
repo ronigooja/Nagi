@@ -55,7 +55,7 @@ func (s *Store) List() ([]string, error) {
 		return []string{}, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, i18n.WithErrorContext("backend.profile.list.failed", "Read profile list: %w", err, err)
 	}
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -74,7 +74,7 @@ func (s *Store) Current() (string, error) {
 		return "default", nil
 	}
 	if err != nil {
-		return "", err
+		return "", i18n.WithErrorContext("backend.profile.settings.failed", "Read selected profile settings: %w", err, err)
 	}
 	for _, line := range strings.Split(string(data), "\n") {
 		key, value, ok := strings.Cut(line, ":")
@@ -96,12 +96,16 @@ func (s *Store) Show(name string) ([]byte, error) {
 	}
 	info, err := os.Lstat(path)
 	if err != nil {
-		return nil, err
+		return nil, i18n.WithErrorContext("backend.profile.read.failed", "Read profile %s: %w", err, name, err)
 	}
 	if !info.Mode().IsRegular() {
 		return nil, i18n.Errorf("backend.profile.profile_is_not_a_regular_file", "profile is not a regular file")
 	}
-	return os.ReadFile(path)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, i18n.WithErrorContext("backend.profile.read.failed", "Read profile %s: %w", err, name, err)
+	}
+	return data, nil
 }
 
 // Backup reads the most recent replacement copy of a profile.

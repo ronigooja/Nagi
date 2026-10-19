@@ -1607,12 +1607,12 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 		}
 		file, err := os.Open(args[3])
 		if err != nil {
-			return nil, err
+			return nil, i18n.WithErrorContext("cli.profile.import.failed", "Read profile import file: %w", err, err)
 		}
 		defer file.Close()
 		data, err := io.ReadAll(io.LimitReader(file, 8<<20+1))
 		if err != nil {
-			return nil, err
+			return nil, i18n.WithErrorContext("cli.profile.import.failed", "Read profile import file: %w", err, err)
 		}
 		if len(data) > 8<<20 {
 			return nil, fail("profile_error", messageError("cli.error.command.profile_exceeds_8_mib", "profile exceeds 8 MiB"))
@@ -1635,17 +1635,17 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 		}
 		data, err := store.Show(args[2])
 		if err != nil {
-			return nil, fail("profile_error", err)
+			return nil, fail("profile_error", i18n.WithErrorContext("cli.profile.export.failed", "Write profile export file: %w", err, err))
 		}
 		file, err := os.OpenFile(args[3], os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 		if err != nil {
-			return nil, fail("profile_error", err)
+			return nil, fail("profile_error", i18n.WithErrorContext("cli.profile.export.failed", "Write profile export file: %w", err, err))
 		}
 		_, writeErr := file.Write(data)
 		closeErr := file.Close()
 		if err := errors.Join(writeErr, closeErr); err != nil {
 			_ = os.Remove(args[3])
-			return nil, fail("profile_error", err)
+			return nil, fail("profile_error", i18n.WithErrorContext("cli.profile.export.failed", "Write profile export file: %w", err, err))
 		}
 		return map[string]any{"name": args[2], "exported": true, "file": args[3]}, nil
 	case "backup":

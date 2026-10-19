@@ -139,7 +139,7 @@ enum CaptureDetailSection: String, CaseIterable {
             }
         } else if let parent = record.parentID {
             Divider()
-            field("HTTP handshake", value: parent)
+            field(L10n.text("app.ui.http_handshake"), value: parent)
             Button(L10n.text("app.ui.show_http_handshake")) { model.select(parent) }
                 .disabled(!model.records.contains { $0.id == parent })
         }
@@ -219,7 +219,7 @@ enum CaptureDetailSection: String, CaseIterable {
     private func jsonRule(_ record: CaptureRecord) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(verbatim: L10n.text("app.ui.json_pointer")).font(.headline)
-            TextField("JSON pointer, e.g. /data/name", text: $jsonPointer)
+            TextField(L10n.text("app.ui.json_pointer_example"), text: $jsonPointer)
             HStack {
                 Button(L10n.text("app.ui.cancel")) { jsonRulePresented = false }
                 Spacer()

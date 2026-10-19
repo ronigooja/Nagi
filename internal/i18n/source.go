@@ -196,3 +196,10 @@ func rawKeys(values map[string]json.RawMessage) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+// WithErrorContext adds presentation context at an external diagnostic origin
+// while preserving its legacy English Error string and wrapping identity.
+func WithErrorContext(id, format string, cause error, values ...any) *Message {
+	message := Errorf(id, format, values...)
+	return MessageFromDescriptor(message.Descriptor(), cause.Error(), cause)
+}

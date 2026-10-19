@@ -150,6 +150,7 @@
 "backend.profile.invalid_subscription_name" = "订阅名称无效";
 "backend.profile.kind_must_be_group_or_provider" = "KIND 必须为 group 或 provider";
 "backend.profile.kind_must_be_node_or_provider" = "KIND 必须为 node 或 provider";
+"backend.profile.list.failed" = "读取配置方案列表：%1$@";
 "backend.profile.local_default_settings_are_not_active_current_override_was_changed_or_no_restore_point_exists" = "本地默认设置未生效；当前覆写已更改或不存在恢复点";
 "backend.profile.local_group_healthcheck_interval_must_be_1_31536000" = "本地代理组健康检查间隔必须为 1 到 31536000";
 "backend.profile.local_group_healthcheck_intervals_must_be_a_mapping" = "本地代理组健康检查间隔必须为映射";
@@ -198,6 +199,7 @@
 "backend.profile.proxy_groups_must_contain_mappings" = "proxy-groups 必须包含映射";
 "backend.profile.proxy_name_already_exists" = "代理 NAME 已存在";
 "backend.profile.proxy_providers_must_be_a_mapping" = "proxy-providers 必须为映射";
+"backend.profile.read.failed" = "读取配置方案 %1$@：%2$@";
 "backend.profile.saved_default_override_state_is_invalid_inspect_the_local_default_settings_before_retrying" = "已保存的默认覆写状态无效；请检查本地默认设置后重试";
 "backend.profile.saved_default_override_state_is_invalid_w" = "已保存的默认覆写状态无效：%1$@";
 "backend.profile.saved_proxy_selections_are_invalid" = "已保存的代理选择无效";
@@ -205,6 +207,7 @@
 "backend.profile.seconds_must_be_off_or_an_integer_from_1_to_31536000" = "SECONDS 必须为 off 或 1 到 31536000 的整数";
 "backend.profile.selected_profile_has_no_proxy_providers" = "所选配置没有代理提供者";
 "backend.profile.selected_profile_must_be_a_yaml_mapping" = "所选配置必须为 YAML 映射";
+"backend.profile.settings.failed" = "读取当前配置方案设置：%1$@";
 "backend.profile.subscription_binding_action_must_be_bind_or_unbind" = "订阅绑定操作必须为 bind 或 unbind";
 "backend.profile.subscription_binding_would_create_a_proxy_dependency_cycle" = "订阅绑定将导致代理依赖循环";
 "backend.profile.subscription_group_conflicts_with_the_managed_tailscale_node" = "订阅代理组与受管理的 Tailscale 节点冲突";
@@ -1208,6 +1211,8 @@
 "cli.output.writeserviceresult.installed" = "已安装";
 "cli.output.writeserviceresult.service_file.message" = "服务文件：%1$@";
 "cli.output.writeserviceresult.service_manager.message" = "服务管理器：%1$@";
+"cli.profile.export.failed" = "写入配置方案导出文件：%1$@";
+"cli.profile.import.failed" = "读取配置方案导入文件：%1$@";
 "cli.prompt.tailscale.auth_key" = "粘贴认证密钥（输入可见）";
 "cli.prompt.tailscale.auth_key.keep" = "；留空保留现有密钥";
 "cli.rewrite.failure.ca_required" = "%1$@；运行 `nagi request-rewrite ca generate`，然后显式安装信任";

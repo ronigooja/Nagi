@@ -795,5 +795,21 @@
   "backend.traffic.verify_system_proxy_w_restore_v": {
     "arg0": "string",
     "arg1": "string"
+  },
+  "backend.profile.list.failed": {
+    "arg0": "string"
+  },
+  "backend.profile.settings.failed": {
+    "arg0": "string"
+  },
+  "backend.profile.read.failed": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "cli.profile.import.failed": {
+    "arg0": "string"
+  },
+  "cli.profile.export.failed": {
+    "arg0": "string"
   }
 }

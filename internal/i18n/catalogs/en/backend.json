@@ -497,5 +497,10 @@
   "backend.traffic.unknown_system_proxy_backend": "unknown system proxy backend",
   "backend.traffic.update_managed_system_proxy_port_w_compensation_v": "update managed system proxy port: {arg0}; compensation: {arg1}",
   "backend.traffic.verify_managed_system_proxy_port_w_compensation_v": "verify managed system proxy port: {arg0}; compensation: {arg1}",
-  "backend.traffic.verify_system_proxy_w_restore_v": "verify system proxy: {arg0}; restore: {arg1}"
+  "backend.traffic.verify_system_proxy_w_restore_v": "verify system proxy: {arg0}; restore: {arg1}",
+  "backend.profile.list.failed": "Read profile list: {arg0}",
+  "backend.profile.settings.failed": "Read selected profile settings: {arg0}",
+  "backend.profile.read.failed": "Read profile {arg0}: {arg1}",
+  "cli.profile.import.failed": "Read profile import file: {arg0}",
+  "cli.profile.export.failed": "Write profile export file: {arg0}"
 }

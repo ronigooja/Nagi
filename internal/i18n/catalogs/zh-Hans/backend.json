@@ -497,5 +497,10 @@
   "backend.traffic.unknown_system_proxy_backend": "未知系统代理后端",
   "backend.traffic.update_managed_system_proxy_port_w_compensation_v": "更新受管理的系统代理端口：{arg0}；补偿：{arg1}",
   "backend.traffic.verify_managed_system_proxy_port_w_compensation_v": "验证受管理的系统代理端口：{arg0}；补偿：{arg1}",
-  "backend.traffic.verify_system_proxy_w_restore_v": "验证系统代理：{arg0}；恢复：{arg1}"
+  "backend.traffic.verify_system_proxy_w_restore_v": "验证系统代理：{arg0}；恢复：{arg1}",
+  "backend.profile.list.failed": "读取配置方案列表：{arg0}",
+  "backend.profile.settings.failed": "读取当前配置方案设置：{arg0}",
+  "backend.profile.read.failed": "读取配置方案 {arg0}：{arg1}",
+  "cli.profile.import.failed": "读取配置方案导入文件：{arg0}",
+  "cli.profile.export.failed": "写入配置方案导出文件：{arg0}"
 }

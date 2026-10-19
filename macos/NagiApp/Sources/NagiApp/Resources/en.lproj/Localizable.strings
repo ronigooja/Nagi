@@ -806,3 +806,6 @@
 "app.capture.http_status_label" = "HTTP status";
 "app.protocol.user" = "User";
 "app.protocol.privileged" = "Privileged";
+"app.ui.http_handshake" = "HTTP handshake";
+"app.ui.json_pointer_example" = "JSON pointer, e.g. /data/name";
+"app.ui.tun_running" = "TUN running";
