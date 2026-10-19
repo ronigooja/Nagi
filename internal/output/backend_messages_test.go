@@ -56,3 +56,10 @@ func TestCollectMessagesCycleDoesNotPanic(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestRenderMessageFieldNilProducerFallsBack(t *testing.T) {
+	var check *diagnostic.Check
+	if got := RenderMessageField(check, "/message", "legacy", i18n.New(i18n.SimplifiedChinese)); got != "legacy" {
+		t.Fatal(got)
+	}
+}

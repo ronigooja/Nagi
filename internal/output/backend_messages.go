@@ -152,6 +152,10 @@ func stringTarget(value any, pointer string) bool {
 // RenderMessageField renders an explicitly annotated field, preserving fallback
 // whenever the optional producer metadata is absent, unknown or malformed.
 func RenderMessageField(source any, pointer, fallback string, locale i18n.Context) string {
+	value := reflect.ValueOf(source)
+	if !value.IsValid() || (value.Kind() == reflect.Pointer && value.IsNil()) {
+		return fallback
+	}
 	if source, ok := source.(i18n.MessageSource); ok {
 		if descriptor, exists := source.MessageDescriptors()[pointer]; exists && i18n.ValidDescriptor(descriptor) {
 			safe := SafeMessage(i18n.NewMessage(descriptor.ID, descriptor.Args, fallback, nil))
