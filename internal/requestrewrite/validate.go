@@ -450,5 +450,5 @@ func (o Operation) MarshalJSON() ([]byte, error) {
 	if o.MessageType != "" {
 		m["message_type"] = o.MessageType
 	}
-	return json.Marshal(m)
+	return marshalJSON(m)
 }

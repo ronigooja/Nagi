@@ -110,7 +110,7 @@ func (s *Snapshot) Document() Document { var d Document; _ = json.Unmarshal(s.ca
 func (s *Snapshot) ExportSensitive() []byte {
 	d := s.Document()
 	d.Enabled = false
-	b, _ := json.Marshal(d)
+	b, _ := marshalJSON(d)
 	return b
 }
 func Empty() *Snapshot {
@@ -361,9 +361,25 @@ func Parse(data []byte) (*Snapshot, error) {
 	return compile(d)
 }
 
+// marshalJSON uses the same string representation as stored canonical documents.
+// HTML/JSONP escaping must not expand an accepted document beyond its byte limit.
+func marshalJSON(value any) ([]byte, error) {
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
+	encoder.SetEscapeHTML(false)
+	if e := encoder.Encode(value); e != nil {
+		return nil, e
+	}
+	decoded, e := decodeJSON(encoded.Bytes())
+	if e != nil {
+		return nil, e
+	}
+	return canonicalJSON(decoded), nil
+}
+
 // Compile validates a defensive JSON copy, including exact operation fields.
 func Compile(doc Document) (*Snapshot, error) {
-	b, e := json.Marshal(doc)
+	b, e := marshalJSON(doc)
 	if e != nil {
 		return nil, invalid()
 	}
@@ -373,7 +389,7 @@ func compile(d Document) (*Snapshot, error) {
 	if e := validateDocument(&d); e != nil {
 		return nil, e
 	}
-	b, e := json.Marshal(d)
+	b, e := marshalJSON(d)
 	if e != nil {
 		return nil, invalid()
 	}

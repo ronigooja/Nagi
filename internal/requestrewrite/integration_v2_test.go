@@ -349,3 +349,33 @@ func TestIntegrationNoBodyTrailerFailurePreservesFallbackStream(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestIntegrationMaximumDocumentEscapingCannotGrowExports(t *testing.T) {
+	d := baseDoc()
+	d.Rules = []Rule{rule("maximum", Operation{Op: "body_set", Encoding: "text", Value: str("")})}
+	d.Rules[0].RangeMode = "fragment"
+	template := compiled(t, d).ExportSensitive()
+	for _, special := range []string{"<>&", "\u2028\u2029"} {
+		size := MaxDocumentBytes - len(template)
+		value := strings.Repeat(special, size/len(special)) + strings.Repeat("x", size%len(special))
+		input := bytes.Replace(template, []byte(`"value":""`), []byte(`"value":"`+value+`"`), 1)
+		if len(input) != MaxDocumentBytes {
+			t.Fatal("fixture length", len(input))
+		}
+		parsed, e := Parse(input)
+		if e != nil {
+			t.Fatal("maximum raw document rejected", e)
+		}
+		exported := parsed.ExportSensitive()
+		if len(exported) != MaxDocumentBytes {
+			t.Fatal("escaping grew maximum export", len(exported))
+		}
+		copy, e := Compile(parsed.Document())
+		if e != nil || copy.Version() != parsed.Version() {
+			t.Fatal("maximum document cannot be edited", e)
+		}
+		if _, e := Parse(exported); e != nil {
+			t.Fatal("own export invalid", e)
+		}
+	}
+}
