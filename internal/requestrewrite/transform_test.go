@@ -168,18 +168,24 @@ func TestStreamingAdmissionAndNoConsumption(t *testing.T) {
 	result.Request.Body.Close()
 	d.Rules = []Rule{rule("json", Operation{Op: "json_set", Pointer: "/x", Value: raw(`1`)})}
 	s := compiled(t, d)
-	// Completed transformations release their workspace; returned body owns only
-	// the final bytes and can be read without holding the conversion reservation.
+	// A returned buffered body keeps its logical reservation until Close.
 	one, e := s.Transform(context.Background(), request(t, `{}`))
 	if e != nil {
 		t.Fatal(e)
 	}
-	two, e := s.Transform(context.Background(), request(t, `{}`))
+	blocked := request(t, `{}`)
+	spy := &spyBody{Reader: strings.NewReader(`{}`)}
+	blocked.Body = spy
+	if _, e = s.Transform(context.Background(), blocked); e == nil || spy.reads != 0 {
+		t.Fatal("workspace admission consumed source", e, spy.reads)
+	}
+	output(t, one)
+	two, e := s.Transform(context.Background(), blocked)
 	if e != nil {
 		t.Fatal(e)
 	}
-	output(t, one)
 	output(t, two)
+
 }
 func TestPointerErrorsAndRollbackUnconsumed(t *testing.T) {
 	for _, pointer := range []string{"/array/01", "/array/3", "/array/-/x", "/missing/x"} {

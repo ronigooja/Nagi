@@ -167,10 +167,10 @@ func (s *Snapshot) TransformUpgrade(ctx context.Context, r *http.Request) (Resul
 var bodyMemory = make(chan struct{}, 1)
 
 type bodyTransaction struct {
-	original                     []byte
-	current                      []byte
-	complete, consumed, reserved bool
-	once                         sync.Once
+	original                                               []byte
+	current                                                []byte
+	complete, consumed, reserved, initialized, transferred bool
+	once                                                   sync.Once
 }
 
 func (b *bodyTransaction) release() {
@@ -180,7 +180,7 @@ func (b *bodyTransaction) release() {
 		}
 	})
 }
-func (b *bodyTransaction) read(ctx context.Context, r io.ReadCloser) error {
+func (b *bodyTransaction) reserve() error {
 	if b.reserved {
 		return nil
 	}
@@ -190,6 +190,16 @@ func (b *bodyTransaction) read(ctx context.Context, r io.ReadCloser) error {
 	default:
 		return &Error{Code: "rewrite_limit"}
 	}
+	return nil
+}
+func (b *bodyTransaction) read(ctx context.Context, r io.ReadCloser) error {
+	if b.initialized {
+		return nil
+	}
+	if e := b.reserve(); e != nil {
+		return e
+	}
+	b.initialized = true
 	if r == nil {
 		b.complete = true
 		b.original = []byte{}
@@ -212,8 +222,18 @@ func (b *bodyTransaction) reader(original bool) io.ReadCloser {
 	if original {
 		v = b.original
 	}
-	return io.NopCloser(bytes.NewReader(v))
+	return &transactionBody{Reader: bytes.NewReader(v), release: b.release}
 }
+
+// A returned buffered body retains the logical workspace until its owner closes it.
+type transactionBody struct {
+	*bytes.Reader
+	release func()
+	once    sync.Once
+}
+
+func (b *transactionBody) Close() error { b.once.Do(b.release); return nil }
+
 func limitedRead(r io.Reader) ([]byte, error) {
 	v, e := io.ReadAll(io.LimitReader(r, MaxBodyBytes+1))
 	if e != nil {
@@ -311,14 +331,35 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 	work.RequestURI = ""
 	contributors := []Rule{}
 	body := &bodyTransaction{}
-	defer body.release()
+	defer func() {
+		if !body.transferred {
+			body.release()
+		}
+	}()
 	trailers := []Operation{}
+	readBody := func() error {
+		wasComplete := body.complete
+		if e := body.read(ctx, original.Body); e != nil {
+			return e
+		}
+		if !wasComplete && body.complete {
+			var e error
+			work.Trailer, e = TransformTrailers(original.Trailer, trailers)
+			if e != nil {
+				return e
+			}
+			trailers = nil
+		}
+		return nil
+	}
 	lastBody := Rule{}
 	fallback := func(rule Rule, e error) (Result, error) {
 		if rule.OnError == "forward_original" && body.canRecover() && ctx.Err() == nil {
 			r := cloneRequest(parent, original)
+			r.Trailer = original.Trailer
 			if body.consumed {
 				r.Body = body.reader(true)
+				body.transferred = true
 			}
 			out.Request = r
 			out.Outcome = "forward_original"
@@ -350,11 +391,18 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 			case "method_set":
 				work.Method, _ = stringValue(o)
 			case "trailer_set", "trailer_delete":
-				trailers = append(trailers, o)
+				if body.complete {
+					work.Trailer, e = TransformTrailers(work.Trailer, []Operation{o})
+				} else {
+					trailers = append(trailers, o)
+				}
 			case "script":
+				if e = body.reserve(); e != nil {
+					break
+				}
 				if s.needsBody(o) {
 					lastBody = r
-					e = body.read(ctx, original.Body)
+					e = readBody()
 				}
 				if e == nil {
 					var changedTarget bool
@@ -366,7 +414,7 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 			default:
 				if s.needsBody(o) {
 					lastBody = r
-					e = body.read(ctx, original.Body)
+					e = readBody()
 					if e == nil {
 						body.current, e = BodyTransform(ctx, body.current, work.Header, []Operation{o})
 					}
@@ -397,7 +445,7 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 	work.URL.Host = authority(final)
 	work.Host = work.URL.Host
 	deleteHeader(work.Header, "Host")
-	if body.reserved {
+	if body.initialized {
 		if !body.complete {
 			return fallback(lastBody, invalid())
 		}
@@ -406,16 +454,15 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 		work.TransferEncoding = nil
 		invalidate(work.Header)
 	}
-	if len(trailers) > 0 {
-		if body.complete {
-			work.Trailer, e = TransformTrailers(original.Trailer, trailers)
-			if e != nil {
-				return fallback(lastBody, e)
-			}
-		} else {
-			work.Trailer = trailerKeys(original.Trailer, trailers)
-			work.Body = TrailerBody(work.Body, original.Trailer, work.Trailer, trailers)
+	if !body.complete && (len(original.Trailer) > 0 || len(trailers) > 0) {
+		work.Trailer = trailerKeys(original.Trailer, trailers)
+		source := work.Body
+		if source == nil {
+			source = http.NoBody
 		}
+		work.Body = TrailerBody(source, original.Trailer, work.Trailer, trailers)
+	}
+	if len(work.Trailer) > 0 {
 		work.ContentLength = -1
 		work.TransferEncoding = nil
 		work.Header.Del("Content-Length")
@@ -426,6 +473,9 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 	}
 	if ctx.Err() != nil || parent.Err() != nil {
 		return out, &Error{Code: "rewrite_cancelled"}
+	}
+	if body.initialized {
+		body.transferred = true
 	}
 	out.Request = work
 	if len(out.RuleIDs) > 0 {
@@ -458,7 +508,7 @@ func cloneResponse(r *http.Response) *http.Response {
 	return &c
 }
 func noResponseBody(method string, status int) bool {
-	return method == "HEAD" || status == 204 || status == 205 || status == 304 || status == 101
+	return method == "HEAD" || status == 204 || status == 205 || status == 304 || status >= 100 && status < 200
 }
 func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *http.Request, original *http.Response) (ResponseResult, error) {
 	out := ResponseResult{RuleIDs: []string{}, Outcome: "unchanged", RuleVersion: s.version}
@@ -467,13 +517,34 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 	if parent.Err() != nil {
 		return out, &Error{Code: "rewrite_cancelled"}
 	}
-	if originalRequest == nil || original == nil || original.StatusCode < 100 || original.StatusCode > 599 || !validHeaders(original.Header, MaxHeadersBytes) {
+	if originalRequest == nil || original == nil || original.StatusCode < 200 && original.StatusCode != 101 || original.StatusCode > 599 || !validHeaders(original.Header, MaxHeadersBytes) {
 		return out, invalid()
 	}
+	upstreamHEAD := original.Request != nil && original.Request.Method == "HEAD"
+	noBody := func(status int) bool { return upstreamHEAD || noResponseBody(originalRequest.Method, status) }
 	work := cloneResponse(original)
 	body := &bodyTransaction{}
-	defer body.release()
+	defer func() {
+		if !body.transferred {
+			body.release()
+		}
+	}()
 	trailers := []Operation{}
+	readBody := func() error {
+		wasComplete := body.complete
+		if e := body.read(ctx, original.Body); e != nil {
+			return e
+		}
+		if !wasComplete && body.complete {
+			var e error
+			work.Trailer, e = TransformTrailers(original.Trailer, trailers)
+			if e != nil {
+				return e
+			}
+			trailers = nil
+		}
+		return nil
+	}
 	lastRule := Rule{}
 	mode, e := s.RangeMode(originalRequest)
 	if e != nil {
@@ -482,8 +553,10 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 	fallback := func(rule Rule, e error) (ResponseResult, error) {
 		if rule.OnError == "forward_original" && body.canRecover() && ctx.Err() == nil {
 			r := cloneResponse(original)
+			r.Trailer = original.Trailer
 			if body.consumed {
 				r.Body = body.reader(true)
+				body.transferred = true
 			}
 			out.Response = r
 			out.Outcome = "forward_original"
@@ -514,13 +587,20 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 				work.StatusCode = n
 				work.Status = http.StatusText(n)
 			case "trailer_set", "trailer_delete":
-				trailers = append(trailers, o)
+				if body.complete {
+					work.Trailer, e = TransformTrailers(work.Trailer, []Operation{o})
+				} else {
+					trailers = append(trailers, o)
+				}
 			case "script":
+				if e = body.reserve(); e != nil {
+					break
+				}
 				if s.needsBody(o) {
-					if noResponseBody(originalRequest.Method, original.StatusCode) {
+					if noBody(original.StatusCode) {
 						e = invalid()
 					} else {
-						e = body.read(ctx, original.Body)
+						e = readBody()
 					}
 				}
 				if e == nil {
@@ -528,10 +608,10 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 				}
 			default:
 				if s.needsBody(o) {
-					if noResponseBody(originalRequest.Method, original.StatusCode) {
+					if noBody(original.StatusCode) {
 						e = invalid()
 					} else {
-						e = body.read(ctx, original.Body)
+						e = readBody()
 					}
 					if e == nil {
 						if mode == "full" && (original.StatusCode == 206 || original.Header.Get("Content-Range") != "") {
@@ -552,7 +632,10 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 			}
 		}
 	}
-	if noResponseBody(originalRequest.Method, work.StatusCode) {
+	if noBody(work.StatusCode) {
+		if len(trailers) > 0 {
+			return fallback(lastRule, invalid())
+		}
 		if body.complete && len(body.current) > 0 {
 			return fallback(lastRule, invalid())
 		}
@@ -563,38 +646,40 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 			work.Body = http.NoBody
 			work.TransferEncoding = nil
 			work.Trailer = nil
-			if work.StatusCode == 204 || work.StatusCode == 205 {
+			if work.StatusCode == 204 || work.StatusCode == 205 || upstreamHEAD && originalRequest.Method != "HEAD" {
 				work.ContentLength = 0
 				work.Header.Del("Content-Length")
 			} else {
 				work.ContentLength = original.ContentLength
 			}
 		}
-	} else if body.reserved {
+	} else if body.initialized {
 		work.Body = body.reader(false)
 		work.ContentLength = int64(len(body.current))
 		work.TransferEncoding = nil
 		invalidate(work.Header)
 	}
-	if len(trailers) > 0 {
-		if noResponseBody(originalRequest.Method, work.StatusCode) {
-			return fallback(lastRule, invalid())
+	if !noBody(work.StatusCode) && !body.complete && (len(original.Trailer) > 0 || len(trailers) > 0) {
+		work.Trailer = trailerKeys(original.Trailer, trailers)
+		source := work.Body
+		if source == nil {
+			source = http.NoBody
 		}
-		if body.complete {
-			work.Trailer, e = TransformTrailers(original.Trailer, trailers)
-			if e != nil {
-				return fallback(lastRule, e)
-			}
-		} else {
-			work.Trailer = trailerKeys(original.Trailer, trailers)
-			work.Body = TrailerBody(work.Body, original.Trailer, work.Trailer, trailers)
-		}
+		work.Body = TrailerBody(source, original.Trailer, work.Trailer, trailers)
+	}
+	if len(trailers) > 0 && noBody(work.StatusCode) {
+		return fallback(lastRule, invalid())
+	}
+	if len(work.Trailer) > 0 {
 		work.ContentLength = -1
 		work.TransferEncoding = nil
 		work.Header.Del("Content-Length")
 	}
 	if ctx.Err() != nil || parent.Err() != nil {
 		return out, &Error{Code: "rewrite_cancelled"}
+	}
+	if body.initialized && !noBody(work.StatusCode) {
+		body.transferred = true
 	}
 	out.Response = work
 	if len(out.RuleIDs) > 0 {
@@ -627,6 +712,11 @@ func (s *Snapshot) TransformMessage(parent context.Context, stage string, req *h
 	if len(original.Body) > MaxBodyBytes {
 		return out, &Error{Code: "rewrite_limit"}
 	}
+	workspace := &bodyTransaction{}
+	if e := workspace.reserve(); e != nil {
+		return out, e
+	}
+	defer workspace.release()
 	work := Message{Type: original.Type, Body: append([]byte{}, original.Body...)}
 	for _, r := range s.doc.Rules {
 		if r.Stage != stage || !s.matchesRequest(r, req) || !s.matchesResponse(r, handshake) || len(r.Match.MessageTypes) > 0 && !hasString(r.Match.MessageTypes, original.Type) {

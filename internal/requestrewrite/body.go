@@ -139,7 +139,7 @@ func bodyDecode(ctx context.Context, raw []byte, enc []string) ([]byte, error) {
 		case "br":
 			r = brotli.NewReader(r)
 		case "zstd":
-			z, e := zstd.NewReader(r, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(BodyWorkspaceBytes), zstd.WithDecoderMaxWindow(MaxBodyBytes))
+			z, e := zstd.NewReader(r, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(MaxBodyBytes), zstd.WithDecoderMaxWindow(MaxBodyBytes))
 			if e != nil {
 				return nil, invalid()
 			}
@@ -223,7 +223,7 @@ func bodyCharset(h http.Header) (encoding.Encoding, error) {
 	}
 	return enc, nil
 }
-func bodyText(raw []byte, h http.Header) (string, encoding.Encoding, error) {
+func bodyText(ctx context.Context, raw []byte, h http.Header) (string, encoding.Encoding, error) {
 	enc, e := bodyCharset(h)
 	if e != nil {
 		return "", nil, e
@@ -234,17 +234,23 @@ func bodyText(raw []byte, h http.Header) (string, encoding.Encoding, error) {
 		}
 		return string(raw), nil, nil
 	}
-	decoded, _, e := transform.Bytes(enc.NewDecoder(), raw)
-	if e != nil || !utf8.Valid(decoded) {
+	decoded, e := bodyRead(ctx, transform.NewReader(bytes.NewReader(raw), enc.NewDecoder()))
+	if e != nil {
+		return "", nil, e
+	}
+	if !utf8.Valid(decoded) {
 		return "", nil, invalid()
 	}
-	encoded, _, e := transform.Bytes(enc.NewEncoder(), decoded)
-	if e != nil || !bytes.Equal(encoded, raw) {
+	encoded, e := bodyRead(ctx, transform.NewReader(bytes.NewReader(decoded), enc.NewEncoder()))
+	if e != nil {
+		return "", nil, e
+	}
+	if !bytes.Equal(encoded, raw) {
 		return "", nil, invalid()
 	}
 	return string(decoded), enc, nil
 }
-func bodyTextEncode(text string, enc encoding.Encoding) ([]byte, error) {
+func bodyTextEncode(ctx context.Context, text string, enc encoding.Encoding) ([]byte, error) {
 	if !utf8.ValidString(text) {
 		return nil, invalid()
 	}
@@ -254,12 +260,15 @@ func bodyTextEncode(text string, enc encoding.Encoding) ([]byte, error) {
 	if enc == nil {
 		return []byte(text), nil
 	}
-	raw, _, e := transform.Bytes(enc.NewEncoder(), []byte(text))
+	raw, e := bodyRead(ctx, transform.NewReader(strings.NewReader(text), enc.NewEncoder()))
 	if e != nil {
-		return nil, invalid()
+		return nil, e
 	}
-	back, _, e := transform.Bytes(enc.NewDecoder(), raw)
-	if e != nil || string(back) != text {
+	back, e := bodyRead(ctx, transform.NewReader(bytes.NewReader(raw), enc.NewDecoder()))
+	if e != nil {
+		return nil, e
+	}
+	if string(back) != text {
 		return nil, invalid()
 	}
 	return raw, nil
@@ -301,7 +310,7 @@ func BodyTransformWithHook(ctx context.Context, raw []byte, h http.Header, ops [
 				if ce != nil {
 					return nil, ce
 				}
-				raw, e = bodyTextEncode(value, charset)
+				raw, e = bodyTextEncode(ctx, value, charset)
 			default:
 				return nil, invalid()
 			}
@@ -309,7 +318,7 @@ func BodyTransformWithHook(ctx context.Context, raw []byte, h http.Header, ops [
 				return nil, invalid()
 			}
 		case "text_replace", "regex_replace":
-			text, charset, e := bodyText(raw, h)
+			text, charset, e := bodyText(ctx, raw, h)
 			if e != nil {
 				return nil, e
 			}
@@ -362,16 +371,20 @@ func BodyTransformWithHook(ctx context.Context, raw []byte, h http.Header, ops [
 				dst.WriteString(text[last:])
 				text = dst.String()
 			}
-			raw, e = bodyTextEncode(text, charset)
+			raw, e = bodyTextEncode(ctx, text, charset)
 			if e != nil {
 				return nil, e
 			}
 		case "json_set", "json_delete":
-			media, p, e := mime.ParseMediaType(h.Get("Content-Type"))
-			if e != nil || !(media == "application/json" || strings.HasPrefix(media, "application/") && strings.HasSuffix(media, "+json")) || p["charset"] != "" && !strings.EqualFold(p["charset"], "utf-8") {
+			media, _, e := mime.ParseMediaType(h.Get("Content-Type"))
+			if e != nil || !(media == "application/json" || strings.HasPrefix(media, "application/") && strings.HasSuffix(media, "+json")) {
 				return nil, invalid()
 			}
-			tree, e := decodeJSONBudget(raw, 12<<20)
+			text, charset, e := bodyText(ctx, raw, h)
+			if e != nil {
+				return nil, e
+			}
+			tree, e := decodeJSONBudget([]byte(text), 12<<20)
 			if e != nil {
 				return nil, e
 			}
@@ -393,7 +406,10 @@ func BodyTransformWithHook(ctx context.Context, raw []byte, h http.Header, ops [
 			if jsonMemory(tree) > 12<<20 {
 				return nil, &Error{Code: "rewrite_limit"}
 			}
-			raw = canonicalJSON(tree)
+			raw, e = bodyTextEncode(ctx, string(canonicalJSON(tree)), charset)
+			if e != nil {
+				return nil, e
+			}
 		case "script":
 			if hook == nil {
 				return nil, invalid()

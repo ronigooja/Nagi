@@ -218,6 +218,9 @@ func (s *Snapshot) PreviewSensitive(ctx context.Context, input []byte) (PreviewR
 			defer result.Request.Body.Close()
 		}
 		out.Request, e = requestFixture(result.Request)
+		if result.Request.Body != nil {
+			_ = result.Request.Body.Close()
+		}
 		if e != nil {
 			return out, e
 		}
