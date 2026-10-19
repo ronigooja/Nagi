@@ -28,10 +28,11 @@ This document defines development and review rules for Nagi's command-line inter
 
 ## Terminal menu interactions
 
+- Follow the shared [UI design rule](ui-design.md) for interface wording and presentation.
 - Keep pages line-oriented and preserve scrollback. Show the title, a state summary or explicit unknown/read error, resource choices, fixed actions, and navigation.
 - Keep styling within the menu presentation layer and follow the [menu style contract](../reference/cli.md#terminal-menu). Detect output TTY, `TERM`, and `NO_COLOR`; plain mode must retain readable labels and selected markers. Carry actual node/profile selection and feedback severity as semantic state, redact before styling, and reset every styled span before input or other output. Do not add styles to requested raw content or live streams.
 - Use numbers for every selectable entry: up to ten resources, then actions, then pagination entries, consecutively numbered from a shared display/dispatch mapping. Use `0` for Back, Cancel, or Exit at home. Do not add letter shortcuts, refresh, filtering, search, or help entries. Reload state on entry, after operations, and on return; paginate the existing snapshot. Clamp invalid page indices after reload. Blank or invalid input repeats only the prompt.
-- Present effects beside actions and dispatch once without a second confirmation. Explain that `0` at home leaves the menu while mihomo keeps running; stopping the engine is a separate action.
+- Dispatch actions once without a second confirmation.
 - Pass known resource names as single command arguments. Text prompts treat `0/b/q` literally. Ctrl-C cancels a form or returns to the parent page, and exits at home; EOF exits. Use one session input mechanism without abandoned readers.
 - Validate required fields locally, retaining other values. Preserve form values after command failure and offer numeric editing, resubmission, and cancellation; never retry a mutation automatically.
 - Keep direct selection consistent in ordinary and latency node lists. Show automatic/fixed group state and disclose that latency testing may release fixed selection. Preserve partial-completion and unknown-state errors.

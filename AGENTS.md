@@ -64,6 +64,7 @@ Use each location as follows:
 - Classify content before choosing a documentation destination. Do not move documents merely because the implementation phase has changed.
 - When changing functionality, interfaces, configuration, or development workflows, check the relevant authoritative document and update it once behavior is settled.
 - When changing CLI behavior, follow [the CLI usability rules](docs/development/cli-usability.md) and update [the CLI reference](docs/reference/cli.md) for implemented behavior.
+- When adding or changing UI, follow [the UI design rule](docs/development/ui-design.md).
 - Do not describe a recommended architecture in `ARCHITECTURE.md`, an unimplemented design, or an alternative in a decision record as a current capability.
 - When behavior is unclear, use current code, tests, and reproducible command results as evidence. If it cannot be verified, mark its status explicitly instead of guessing.
 - After changes, check new or modified relative links, commands, paths, field names, and examples.
