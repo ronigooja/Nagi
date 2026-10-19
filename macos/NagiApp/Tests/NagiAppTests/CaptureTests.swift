@@ -321,7 +321,7 @@ extension CaptureTests {
 }
 
 extension CaptureTests {
-    @MainActor func testEntryChecksOnePrerequisiteAndRefreshReplacesIt() async throws {
+    @MainActor func testEntryChecksOnePrerequisiteAndRecheckReplacesIt() async throws {
         var actions: [String] = []
         var message = "TUN is not running."
         let empty = try JSONDecoder().decode(CaptureReply.self, from: Data(#"{"sensitive":true}"#.utf8))
@@ -360,7 +360,7 @@ extension CaptureTests {
         }, submit: { _, _ in empty }, export: { _ in }, interval: 9_000_000_000)
         model.setVisible(true); await wait { !model.isReading }
         XCTAssertEqual(actions, ["check", "status"])
-        XCTAssertEqual(model.prerequisiteMessage, "Unable to check capture prerequisites. Reopen or refresh to retry.")
+        XCTAssertEqual(model.prerequisiteMessage, "Unable to check capture prerequisites. Use Recheck to retry.")
         XCTAssertFalse(model.prerequisitesReady)
         XCTAssertFalse(model.stale)
         model.setVisible(false)
@@ -384,6 +384,79 @@ extension CaptureTests {
         XCTAssertEqual(checks, 2)
         XCTAssertTrue(model.prerequisitesReady)
         XCTAssertEqual(model.prerequisiteMessage, "Ready to capture.")
+        model.setVisible(false)
+    }
+}
+
+
+extension CaptureTests {
+    @MainActor func testOnlyRecordingPollsAndManualRefreshDiscoversExternalResume() async throws {
+        var actions: [String] = []
+        var current = try reply(state: "recording")
+        let model = CaptureModel(read: { args, _ in actions.append(args[0]); return current },
+                                 submit: { _, _ in current }, export: { _ in }, interval: 20_000_000)
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        await wait { actions.filter { $0 == "status" }.count >= 3 }
+        for state in ["paused", "stopped", "uncertain"] {
+            current = try reply(state: state)
+            model.refresh()
+            await wait { !model.isReading && model.status?.state == state }
+            XCTAssertFalse(model.isRecording)
+            let count = actions.count
+            try await Task.sleep(nanoseconds: 100_000_000)
+            XCTAssertEqual(actions.count, count, "No record polling in \(state)")
+        }
+        current = try reply(state: "recording")
+        model.refresh()
+        await wait { !model.isReading && model.isRecording }
+        let reads = actions.filter { $0 == "status" }.count
+        await wait { actions.filter { $0 == "status" }.count > reads }
+        XCTAssertEqual(actions.filter { $0 == "check" }.count, 1)
+    }
+
+    @MainActor func testPauseResumeStopMutationsUpdatePolling() async throws {
+        var current = try reply()
+        var reads = 0
+        let model = CaptureModel(read: { _, _ in reads += 1; return current },
+                                 submit: { _, _ in current }, export: { _ in }, interval: 20_000_000)
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        await wait { !model.isReading }
+        for (action, state) in [("pause", "paused"), ("resume", "recording"), ("stop", "stopped")] {
+            current = try reply(state: state)
+            await model.mutate(action)
+            await wait { !model.isReading }
+            let count = reads
+            if state == "recording" {
+                await wait { reads > count }
+            } else {
+                try await Task.sleep(nanoseconds: 100_000_000)
+                XCTAssertEqual(reads, count)
+            }
+        }
+    }
+
+    @MainActor func testEmptySessionDoesNotPollAndForegroundSyncDoesNotRecheck() async throws {
+        _ = NSApplication.shared
+        var actions: [String] = []
+        let empty = try JSONDecoder().decode(CaptureReply.self, from: Data(#"{"sensitive":true}"#.utf8))
+        let model = CaptureModel(read: { args, _ in actions.append(args[0]); return empty },
+                                 submit: { _, _ in empty }, export: { _ in }, interval: 20_000_000)
+        let controller = CaptureWindowController(model: model)
+        defer { controller.window?.close() }
+        model.setVisible(true)
+        await wait { !model.isReading }
+        let count = actions.count
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(actions.count, count)
+        controller.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
+        await wait { !model.isReading }
+        XCTAssertEqual(actions.count, count + 1)
+        XCTAssertEqual(actions.filter { $0 == "check" }.count, 1)
+        NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApplication.shared)
+        await wait { actions.count > count + 1 && !model.isReading }
+        XCTAssertEqual(actions.filter { $0 == "check" }.count, 1)
         model.setVisible(false)
     }
 }

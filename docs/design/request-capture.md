@@ -131,7 +131,8 @@ prerequisite without inspecting later stages. It reuses activation prerequisite
 validation and does not need or start a recorder. Both interfaces display the
 first unmet prerequisite without setup actions, preserving offline history/archive
 access. The App omits the success message when ready. It checks again on explicit
-Refresh or window reopening, rather than on automatic record polling; canceled
+**Recheck** beside the unmet-prerequisite message or window reopening, rather
+than on manual data refresh or automatic record polling; canceled
 checks cannot publish stale results.
 Start retains its independent validation. The exact check order and response
 contract belong to the [CLI reference](../reference/cli.md#original-request-capture-and-capture-derived-drafts).
@@ -144,9 +145,18 @@ content, including URLs, headers, trailers and bodies. Body views support text,
 JSON, hex and original/actual comparison. Context selections feed a local quick
 rule draft through the CLI; operation validation and saving remain CLI work.
 
-The capture toolbar contains session controls, a scope summary, Refresh and a
-More menu. The window title identifies the page; the content does not repeat a
-page title or profile name. Scope opens a popover for domain patterns, exact
+The capture toolbar contains session controls, a scope summary and a More menu.
+While recording, status, records and selected snapshot details refresh every
+second; slow reads skip timer ticks. Paused, stopped, uncertain and empty sessions
+have no record-polling timer and show **Refresh** for manual synchronization,
+including changes made through the CLI. Refresh reads data without rechecking
+prerequisites. Opening or restoring a visible window, returning the App or window
+to the foreground, and waking synchronize once without resuming collection.
+Session mutations and filter changes also synchronize immediately. Observing a
+recording session starts polling; observing any other state stops it.
+
+The window title identifies the page; the content does not repeat a page title
+or profile name. Scope opens a popover for domain patterns, exact
 process paths and application paths. With no active session, edits stay in the
 window's draft and Start submits them directly. Recording, paused and uncertain
 sessions show the observed session scope in the popover without editing; Stop

@@ -36,6 +36,8 @@ import Foundation
     var canEditScope: Bool { canOperate && activeScope == nil }
     var ownsSession: Bool { status?.owner == owner }
     var isReading: Bool { readTask != nil }
+    var isRecording: Bool { status?.state == "recording" }
+    var checkingPrerequisites: Bool { pendingPrerequisiteCheck || prerequisiteCheckInProgress }
     private var visible = false, blocked = false, suspended = false
     private var generation: UInt64 = 0, detailGeneration: UInt64 = 0
     private var readTask: Task<Void, Never>?, detailTask: Task<Void, Never>?, timer: Task<Void, Never>?, applicationTask: Task<Void, Never>?
@@ -54,6 +56,7 @@ import Foundation
         draftRun = { try await cli.rewrite($0, input: $1) }
     }
     func setVisible(_ value: Bool) {
+        guard value != visible else { return }
         if value && !visible { pendingPrerequisiteCheck = true; prerequisiteMessage = "Checking capture prerequisites…"; prerequisitesReady = false }
         visible = value; updateActivity()
     }
@@ -75,18 +78,23 @@ import Foundation
     }
     private func updateActivity() {
         if active {
-            if timer == nil {
-                timer = Task { [weak self] in
-                    while !Task.isCancelled {
-                        guard let self else { return }
-                        do { try await Task.sleep(nanoseconds: self.interval) } catch { return }
-                        self.refresh()
-                    }
-                }
-            }
+            updatePolling()
             if readTask == nil { refresh() } else { pendingRead = true }
         } else { cancelReads() }
         notify()
+    }
+    private func updatePolling() {
+        guard active && isRecording else { timer?.cancel(); timer = nil; return }
+        guard timer == nil else { return }
+        let interval = self.interval
+        timer = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: interval) } catch { return }
+                guard let self, self.active, self.isRecording else { return }
+                // Slow reads skip ticks rather than accumulating refresh work.
+                if self.readTask == nil { self.refresh() }
+            }
+        }
     }
     func waitForCancelledRead() async { await readTask?.value; await detailTask?.value; await applicationTask?.value }
     func setFilters(query: String, kind: String, domain: String, processPath: String, ascending: Bool) {
@@ -96,7 +104,10 @@ import Foundation
         if readTask == nil { refresh() }
     }
     func refreshStatus() { beginRead(includeRecords: false) }
-    func refresh() { guard active else { return }; beginRead(includeRecords: true) }
+    func refresh() {
+        guard active else { return }
+        if readTask != nil { pendingRead = true } else { beginRead(includeRecords: true) }
+    }
     private func beginRead(includeRecords: Bool) {
         guard !blocked, !suspended, !operationInProgress, readTask == nil else { return }
         let token = generation, read = self.read
@@ -110,11 +121,11 @@ import Foundation
                 do {
                     let check = try await read(["check"], nil)
                     guard let self, !Task.isCancelled, token == self.generation else { self?.finishRead(); return }
-                    self.prerequisiteMessage = check.readiness?.message ?? "Unable to check capture prerequisites. Reopen or refresh to retry."
+                    self.prerequisiteMessage = check.readiness?.message ?? "Unable to check capture prerequisites. Use Recheck to retry."
                     self.prerequisitesReady = check.readiness?.ready == true
                 } catch {
                     guard let self, !Task.isCancelled, token == self.generation else { self?.finishRead(); return }
-                    self.prerequisiteMessage = "Unable to check capture prerequisites. Reopen or refresh to retry."
+                    self.prerequisiteMessage = "Unable to check capture prerequisites. Use Recheck to retry."
                     self.prerequisitesReady = false
                 }
                 self?.prerequisiteCheckInProgress = false
@@ -156,7 +167,7 @@ import Foundation
         notify()
     }
     private func finishRead() {
-        readTask = nil; let resume = pendingRead; pendingRead = false; notify()
+        readTask = nil; let resume = pendingRead; pendingRead = false; updatePolling(); notify()
         if resume && active { refresh() }
     }
     func discoverApplications() {

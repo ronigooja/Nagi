@@ -808,9 +808,10 @@ is absent when ready. Invalid arguments exit `2`; ordinary command/runtime
 setup failures retain the existing error envelope and exit behavior. It accepts
 no positional arguments or `--profile`, and never starts the recorder or changes
 TUN, CA or trust. Opening the terminal capture page or App window invokes this
-query and displays its single message without setup actions. The App's existing
-Refresh control repeats the check; automatic record polling does not. Reopening
-the menu page checks again. Start still validates prerequisites independently.
+query and displays its single message without setup actions. The App's **Recheck**
+button beside an unmet-prerequisite message repeats the check; manual **Refresh**
+and automatic record polling do not. Reopening the menu page or App window
+checks again. Start still validates prerequisites independently.
 `capture status` succeeds without a `status` field when no recorder socket exists.
 
 The `capture` lines above follow either rewrite alias. Capture uses the selected

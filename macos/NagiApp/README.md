@@ -67,6 +67,13 @@ pause or uncertain recovery, the control shows the actual session scope for
 inspection; stop capture before editing it. The **More** (ellipsis) menu contains
 the next-session **Body limit**, **Import…**, **Export** and **Clear** actions.
 
+While recording, the window refreshes status and records every second. Paused
+or stopped sessions do not poll; use **Refresh** to synchronize external changes.
+Opening or restoring the window or returning to the foreground synchronizes once.
+If a prerequisite is unmet, use **Recheck** beside its message after resolving it;
+**Refresh** only updates capture data. See the [capture design](../../docs/design/request-capture.md#interaction-and-sensitive-presentation)
+for lifecycle and failure behavior.
+
 The scope accepts domain patterns, exact process paths and application bundle
 paths, including paths entered before the application appears in **Find
 Applications**. Empty scope captures all applications. Different scope categories

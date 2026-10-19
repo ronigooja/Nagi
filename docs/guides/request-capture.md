@@ -26,8 +26,8 @@ errors and diagnostics do not automatically include captured content.
 Opening the terminal capture page or macOS capture window checks prerequisites
 in order and shows only the first unmet condition. Later conditions are not
 checked until that condition is resolved and you reopen the page/window or use
-the App's existing **Refresh** control. No setup actions are added to the capture
-page. You can also run `nagi rewrite capture check`; see the
+**Recheck** beside the App's prerequisite message. No setup actions are added to
+the capture page. You can also run `nagi rewrite capture check`; see the
 [CLI contract](../reference/cli.md#original-request-capture-and-capture-derived-drafts)
 for its result and exit status. Retained records and archive operations remain
 available when prerequisites are unmet.

@@ -29,6 +29,9 @@ import SwiftUI
             window.center()
         }
         model.onCreateRule = { [weak self] context in self?.createRule(context) }
+        observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.refreshOnForeground() }
+        })
         for name in [NSApplication.didHideNotification, NSApplication.didUnhideNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateVisibility() } })
         }
@@ -54,6 +57,12 @@ import SwiftUI
         showWindow(nil); NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil); updateVisibility()
     }
     private func updateVisibility() { model.setVisible((window as? ConnectionsWindow)?.readingPaused == false && window?.isVisible == true && window?.isMiniaturized == false && !NSApp.isHidden) }
+    private func refreshOnForeground() {
+        // Opening/restoring already starts a read; foreground notifications can
+        // arrive together and should share that snapshot.
+        if !model.isReading { model.refresh() }
+    }
+    func windowDidBecomeKey(_ notification: Notification) { refreshOnForeground() }
     func windowWillClose(_ notification: Notification) { model.closeWindow() }
     func windowWillMiniaturize(_ notification: Notification) { (window as? ConnectionsWindow)?.beginMiniaturization() }
     func windowDidMiniaturize(_ notification: Notification) { updateVisibility() }
@@ -86,7 +95,12 @@ import SwiftUI
         VStack(alignment: .leading, spacing: 10) {
             ScrollView(.horizontal) { controls }.fixedSize(horizontal: false, vertical: true)
             if !model.prerequisitesReady, let message = model.prerequisiteMessage {
-                Text(message).font(.callout).foregroundColor(.orange).textSelection(.enabled)
+                HStack {
+                    Text(message).font(.callout).foregroundColor(.orange).textSelection(.enabled)
+                    if !model.checkingPrerequisites {
+                        Button("Recheck") { model.refreshPrerequisites() }.disabled(!model.canOperate)
+                    }
+                }
             }
             ScrollView(.horizontal) { HStack {
                 TextField("Search requests", text: $query)
@@ -143,8 +157,10 @@ import SwiftUI
                 Text(status.state.capitalized).foregroundColor(status.state == "recording" ? .red : .secondary)
             }
             Spacer(minLength: 16)
-            Button { model.refreshPrerequisites() } label: { Image(systemName: "arrow.clockwise") }
-                .help("Refresh").accessibilityLabel("Refresh").disabled(!model.canOperate)
+            if !model.isRecording {
+                Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                    .help("Refresh capture status and records").accessibilityLabel("Refresh").disabled(!model.canOperate)
+            }
             Menu {
                 Picker("Body limit", selection: bodyLimitSelection) {
                     Text("1 MiB").tag(1_048_576); Text("4 MiB").tag(4_194_304); Text("8 MiB").tag(8_388_608)
