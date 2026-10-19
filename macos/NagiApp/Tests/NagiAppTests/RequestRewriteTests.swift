@@ -4,7 +4,7 @@ import Foundation
 
 final class RequestRewriteDocumentTests: XCTestCase {
     func testLosslessRuleRoundTripRetainsLargeNumberAndExactOperationFields() throws {
-        let bytes = Data(#"{"id":"example","enabled":true,"match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/v1/"},"on_error":"block","redirect_consent":[{"domain":"mirror.service.example","schemes":["https"],"ports":[443]}],"operations":[{"op":"json_set","pointer":"/number","value":9007199254740993123456789},{"op":"json_delete","pointer":"/obsolete"},{"op":"header_set","name":"Authorization","value":"fictitious-placeholder"},{"op":"url_set","component":"host","value":"mirror.service.example"}]}"#.utf8)
+        let bytes = Data(#"{"id":"example","enabled":true,"stage":"request","range_mode":"fragment","match":{"domain":"api.service.example","methods":["POST"],"path_prefix":"/v1/"},"on_error":"block","redirect_consent":[{"domain":"mirror.service.example","schemes":["https"],"ports":[443]}],"operations":[{"op":"json_set","pointer":"/number","value":9007199254740993123456789},{"op":"json_delete","pointer":"/obsolete"},{"op":"header_set","name":"Authorization","value":"fictitious-placeholder"},{"op":"url_set","component":"host","value":"mirror.service.example"}]}"#.utf8)
         let original = try RewriteJSON.parse(bytes)
         let draft = RewriteRuleDraft(original)
         let result = try RewriteJSON.parse(draft.json())
@@ -27,10 +27,12 @@ final class RequestRewriteDocumentTests: XCTestCase {
     func testPreviewFormUsesCompleteFixtureAndRepeatedHeadersAndBase64() throws {
         var draft = RewritePreviewDraft(); draft.host = "api.service.example"; draft.headers = "X-Demo: one\nX-Demo: two"; draft.body = "π"
         let fixture = try RewriteJSON.parse(draft.data())
-        XCTAssertEqual(fixture["headers"]?["X-Demo"]?.array, [.string("one"), .string("two")])
-        XCTAssertEqual(fixture["body_base64"]?.string, Data("π".utf8).base64EncodedString())
-        if case .object(let fields) = fixture { XCTAssertEqual(Set(fields.keys), Set(["scheme", "host", "port", "method", "path", "query", "headers", "body_base64"])) }
-        else { XCTFail("Expected object") }
+        XCTAssertEqual(fixture["stage"]?.string, "request")
+        let request = fixture["request"]
+        XCTAssertEqual(request?["headers"]?["X-Demo"]?.array, [.string("one"), .string("two")])
+        XCTAssertEqual(request?["body_base64"]?.string, Data("π".utf8).base64EncodedString())
+        if case .object(let fields)? = request { XCTAssertEqual(Set(fields.keys), Set(["scheme", "host", "port", "method", "path", "query", "headers", "body_base64"])) }
+        else { XCTFail("Expected request object") }
         draft.port = "0"; XCTAssertThrowsError(try draft.data())
     }
     func testUnknownRuntimeEvidenceNeverEnablesFeature() throws {
@@ -45,8 +47,8 @@ final class RequestRewriteDocumentTests: XCTestCase {
     private func json(_ text: String) throws -> JSONValue { try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) }
     private func ready(_ arguments: [String]) throws -> JSONValue {
         if arguments == ["status"] { return try json(#"{"profile":"work","enabled_intent":false,"actual":"disabled","tun_running":true}"#) }
-        if arguments.first == "domains" { return try json(#"{"domains":[{"id":"api","pattern":"api.service.example"}]}"#) }
-        return try json(#"{"rules":[{"id":"rule","enabled":true,"match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/"},"on_error":"block","operations":["header_set"]}]}"#)
+        if arguments.first == "scripts" { return try json(#"{"scripts":[{"id":"api","body_access":"none"}]}"#) }
+        return try json(#"{"rules":[{"id":"rule","enabled":true,"stage":"request","range_mode":"fragment","match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/"},"on_error":"block","operations":["header_set"]}]}"#)
     }
     private func eventually(_ predicate: () -> Bool) async throws {
         for _ in 0..<200 { if predicate() { return }; try await Task.sleep(nanoseconds: 5_000_000) }
@@ -92,10 +94,10 @@ final class RequestRewriteDocumentTests: XCTestCase {
             submitted.append((args, data)); throw CLIError.command("request_rewrite_error", "rewrite_invalid")
         }, export: { _ in Data() }, interval: 60_000_000_000)
         model.setVisible(true); try await eventually { model.canManage }
-        let input = Data(#"{"id":"new","pattern":"api.service.example"}"#.utf8)
-        let success = await model.perform(["domains", "add", "-"], input: input, profile: "work")
+        let input = Data(#"{"id":"new","body_access":"none"}"#.utf8)
+        let success = await model.perform(["scripts", "add", "-"], input: input, profile: "work")
         XCTAssertFalse(success); XCTAssertEqual(submitted.count, 1)
-        XCTAssertEqual(submitted[0].args, ["domains", "add", "-", "--profile", "work"])
+        XCTAssertEqual(submitted[0].args, ["scripts", "add", "-", "--profile", "work"])
         XCTAssertEqual(submitted[0].input, input); XCTAssertTrue(model.error?.contains("not retried") == true)
         model.setVisible(false); await model.waitForCancelledRead()
     }
@@ -131,8 +133,8 @@ final class RequestRewriteDocumentTests: XCTestCase {
         model.setVisible(true); try await eventually { model.canManage }
         profile = "personal"
         model.refreshStatus(); try await eventually { model.status?.profile == "personal" && !model.isReading }
-        XCTAssertFalse(model.canManage); XCTAssertTrue(model.rules.isEmpty); XCTAssertTrue(model.domains.isEmpty)
-        let result = await model.perform(["domains", "remove", "api"], profile: "personal")
+        XCTAssertFalse(model.canManage); XCTAssertTrue(model.rules.isEmpty); XCTAssertTrue(model.scripts.isEmpty)
+        let result = await model.perform(["scripts", "remove", "api"], profile: "personal")
         XCTAssertFalse(result); XCTAssertEqual(submitted, 0)
         model.setVisible(false); await model.waitForCancelledRead()
     }
@@ -200,5 +202,82 @@ final class RequestRewriteDocumentTests: XCTestCase {
         release?.resume(throwing: CancellationError())
         _ = try? await first.value
         model.setVisible(false); await model.waitForCancelledRead()
+    }
+}
+
+extension RequestRewriteDocumentTests {
+    func testV2RuleRetainsEveryMatchAndOperationField() throws {
+        let bytes = Data(#"""
+        {"id":"response","enabled":true,"stage":"websocket_server","range_mode":"full","match":{"domain":"*.service.example","methods":["GET"],"path_prefix":"/v2/","path_regex":"^/v2/","query":{"mode":["demo"]},"headers":{"X-Request":["one"]},"status_codes":[101],"content_types":["application/json"],"response_headers":{"X-Response":["two"]},"message_types":["text","binary"]},"on_error":"block","redirect_consent":[],"operations":[{"op":"body_set","value":"AA==","encoding":"base64","message_type":"binary"},{"op":"text_replace","pattern":"before","replacement":"after","all":true},{"op":"regex_replace","pattern":"a+","replacement":"b","all":false},{"op":"script","script":"example"}]}
+        """#.utf8)
+        let node = try RewriteJSON.parse(bytes)
+        XCTAssertEqual(try RewriteJSON.parse(RewriteRuleDraft(node).json()), node)
+        var operation = RewriteOperationDraft(); operation.kind = "status_set"; operation.value = "204"
+        XCTAssertEqual(try operation.json(), .object(["op": .string("status_set"), "value": .scalar("204")]))
+        operation.kind = "header_append"; operation.name = "X-Demo"; operation.value = "another"
+        XCTAssertEqual(try operation.json()["value"]?.string, "another")
+        operation.kind = "trailer_delete"
+        XCTAssertNil(try operation.json()["value"])
+        XCTAssertTrue(RewriteOperationDraft.kinds.contains("method_set"))
+        XCTAssertTrue(RewriteOperationDraft.kinds.contains("trailer_set"))
+    }
+    func testScriptSourceIsSensitiveAndLimitedByDecodedUTF8Bytes() throws {
+        var draft = RewriteScriptDraft(); draft.id = "example"; draft.bodyAccess = "buffer"
+        let node = try RewriteJSON.parse(draft.json())
+        XCTAssertEqual(node["body_access"]?.string, "buffer")
+        XCTAssertEqual(RewriteScriptDraft(node).source, draft.source)
+        draft.source = String(repeating: "π", count: 32_769)
+        XCTAssertThrowsError(try draft.json())
+    }
+    func testPreviewResponseExchangeAndWebSocketEnvelopes() throws {
+        for stage in ["response", "exchange", "websocket_client", "websocket_server"] {
+            var draft = RewritePreviewDraft(); draft.stage = stage; draft.host = "api.service.example"
+            draft.trailers = "X-Request-End: yes"; draft.responseTrailers = "X-Response-End: yes"
+            draft.responseStatus = stage.hasPrefix("websocket_") ? "101" : "200"
+            draft.responseBodyEncoding = "base64"; draft.responseBody = "AP+A"
+            draft.messageType = "binary"; draft.messageBodyEncoding = "base64"; draft.messageBody = "AP8="
+            let envelope = try RewriteJSON.parse(draft.data())
+            XCTAssertEqual(envelope["stage"]?.string, stage)
+            XCTAssertEqual(envelope["response"]?["body_base64"]?.string, "AP+A")
+            XCTAssertEqual(envelope["request"]?["trailers"]?["X-Request-End"]?.array, [.string("yes")])
+            if stage.hasPrefix("websocket_") { XCTAssertEqual(envelope["message"]?["body_base64"]?.string, "AP8=") }
+            else { XCTAssertNil(envelope["message"]) }
+        }
+    }
+    func testPreviewFormAcceptsTwoMaximumBodiesAndRejectsOversize() throws {
+        var draft = RewritePreviewDraft(); draft.host = "api.service.example"; draft.stage = "exchange"
+        draft.body = String(repeating: "a", count: 8 * 1_048_576)
+        draft.responseBody = String(repeating: "b", count: 8 * 1_048_576)
+        XCTAssertLessThanOrEqual(try draft.data().count, 24 * 1_048_576)
+        draft.responseBody.append("b")
+        XCTAssertThrowsError(try draft.data())
+    }
+}
+
+@MainActor extension RequestRewriteModelTests {
+    func testSensitiveScriptReadsRawSourceWithoutOrdinaryListDisclosure() async throws {
+        let model = RequestRewriteModel(read: { args, _ in try self.ready(args) }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        model.exportRead = { args in
+            XCTAssertEqual(args, ["export", "-", "--profile", "work"])
+            return Data(#"{"version":2,"enabled":false,"rules":[],"scripts":[{"id":"api","body_access":"none","source":"function transform(x){return x}"}]}"#.utf8)
+        }
+        model.setVisible(true); try await eventually { model.canManage }
+        XCTAssertEqual(model.scripts.map(\.id), ["api"])
+        let draft = try await model.sensitiveScript(id: "api", profile: "work")
+        XCTAssertEqual(draft.source, "function transform(x){return x}")
+        model.setVisible(false); await model.waitForCancelledRead()
+    }
+}
+
+@MainActor extension RequestRewriteModelTests {
+    func testEmptyEnabledRuleSetCanSaveIdleIntentWithoutTUN() async throws {
+        let model = RequestRewriteModel(read: { args, _ in
+            if args == ["status"] { return try self.json(#"{"profile":"work","enabled_intent":false,"actual":"disabled","tun_running":false,"config_version":2}"#) }
+            return try self.json(args.first == "scripts" ? #"{"scripts":[]}"# : #"{"rules":[]}"#)
+        }, submit: { _, _ in try self.json("{}") }, export: { _ in Data() }, interval: 60_000_000_000)
+        model.setVisible(true); try await eventually { model.canManage }
+        XCTAssertTrue(model.canEnable)
+        model.setVisible(false); await model.waitForCancelledRead()
+        XCTAssertFalse(model.canEnable)
     }
 }

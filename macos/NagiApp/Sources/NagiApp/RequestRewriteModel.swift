@@ -12,7 +12,7 @@ import Foundation
     var exportRead: Export
     private let read: Run
     private(set) var status: RewriteStatus?
-    private(set) var domains: [RewriteDomain] = []
+    private(set) var scripts: [RewriteScriptSummary] = []
     private(set) var rules: [RewriteRuleSummary] = []
     private(set) var error: String?
     private(set) var notice: String?
@@ -22,7 +22,7 @@ import Foundation
     private(set) var preview: String?
     private(set) var caStatus: JSONValue?
     var canOperate: Bool { !blocked && !suspended && !operationInProgress }
-    var canEnable: Bool { canOperate && !stale && status?.intent != nil && status?.canEnable == true }
+    var canEnable: Bool { canOperate && !stale && status?.intent != nil && (status?.canEnable == true || (listsFresh && !rules.contains(where: \.enabled))) }
     var canManage: Bool { canOperate && !stale && listsFresh && status?.profile != nil }
     private(set) var listsFresh = false
     private(set) var sensitiveReadInProgress = false
@@ -81,24 +81,24 @@ import Foundation
         readTask = Task { [weak self] in
             do {
                 let current = RewriteStatus(value: try await read(["status"], nil))
-                var domainRows: [RewriteDomain]?, ruleRows: [RewriteRuleSummary]?
+                var scriptRows: [RewriteScriptSummary]?, ruleRows: [RewriteRuleSummary]?
                 if includeLists, let profile = current.profile {
-                    let d = try await read(["domains", "list", "--profile", profile], nil)
+                    let d = try await read(["scripts", "list", "--profile", profile], nil)
                     let r = try await read(["rules", "list", "--profile", profile], nil)
-                    guard case .arrayValue(let ds)? = d["domains"], case .arrayValue(let rs)? = r["rules"] else {
+                    guard case .arrayValue(let ds)? = d["scripts"], case .arrayValue(let rs)? = r["rules"] else {
                         throw CLIError.invalidJSON("Request rewrite lists are unavailable.")
                     }
-                    domainRows = ds.compactMap(RewriteDomain.init)
+                    scriptRows = ds.compactMap(RewriteScriptSummary.init)
                     ruleRows = rs.compactMap(RewriteRuleSummary.init)
-                    guard domainRows?.count == ds.count, ruleRows?.count == rs.count else {
+                    guard scriptRows?.count == ds.count, ruleRows?.count == rs.count else {
                         throw CLIError.invalidJSON("Request rewrite lists contain unsupported entries.")
                     }
                 }
                 guard let self, token == self.generation, !Task.isCancelled else { self?.finishRead(); return }
-                if self.status?.profile != current.profile { self.domains = []; self.rules = []; self.preview = nil; self.listsFresh = false }
+                if self.status?.profile != current.profile { self.scripts = []; self.rules = []; self.preview = nil; self.listsFresh = false }
                 self.status = current
                 self.caStatus = current.value["ca"]
-                if let domainRows, let ruleRows { self.domains = domainRows; self.rules = ruleRows; self.listsFresh = true }
+                if let scriptRows, let ruleRows { self.scripts = scriptRows; self.rules = ruleRows; self.listsFresh = true }
                 self.stale = false; self.updated = Date(); self.error = nil
                 self.onStatusChange?()
             } catch {
@@ -122,8 +122,8 @@ import Foundation
     /// mutation already submitted, and never implies rollback.
     func perform(_ arguments: [String], input: Data? = nil, profile: String? = nil) async -> Bool {
         guard canOperate else { error = "Another operation is in progress."; notify(); return false }
-        if ["domains", "rules"].contains(arguments.first ?? ""), !canManage {
-            error = "Refresh the domain and rule lists before changing saved entries."; notify(); return false
+        if ["scripts", "rules"].contains(arguments.first ?? ""), !canManage {
+            error = "Refresh the script and rule lists before changing saved entries."; notify(); return false
         }
         operationInProgress = true; error = nil; notice = nil
         generation &+= 1; readTask?.cancel(); sensitiveReadTask?.cancel()
@@ -151,6 +151,12 @@ import Foundation
     }
     func clearPreview() { preview = nil; notify() }
     func sensitiveRule(id: String, profile: String) async throws -> RewriteRuleDraft {
+        RewriteRuleDraft(try await sensitiveEntry(collection: "rules", id: id, profile: profile))
+    }
+    func sensitiveScript(id: String, profile: String) async throws -> RewriteScriptDraft {
+        RewriteScriptDraft(try await sensitiveEntry(collection: "scripts", id: id, profile: profile))
+    }
+    private func sensitiveEntry(collection: String, id: String, profile: String) async throws -> RewriteJSON {
         guard canManage, !sensitiveReadInProgress else { throw RewriteFormError.invalid("Refresh the list or wait for the current operation.") }
         generation &+= 1; readTask?.cancel()
         await readTask?.value
@@ -168,8 +174,8 @@ import Foundation
         try Task.checkCancellation()
         guard !suspended, !blocked, visible else { throw CancellationError() }
         let document = try RewriteJSON.parse(bytes)
-        guard let rule = document["rules"]?.array.first(where: { $0["id"]?.string == id }) else { throw RewriteFormError.invalid("The selected rule no longer exists. Refresh the list.") }
-        return RewriteRuleDraft(rule)
+        guard let entry = document[collection]?.array.first(where: { $0["id"]?.string == id }) else { throw RewriteFormError.invalid("The selected entry no longer exists. Refresh the list.") }
+        return entry
     }
     func exportFile(_ arguments: [String]) async throws {
         guard canOperate else { throw RewriteFormError.invalid("Another operation is in progress.") }

@@ -14,11 +14,11 @@ final class RequestRewriteCLIClientTests: XCTestCase {
     }
     func testSensitiveInputUsesOnlyStdinAndClosesPipeForEOF() async throws {
         let script = try fixture(#"""
-        test "$#" = 5 && test "$1" = --json && test "$2" = request-rewrite && test "$3" = domains && test "$4" = add && test "$5" = - || exit 9
-        exec /usr/bin/python3 -c 'import sys,json; v=json.load(sys.stdin); assert v == {"id":"example","pattern":"api.service.example"}; print("{\"ok\":true,\"data\":{\"saved\":true}}")'
+        test "$#" = 5 && test "$1" = --json && test "$2" = request-rewrite && test "$3" = scripts && test "$4" = add && test "$5" = - || exit 9
+        exec /usr/bin/python3 -c 'import sys,json; v=json.load(sys.stdin); assert v == {"id":"example","body_access":"none","source":"function transform(x){return x}"}; print("{\"ok\":true,\"data\":{\"saved\":true}}")'
         """#)
-        let data = Data(#"{"id":"example","pattern":"api.service.example"}"#.utf8)
-        let result = try await NagiCLIClient(executable: script, timeout: 3).rewrite(["domains", "add", "-"], input: data)
+        let data = Data(#"{"id":"example","body_access":"none","source":"function transform(x){return x}"}"#.utf8)
+        let result = try await NagiCLIClient(executable: script, timeout: 3).rewrite(["scripts", "add", "-"], input: data)
         XCTAssertEqual(result["saved"]?.bool, true)
     }
     func testRawExportNeverAddsJSONFlagAndPreservesExactBytes() async throws {
@@ -73,5 +73,25 @@ final class RequestRewriteCLIClientTests: XCTestCase {
         let started = Date()
         do { _ = try await task.value; XCTFail("Expected cancellation") } catch is CancellationError { }
         XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+    }
+}
+
+extension RequestRewriteCLIClientTests {
+    func testRewritePreviewHasScopedLargeInputAndOutputLimits() async throws {
+        let script = try fixture(#"""
+        exec /usr/bin/python3 -c 'import sys,json; data=sys.stdin.buffer.read(); assert len(data)==13*1048576; print(json.dumps({"ok":True,"data":{"sensitive":True,"body":"x"*(17*1048576)}}))'
+        """#)
+        let client = NagiCLIClient(executable: script, timeout: 15)
+        let result = try await client.rewrite(["preview", "-"], input: Data(repeating: 65, count: 13 * 1_048_576))
+        XCTAssertEqual(result["body"]?.string?.count, 17 * 1_048_576)
+        do { _ = try await client.rewrite(["rules", "add", "-"], input: Data(repeating: 65, count: 1_048_577)); XCTFail("Expected document input bound") }
+        catch CLIError.outputTooLarge(let limit) { XCTAssertEqual(limit, 1_048_576) }
+        XCTAssertEqual(NagiCLIClient.rewritePreviewInputLimit, 24 * 1_048_576)
+        XCTAssertEqual(NagiCLIClient.rewritePreviewOutputLimit, 72 * 1_048_576 + 65_536)
+    }
+    func testRawExportAcceptsEscapedDocumentExpansion() async throws {
+        let script = try fixture(#"exec /usr/bin/python3 -c 'import sys; sys.stdout.write("x"*(6*1048576))'"#)
+        let output = try await NagiCLIClient(executable: script, timeout: 10).rewriteExport(["export", "-"])
+        XCTAssertEqual(output.count, 6 * 1_048_576)
     }
 }

@@ -7,7 +7,7 @@ import AppKit
         _ = NSApplication.shared
         var commands: [[String]] = []
         let model = RequestRewriteModel(read: { args, _ in
-            let text = args == ["status"] ? #"{"profile":"work","actual":"disabled","enabled_intent":false,"tun_running":false}"# : (args.first == "domains" ? #"{"domains":[]}"# : #"{"rules":[]}"#)
+            let text = args == ["status"] ? #"{"profile":"work","actual":"disabled","enabled_intent":false,"tun_running":false}"# : (args.first == "scripts" ? #"{"scripts":[]}"# : #"{"rules":[]}"#)
             return try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))
         }, submit: { args, _ in
             commands.append(args)

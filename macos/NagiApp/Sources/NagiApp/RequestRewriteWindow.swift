@@ -47,8 +47,8 @@ import SwiftUI
     func windowDidChangeOcclusionState(_ notification: Notification) { updateVisibility() }
 }
 
-private struct RewriteDomainDraft: Identifiable {
-    var id = ""; var pattern = ""; var originalID: String?; let profile: String
+private struct RewriteScriptSession: Identifiable {
+    let id = UUID(); var draft: RewriteScriptDraft; let originalID: String?; let profile: String
 }
 private struct RewriteEditorSession: Identifiable {
     let id = UUID(); var draft: RewriteRuleDraft; let originalID: String?; let profile: String
@@ -56,9 +56,9 @@ private struct RewriteEditorSession: Identifiable {
 
 @MainActor struct RequestRewriteView: View {
     @ObservedObject var presentation: RewritePresentation
-    @State private var selectedDomain: String?
+    @State private var selectedScript: String?
     @State private var selectedRule: String?
-    @State private var domainDraft: RewriteDomainDraft?
+    @State private var scriptSession: RewriteScriptSession?
     @State private var ruleSession: RewriteEditorSession?
     @State private var localError: String?
     @State private var editTask: Task<Void, Never>?
@@ -76,12 +76,12 @@ private struct RewriteEditorSession: Identifiable {
                 Button(model.status?.intent == true ? "Disable Rewrite" : "Enable Rewrite") { toggle() }
                     .disabled(model.status?.intent == true ? !model.canOperate : !model.canEnable)
             }
-            Text("Default off. Rewriting requires an actually running TUN, a compatible engine, a generated CA and explicit trust. Ordinary HTTP/SOCKS listeners are outside this feature.")
+            Text("Default off. Enabled rules select interception domains. Activation requires running TUN, a compatible engine, a generated CA and explicit trust; an empty enabled rule set is idle.")
                 .font(.callout).foregroundColor(.secondary)
             if model.stale { Text("Status is stale or unavailable. Refresh before enabling. Saved intent does not prove activation.").foregroundColor(.orange) }
             TabView(selection: $page) {
                 statusPage.tabItem { Text("Status & Recovery") }.tag(0)
-                domainsPage.tabItem { Text("Authorized Domains") }.tag(1)
+                scriptsPage.tabItem { Text("Transform Scripts") }.tag(1)
                 rulesPage.tabItem { Text("Ordered Rules") }.tag(2)
                 RewritePreviewView(presentation: presentation).tabItem { Text("Local Preview") }.tag(3)
                 caPage.tabItem { Text("Certificate & Trust") }.tag(4)
@@ -95,15 +95,14 @@ private struct RewriteEditorSession: Identifiable {
             }
         }
         .padding(18)
-        .onChange(of: model.status?.profile) { _ in selectedDomain = nil; selectedRule = nil }
+        .onChange(of: model.status?.profile) { _ in selectedScript = nil; selectedRule = nil }
         .sheet(item: $ruleSession) { session in
             RewriteRuleEditor(presentation: presentation, draft: session.draft, originalID: session.originalID, profile: session.profile)
         }
-        .sheet(isPresented: Binding(get: { domainDraft != nil }, set: { if !$0 { domainDraft = nil } })) {
-            if let draft = domainDraft {
-                RewriteDomainEditor(presentation: presentation, draft: draft) { domainDraft = nil }
-            }
+        .sheet(item: $scriptSession) { session in
+            RewriteScriptEditor(presentation: presentation, draft: session.draft, originalID: session.originalID, profile: session.profile)
         }
+
     }
     static func time(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd HH:mm"; return formatter.string(from: date)
@@ -120,35 +119,33 @@ private struct RewriteEditorSession: Identifiable {
             }.disabled(!model.canOperate)
         }.padding()
     }
-    private var domainsPage: some View {
+    private var scriptsPage: some View {
         VStack(alignment: .leading) {
-            Text("Authorize only domains you control or have permission to inspect. Exact domains match only that host. *.service.example matches subdomains and excludes service.example.").foregroundColor(.secondary)
-            List(selection: $selectedDomain) {
-                ForEach(model.domains, id: \.id) { item in HStack { Text(item.id).bold(); Text(item.pattern); Spacer(); Text(item.pattern.hasPrefix("*.") ? "Explicit wildcard · excludes apex" : "Exact domain").foregroundColor(.secondary) }.tag(item.id) }
+            Text("Saved scripts run only when referenced by enabled rules. Routine lists omit source. Editing explicitly reads sensitive source into memory.").foregroundColor(.secondary)
+            List(selection: $selectedScript) {
+                ForEach(model.scripts, id: \.id) { item in
+                    HStack { Text(item.id).bold(); Spacer(); Text("Body access: \(item.bodyAccess)").foregroundColor(.secondary) }.tag(item.id)
+                }
             }
             HStack {
-                Button("Add Domain…") { if let profile = model.status?.profile { domainDraft = RewriteDomainDraft(profile: profile) } }
-                Button("Edit…") {
-                    if let item = model.domains.first(where: { $0.id == selectedDomain }), let profile = model.status?.profile {
-                        domainDraft = RewriteDomainDraft(id: item.id, pattern: item.pattern, originalID: item.id, profile: profile)
-                    }
-                }.disabled(selectedDomain == nil)
+                Button("Add Script…") { if let profile = model.status?.profile { scriptSession = RewriteScriptSession(draft: RewriteScriptDraft(), originalID: nil, profile: profile) } }
+                Button("Edit Sensitive Source…") { editScript() }.disabled(selectedScript == nil || loadingEditor)
                 Button("Remove…") {
-                    guard let id = selectedDomain, model.domains.contains(where: { $0.id == id }), let profile = model.status?.profile,
-                        confirm("Remove Domain Consent?", "Remove consent for \(id). The CLI rejects removal while rules still reference it.", action: "Remove Consent") else { return }
-                    run(["domains", "remove", id], profile: profile)
-                }.disabled(selectedDomain == nil)
+                    guard let id = selectedScript, model.scripts.contains(where: { $0.id == id }), let profile = model.status?.profile,
+                        confirm("Remove Transform Script?", "Remove \(id). The CLI rejects removal while any rule references it.", action: "Remove Script") else { return }
+                    run(["scripts", "remove", id], profile: profile)
+                }.disabled(selectedScript == nil)
             }.disabled(!model.canManage)
         }.padding()
     }
     private var rulesPage: some View {
         VStack(alignment: .leading) {
-            Text("All matching enabled rules run in this order against the original request. Editing explicitly reads sensitive operation and destination-consent values into memory.").foregroundColor(.secondary)
+            Text("Enabled rules select interception domains and run in order within each stage against original metadata. Editing explicitly reads sensitive operation and destination-consent values into memory.").foregroundColor(.secondary)
             List(selection: $selectedRule) {
                 ForEach(Array(model.rules.enumerated()), id: \.element.id) { index, item in
                     VStack(alignment: .leading, spacing: 3) {
                         Text("\(index + 1). \(item.id) · \(item.enabled ? "Enabled" : "Disabled")").bold()
-                        Text("\(item.domain) · \(item.methods.joined(separator: ", ")) · \(item.path) · on error: \(item.onError)")
+                        Text("\(item.stage) · \(item.domain) · \(item.methods.joined(separator: ", ")) · \(item.path) · on error: \(item.onError)")
                         Text(item.kinds.joined(separator: " → ")).font(.caption).foregroundColor(.secondary)
                     }.tag(item.id)
                 }
@@ -208,7 +205,7 @@ private struct RewriteEditorSession: Identifiable {
     }
     private func toggle() {
         if model.status?.intent == true { run(["disable"]); return }
-        guard model.canEnable, confirm("Enable Request Rewrite?", "Intercept only explicitly authorized domains using the current profile's rules and trusted local CA. Existing connections may be interrupted when rules activate.", action: "Enable Rewrite") else { return }
+        guard model.canEnable, confirm("Enable Request Rewrite?", "Intercept the domains selected by enabled rules using the current profile and trusted local CA. Without enabled rules, intent is saved as idle. Existing connections may be interrupted when rules activate.", action: "Enable Rewrite") else { return }
         run(["enable"])
     }
     private func run(_ args: [String], input: Data? = nil, profile: String? = nil) {
@@ -224,6 +221,18 @@ private struct RewriteEditorSession: Identifiable {
                 let draft = try await model.sensitiveRule(id: item.id, profile: profile)
                 try Task.checkCancellation()
                 ruleSession = RewriteEditorSession(draft: draft, originalID: item.id, profile: profile)
+            } catch is CancellationError { } catch { localError = error.localizedDescription }
+        }
+    }
+    private func editScript() {
+        guard let id = selectedScript, model.scripts.contains(where: { $0.id == id }), let profile = model.status?.profile, model.canManage else { return }
+        loadingEditor = true; localError = nil
+        editTask = Task {
+            defer { loadingEditor = false; editTask = nil }
+            do {
+                let draft = try await model.sensitiveScript(id: id, profile: profile)
+                try Task.checkCancellation()
+                scriptSession = RewriteScriptSession(draft: draft, originalID: id, profile: profile)
             } catch is CancellationError { } catch { localError = error.localizedDescription }
         }
     }
@@ -249,29 +258,4 @@ private struct RewriteEditorSession: Identifiable {
     let alert = NSAlert(); alert.messageText = title; alert.informativeText = detail; alert.alertStyle = .warning
     alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: action)
     return alert.runModal() == .alertSecondButtonReturn
-}
-
-@MainActor private struct RewriteDomainEditor: View {
-    @ObservedObject var presentation: RewritePresentation
-    @State var draft: RewriteDomainDraft
-    let close: () -> Void
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(draft.originalID == nil ? "Authorize Domain" : "Edit Domain Consent").font(.title2)
-            Text("Profile: \(draft.profile). Only authorize domains you may inspect. Wildcards exclude the apex.")
-            TextField("Consent ID", text: $draft.id).disabled(draft.originalID != nil)
-            TextField("api.service.example or *.service.example", text: $draft.pattern)
-            if let error = presentation.model.error { Text(error).foregroundColor(.red) }
-            HStack {
-                Button("Cancel", action: close).keyboardShortcut(.cancelAction)
-                Button("Refresh Current State") { presentation.model.refresh() }
-                Spacer()
-                Button("Submit Consent") {
-                    let input = RewriteJSON.object(["id": .string(draft.id), "pattern": .string(draft.pattern)]).data
-                    let args = draft.originalID.map { ["domains", "update", $0, "-"] } ?? ["domains", "add", "-"]
-                    Task { if await presentation.model.perform(args, input: input, profile: draft.profile) { close() } }
-                }.disabled(draft.id.isEmpty || draft.pattern.isEmpty).keyboardShortcut(.defaultAction)
-            }
-        }.padding(24).frame(width: 560).disabled(presentation.model.operationInProgress)
-    }
 }

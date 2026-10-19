@@ -807,7 +807,7 @@ import AppKit
         if !enabled {
             let alert = NSAlert()
             alert.messageText = "Enable Request Rewrite?"
-            alert.informativeText = "Intercept only explicitly authorized domains using this profile's rules and trusted local CA. TUN must actually be running. Existing connections may be interrupted."
+            alert.informativeText = "Intercept domains selected by enabled rules using this profile and trusted local CA. Without enabled rules, intent is saved as idle; otherwise TUN must be running. Existing connections may be interrupted."
             alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Enable Rewrite")
             guard alert.runModal() == .alertSecondButtonReturn else { return }
         }

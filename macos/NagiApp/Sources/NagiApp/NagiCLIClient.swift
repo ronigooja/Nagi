@@ -41,7 +41,7 @@ struct NagiCLIClient {
 
     /// Rewrite values travel only over stdin; malformed responses never echo stderr.
     func rewrite(_ arguments: [String], input: Data? = nil) async throws -> JSONValue {
-        let bytes = try await rewriteTransport(["--json", "request-rewrite"] + arguments, input: input)
+        let bytes = try await rewriteTransport(["--json", "request-rewrite"] + arguments, input: input, inputLimit: arguments.first == "preview" ? Self.rewritePreviewInputLimit : Self.rewriteDocumentInputLimit, outputLimit: arguments.first == "preview" ? Self.rewritePreviewOutputLimit : Self.rewriteDocumentOutputLimit)
         guard let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: bytes) else {
             throw CLIError.invalidJSON("The request rewrite CLI returned an invalid response.")
         }
@@ -54,12 +54,17 @@ struct NagiCLIClient {
 
     /// Explicit exports deliberately omit --json. Never used for ordinary refresh.
     func rewriteExport(_ arguments: [String]) async throws -> Data {
-        try await rewriteTransport(["request-rewrite"] + arguments, input: nil)
+        try await rewriteTransport(["request-rewrite"] + arguments, input: nil, inputLimit: Self.rewriteDocumentInputLimit, outputLimit: Self.rewriteDocumentOutputLimit)
     }
 
-    private func rewriteTransport(_ arguments: [String], input: Data?) async throws -> Data {
+    static let rewriteDocumentInputLimit = 1_048_576
+    static let rewriteDocumentOutputLimit = 6 * 1_048_576 + 65_536
+    static let rewritePreviewInputLimit = 24 * 1_048_576
+    static let rewritePreviewOutputLimit = 72 * 1_048_576 + 65_536
+
+    private func rewriteTransport(_ arguments: [String], input: Data?, inputLimit: Int, outputLimit: Int) async throws -> Data {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw CLIError.missingCLI(executable.path) }
-        guard (input?.count ?? 0) <= 12 * 1_048_576 else { throw CLIError.outputTooLarge(12 * 1_048_576) }
+        guard (input?.count ?? 0) <= inputLimit else { throw CLIError.outputTooLarge(inputLimit) }
         let holder = ProcessHolder()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -69,7 +74,7 @@ struct NagiCLIClient {
                         process.executableURL = executable; process.arguments = arguments
                         let stdout = Pipe(), stderr = Pipe(), stdin = Pipe()
                         process.standardOutput = stdout; process.standardError = stderr; process.standardInput = stdin
-                        let out = try CommandOutputReader(stdout.fileHandleForReading, limit: 16 * 1_048_576)
+                        let out = try CommandOutputReader(stdout.fileHandleForReading, limit: outputLimit)
                         let err = try CommandOutputReader(stderr.fileHandleForReading)
                         let writer = try CommandInputWriter(stdin.fileHandleForWriting, bytes: input ?? Data())
                         defer {
@@ -87,7 +92,7 @@ struct NagiCLIClient {
                         if holder.timedOut { throw CLIError.timeout }
                         if holder.cancelled { throw CancellationError() }
                         let (output, overflow) = out.snapshot(), (error, errorOverflow) = err.snapshot()
-                        guard !overflow && !errorOverflow else { throw CLIError.outputTooLarge(16 * 1_048_576) }
+                        guard !overflow && !errorOverflow else { throw CLIError.outputTooLarge(outputLimit) }
                         if process.terminationStatus != 0 {
                             // Only the CLI's structured sanitized message may reach ordinary UI.
                             if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: error), let detail = envelope.error {
