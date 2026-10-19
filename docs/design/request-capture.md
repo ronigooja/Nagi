@@ -198,6 +198,24 @@ row. The active detail section survives record refresh and selection changes;
 changing records closes the pointer popover and clears its input. Field and body
 context menus continue to derive drafts through the CLI.
 
+The native quick-rule window shows its pinned save profile in the window title
+(`Create Rule — PROFILE`). Its body starts with rule settings, original-metadata
+match conditions and ordered operations, without a repeated title, record ID or
+rule-version display. Rule order selects **Before RULE** or **At end** and maps
+to the existing zero-based CLI insertion position. Field labels remain visible
+while editing, and operation choices use readable action names. Domain, methods,
+path prefix and path expression stay visible; **More Conditions** folds additional
+predicates and reports their active count. **Advanced Settings** folds error and
+range policies. **Allowed Destinations** expands when a request operation changes
+the scheme, host or port; authorization still requires explicitly adding a target.
+**Enable on save** controls the candidate beside **Save Rule**. **Preview…** opens
+a separate offline sheet with original/result, diff and raw-result views, using
+the existing CLI preview. Format help is available on hover and the help button
+explains saving and sensitive preview content on demand. Errors and incomplete
+original-content notices remain visible, and failures retain the editable draft.
+This layout is source-reviewed on Linux; native macOS compilation and interactive
+verification of the quick-rule layout remain pending.
+
 AppKit owns the capture window size. The SwiftUI host does not derive window
 minimum, maximum or ideal sizes from capture content; layout is bounded by the
 current content area. The initial outer frame, including its title bar, is at

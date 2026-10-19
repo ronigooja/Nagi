@@ -99,6 +99,11 @@ comparison, with format and copy controls above it. **JSON Pointer…** on Body
 opens a field-rule popover. Header, URL, method, status and selected body text
 context menus open a quick-rule draft from that field. The draft supports the full
 existing operation set, match predicates, insertion position and enable-on-save.
+The quick-rule window title identifies the destination profile. Rule order uses
+**Before RULE** or **At end**; additional match conditions and advanced settings
+expand on demand, while **Preview…** opens a separate offline comparison sheet.
+See the [capture interaction design](../../docs/design/request-capture.md#interaction-and-sensitive-presentation)
+for the layout and help behavior.
 Preview runs the existing chain locally against original complete snapshots;
 save uses the CLI version check and activation transaction. A failure or conflict
 retains the draft. Incomplete originals can derive metadata rules without an
@@ -126,6 +131,8 @@ model-to-CLI capture-to-rule chain have verification evidence. Manual menu-bar
 clicks and sleep/wake acceptance remain unverified. The updated table/detail
 layout and its new regression tests also require macOS build, test and
 interactive verification; they were authored and source-reviewed on Linux.
+The quick-rule layout update also awaits native macOS compilation and interaction
+checks.
 See the [capture guide](../../docs/guides/request-capture.md),
 [shared design](../../docs/design/request-capture.md) and
 [verification record](../../docs/development/request-rewrite-acceptance.md#capture-verification).
