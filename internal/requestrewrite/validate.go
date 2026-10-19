@@ -137,7 +137,7 @@ func allowedHeader(s string) bool {
 		return false
 	}
 	s = strings.ToLower(s)
-	if strings.HasPrefix(s, "nagi-rewrite-") {
+	if strings.HasPrefix(s, "nagi-rewrite-") || strings.HasPrefix(s, "sec-websocket-") {
 		return false
 	}
 	switch s {
@@ -325,7 +325,7 @@ func validateDocument(d *Document) error {
 		for j := range r.Operations {
 			o := &r.Operations[j]
 			ws := r.Stage == StageWebSocketClient || r.Stage == StageWebSocketServer
-			if o.MessageType != "" && (!ws || o.MessageType != "text" && o.MessageType != "binary" || !bodyOperation(*o)) {
+			if o.MessageType != "" && (!ws || o.MessageType != "text" && o.MessageType != "binary" || !bodyOperation(*o) && o.Op != "script") {
 				return invalid()
 			}
 			switch o.Op {
