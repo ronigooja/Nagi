@@ -19,7 +19,7 @@ func rewriteCompletion(shell, script string) string {
 	return strings.Replace(script, needle, hook+"\n"+needle, 1)
 }
 
-const rewriteBashCompletion = `  if [[ ${semantic[0]} == request-rewrite ]]; then
+const rewriteBashCompletion = `  if [[ ${semantic[0]} == request-rewrite || ${semantic[0]} == rewrite ]]; then
     local -a rw=()
     local rp='' prev='' rwkind='' rwchoices='' rwfile=0
     for ((i=0; i<${#semantic[@]}; i++)); do
@@ -55,7 +55,7 @@ const rewriteBashCompletion = `  if [[ ${semantic[0]} == request-rewrite ]]; the
     else COMPREPLY=( $(compgen -W "$rwchoices" -- "$cur") ); fi
     return 0
   fi`
-const rewriteZshCompletion = `  if [[ ${semantic[1]} == request-rewrite ]]; then
+const rewriteZshCompletion = `  if [[ ${semantic[1]} == request-rewrite || ${semantic[1]} == rewrite ]]; then
     local -a rw
     local rp='' prev='' item rwkind='' rwchoices='' rwfile=0
     for item in "${semantic[@]}"; do
@@ -91,9 +91,12 @@ func rewriteFishCompletion() string {
 	b.WriteString(`
 function __nagi_rewrite_words
   set -l skip 0
+  set -l first 1
   for item in (__nagi_semantic)
     if test $skip -eq 1; set skip 0; continue; end
     if test "$item" = --profile; set skip 1; continue; end
+    if test "$item" = rewrite; and test $first -eq 1; set item request-rewrite; end
+    set first 0
     printf '%s\n' $item
   end
 end

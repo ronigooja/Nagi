@@ -12,7 +12,7 @@ Valid help requests exit with status `0`, even if runtime configuration is inval
 
 | Command | Result or effect |
 | --- | --- |
-| `request-rewrite <command>` | Manage TUN request rewrite consent, rules, activation, sensitive preview/export and local CA; see [TUN request rewrite](#tun-request-rewrite). |
+| `rewrite <command>` (also `request-rewrite`) | Manage TUN request rewrite consent, rules, activation, sensitive preview/export and local CA; see [TUN request rewrite](#tun-request-rewrite). |
 | `menu` | Open the interactive, line-oriented terminal menu for common CLI operations. Requires terminal input and output. |
 | `start`, `stop`, `restart` | Manage the mihomo process and its desired running state. `start` creates the default profile if absent. |
 | `quit` | Stop this session's login monitor and mihomo, restore Nagi-managed system proxy settings, and preserve login startup preference. |
@@ -696,9 +696,9 @@ A successful refresh creates a cache version independently of the applied versio
 
 ## TUN request rewrite
 
-`request-rewrite` manages explicit profile-local domain consent and ordered HTTP request transformations. It defaults to off. Enable targets the selected profile and requires a compatible mihomo request-rewrite capability, an actually running TUN, a generated local CA and confirmed platform trust. Generation does not install trust, and enable does not start TUN or install trust. The release-pinned engine does not provide this capability; activation requires the separately verified compatible engine until release integration updates the pin. Ordinary HTTP/SOCKS listeners are outside the interception path. Unknown domains and unsupported traffic are not evidence of interception; certificate pinning, client certificates, ECH and protocol limitations can prevent coverage. See the [request rewrite design](../design/request-rewrite.md#ownership-and-scope) for the engine/service boundary and coverage limits.
+`rewrite` (also available as `request-rewrite`) manages explicit profile-local domain consent and ordered HTTP request transformations. It defaults to off. Enable targets the selected profile and requires a compatible mihomo request-rewrite capability, an actually running TUN, a generated local CA and confirmed platform trust. Generation does not install trust, and enable does not start TUN or install trust. The release-pinned engine does not provide this capability; activation requires the separately verified compatible engine until release integration updates the pin. Ordinary HTTP/SOCKS listeners are outside the interception path. Unknown domains and unsupported traffic are not evidence of interception; certificate pinning, client certificates, ECH and protocol limitations can prevent coverage. See the [request rewrite design](../design/request-rewrite.md#ownership-and-scope) for the engine/service boundary and coverage limits.
 
-| Command after `nagi request-rewrite` | Result or effect |
+| Command after `nagi rewrite` or `nagi request-rewrite` | Result or effect |
 | --- | --- |
 | `status` | Confirm saved intent, actual runtime state, versions, CA and recovery guidance. |
 | `enable`, `disable` | Coordinate runtime activation or teardown for the selected profile. Disable retains rules, CA and trust. |
@@ -724,6 +724,8 @@ A successful refresh creates a cache version independently of the applied versio
 
 `--profile NAME` defaults to the selected profile and applies only to domains, rules, import, export, validate and preview. Place it after the complete command path, before or after positional arguments. Status, enable, disable and CA commands reject it. IDs and profile names contain 1–128 ASCII letters, digits, `_` or `-`. There are no `set`, `move`, CA rotation, replacement or deletion aliases.
 
+Both command names accept the complete command tree, flags and private file/stdin inputs, and produce the same output and exit codes. Existing integrations may continue to use `request-rewrite`. JSON command fields and usage-error guidance retain the compatibility name `request-rewrite`; requested help uses the invoked name.
+
 Input `FILE` is a regular local file owned by the invoking user with no group/other permissions; symbolic links are rejected. `-` reads stdin. URLs and secret values in command arguments are not accepted. Domain/rule/reorder/import/validation input is limited to 256 KiB. JSON rejects unknown fields, duplicate object keys, trailing values and invalid UTF-8. Missing/incomplete input fails before a save. Rule and domain mutations validate the complete candidate and use the configuration/document locks and coordinator to confirm activation or rollback. A disabled profile can be edited while the engine is stopped; editing never starts TUN or the rewrite child. An activation failure does not claim success or confirmed rollback when the resulting runtime state is uncertain.
 
 Complete document and rule field definitions, operation constraints and limits are authoritative in the [v1 document schema](../design/request-rewrite.md#rule-document-and-deterministic-transformations). All displayed top-level/rule fields in that schema are required; operation-specific fields are exact. Domain consent supports exact ASCII DNS names and explicit wildcard `*.service.example`, which matches subdomains but excludes the apex. No global wildcard or implicit suffix consent exists. Rules match the original authority/method/escaped path and run in stored order. Destination scheme/host/port changes require destination consent and independent domain authorization. Ordinary list/show output includes only ID, enabled state, match, operation kinds and `on_error`; operation values and redirect-consent values are omitted. Use explicit export to read complete values.
@@ -731,23 +733,23 @@ Complete document and rule field definitions, operation constraints and limits a
 For example, supply fictitious consent through stdin:
 
 ```sh
-printf '%s\n' '{"id":"api","pattern":"api.service.example"}' | nagi request-rewrite domains add -
+printf '%s\n' '{"id":"api","pattern":"api.service.example"}' | nagi rewrite domains add -
 ```
 
 Supply a rule through stdin to keep secret-bearing values out of process arguments. Use a private input file when a shell would retain pasted here-document input in history (the example values below are fictitious):
 
 ```sh
-nagi request-rewrite rules add - <<'JSON'
+nagi rewrite rules add - <<'JSON'
 {"id":"edit-api","enabled":true,"match":{"domain":"api.service.example","methods":["GET"],"path_prefix":"/v1/"},"on_error":"block","redirect_consent":[],"operations":[{"op":"header_set","name":"X-Demo","value":"example"}]}
 JSON
-nagi request-rewrite rules list
-nagi request-rewrite validate
+nagi rewrite rules list
+nagi rewrite validate
 ```
 
 Preview requires exactly `{scheme,host,port,method,path,query,headers,body_base64}`. `scheme` is `http` or `https`; normalized `host` must be authorized; `port` is an integer 1–65535; `headers` maps names to string arrays. `body_base64` is required, with an empty string for no body, and uses strict base64. Path/query obey the document's URL validation. The encoded fixture is limited to 12 MiB, decoded body to 8 MiB and headers to 64 KiB. Preview makes no DNS/network call and does not prove live interception coverage. Its result is `{sensitive:true,rule_version,rule_ids,outcome,request}`, where `request` uses the same fixture schema. JSON puts this sensitive result inside the normal `data` envelope; text begins with a sensitive-output label.
 
 ```sh
-nagi --json request-rewrite preview - <<'JSON'
+nagi --json rewrite preview - <<'JSON'
 {"scheme":"https","host":"api.service.example","port":443,"method":"GET","path":"/v1/demo","query":"","headers":{},"body_base64":""}
 JSON
 ```

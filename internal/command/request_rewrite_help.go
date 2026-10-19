@@ -1,5 +1,7 @@
 package command
 
+import "strings"
+
 func init() {
 	type entry struct{ path, syntax, summary, detail, example string }
 	entries := []entry{
@@ -49,5 +51,18 @@ func init() {
 			max += 2
 		}
 		commandSpecs = append(commandSpecs, commandSpec{path, syntax, e.summary, e.detail, "nagi request-rewrite " + e.example, "Run `nagi request-rewrite status` for readiness and recovery.", min, max})
+	}
+	// Derive the complete public command tree from the compatibility entrypoint.
+	// Arity, help and discovery must stay aligned as operations are added.
+	for _, spec := range append([]commandSpec(nil), commandSpecs...) {
+		if spec.path != "request-rewrite" && !strings.HasPrefix(spec.path, "request-rewrite ") {
+			continue
+		}
+		spec.path = strings.Replace(spec.path, "request-rewrite", "rewrite", 1)
+		spec.syntax = strings.Replace(spec.syntax, "request-rewrite", "rewrite", 1)
+		spec.example = strings.Replace(spec.example, "request-rewrite", "rewrite", 1)
+		spec.hint = strings.ReplaceAll(spec.hint, "nagi request-rewrite", "nagi rewrite")
+		spec.detail += " Also available as nagi request-rewrite; both use the same implementation and JSON contract."
+		commandSpecs = append(commandSpecs, spec)
 	}
 }

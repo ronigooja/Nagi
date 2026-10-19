@@ -135,6 +135,12 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		}
 		return 0
 	}
+	// Normalize the public spelling before validation, sensitive input preparation,
+	// and dispatch so every operation uses the existing implementation. Help above
+	// retains the invoked spelling from its generated command specs.
+	if len(filtered) > 0 && filtered[0] == "rewrite" {
+		filtered[0] = "request-rewrite"
+	}
 	if err := validateInvocation(filtered); err != nil {
 		output.WriteError(stderr, jsonMode, "usage", err.Error())
 		return 2
