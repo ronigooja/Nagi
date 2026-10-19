@@ -12,17 +12,31 @@ import SwiftUI
     private var draftWindow: CaptureDraftWindowController?
     init(model: CaptureModel) {
         self.model = model
-        let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1240, height: 820), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 740), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Nagi Capture"; window.minSize = NSSize(width: 980, height: 650)
         window.isReleasedWhenClosed = false; window.delegate = self
         window.onVisibilityChange = { [weak self] in self?.updateVisibility() }
-        window.contentView = NSHostingView(rootView: CaptureView(presentation: CapturePresentation(model)))
-        window.center()
+        let content = NSHostingView(rootView: CaptureView(presentation: CapturePresentation(model)))
+        // AppKit owns window sizing. SwiftUI's content-derived minimum/ideal
+        // sizes otherwise allow capture controls and raw values to grow it.
+        content.sizingOptions = []
+        window.contentView = content
+        if let screen = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
+            window.minSize = NSSize(width: min(980, screen.width * 0.8), height: min(650, screen.height * 0.8))
+            window.setFrame(Self.initialFrame(in: screen), display: false)
+        } else {
+            window.center()
+        }
         model.onCreateRule = { [weak self] context in self?.createRule(context) }
         for name in [NSApplication.didHideNotification, NSApplication.didUnhideNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateVisibility() } })
         }
+    }
+    static func initialFrame(in screen: NSRect) -> NSRect {
+        let size = NSSize(width: min(1100, screen.width * 0.9), height: min(760, screen.height * 0.9))
+        return NSRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2,
+                      width: size.width, height: size.height)
     }
     private func createRule(_ context: CaptureSelectionContext) {
         if let draftWindow { draftWindow.present(); return }
@@ -63,19 +77,28 @@ import SwiftUI
     @State private var jsonPointer = ""
     private var model: CaptureModel { presentation.model }
     var body: some View {
+        // Bound layout proposals to the actual window, including when a raw
+        // URL/header has a much larger intrinsic size than the available space.
+        GeometryReader { geometry in
+            content.frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+        }
+    }
+    private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
-            controls
+            ScrollView(.horizontal) { controls }.fixedSize(horizontal: false, vertical: true)
             if let message = model.prerequisiteMessage {
                 Text(message).font(.callout).foregroundColor(model.prerequisitesReady ? .secondary : .orange).textSelection(.enabled)
             }
             DisclosureGroup("Capture Scope", isExpanded: $scopeExpanded) { scope }
-            HStack {
+            ScrollView(.horizontal) { HStack {
                 TextField("Search original URLs, headers and bodies", text: $query)
+                    .frame(minWidth: 220)
                 Picker("Kind", selection: $kind) { Text("All").tag(""); Text("HTTP").tag("http"); Text("WebSocket").tag("websocket") }.frame(width: 170)
                 TextField("Domain", text: $domain).frame(width: 160)
                 TextField("Process path", text: $process).frame(width: 180)
                 Toggle("Oldest first", isOn: $ascending)
-            }.onChange(of: query) { _ in filters() }.onChange(of: kind) { _ in filters() }
+            } }.fixedSize(horizontal: false, vertical: true)
+                .onChange(of: query) { _ in filters() }.onChange(of: kind) { _ in filters() }
                 .onChange(of: domain) { _ in filters() }.onChange(of: process) { _ in filters() }.onChange(of: ascending) { _ in filters() }
             HSplitView {
                 recordList.frame(minWidth: 300, idealWidth: 420)

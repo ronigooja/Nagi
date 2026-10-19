@@ -11,6 +11,74 @@ final class CaptureTests: XCTestCase {
     }
     private var recordData: Data { Data(#"{"id":"record","session_id":"session","kind":"http","generation":"g","rule_version":"v","started":"2026-10-18T12:34:56.123Z","duration_ms":12,"rule_ids":[],"outcome":"streaming","identity":{"session_id":"session","revision":1,"uid":501,"process":"Browser","process_path":"/Applications/Fictional.app/Browser","source":"127.0.0.1:1234","destination":"192.0.2.1:443"},"snapshots":{"request_original":{"scheme":"https","host":"example.invalid","path":"/test","query":"token=fictitious","method":"GET","headers":{"Authorization":["Bearer fictitious"],"Cookie":["session=fictitious"]},"body_state":"collecting","body_size":0,"captured":0}}}"#.utf8) }
 
+    @MainActor func testInitialWindowFitsVisibleScreenIncludingItsTitleBar() throws {
+        _ = NSApplication.shared
+        for screen in [NSRect(x: 0, y: 40, width: 1280, height: 720),
+                       NSRect(x: -1024, y: 200, width: 1024, height: 640),
+                       NSRect(x: 0, y: 0, width: 1920, height: 1080)] {
+            let frame = CaptureWindowController.initialFrame(in: screen)
+            XCTAssertTrue(screen.contains(frame))
+            XCTAssertLessThanOrEqual(frame.width, screen.width * 0.9 + 1)
+            XCTAssertLessThanOrEqual(frame.height, screen.height * 0.9 + 1)
+            XCTAssertEqual(frame.midX, screen.midX, accuracy: 1)
+            XCTAssertEqual(frame.midY, screen.midY, accuracy: 1)
+        }
+        let status = try reply()
+        let model = CaptureModel(read: { _, _ in status }, submit: { _, _ in status }, export: { _ in })
+        let controller = CaptureWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
+        let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
+        XCTAssertTrue(screen.contains(window.frame))
+        XCTAssertLessThan(window.minSize.width, window.frame.width)
+        XCTAssertLessThan(window.minSize.height, window.frame.height)
+    }
+
+    @MainActor func testLongCaptureContentDoesNotGrowWindowOrPreventShrinking() async throws {
+        _ = NSApplication.shared
+        let status = try reply(records: true)
+        let longValue = String(repeating: "fictitious", count: 1000)
+        let raw = try XCTUnwrap(String(data: recordData, encoding: .utf8))
+            .replacingOccurrences(of: "/test", with: "/" + longValue)
+            .replacingOccurrences(of: "Bearer fictitious", with: "Bearer " + longValue)
+        let detail = try JSONDecoder().decode(CaptureReply.self, from: JSONSerialization.data(withJSONObject: [
+            "sensitive": true, "record": try JSONSerialization.jsonObject(with: Data(raw.utf8))
+        ]))
+        let body = try JSONDecoder().decode(CaptureReply.self, from: Data(#"{"sensitive":true,"body":{"data":"","offset":0,"next_offset":0,"eof":true,"state":"complete"}}"#.utf8))
+        let model = CaptureModel(read: { args, _ in
+            if args[0] == "show" { return detail }
+            if args[0] == "body" { return body }
+            return status
+        }, submit: { _, _ in status }, export: { _ in }, interval: 60_000_000_000)
+        let controller = CaptureWindowController(model: model)
+        let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
+        controller.present()
+        await wait { !model.isReading }
+        let initial = window.frame
+        model.select("record")
+        await wait { !model.readingBody }
+        XCTAssertTrue(model.selectedRecord?.title.contains(longValue) == true)
+        for _ in 0..<5 {
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertEqual(window.frame, initial)
+        for size in [initial.size, window.minSize, initial.size, window.minSize] {
+            window.setFrame(NSRect(origin: initial.origin, size: size), display: true)
+            // Drain SwiftUI layout passes: content updates must not resize AppKit.
+            for _ in 0..<5 {
+                window.contentView?.layoutSubtreeIfNeeded()
+                try await Task.sleep(nanoseconds: 20_000_000)
+            }
+            XCTAssertEqual(window.frame.width, size.width, accuracy: 1)
+            XCTAssertEqual(window.frame.height, size.height, accuracy: 1)
+        }
+        let resized = window.frame
+        controller.present()
+        XCTAssertEqual(window.frame, resized)
+    }
+
     func testRawMetadataAndPartialBodyStateDecode() throws {
         let record = try JSONDecoder().decode(CaptureRecord.self, from: recordData)
         XCTAssertEqual(record.original?.url, "https://example.invalid/test?token=fictitious")

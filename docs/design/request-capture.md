@@ -143,6 +143,17 @@ content, including URLs, headers, trailers and bodies. Body views support text,
 JSON, hex and original/actual comparison. Context selections feed a local quick
 rule draft through the CLI; operation validation and saving remain CLI work.
 
+AppKit owns the capture window size. The SwiftUI host does not derive window
+minimum, maximum or ideal sizes from capture content; layout is bounded by the
+current content area. The initial outer frame, including its title bar, is at
+most 1100 × 760 points and 90% of the screen's visible width and height. The
+normal 980 × 650 minimum is capped at 80% of the screen's visible width and
+height, leaving room to shrink the window even on smaller screens.
+Action and filter rows scroll horizontally when needed. Reopening an existing
+window preserves its current size. Native resize regression tests cover small
+screens, long URLs/headers and repeated shrinking; execution of these new tests
+and interactive resize acceptance remain unverified on the Linux authoring host.
+
 The terminal menu is under Settings & Maintenance → Request Rewrite → Original Capture. It
 uses existing command runners for status, scoped start, application discovery,
 record listing/show, decoded-offset body chunks, session controls, fixtures,
