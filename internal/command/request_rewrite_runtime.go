@@ -345,6 +345,10 @@ var rewriteNow = time.Now
 var rewriteStartSupervisor = startRewriteSupervisor
 
 func rewritePrerequisites(ctx context.Context, paths nagiruntime.Paths, snapshot *rewrite.Snapshot) (*control.Client, rewriteEngineStatus, error) {
+	return rewriteRuntimePrerequisites(ctx, paths, false)
+}
+
+func rewriteRuntimePrerequisites(ctx context.Context, paths nagiruntime.Paths, capturing bool) (*control.Client, rewriteEngineStatus, error) {
 	if rewriteEffectiveUID() == 0 {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_auth")
 	}
@@ -358,6 +362,9 @@ func rewritePrerequisites(ctx context.Context, paths nagiruntime.Paths, snapshot
 	}
 	if !capabilities.Supported() {
 		return nil, rewriteEngineStatus{}, rewriteFailure("rewrite_capability_missing")
+	}
+	if capturing && capabilities.CaptureProtocol != capture.ProtocolVersion {
+		return nil, rewriteEngineStatus{}, captureFailure("capture_capability_missing")
 	}
 	var current rewriteEngineStatus
 	if client.Get(ctx, "/request-rewrite/status", &current) != nil {

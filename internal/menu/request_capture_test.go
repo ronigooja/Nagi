@@ -243,3 +243,39 @@ func TestCaptureFixtureUsesOriginalCLIStage(t *testing.T) {
 		t.Fatal(f.calls)
 	}
 }
+
+func TestCaptureEntryShowsOnlyCurrentPrerequisiteAndRetainsOfflineActions(t *testing.T) {
+	for _, failure := range []bool{false, true} {
+		current := "TUN is not running. Enable TUN before starting capture."
+		f := &rewriteTestRunner{run: func(args []string) Result {
+			if args[2] == "check" {
+				return Result{Data: capture.Reply{Readiness: &capture.Readiness{Code: "rewrite_tun_required", Message: current}}}
+			}
+			if failure {
+				return rewriteFailure("capture_unavailable")
+			}
+			return Result{Data: capture.Reply{}}
+		}}
+		session := NewSession(f, strings.NewReader(""), io.Discard)
+		for _, message := range []string{current, "A valid capture CA is missing."} {
+			current = message
+			view, err := capturePage().Load(context.Background(), session)
+			if (err != nil) != failure {
+				t.Fatal(err)
+			}
+			if strings.Count(view.Context, message) != 1 {
+				t.Fatal(view.Context)
+			}
+			if message != "TUN is not running. Enable TUN before starting capture." && strings.Contains(view.Context, "TUN is not running") {
+				t.Fatal(view.Context)
+			}
+			rewriteFind(t, view, "Import native archive")
+			rewriteFind(t, view, "Captured records")
+			rewriteFind(t, view, "Start with scope")
+		}
+		expected := [][]string{captureArgs("check"), captureArgs("status"), captureArgs("check"), captureArgs("status")}
+		if !reflect.DeepEqual(f.calls, expected) {
+			t.Fatal(f.calls)
+		}
+	}
+}

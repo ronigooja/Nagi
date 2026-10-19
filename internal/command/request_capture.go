@@ -106,7 +106,12 @@ func captureCommand(ctx context.Context, o rewriteArguments, p nagiruntime.Paths
 	data, _ := ctx.Value(rewriteInputKey{}).([]byte)
 	q := capture.Request{Action: action}
 	switch action {
+	case "check":
+		return output.CaptureResult{Value: capture.Reply{Readiness: captureReadiness(ctx, p)}}, nil
 	case "status":
+		if _, err := os.Lstat(captureSocket(p)); os.IsNotExist(err) {
+			return output.CaptureResult{Value: capture.Reply{Sensitive: true}}, nil
+		}
 		r, e := captureCall(ctx, p, q)
 		if e != nil {
 			return nil, e

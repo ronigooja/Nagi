@@ -222,3 +222,71 @@ extension CaptureTests {
         XCTAssertEqual(stops, 1)
     }
 }
+
+extension CaptureTests {
+    @MainActor func testEntryChecksOnePrerequisiteAndRefreshReplacesIt() async throws {
+        var actions: [String] = []
+        var message = "TUN is not running."
+        let empty = try JSONDecoder().decode(CaptureReply.self, from: Data(#"{"sensitive":true}"#.utf8))
+        let model = CaptureModel(read: { args, _ in
+            actions.append(args[0])
+            if args[0] == "check" {
+                return try JSONDecoder().decode(CaptureReply.self, from: JSONSerialization.data(withJSONObject: ["sensitive":false,"readiness":["ready":false,"message":message,"code":"fixture"]]))
+            }
+            return empty
+        }, submit: { _, _ in XCTFail("Entry must not mutate"); return empty }, export: { _ in }, interval: 9_000_000_000)
+        model.setVisible(true); await wait { !model.isReading }
+        XCTAssertEqual(actions, ["check", "status"])
+        XCTAssertEqual(model.prerequisiteMessage, "TUN is not running.")
+        XCTAssertFalse(model.prerequisitesReady)
+        model.refresh(); await wait { !model.isReading }
+        XCTAssertEqual(actions.filter { $0 == "check" }.count, 1)
+        message = "A valid capture CA is missing."
+        model.refreshPrerequisites(); await wait { !model.isReading }
+        XCTAssertEqual(model.prerequisiteMessage, message)
+        XCTAssertEqual(actions.filter { $0 == "check" }.count, 2)
+        model.setVisible(false)
+        message = "Certificate trust is required."
+        model.setVisible(true); await wait { !model.isReading }
+        XCTAssertEqual(model.prerequisiteMessage, message)
+        XCTAssertEqual(actions.filter { $0 == "check" }.count, 3)
+        model.setVisible(false)
+    }
+
+    @MainActor func testPrerequisiteReadFailureStillReadsOfflineStatus() async throws {
+        let empty = try JSONDecoder().decode(CaptureReply.self, from: Data(#"{"sensitive":true}"#.utf8))
+        var actions: [String] = []
+        let model = CaptureModel(read: { args, _ in
+            actions.append(args[0])
+            if args[0] == "check" { throw CLIError.command("fixture", "private fixture credential") }
+            return empty
+        }, submit: { _, _ in empty }, export: { _ in }, interval: 9_000_000_000)
+        model.setVisible(true); await wait { !model.isReading }
+        XCTAssertEqual(actions, ["check", "status"])
+        XCTAssertEqual(model.prerequisiteMessage, "Unable to check capture prerequisites. Reopen or refresh to retry.")
+        XCTAssertFalse(model.prerequisitesReady)
+        XCTAssertFalse(model.stale)
+        model.setVisible(false)
+    }
+}
+
+extension CaptureTests {
+    @MainActor func testFilterChangeRetriesCanceledPrerequisiteCheckWithoutPublishingOldMessage() async throws {
+        let empty = try JSONDecoder().decode(CaptureReply.self, from: Data(#"{"sensitive":true}"#.utf8))
+        var checks = 0
+        let model = CaptureModel(read: { args, _ in
+            if args[0] != "check" { return empty }
+            checks += 1
+            let first = checks == 1
+            if first { try? await Task.sleep(nanoseconds: 50_000_000) }
+            return try JSONDecoder().decode(CaptureReply.self, from: JSONSerialization.data(withJSONObject: ["sensitive":false,"readiness":["ready":!first,"message":first ? "Old missing prerequisite" : "Ready to capture."]]))
+        }, submit: { _, _ in empty }, export: { _ in }, interval: 9_000_000_000)
+        model.setVisible(true); await wait { checks == 1 }
+        model.setFilters(query: "fixture", kind: "", domain: "", processPath: "", ascending: false)
+        await wait { !model.isReading }
+        XCTAssertEqual(checks, 2)
+        XCTAssertTrue(model.prerequisitesReady)
+        XCTAssertEqual(model.prerequisiteMessage, "Ready to capture.")
+        model.setVisible(false)
+    }
+}

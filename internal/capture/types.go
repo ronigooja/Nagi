@@ -133,7 +133,16 @@ type Request struct {
 	Limit     int           `json:"limit,omitempty"`
 	Event     *Event        `json:"event,omitempty"`
 }
+
+// Readiness reports only the first unmet prerequisite, without starting a recorder.
+type Readiness struct {
+	Ready   bool   `json:"ready"`
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message"`
+}
+
 type Reply struct {
+	Readiness  *Readiness `json:"readiness,omitempty"`
 	Sensitive  bool       `json:"sensitive"`
 	Status     *Status    `json:"status,omitempty"`
 	Records    []Record   `json:"records,omitempty"`

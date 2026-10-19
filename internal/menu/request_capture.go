@@ -89,10 +89,17 @@ func captureDisplay(s *Session, r Result) Result {
 	return r
 }
 func capturePage() *Page {
-	return &Page{Title: "Original Capture", Load: func(ctx context.Context, s *Session) (PageView, error) {
+	return &Page{Title: "Original Capture", Load: func(ctx context.Context, s *Session) (view PageView, err error) {
+		check := captureCall(ctx, s, nil, "check")
+		preparation := "Capture prerequisites: unable to check. Reopen this page to retry."
+		var readiness capture.Reply
+		if !rewriteFailed(check) && decodeMenuResult(check, &readiness) == nil && readiness.Readiness != nil {
+			preparation = "Capture prerequisites: " + readiness.Readiness.Message
+		}
 		r := captureCall(ctx, s, nil, "status")
 		var data capture.Reply
-		v := PageView{Context: "Capture: unavailable\n" + captureSensitive + "\nStart requires running TUN and an explicitly trusted CA. Closing this menu retains the session."}
+		v := PageView{Context: "Capture: unavailable\n" + captureSensitive + "\nClosing this menu retains the session."}
+		defer func() { view.Context = preparation + "\n" + view.Context }()
 		v.Actions = []Item{
 			{Label: "Start with scope", Impact: "Starts a new memory-only session; no TUN or trust changes.", Action: captureStartForm},
 			{Label: "Observed applications", Impact: captureSensitive, Action: func(ctx context.Context, s *Session) error {

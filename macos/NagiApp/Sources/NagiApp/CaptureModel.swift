@@ -20,6 +20,10 @@ import Foundation
     private(set) var bodyText = ""
     private(set) var error: String?
     private(set) var notice: String?
+    private(set) var prerequisiteMessage: String?
+    private(set) var prerequisitesReady = false
+    private var pendingPrerequisiteCheck = false
+    private var prerequisiteCheckInProgress = false
     private(set) var stale = true
     private(set) var operationInProgress = false
     private(set) var readingBody = false
@@ -45,11 +49,21 @@ import Foundation
                   export: { try await cli.captureExport($0) }, discover: { try await cli.captureApps() })
         draftRun = { try await cli.rewrite($0, input: $1) }
     }
-    func setVisible(_ value: Bool) { visible = value; updateActivity() }
+    func setVisible(_ value: Bool) {
+        if value && !visible { pendingPrerequisiteCheck = true; prerequisiteMessage = "Checking capture prerequisites…"; prerequisitesReady = false }
+        visible = value; updateActivity()
+    }
+    func refreshPrerequisites() {
+        pendingPrerequisiteCheck = true; prerequisiteMessage = "Checking capture prerequisites…"; prerequisitesReady = false
+        if readTask != nil { pendingRead = true } else { refresh() }
+        notify()
+    }
     func setSuspended(_ value: Bool) { suspended = value; updateActivity() }
     func setBlocked(_ value: Bool) { blocked = value; updateActivity() }
     private var active: Bool { visible && !blocked && !suspended && !operationInProgress }
     private func cancelReads() {
+        if prerequisiteCheckInProgress { pendingPrerequisiteCheck = true }
+        prerequisiteCheckInProgress = false
         generation &+= 1; detailGeneration &+= 1
         readTask?.cancel(); detailTask?.cancel(); applicationTask?.cancel(); timer?.cancel(); timer = nil
         pendingDetail = false
@@ -73,6 +87,7 @@ import Foundation
     func waitForCancelledRead() async { await readTask?.value; await detailTask?.value; await applicationTask?.value }
     func setFilters(query: String, kind: String, domain: String, processPath: String, ascending: Bool) {
         self.query = query; self.kind = kind; self.domain = domain; self.processPath = processPath; self.ascending = ascending
+        if prerequisiteCheckInProgress { pendingPrerequisiteCheck = true; prerequisiteCheckInProgress = false }
         generation &+= 1; readTask?.cancel(); pendingRead = active
         if readTask == nil { refresh() }
     }
@@ -81,9 +96,26 @@ import Foundation
     private func beginRead(includeRecords: Bool) {
         guard !blocked, !suspended, !operationInProgress, readTask == nil else { return }
         let token = generation, read = self.read
+        let checkPrerequisites = pendingPrerequisiteCheck
+        pendingPrerequisiteCheck = false
+        prerequisiteCheckInProgress = checkPrerequisites
         let query = self.query, kind = self.kind, domain = self.domain, processPath = self.processPath, ascending = self.ascending
         pendingRead = false
         readTask = Task { [weak self] in
+            if checkPrerequisites {
+                do {
+                    let check = try await read(["check"], nil)
+                    guard let self, !Task.isCancelled, token == self.generation else { self?.finishRead(); return }
+                    self.prerequisiteMessage = check.readiness?.message ?? "Unable to check capture prerequisites. Reopen or refresh to retry."
+                    self.prerequisitesReady = check.readiness?.ready == true
+                } catch {
+                    guard let self, !Task.isCancelled, token == self.generation else { self?.finishRead(); return }
+                    self.prerequisiteMessage = "Unable to check capture prerequisites. Reopen or refresh to retry."
+                    self.prerequisitesReady = false
+                }
+                self?.prerequisiteCheckInProgress = false
+                self?.notify()
+            }
             do {
                 let reply = try await read(["status"], nil)
                 var records: [CaptureRecord]?

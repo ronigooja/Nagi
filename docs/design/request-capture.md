@@ -71,7 +71,7 @@ failure, collection cutoff and empty complete bodies remain distinguishable.
 
 ## CLI and drafts
 
-Capture commands: `start [FILE|-]`, `status`, `pause SESSION`, `resume SESSION`,
+Capture commands: `check`, `start [FILE|-]`, `status`, `pause SESSION`, `resume SESSION`,
 `stop SESSION`, `apps`, `list [FILE|-]`, `show RECORD`,
 `body RECORD SNAPSHOT OFFSET [LIMIT]`, `clear SESSION`,
 `export FILE [native|har]`, `import FILE|-`,
@@ -124,6 +124,16 @@ changes. Archives validate before replacing retained stopped history; failed and
 truncated imports preserve the previous session.
 
 ## Interaction and sensitive presentation
+
+The CLI owns the sequential readiness query used when opening the terminal
+capture page or native capture window. `capture check` stops at the first unmet
+prerequisite without inspecting later stages. It reuses activation prerequisite
+validation and does not need or start a recorder. Both interfaces display one
+readiness message without setup actions, preserving offline history/archive
+access. The App checks again on explicit Refresh or window reopening, rather
+than on automatic record polling; canceled checks cannot publish stale results.
+Start retains its independent validation. The exact check order and response
+contract belong to the [CLI reference](../reference/cli.md#original-request-capture-and-capture-derived-drafts).
 
 The native App capture window owns a distinct session token. Closing it stops
 only its own session; hiding, minimizing or sleeping cancels reads without

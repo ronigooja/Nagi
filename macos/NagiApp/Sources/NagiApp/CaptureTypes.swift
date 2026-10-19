@@ -94,14 +94,20 @@ struct CaptureBodyChunk: Decodable, Sendable {
         state = try values.decode(String.self, forKey: .state)
     }
 }
+struct CaptureReadiness: Decodable, Sendable {
+    let ready: Bool
+    let code: String?
+    let message: String
+}
 struct CaptureReply: Decodable, Sendable {
+    let readiness: CaptureReadiness?
     let sensitive: Bool
     let status: CaptureStatus?
     let records: [CaptureRecord]?
     let record: CaptureRecord?
     let body: CaptureBodyChunk?
     let nextCursor, error: String?
-    enum CodingKeys: String, CodingKey { case sensitive, status, records, record, body, error; case nextCursor = "next_cursor" }
+    enum CodingKeys: String, CodingKey { case sensitive, status, records, record, body, error, readiness; case nextCursor = "next_cursor" }
 }
 struct CaptureApplication: Decodable, Identifiable, Sendable {
     let process, processPath, appPath: String

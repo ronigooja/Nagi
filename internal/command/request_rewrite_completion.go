@@ -36,7 +36,7 @@ const rewriteBashCompletion = `  if [[ ${semantic[0]} == request-rewrite || ${se
       case "${rw[1]}" in scripts|rules|import|export|validate|preview|draft) rwchoices+=' --profile';; esac
     elif [[ ${#rw[@]} -eq 1 ]]; then rwchoices='status enable disable scripts rules import export validate preview ca capture draft'
     elif [[ ${#rw[@]} -eq 2 ]]; then
-      case "${rw[1]}" in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; capture) rwchoices='start status pause resume stop apps list show body clear export import fixture draft';; draft) rwchoices='preview save';; import|export|validate|preview) rwfile=1;; esac
+      case "${rw[1]}" in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; capture) rwchoices='check start status pause resume stop apps list show body clear export import fixture draft';; draft) rwchoices='preview save';; import|export|validate|preview) rwfile=1;; esac
     elif [[ ${#rw[@]} -eq 3 ]]; then
       case "${rw[1]} ${rw[2]}" in
         'ca trust') rwchoices='install remove';;
@@ -72,7 +72,7 @@ const rewriteZshCompletion = `  if [[ ${semantic[1]} == request-rewrite || ${sem
       case ${rw[2]} in scripts|rules|import|export|validate|preview|draft) rwchoices+=' --profile';; esac
     elif (( ${#rw} == 1 )); then rwchoices='status enable disable scripts rules import export validate preview ca capture draft'
     elif (( ${#rw} == 2 )); then
-      case ${rw[2]} in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; capture) rwchoices='start status pause resume stop apps list show body clear export import fixture draft';; draft) rwchoices='preview save';; import|export|validate|preview) rwfile=1;; esac
+      case ${rw[2]} in scripts) rwchoices='list show source add update remove';; rules) rwchoices='list show add update remove enable disable reorder';; ca) rwchoices='status generate export trust';; capture) rwchoices='check start status pause resume stop apps list show body clear export import fixture draft';; draft) rwchoices='preview save';; import|export|validate|preview) rwfile=1;; esac
     elif (( ${#rw} == 3 )); then
       case "${rw[2]} ${rw[3]}" in
         'ca trust') rwchoices='install remove';;
@@ -115,7 +115,7 @@ function __nagi_rewrite_ids
   nagi completion candidates $argv[1] $profile 2>/dev/null
 end
 `)
-	for _, group := range []struct{ path, choices string }{{"request-rewrite scripts", "list show source add update remove"}, {"request-rewrite rules", "list show add update remove enable disable reorder"}, {"request-rewrite ca", "status generate export trust"}, {"request-rewrite ca trust", "install remove"}, {"request-rewrite capture", "start status pause resume stop apps list show body clear export import fixture draft"}, {"request-rewrite draft", "preview save"}} {
+	for _, group := range []struct{ path, choices string }{{"request-rewrite scripts", "list show source add update remove"}, {"request-rewrite rules", "list show add update remove enable disable reorder"}, {"request-rewrite ca", "status generate export trust"}, {"request-rewrite ca trust", "install remove"}, {"request-rewrite capture", "check start status pause resume stop apps list show body clear export import fixture draft"}, {"request-rewrite draft", "preview save"}} {
 		parts := strings.Fields(group.path)
 		conditions := fmt.Sprintf("set -l s (__nagi_rewrite_words); test (count $s) -eq %d", len(parts))
 		for i, p := range parts {

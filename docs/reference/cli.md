@@ -764,6 +764,7 @@ JSON and exit behavior follow the [common interface](#json-and-exit-codes): succ
 commands and the existing `--json` success/error envelope:
 
 ```text
+capture check
 capture start [FILE|-]
 capture status
 capture pause SESSION
@@ -788,6 +789,22 @@ application selection, paginated records, original content, session controls and
 archives. A record can produce a draft for complete JSON editing, full-chain
 local preview and version-checked save; advanced JSON and automation remain
 available through the CLI.
+
+`capture check` is a read-only readiness query independent of the recorder. It
+checks the selected profile, engine reachability, ordinary-user execution,
+rewrite/capture capabilities, running TUN, valid CA and confirmed certificate
+trust in that order. Each failed stage stops the check immediately; later stages
+are not inspected. A successful query exits `0` even when capture is not ready,
+returning `data.readiness: {ready, code?, message}` in the JSON success envelope
+and `sensitive: false`. `code` identifies only the first unmet prerequisite and
+is absent when ready. Invalid arguments exit `2`; ordinary command/runtime
+setup failures retain the existing error envelope and exit behavior. It accepts
+no positional arguments or `--profile`, and never starts the recorder or changes
+TUN, CA or trust. Opening the terminal capture page or App window invokes this
+query and displays its single message without setup actions. The App's existing
+Refresh control repeats the check; automatic record polling does not. Reopening
+the menu page checks again. Start still validates prerequisites independently.
+`capture status` succeeds without a `status` field when no recorder socket exists.
 
 The `capture` lines above follow either rewrite alias. Capture uses the selected
 profile; it rejects `--profile`. Start requires a running TUN engine advertising

@@ -97,15 +97,7 @@ func runCaptureService() int {
 	return 0
 }
 func rewriteCapturePrerequisites(ctx context.Context, p nagiruntime.Paths, s *rewrite.Snapshot) (*control.Client, rewriteEngineStatus, error) {
-	client, state, e := rewritePrerequisites(ctx, p, s)
-	if e != nil {
-		return nil, state, e
-	}
-	var c control.RewriteCapabilities
-	if client.Get(ctx, "/request-rewrite/capabilities", &c) != nil || c.CaptureProtocol != capture.ProtocolVersion {
-		return nil, state, captureFailure("capture_capability_missing")
-	}
-	return client, state, nil
+	return rewriteRuntimePrerequisites(ctx, p, true)
 }
 
 var rewriteCaptureControl = child.ControlCapture

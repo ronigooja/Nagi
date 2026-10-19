@@ -65,6 +65,9 @@ import SwiftUI
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             controls
+            if let message = model.prerequisiteMessage {
+                Text(message).font(.callout).foregroundColor(model.prerequisitesReady ? .secondary : .orange).textSelection(.enabled)
+            }
             DisclosureGroup("Capture Scope", isExpanded: $scopeExpanded) { scope }
             HStack {
                 TextField("Search original URLs, headers and bodies", text: $query)
@@ -103,7 +106,7 @@ import SwiftUI
                 .disabled(!model.canOperate || model.status?.canPauseOrResume != true)
             Button("Stop") { Task { await model.mutate("stop") } }.disabled(!model.canOperate || model.status?.canStop != true)
             Button("Clear") { Task { await model.mutate("clear") } }.disabled(!model.canOperate || model.status == nil || model.status?.readOnly == true)
-            Button("Refresh") { model.refresh() }.disabled(!model.canOperate)
+            Button("Refresh") { model.refreshPrerequisites() }.disabled(!model.canOperate)
             Button("Import…") { importFile() }.disabled(!model.canOperate || model.status?.canStartNewSession == false)
             Menu("Export…") {
                 Button("Native Archive…") { exportFile("native") }
