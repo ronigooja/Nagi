@@ -8,4 +8,6 @@ For the macOS interface, use native controls with regular system sizing. Keep co
 
 Use the shared AppKit and SwiftUI control-style helpers for new forms. Multiline SwiftUI text surfaces use the system text background and separator colors, a 4-point clipped corner radius, and a border that does not intercept input. Keep editor scrolling, focus, selection, accessibility labels, and keyboard actions intact. Grouped content containers may retain their separate 6-point radius.
 
+SwiftUI forms use the shared disclosure style in `nativeFormControls()`: both the arrow and title toggle the section, while the remaining header space does not. Preserve keyboard activation, expanded/collapsed accessibility state, and independent interaction with the expanded content.
+
 Check changed forms on macOS in light and dark appearances, including focused and disabled controls, multiline scrolling, and the minimum supported window size. Compilation and automated tests do not replace visual and interactive acceptance.

@@ -55,7 +55,6 @@ import SwiftUI
             actions
         }.padding(20)
             .nativeFormControls()
-            .disclosureGroupStyle(CaptureDraftDisclosureStyle())
             .task { await model.prepare() }
             .onChange(of: needsDestinationConsent) { needed in
                 if needed { showingDestinations = true }
@@ -243,30 +242,6 @@ import SwiftUI
             Text("Match conditions use original captured metadata. More Conditions shows how many additional filters are active. Hover over fields for accepted formats.")
             Text("Preview temporarily enables the candidate and runs the complete ordered rule chain locally, without saving or sending a network request. Original content, credentials and bodies appear directly; keep them private.")
         }.font(.callout).padding(16).frame(width: 380)
-    }
-}
-
-private struct CaptureDraftDisclosureStyle: DisclosureGroupStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                configuration.isExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: configuration.isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption).foregroundColor(.secondary).frame(width: 12)
-                        .accessibilityHidden(true)
-                    configuration.label
-                }
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
-            if configuration.isExpanded {
-                configuration.content.padding(.leading, 18)
-            }
-        }
     }
 }
 

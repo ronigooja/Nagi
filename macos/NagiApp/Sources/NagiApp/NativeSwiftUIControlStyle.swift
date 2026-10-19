@@ -6,6 +6,7 @@ extension View {
     func nativeFormControls() -> some View {
         controlSize(.regular)
             .textFieldStyle(.roundedBorder)
+            .disclosureGroupStyle(NativeDisclosureGroupStyle())
     }
 
     /// Keep multiline input and captured text surfaces consistent with native colors.
@@ -17,5 +18,31 @@ extension View {
                     .strokeBorder(Color(nsColor: .separatorColor))
                     .allowsHitTesting(false)
             }
+    }
+}
+
+/// Let the arrow and title toggle a disclosure without extending its hit area
+/// into the remaining header space or the editable content below it.
+private struct NativeDisclosureGroupStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                configuration.isExpanded.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: configuration.isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption).foregroundColor(.secondary).frame(width: 12)
+                        .accessibilityHidden(true)
+                    configuration.label
+                }
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
+            if configuration.isExpanded {
+                configuration.content.padding(.leading, 18)
+            }
+        }
     }
 }
