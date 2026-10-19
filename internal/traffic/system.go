@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,7 +60,7 @@ func New(dir string) *Manager { return &Manager{Dir: dir, Run: run, OS: runtime.
 func run(ctx context.Context, name string, args ...string) (string, error) {
 	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return "", i18n.Errorf("backend.traffic.s_s_w_s", "%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -185,7 +185,7 @@ func (m *Manager) Recheck(ctx context.Context, pid int) (RecheckResult, error) {
 				}
 				one := State{Backend: "macos-networksetup", Services: []string{name}, PerService: map[string]ServiceSettings{name: target}}
 				if err := m.apply(ctx, one); err != nil {
-					return fmt.Errorf("reassert network service %q: %w", name, err)
+					return i18n.Errorf("backend.traffic.reassert_network_service_q_w", "reassert network service %q: %w", name, err)
 				}
 				result.Reasserted = append(result.Reasserted, name)
 			}
@@ -196,12 +196,12 @@ func (m *Manager) Recheck(ctx context.Context, pid int) (RecheckResult, error) {
 				}
 				for _, name := range result.Reasserted {
 					if actual, ok := verified.PerService[name]; !ok || !macTargetMatches(actual, j.Applied.PerService[name]) {
-						return fmt.Errorf("macOS did not retain reasserted proxy settings for %q", name)
+						return i18n.Errorf("backend.traffic.macos_did_not_retain_reasserted_proxy_settings_for_q", "macOS did not retain reasserted proxy settings for %q", name)
 					}
 				}
 			}
 		default:
-			return errors.New("unknown system proxy backend")
+			return i18n.Errorf("backend.traffic.unknown_system_proxy_backend", "unknown system proxy backend")
 		}
 		result.Status = "current"
 		if len(result.Reasserted) > 0 {
@@ -240,17 +240,17 @@ func (m *Manager) Enable(ctx context.Context, pid int, port int) (State, error) 
 	var result State
 	err := m.locked(func() error {
 		if port < 1 || port > 65535 {
-			return errors.New("a running local HTTP/mixed port is required; check `nagi ports status`")
+			return i18n.Errorf("backend.traffic.a_running_local_http_mixed_port_is_required_check_nagi_ports_status", "a running local HTTP/mixed port is required; check `nagi ports status`")
 		}
 		j, e := m.readJournal()
 		if e == nil {
 			if j.PID != pid && !platform.Alive(j.PID) {
 				if e = m.apply(ctx, j.Before); e != nil {
-					return fmt.Errorf("restore settings from previous engine: %w", e)
+					return i18n.Errorf("backend.traffic.restore_settings_from_previous_engine_w", "restore settings from previous engine: %w", e)
 				}
 				_ = os.Remove(m.journalPath())
 			} else {
-				return errors.New("system proxy is already managed; use `nagi system-proxy disable` first")
+				return i18n.Errorf("backend.traffic.system_proxy_is_already_managed_use_nagi_system_proxy_disable_first", "system proxy is already managed; use `nagi system-proxy disable` first")
 			}
 		} else if !errors.Is(e, os.ErrNotExist) {
 			return e
@@ -284,18 +284,18 @@ func (m *Manager) Enable(ctx context.Context, pid int, port int) (State, error) 
 			if restoreErr == nil {
 				_ = os.Remove(m.journalPath())
 			}
-			return fmt.Errorf("enable system proxy: %w; restore: %v", e, restoreErr)
+			return i18n.Errorf("backend.traffic.enable_system_proxy_w_restore_v", "enable system proxy: %w; restore: %v", e, restoreErr)
 		}
 		result, e = m.current(ctx)
 		if e == nil && (!result.HTTP.Enabled || !result.HTTPS.Enabled || result.HTTP.Port != port || result.HTTPS.Port != port) {
-			e = errors.New("OS did not accept HTTP/HTTPS proxy settings; check desktop session or networksetup permissions")
+			e = i18n.Errorf("backend.traffic.os_did_not_accept_http_https_proxy_settings_check_desktop_session_or_networksetup_permissions", "OS did not accept HTTP/HTTPS proxy settings; check desktop session or networksetup permissions")
 		}
 		if e != nil {
 			restoreErr := m.apply(ctx, before)
 			if restoreErr == nil {
 				_ = os.Remove(m.journalPath())
 			}
-			return fmt.Errorf("verify system proxy: %w; restore: %v", e, restoreErr)
+			return i18n.Errorf("backend.traffic.verify_system_proxy_w_restore_v", "verify system proxy: %w; restore: %v", e, restoreErr)
 		}
 		return nil
 	})
@@ -316,7 +316,7 @@ func (m *Manager) Disable(ctx context.Context) (State, error) {
 			return e
 		}
 		if e = m.apply(ctx, j.Before); e != nil {
-			return fmt.Errorf("restore system proxy settings: %w; saved settings retained for retry", e)
+			return i18n.Errorf("backend.traffic.restore_system_proxy_settings_w_saved_settings_retained_for_retry", "restore system proxy settings: %w; saved settings retained for retry", e)
 		}
 		if e = os.Remove(m.journalPath()); e != nil {
 			return e
@@ -342,7 +342,7 @@ func (m *Manager) RestoreIfStopped(ctx context.Context, pid int) error {
 			return nil
 		}
 		if e = m.apply(ctx, j.Before); e != nil {
-			return fmt.Errorf("restore system proxy settings after engine exit: %w", e)
+			return i18n.Errorf("backend.traffic.restore_system_proxy_settings_after_engine_exit_w", "restore system proxy settings after engine exit: %w", e)
 		}
 		return os.Remove(m.journalPath())
 	})
@@ -362,25 +362,25 @@ func (m *Manager) SyncPort(ctx context.Context, port int) error {
 			return err
 		}
 		if port < 1 || port > 65535 {
-			return errors.New("managed system proxy requires an active HTTP or mixed listener")
+			return i18n.Errorf("backend.traffic.managed_system_proxy_requires_an_active_http_or_mixed_listener", "managed system proxy requires an active HTTP or mixed listener")
 		}
 		if j.Applied.Backend != "macos-networksetup" {
-			return errors.New("managed system proxy journal has no current target")
+			return i18n.Errorf("backend.traffic.managed_system_proxy_journal_has_no_current_target", "managed system proxy journal has no current target")
 		}
 		current, err := m.current(ctx)
 		if err != nil {
 			return err
 		}
 		if current.Backend != j.Applied.Backend {
-			return errors.New("system proxy backend changed during configuration apply")
+			return i18n.Errorf("backend.traffic.system_proxy_backend_changed_during_configuration_apply", "system proxy backend changed during configuration apply")
 		}
 		for _, service := range j.Applied.Services {
 			actual, ok := current.PerService[service]
 			if !ok {
-				return fmt.Errorf("managed network service %q is missing", service)
+				return i18n.Errorf("backend.traffic.managed_network_service_q_is_missing", "managed network service %q is missing", service)
 			}
 			if !macTargetMatches(actual, j.Applied.PerService[service]) {
-				return fmt.Errorf("network service %q was changed externally; leaving its proxy settings untouched", service)
+				return i18n.Errorf("backend.traffic.network_service_q_was_changed_externally_leaving_its_proxy_settings_untouched", "network service %q was changed externally; leaving its proxy settings untouched", service)
 			}
 		}
 		if j.Applied.HTTP.Port == port && j.Applied.HTTPS.Port == port {
@@ -397,20 +397,20 @@ func (m *Manager) SyncPort(ctx context.Context, port int) error {
 		newTarget.HTTP = Setting{Enabled: true, Host: "127.0.0.1", Port: port}
 		newTarget.HTTPS = newTarget.HTTP
 		if err := m.apply(ctx, newTarget); err != nil {
-			return fmt.Errorf("update managed system proxy port: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
+			return i18n.Errorf("backend.traffic.update_managed_system_proxy_port_w_compensation_v", "update managed system proxy port: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
 		}
 		observed, err := m.current(ctx)
 		if err != nil {
-			return fmt.Errorf("verify managed system proxy port: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
+			return i18n.Errorf("backend.traffic.verify_managed_system_proxy_port_w_compensation_v", "verify managed system proxy port: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
 		}
 		for _, service := range newTarget.Services {
 			if !macTargetMatches(observed.PerService[service], newTarget.PerService[service]) {
-				return fmt.Errorf("managed network service %q did not accept updated proxy port; compensation: %v", service, m.compensatePort(ctx, oldTarget, newTarget))
+				return i18n.Errorf("backend.traffic.managed_network_service_q_did_not_accept_updated_proxy_port_compensation_v", "managed network service %q did not accept updated proxy port; compensation: %v", service, m.compensatePort(ctx, oldTarget, newTarget))
 			}
 		}
 		j.Applied = newTarget
 		if err := m.writeJournal(j); err != nil {
-			return fmt.Errorf("save managed proxy target: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
+			return i18n.Errorf("backend.traffic.save_managed_proxy_target_w_compensation_v", "save managed proxy target: %w; compensation: %v", err, m.compensatePort(ctx, oldTarget, newTarget))
 		}
 		return nil
 	})
@@ -481,9 +481,9 @@ func (m *Manager) current(ctx context.Context) (State, error) {
 	case "darwin":
 		return m.macCurrent(ctx)
 	case "linux":
-		return State{}, errors.New("system proxy is unsupported on Linux; configure applications to use the mihomo listener")
+		return State{}, i18n.Errorf("backend.traffic.system_proxy_is_unsupported_on_linux_configure_applications_to_use_the_mihomo_listener", "system proxy is unsupported on Linux; configure applications to use the mihomo listener")
 	default:
-		return State{}, fmt.Errorf("system proxy is unsupported on %s", m.OS)
+		return State{}, i18n.Errorf("backend.traffic.system_proxy_is_unsupported_on_s", "system proxy is unsupported on %s", m.OS)
 	}
 }
 func (m *Manager) apply(ctx context.Context, s State) error {
@@ -491,9 +491,9 @@ func (m *Manager) apply(ctx context.Context, s State) error {
 	case "macos-networksetup":
 		return m.macApply(ctx, s)
 	case "gnome-gsettings":
-		return errors.New("system proxy is unsupported on Linux; saved GNOME settings cannot be changed")
+		return i18n.Errorf("backend.traffic.system_proxy_is_unsupported_on_linux_saved_gnome_settings_cannot_be_changed", "system proxy is unsupported on Linux; saved GNOME settings cannot be changed")
 	default:
-		return errors.New("unknown system proxy backend")
+		return i18n.Errorf("backend.traffic.unknown_system_proxy_backend", "unknown system proxy backend")
 	}
 }
 func parseMacSetting(v string) (Setting, error) {
@@ -514,7 +514,7 @@ func parseMacSetting(v string) (Setting, error) {
 func (m *Manager) macCurrent(ctx context.Context) (State, error) {
 	services, e := m.call(ctx, "networksetup", "-listallnetworkservices")
 	if e != nil {
-		return State{}, fmt.Errorf("networksetup unavailable; macOS network service access is required: %w", e)
+		return State{}, i18n.Errorf("backend.traffic.networksetup_unavailable_macos_network_service_access_is_required_w", "networksetup unavailable; macOS network service access is required: %w", e)
 	}
 	s := State{Backend: "macos-networksetup", PerService: map[string]ServiceSettings{}}
 	for _, service := range strings.Split(services, "\n") {
@@ -542,7 +542,7 @@ func (m *Manager) macCurrent(ctx context.Context) (State, error) {
 		s.Enabled = s.Enabled || values.HTTP.Enabled || values.HTTPS.Enabled || values.SOCKS.Enabled
 	}
 	if len(s.Services) == 0 {
-		return s, errors.New("no active macOS network services found")
+		return s, i18n.Errorf("backend.traffic.no_active_macos_network_services_found", "no active macOS network services found")
 	}
 	return s, nil
 }

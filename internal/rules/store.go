@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"net/http"
 	"net/url"
@@ -59,7 +59,7 @@ func validName(name string) bool { return namePattern.MatchString(name) }
 func (s *Store) List() (Document, error) {
 	var doc Document
 	if !validName(s.Profile) {
-		return doc, errors.New("invalid profile name")
+		return doc, i18n.Errorf("backend.rules.invalid_profile_name", "invalid profile name")
 	}
 	info, err := os.Lstat(Path(s.Dir, s.Profile))
 	if errors.Is(err, os.ErrNotExist) {
@@ -69,14 +69,14 @@ func (s *Store) List() (Document, error) {
 		return doc, err
 	}
 	if !info.Mode().IsRegular() {
-		return doc, errors.New("rules file is not regular")
+		return doc, i18n.Errorf("backend.rules.rules_file_is_not_regular", "rules file is not regular")
 	}
 	data, err := os.ReadFile(Path(s.Dir, s.Profile))
 	if err != nil {
 		return doc, err
 	}
 	if err = yaml.Unmarshal(data, &doc); err != nil {
-		return doc, fmt.Errorf("parse rules file: %w", err)
+		return doc, i18n.Errorf("backend.rules.parse_rules_file_w", "parse rules file: %w", err)
 	}
 	if doc.Entries == nil {
 		doc.Entries = []Entry{}
@@ -85,11 +85,11 @@ func (s *Store) List() (Document, error) {
 }
 func (s *Store) Save(ctx context.Context, doc Document) error {
 	if !validName(s.Profile) {
-		return errors.New("invalid profile name")
+		return i18n.Errorf("backend.rules.invalid_profile_name", "invalid profile name")
 	}
 	if info, err := os.Lstat(Path(s.Dir, s.Profile)); err == nil {
 		if !info.Mode().IsRegular() {
-			return errors.New("rules file is not regular")
+			return i18n.Errorf("backend.rules.rules_file_is_not_regular", "rules file is not regular")
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -143,37 +143,37 @@ func write(path string, data []byte) error {
 }
 func Validate(e Entry) error {
 	if !validName(e.Name) {
-		return errors.New("rule name must use 1-128 ASCII letters, digits, _ or -")
+		return i18n.Errorf("backend.rules.rule_name_must_use_1_128_ascii_letters_digits_or", "rule name must use 1-128 ASCII letters, digits, _ or -")
 	}
 	if e.Kind == "rules" {
 		if e.Target != "" {
-			return errors.New("imported rules preserve each rule target and cannot have a shared target")
+			return i18n.Errorf("backend.rules.imported_rules_preserve_each_rule_target_and_cannot_have_a_shared_target", "imported rules preserve each rule target and cannot have a shared target")
 		}
 		return validateItems(e.Items, "rule list")
 	}
 	if e.Target == "" || strings.ContainsAny(e.Target, ",\n\r") {
-		return errors.New("target must be DIRECT, REJECT, or a proxy group name without commas")
+		return i18n.Errorf("backend.rules.target_must_be_direct_reject_or_a_proxy_group_name_without_commas", "target must be DIRECT, REJECT, or a proxy group name without commas")
 	}
 	if e.Kind == "rule" {
 		types := map[string]bool{"DOMAIN": true, "DOMAIN-SUFFIX": true, "DOMAIN-KEYWORD": true, "DOMAIN-REGEX": true, "IP-CIDR": true, "IP-CIDR6": true, "GEOIP": true, "GEOSITE": true, "PROCESS-NAME": true, "MATCH": true}
 		if !types[e.Type] {
-			return errors.New("unsupported rule type")
+			return i18n.Errorf("backend.rules.unsupported_rule_type", "unsupported rule type")
 		}
 		if e.Type != "MATCH" && (e.Payload == "" || strings.ContainsAny(e.Payload, ",\n\r")) {
-			return errors.New("payload must be nonempty and contain no comma or newline")
+			return i18n.Errorf("backend.rules.payload_must_be_nonempty_and_contain_no_comma_or_newline", "payload must be nonempty and contain no comma or newline")
 		}
 		if e.Type == "MATCH" && e.Payload != "" {
-			return errors.New("MATCH has no payload")
+			return i18n.Errorf("backend.rules.match_has_no_payload", "MATCH has no payload")
 		}
 		return nil
 	}
 	if e.Kind == "set" {
 		if e.Behavior != "classical" && e.Behavior != "domain" && e.Behavior != "ipcidr" {
-			return errors.New("rule set behavior must be classical, domain, or ipcidr")
+			return i18n.Errorf("backend.rules.rule_set_behavior_must_be_classical_domain_or_ipcidr", "rule set behavior must be classical, domain, or ipcidr")
 		}
 		return validateItems(e.Items, "rule set")
 	}
-	return errors.New("unknown rule kind")
+	return i18n.Errorf("backend.rules.unknown_rule_kind", "unknown rule kind")
 }
 func (s *Store) Add(ctx context.Context, e Entry) error {
 	if err := Validate(e); err != nil {
@@ -185,7 +185,7 @@ func (s *Store) Add(ctx context.Context, e Entry) error {
 	}
 	for _, old := range doc.Entries {
 		if old.Name == e.Name {
-			return fmt.Errorf("rule %s already exists", e.Name)
+			return i18n.Errorf("backend.rules.rule_s_already_exists", "rule %s already exists", e.Name)
 		}
 	}
 	doc.Entries = append(doc.Entries, e)
@@ -202,7 +202,7 @@ func (s *Store) Remove(ctx context.Context, name string) error {
 			return s.Save(ctx, doc)
 		}
 	}
-	return fmt.Errorf("rule %s not found; run `nagi rules custom`", name)
+	return i18n.Errorf("backend.rules.rule_s_not_found_run_nagi_rules_custom", "rule %s not found; run `nagi rules custom`", name)
 }
 func (s *Store) SetEnabled(ctx context.Context, name string, enabled bool) error {
 	doc, err := s.List()
@@ -215,14 +215,14 @@ func (s *Store) SetEnabled(ctx context.Context, name string, enabled bool) error
 			return s.Save(ctx, doc)
 		}
 	}
-	return fmt.Errorf("rule %s not found; run `nagi rules custom`", name)
+	return i18n.Errorf("backend.rules.rule_s_not_found_run_nagi_rules_custom", "rule %s not found; run `nagi rules custom`", name)
 }
 
 // Import stores a bounded local or HTTP(S) snapshot of full native rules.
 // Each rule retains its own mihomo target and options.
 func (s *Store) Import(ctx context.Context, name, source string) error {
 	if !validName(name) {
-		return errors.New("rule name must use 1-128 ASCII letters, digits, _ or -")
+		return i18n.Errorf("backend.rules.rule_name_must_use_1_128_ascii_letters_digits_or", "rule name must use 1-128 ASCII letters, digits, _ or -")
 	}
 	data, origin, err := s.readSource(ctx, source)
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *Store) Import(ctx context.Context, name, source string) error {
 	}
 	items, err := ParseRules(data)
 	if err != nil {
-		return fmt.Errorf("parse rule import: %w", err)
+		return i18n.Errorf("backend.rules.parse_rule_import_w", "parse rule import: %w", err)
 	}
 	return s.Add(ctx, Entry{Name: name, Enabled: true, Kind: "rules", Source: origin, Items: items})
 }
@@ -239,14 +239,14 @@ const maxImportBytes = 8 << 20
 
 func validateItems(items []string, label string) error {
 	if len(items) == 0 {
-		return fmt.Errorf("%s is empty", label)
+		return i18n.Errorf("backend.rules.s_is_empty", "%s is empty", label)
 	}
 	if len(items) > 100000 {
-		return fmt.Errorf("%s exceeds 100000 entries", label)
+		return i18n.Errorf("backend.rules.s_exceeds_100000_entries", "%s exceeds 100000 entries", label)
 	}
 	for _, item := range items {
 		if strings.TrimSpace(item) == "" || strings.ContainsAny(item, "\n\r") {
-			return fmt.Errorf("%s contains an invalid item", label)
+			return i18n.Errorf("backend.rules.s_contains_an_invalid_item", "%s contains an invalid item", label)
 		}
 	}
 	return nil
@@ -256,19 +256,19 @@ func validateItems(items []string, label string) error {
 // Mihomo validates rule syntax and semantics when the snapshot is activated.
 func ParseRules(data []byte) ([]string, error) {
 	if len(data) == 0 || len(data) > maxImportBytes {
-		return nil, errors.New("rule import must contain 1 byte to 8 MiB")
+		return nil, i18n.Errorf("backend.rules.rule_import_must_contain_1_byte_to_8_mib", "rule import must contain 1 byte to 8 MiB")
 	}
 	var doc yaml.Node
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(&doc); err != nil {
-		return nil, fmt.Errorf("invalid YAML: %w", err)
+		return nil, i18n.Errorf("backend.rules.invalid_yaml_w", "invalid YAML: %w", err)
 	}
 	var extra yaml.Node
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		return nil, errors.New("rule import must contain exactly one YAML document")
+		return nil, i18n.Errorf("backend.rules.rule_import_must_contain_exactly_one_yaml_document", "rule import must contain exactly one YAML document")
 	}
 	if len(doc.Content) != 1 {
-		return nil, errors.New("rules must be a YAML rules mapping or string list")
+		return nil, i18n.Errorf("backend.rules.rules_must_be_a_yaml_rules_mapping_or_string_list", "rules must be a YAML rules mapping or string list")
 	}
 	node := doc.Content[0]
 	if node.Kind == yaml.MappingNode {
@@ -276,7 +276,7 @@ func ParseRules(data []byte) ([]string, error) {
 		for i := 0; i < len(node.Content); i += 2 {
 			if node.Content[i].Value == "rules" {
 				if rules != nil {
-					return nil, errors.New("duplicate rules field")
+					return nil, i18n.Errorf("backend.rules.duplicate_rules_field", "duplicate rules field")
 				}
 				rules = node.Content[i+1]
 			}
@@ -284,12 +284,12 @@ func ParseRules(data []byte) ([]string, error) {
 		node = rules
 	}
 	if node == nil || node.Kind != yaml.SequenceNode {
-		return nil, errors.New("rules must be a YAML rules mapping or string list")
+		return nil, i18n.Errorf("backend.rules.rules_must_be_a_yaml_rules_mapping_or_string_list", "rules must be a YAML rules mapping or string list")
 	}
 	items := make([]string, 0, len(node.Content))
 	for _, item := range node.Content {
 		if item.Kind != yaml.ScalarNode || item.Tag != "!!str" {
-			return nil, errors.New("rules must contain only strings")
+			return nil, i18n.Errorf("backend.rules.rules_must_contain_only_strings", "rules must contain only strings")
 		}
 		items = append(items, item.Value)
 	}
@@ -305,14 +305,14 @@ func readSnapshot(r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	if len(data) == 0 || len(data) > maxImportBytes {
-		return nil, errors.New("rule import must contain 1 byte to 8 MiB")
+		return nil, i18n.Errorf("backend.rules.rule_import_must_contain_1_byte_to_8_mib", "rule import must contain 1 byte to 8 MiB")
 	}
 	return data, nil
 }
 
 func (s *Store) readSource(ctx context.Context, source string) ([]byte, string, error) {
 	if source == "" {
-		return nil, "", errors.New("rule import source must be a file path or HTTP(S) URL")
+		return nil, "", i18n.Errorf("backend.rules.rule_import_source_must_be_a_file_path_or_http_s_url", "rule import source must be a file path or HTTP(S) URL")
 	}
 	u, err := url.Parse(source)
 	// Paths (including paths containing colons) remain local unless URL syntax is used.
@@ -320,28 +320,28 @@ func (s *Store) readSource(ctx context.Context, source string) ([]byte, string, 
 	if !remote {
 		f, err := os.Open(source)
 		if err != nil {
-			return nil, "", fmt.Errorf("read rule import file: %w", err)
+			return nil, "", i18n.Errorf("backend.rules.read_rule_import_file_w", "read rule import file: %w", err)
 		}
 		defer f.Close()
 		info, err := f.Stat()
 		if err != nil {
-			return nil, "", fmt.Errorf("read rule import file: %w", err)
+			return nil, "", i18n.Errorf("backend.rules.read_rule_import_file_w", "read rule import file: %w", err)
 		}
 		if !info.Mode().IsRegular() {
-			return nil, "", errors.New("rule import source must be a regular file")
+			return nil, "", i18n.Errorf("backend.rules.rule_import_source_must_be_a_regular_file", "rule import source must be a regular file")
 		}
 		data, err := readSnapshot(f)
 		if err != nil {
-			return nil, "", fmt.Errorf("read rule import file: %w", err)
+			return nil, "", i18n.Errorf("backend.rules.read_rule_import_file_w", "read rule import file: %w", err)
 		}
 		return data, "local:" + filepath.Base(source), nil
 	}
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
-		return nil, "", errors.New("rule import URL must be absolute HTTP(S) without userinfo")
+		return nil, "", i18n.Errorf("backend.rules.rule_import_url_must_be_absolute_http_s_without_userinfo", "rule import URL must be absolute HTTP(S) without userinfo")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("download rule import: %w", err)
+		return nil, "", i18n.Errorf("backend.rules.download_rule_import_w", "download rule import: %w", err)
 	}
 	client := s.HTTP
 	if client == nil {
@@ -349,15 +349,15 @@ func (s *Store) readSource(ctx context.Context, source string) ([]byte, string, 
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("download rule import: %w", err)
+		return nil, "", i18n.Errorf("backend.rules.download_rule_import_w", "download rule import: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("download rule import: HTTP %d", resp.StatusCode)
+		return nil, "", i18n.Errorf("backend.rules.download_rule_import_http_d", "download rule import: HTTP %d", resp.StatusCode)
 	}
 	data, err := readSnapshot(resp.Body)
 	if err != nil {
-		return nil, "", fmt.Errorf("download rule import: %w", err)
+		return nil, "", i18n.Errorf("backend.rules.download_rule_import_w", "download rule import: %w", err)
 	}
 	return data, "remote:" + u.Host, nil
 }

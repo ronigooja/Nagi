@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +24,7 @@ type runner func(string, ...string) error
 func run(name string, args ...string) error {
 	out, err := exec.Command(name, args...).CombinedOutput()
 	if err != nil && len(out) > 0 {
-		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+		return i18n.Errorf("backend.service.w_s", "%w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return err
 }
@@ -43,7 +44,7 @@ func location() (Result, error) {
 		}
 		return Result{Path: filepath.Join(base, "systemd", "user", "nagi.service"), Manager: "systemd"}, nil
 	default:
-		return Result{}, fmt.Errorf("unsupported service platform: %s", runtime.GOOS)
+		return Result{}, i18n.Errorf("backend.service.unsupported_service_platform_s", "unsupported service platform: %s", runtime.GOOS)
 	}
 }
 
@@ -57,7 +58,7 @@ func Install(executable string) (Result, error) {
 
 func install(result Result, executable string, uid int, command runner) (Result, error) {
 	if !filepath.IsAbs(executable) || strings.ContainsAny(executable, "\n\r\x00") {
-		return result, fmt.Errorf("CLI path must be absolute and contain no control characters")
+		return result, i18n.Errorf("backend.service.cli_path_must_be_absolute_and_contain_no_control_characters", "CLI path must be absolute and contain no control characters")
 	}
 	content, err := definition(result.Manager, executable)
 	if err != nil {
@@ -65,28 +66,28 @@ func install(result Result, executable string, uid int, command runner) (Result,
 	}
 	previous, readErr := os.ReadFile(result.Path)
 	if readErr != nil && !os.IsNotExist(readErr) {
-		return result, fmt.Errorf("read existing service definition %s: %w", result.Path, readErr)
+		return result, i18n.Errorf("backend.service.read_existing_service_definition_s_w", "read existing service definition %s: %w", result.Path, readErr)
 	}
 	existed := readErr == nil
 	if err := os.MkdirAll(filepath.Dir(result.Path), 0700); err != nil {
-		return result, fmt.Errorf("create service directory: %w", err)
+		return result, i18n.Errorf("backend.service.create_service_directory_w", "create service directory: %w", err)
 	}
 	if err := replaceFile(result.Path, []byte(content)); err != nil {
-		return result, fmt.Errorf("write service definition %s: %w", result.Path, err)
+		return result, i18n.Errorf("backend.service.write_service_definition_s_w", "write service definition %s: %w", result.Path, err)
 	}
 	var managerErr error
 	if result.Manager == "systemd" {
 		if err := command("systemctl", "--user", "daemon-reload"); err != nil {
-			managerErr = fmt.Errorf("systemctl --user daemon-reload: %w", err)
+			managerErr = i18n.Errorf("backend.service.systemctl_user_daemon_reload_w", "systemctl --user daemon-reload: %w", err)
 		} else if err := command("systemctl", "--user", "enable", "--now", "nagi.service"); err != nil {
-			managerErr = fmt.Errorf("systemctl --user enable --now nagi.service: %w", err)
+			managerErr = i18n.Errorf("backend.service.systemctl_user_enable_now_nagi_service_w", "systemctl --user enable --now nagi.service: %w", err)
 		}
 	} else {
 		target := fmt.Sprintf("gui/%d/io.nagi.cli", uid)
 		if err := command("launchctl", "enable", target); err != nil {
-			managerErr = fmt.Errorf("launchctl enable: %w", err)
+			managerErr = i18n.Errorf("backend.service.launchctl_enable_w", "launchctl enable: %w", err)
 		} else if err := command("launchctl", "bootstrap", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
-			managerErr = fmt.Errorf("launchctl bootstrap: %w", err)
+			managerErr = i18n.Errorf("backend.service.launchctl_bootstrap_w", "launchctl bootstrap: %w", err)
 		}
 	}
 	if managerErr == nil {
@@ -94,17 +95,18 @@ func install(result Result, executable string, uid int, command runner) (Result,
 		return result, nil
 	}
 	var restoreErr error
-	state := "new service definition removed"
 	if existed {
 		restoreErr = replaceFile(result.Path, previous)
-		state = "previous service definition restored"
 	} else {
 		restoreErr = os.Remove(result.Path)
 	}
 	if restoreErr != nil {
-		return result, fmt.Errorf("install failed: %w; restoring definition failed: %v; check %s and %s state manually", managerErr, restoreErr, result.Path, result.Manager)
+		return result, i18n.Errorf("backend.service.install_failed_w_restoring_definition_failed_v_check_s_and_s_state_manually", "install failed: %w; restoring definition failed: %v; check %s and %s state manually", managerErr, restoreErr, result.Path, result.Manager)
 	}
-	return result, fmt.Errorf("install failed: %w; %s at %s; check %s state before retrying", managerErr, state, result.Path, result.Manager)
+	if existed {
+		return result, i18n.Errorf("backend.service.install_failed_definition_restored", "install failed: %w; previous service definition restored at %s; check %s state before retrying", managerErr, result.Path, result.Manager)
+	}
+	return result, i18n.Errorf("backend.service.install_failed_definition_removed", "install failed: %w; new service definition removed at %s; check %s state before retrying", managerErr, result.Path, result.Manager)
 }
 
 func definition(manager, executable string) (string, error) {
@@ -116,7 +118,7 @@ func definition(manager, executable string) (string, error) {
 	case "launchd":
 		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>io.nagi.cli</string><key>ProgramArguments</key><array><string>" + xmlEscape(executable) + "</string><string>__startup-watch</string></array><key>RunAtLoad</key><true/><key>KeepAlive</key><true/></dict></plist>\n", nil
 	default:
-		return "", fmt.Errorf("unsupported service manager: %s", manager)
+		return "", i18n.Errorf("backend.service.unsupported_service_manager_s", "unsupported service manager: %s", manager)
 	}
 }
 
@@ -153,31 +155,31 @@ func uninstall(result Result, uid int, command runner) (Result, error) {
 		if os.IsNotExist(err) {
 			return result, nil
 		}
-		return result, fmt.Errorf("inspect service definition %s: %w", result.Path, err)
+		return result, i18n.Errorf("backend.service.inspect_service_definition_s_w", "inspect service definition %s: %w", result.Path, err)
 	}
 	switch result.Manager {
 	case "systemd":
 		if err := command("systemctl", "--user", "disable", "--now", "nagi.service"); err != nil {
-			return result, fmt.Errorf("systemctl --user disable --now nagi.service: %w; definition retained at %s; check systemctl --user status nagi.service and retry", err, result.Path)
+			return result, i18n.Errorf("backend.service.systemctl_user_disable_now_nagi_service_w_definition_retained_at_s_check_systemctl_user_status_nagi_", "systemctl --user disable --now nagi.service: %w; definition retained at %s; check systemctl --user status nagi.service and retry", err, result.Path)
 		}
 	case "launchd":
 		service := fmt.Sprintf("gui/%d/io.nagi.cli", uid)
 		if err := command("launchctl", "print", service); err != nil {
 			if !strings.Contains(err.Error(), `Could not find service "io.nagi.cli"`) {
-				return result, fmt.Errorf("launchctl print: %w; definition retained at %s; check launchctl print %s and retry", err, result.Path, service)
+				return result, i18n.Errorf("backend.service.launchctl_print_w_definition_retained_at_s_check_launchctl_print_s_and_retry", "launchctl print: %w; definition retained at %s; check launchctl print %s and retry", err, result.Path, service)
 			}
 		} else if err := command("launchctl", "bootout", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
-			return result, fmt.Errorf("launchctl bootout: %w; definition retained at %s; check launchctl print %s and retry", err, result.Path, service)
+			return result, i18n.Errorf("backend.service.launchctl_bootout_w_definition_retained_at_s_check_launchctl_print_s_and_retry", "launchctl bootout: %w; definition retained at %s; check launchctl print %s and retry", err, result.Path, service)
 		}
 	default:
-		return result, fmt.Errorf("unsupported service manager: %s", result.Manager)
+		return result, i18n.Errorf("backend.service.unsupported_service_manager_s", "unsupported service manager: %s", result.Manager)
 	}
 	if err := os.Remove(result.Path); err != nil {
-		return result, fmt.Errorf("service stopped but removing definition %s failed: %w; remove the file and retry", result.Path, err)
+		return result, i18n.Errorf("backend.service.service_stopped_but_removing_definition_s_failed_w_remove_the_file_and_retry", "service stopped but removing definition %s failed: %w; remove the file and retry", result.Path, err)
 	}
 	if result.Manager == "systemd" {
 		if err := command("systemctl", "--user", "daemon-reload"); err != nil {
-			return result, fmt.Errorf("service disabled and definition removed, but systemctl --user daemon-reload failed: %w; retry daemon-reload", err)
+			return result, i18n.Errorf("backend.service.service_disabled_and_definition_removed_but_systemctl_user_daemon_reload_failed_w_retry_daemon_reloa", "service disabled and definition removed, but systemctl --user daemon-reload failed: %w; retry daemon-reload", err)
 		}
 	}
 	return result, nil
@@ -209,7 +211,7 @@ func Status() (Result, error) {
 		if result.Installed {
 			out, err := exec.Command("launchctl", "print-disabled", fmt.Sprintf("gui/%d", os.Getuid())).CombinedOutput()
 			if err != nil {
-				return result, fmt.Errorf("read login startup preference: %w; inspect `launchctl print-disabled gui/%d`", err, os.Getuid())
+				return result, i18n.Errorf("backend.service.read_login_startup_preference_w_inspect_launchctl_print_disabled_gui_d", "read login startup preference: %w; inspect `launchctl print-disabled gui/%d`", err, os.Getuid())
 			}
 			result.Enabled = !launchdDisabled(string(out))
 		}
@@ -238,7 +240,7 @@ func enable(result Result, executable string, uid int, command runner) (Result, 
 		if os.IsNotExist(err) {
 			return install(result, executable, uid, command)
 		}
-		return result, fmt.Errorf("inspect service definition: %w", err)
+		return result, i18n.Errorf("backend.service.inspect_service_definition_w", "inspect service definition: %w", err)
 	}
 	switch result.Manager {
 	case "systemd":
@@ -246,20 +248,20 @@ func enable(result Result, executable string, uid int, command runner) (Result, 
 			return result, err
 		}
 		if err := command("systemctl", "--user", "enable", "--now", "nagi.service"); err != nil {
-			return result, fmt.Errorf("enable service: %w", err)
+			return result, i18n.Errorf("backend.service.enable_service_w", "enable service: %w", err)
 		}
 	case "launchd":
 		target := fmt.Sprintf("gui/%d/io.nagi.cli", uid)
 		if err := command("launchctl", "enable", target); err != nil {
-			return result, fmt.Errorf("enable service: %w", err)
+			return result, i18n.Errorf("backend.service.enable_service_w", "enable service: %w", err)
 		}
 		if err := command("launchctl", "print", target); err != nil {
 			if err := command("launchctl", "bootstrap", fmt.Sprintf("gui/%d", uid), result.Path); err != nil {
-				return result, fmt.Errorf("login startup enabled but loading service failed: %w; inspect `nagi startup status`", err)
+				return result, i18n.Errorf("backend.service.login_startup_enabled_but_loading_service_failed_w_inspect_nagi_startup_status", "login startup enabled but loading service failed: %w; inspect `nagi startup status`", err)
 			}
 		}
 	default:
-		return result, fmt.Errorf("unsupported service manager: %s", result.Manager)
+		return result, i18n.Errorf("backend.service.unsupported_service_manager_s", "unsupported service manager: %s", result.Manager)
 	}
 	result.Installed, result.Enabled, result.Active = true, true, true
 	return result, nil
@@ -280,7 +282,7 @@ func disable(result Result, uid int, command runner) (Result, error) {
 		if os.IsNotExist(err) {
 			return result, nil
 		}
-		return result, fmt.Errorf("inspect service definition: %w", err)
+		return result, i18n.Errorf("backend.service.inspect_service_definition_w", "inspect service definition: %w", err)
 	}
 	var err error
 	switch result.Manager {
@@ -289,10 +291,10 @@ func disable(result Result, uid int, command runner) (Result, error) {
 	case "launchd":
 		err = command("launchctl", "disable", fmt.Sprintf("gui/%d/io.nagi.cli", uid))
 	default:
-		err = fmt.Errorf("unsupported service manager: %s", result.Manager)
+		err = i18n.Errorf("backend.service.unsupported_service_manager_s", "unsupported service manager: %s", result.Manager)
 	}
 	if err != nil {
-		return result, fmt.Errorf("disable login startup: %w", err)
+		return result, i18n.Errorf("backend.service.disable_login_startup_w", "disable login startup: %w", err)
 	}
 	result.Installed, result.Enabled = true, false
 	return result, nil
@@ -315,7 +317,7 @@ func PauseIfActive() error {
 	case "launchd":
 		return run("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), result.Path)
 	default:
-		return fmt.Errorf("unsupported service manager: %s", result.Manager)
+		return i18n.Errorf("backend.service.unsupported_service_manager_s", "unsupported service manager: %s", result.Manager)
 	}
 }
 
@@ -332,6 +334,6 @@ func ResumeIfEnabled() error {
 	case "launchd":
 		return run("launchctl", "bootstrap", fmt.Sprintf("gui/%d", os.Getuid()), result.Path)
 	default:
-		return fmt.Errorf("unsupported service manager: %s", result.Manager)
+		return i18n.Errorf("backend.service.unsupported_service_manager_s", "unsupported service manager: %s", result.Manager)
 	}
 }

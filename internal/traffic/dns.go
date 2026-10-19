@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -59,21 +59,21 @@ func DNSTargets(tun map[string]any) ([]string, error) {
 			for _, item := range v {
 				s, ok := item.(string)
 				if !ok {
-					return nil, fmt.Errorf("invalid tun.%s", field)
+					return nil, i18n.Errorf("backend.traffic.invalid_tun_s", "invalid tun.%s", field)
 				}
 				values = append(values, s)
 			}
 		default:
-			return nil, fmt.Errorf("invalid tun.%s", field)
+			return nil, i18n.Errorf("backend.traffic.invalid_tun_s", "invalid tun.%s", field)
 		}
 		for _, v := range values {
 			p, err := netip.ParsePrefix(v)
 			if err != nil {
-				return nil, fmt.Errorf("invalid tun.%s: %w", field, err)
+				return nil, i18n.Errorf("backend.traffic.invalid_tun_s_w", "invalid tun.%s: %w", field, err)
 			}
 			a := p.Addr().Next()
 			if !a.IsValid() || !p.Contains(a) || (field == "inet4-address") != a.Is4() {
-				return nil, fmt.Errorf("tun.%s has no usable DNS endpoint", field)
+				return nil, i18n.Errorf("backend.traffic.tun_s_has_no_usable_dns_endpoint", "tun.%s has no usable DNS endpoint", field)
 			}
 			if !containsDNS(result, a.String()) {
 				result = append(result, a.String())
@@ -81,7 +81,7 @@ func DNSTargets(tun map[string]any) ([]string, error) {
 		}
 	}
 	if len(result) == 0 {
-		return nil, errors.New("running TUN has no DNS endpoint addresses")
+		return nil, i18n.Errorf("backend.traffic.running_tun_has_no_dns_endpoint_addresses", "running TUN has no DNS endpoint addresses")
 	}
 	return result, nil
 }
@@ -139,7 +139,7 @@ func (m *DNSManager) read() (dnsJournal, error) {
 	}
 	err = json.Unmarshal(b, &j)
 	if err == nil && (j.PID <= 0 || len(j.Services) == 0) {
-		err = errors.New("invalid TUN DNS restore journal")
+		err = i18n.Errorf("backend.traffic.invalid_tun_dns_restore_journal", "invalid TUN DNS restore journal")
 	}
 	return j, err
 }
@@ -206,7 +206,7 @@ func (m *DNSManager) current(ctx context.Context) (map[string][]string, error) {
 			for _, line := range strings.Fields(value) {
 				a, err := netip.ParseAddr(line)
 				if err != nil {
-					return nil, fmt.Errorf("unexpected DNS settings for %q: %w", name, err)
+					return nil, i18n.Errorf("backend.traffic.unexpected_dns_settings_for_q_w", "unexpected DNS settings for %q: %w", name, err)
 				}
 				servers = append(servers, a.String())
 			}
@@ -214,7 +214,7 @@ func (m *DNSManager) current(ctx context.Context) (map[string][]string, error) {
 		result[name] = servers
 	}
 	if len(result) == 0 {
-		return nil, errors.New("no macOS network services found")
+		return nil, i18n.Errorf("backend.traffic.no_macos_network_services_found", "no macOS network services found")
 	}
 	return result, nil
 }
@@ -226,7 +226,7 @@ func (m *DNSManager) set(ctx context.Context, name string, servers []string) err
 		args = append(args, servers...)
 	}
 	if _, err := m.call(ctx, args...); err != nil {
-		return fmt.Errorf("set DNS for %q (administrator permissions required): %w", name, err)
+		return i18n.Errorf("backend.traffic.set_dns_for_q_administrator_permissions_required_w", "set DNS for %q (administrator permissions required): %w", name, err)
 	}
 	out, err := m.call(ctx, "-getdnsservers", name)
 	if err != nil {
@@ -237,7 +237,7 @@ func (m *DNSManager) set(ctx context.Context, name string, servers []string) err
 		actual = nil
 	}
 	if !dnsEqual(actual, servers) {
-		return fmt.Errorf("macOS did not retain DNS settings for %q", name)
+		return i18n.Errorf("backend.traffic.macos_did_not_retain_dns_settings_for_q", "macOS did not retain DNS settings for %q", name)
 	}
 	return nil
 }
@@ -288,11 +288,11 @@ func (m *DNSManager) Sync(ctx context.Context, pid int, targets []string) (DNSSt
 		return DNSState{Status: "unsupported"}, nil
 	}
 	if pid <= 0 || len(targets) == 0 {
-		return DNSState{}, errors.New("running TUN PID and DNS endpoint required")
+		return DNSState{}, i18n.Errorf("backend.traffic.running_tun_pid_and_dns_endpoint_required", "running TUN PID and DNS endpoint required")
 	}
 	for _, v := range targets {
 		if _, err := netip.ParseAddr(v); err != nil {
-			return DNSState{}, fmt.Errorf("invalid DNS endpoint: %w", err)
+			return DNSState{}, i18n.Errorf("backend.traffic.invalid_dns_endpoint_w", "invalid DNS endpoint: %w", err)
 		}
 	}
 	err := m.locked(func() error {
@@ -302,7 +302,7 @@ func (m *DNSManager) Sync(ctx context.Context, pid int, targets []string) (DNSSt
 		}
 		if err == nil && j.PID != pid {
 			if m.alive(j.PID) {
-				return errors.New("TUN DNS is owned by another live engine")
+				return i18n.Errorf("backend.traffic.tun_dns_is_owned_by_another_live_engine", "TUN DNS is owned by another live engine")
 			}
 			if err = m.restore(ctx, j); err != nil {
 				return err
@@ -321,13 +321,13 @@ func (m *DNSManager) Sync(ctx context.Context, pid int, targets []string) (DNSSt
 			previous.Services[name] = e
 			a, ok := actual[name]
 			if !ok {
-				return fmt.Errorf("managed DNS service %q is missing", name)
+				return i18n.Errorf("backend.traffic.managed_dns_service_q_is_missing", "managed DNS service %q is missing", name)
 			}
 			if len(e.Pending) > 0 {
-				return errors.New("unfinished TUN DNS transaction; restore DNS before retrying")
+				return i18n.Errorf("backend.traffic.unfinished_tun_dns_transaction_restore_dns_before_retrying", "unfinished TUN DNS transaction; restore DNS before retrying")
 			}
 			if !dnsEqual(a, e.Applied) {
-				return fmt.Errorf("DNS conflict on %q: settings changed externally; left untouched", name)
+				return i18n.Errorf("backend.traffic.dns_conflict_on_q_settings_changed_externally_left_untouched", "DNS conflict on %q: settings changed externally; left untouched", name)
 			}
 		}
 		changed := false
@@ -357,7 +357,7 @@ func (m *DNSManager) Sync(ctx context.Context, pid int, targets []string) (DNSSt
 			}
 		}
 		if applyErr != nil {
-			return fmt.Errorf("apply TUN DNS: %w; rollback: %v", applyErr, m.rollback(ctx, j, previous))
+			return i18n.Errorf("backend.traffic.apply_tun_dns_w_rollback_v", "apply TUN DNS: %w; rollback: %v", applyErr, m.rollback(ctx, j, previous))
 		}
 		for name, e := range j.Services {
 			e.Applied = append([]string{}, targets...)
@@ -365,7 +365,7 @@ func (m *DNSManager) Sync(ctx context.Context, pid int, targets []string) (DNSSt
 			j.Services[name] = e
 		}
 		if err = m.save(j); err != nil {
-			return fmt.Errorf("commit TUN DNS: %w; rollback: %v", err, m.rollback(ctx, j, previous))
+			return i18n.Errorf("backend.traffic.commit_tun_dns_w_rollback_v", "commit TUN DNS: %w; rollback: %v", err, m.rollback(ctx, j, previous))
 		}
 		return nil
 	})
@@ -389,14 +389,14 @@ func (m *DNSManager) rollback(ctx context.Context, attempt, previous dnsJournal)
 		}
 		a, ok := actual[name]
 		if !ok {
-			problems = append(problems, fmt.Errorf("DNS service %q missing during rollback", name))
+			problems = append(problems, i18n.Errorf("backend.traffic.dns_service_q_missing_during_rollback", "DNS service %q missing during rollback", name))
 			continue
 		}
 		if dnsEqual(a, desired) {
 			continue
 		}
 		if !dnsEqual(a, e.Pending) && !dnsEqual(a, e.Applied) {
-			problems = append(problems, fmt.Errorf("DNS conflict on %q during rollback", name))
+			problems = append(problems, i18n.Errorf("backend.traffic.dns_conflict_on_q_during_rollback", "DNS conflict on %q during rollback", name))
 			continue
 		}
 		if err = m.set(ctx, name, desired); err != nil {
@@ -420,14 +420,14 @@ func (m *DNSManager) restore(ctx context.Context, j dnsJournal) error {
 	for name, e := range j.Services {
 		a, ok := actual[name]
 		if !ok {
-			problems = append(problems, fmt.Errorf("DNS service %q missing; restore journal retained", name))
+			problems = append(problems, i18n.Errorf("backend.traffic.dns_service_q_missing_restore_journal_retained", "DNS service %q missing; restore journal retained", name))
 			continue
 		}
 		if dnsEqual(a, e.Before) {
 			continue
 		}
 		if !dnsEqual(a, e.Applied) && !(len(e.Pending) > 0 && dnsEqual(a, e.Pending)) {
-			problems = append(problems, fmt.Errorf("DNS conflict on %q: settings changed externally; left untouched", name))
+			problems = append(problems, i18n.Errorf("backend.traffic.dns_conflict_on_q_settings_changed_externally_left_untouched", "DNS conflict on %q: settings changed externally; left untouched", name))
 			continue
 		}
 		if err = m.set(ctx, name, e.Before); err != nil {

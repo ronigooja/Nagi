@@ -1,8 +1,7 @@
 package rules
 
 import (
-	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -37,14 +36,14 @@ func Apply(base []byte, dir, profile string) ([]byte, error) {
 	}
 	var cfg map[string]any
 	if err := yaml.Unmarshal(base, &cfg); err != nil {
-		return nil, errors.New("cannot merge custom rules with invalid profile YAML")
+		return nil, i18n.Errorf("backend.rules.cannot_merge_custom_rules_with_invalid_profile_yaml", "cannot merge custom rules with invalid profile YAML")
 	}
 	if cfg == nil {
-		return nil, errors.New("profile must be a YAML mapping")
+		return nil, i18n.Errorf("backend.rules.profile_must_be_a_yaml_mapping", "profile must be a YAML mapping")
 	}
 	existing, ok := cfg["rules"].([]any)
 	if !ok && cfg["rules"] != nil {
-		return nil, errors.New("profile rules must be a YAML list")
+		return nil, i18n.Errorf("backend.rules.profile_rules_must_be_a_yaml_list", "profile rules must be a YAML list")
 	}
 	ordered := make([]any, 0, len(doc.Entries)+len(existing))
 	providers, _ := cfg["rule-providers"].(map[string]any)
@@ -53,7 +52,7 @@ func Apply(base []byte, dir, profile string) ([]byte, error) {
 	}
 	for _, e := range doc.Entries {
 		if err := Validate(e); err != nil {
-			return nil, fmt.Errorf("rule %s: %w", e.Name, err)
+			return nil, i18n.Errorf("backend.rules.rule_s_w", "rule %s: %w", e.Name, err)
 		}
 		if !e.Enabled {
 			continue
@@ -61,7 +60,7 @@ func Apply(base []byte, dir, profile string) ([]byte, error) {
 		if e.Kind == "set" {
 			name := "nagi-" + e.Name
 			if _, exists := providers[name]; exists {
-				return nil, fmt.Errorf("rule provider %s conflicts with selected profile", name)
+				return nil, i18n.Errorf("backend.rules.rule_provider_s_conflicts_with_selected_profile", "rule provider %s conflicts with selected profile", name)
 			}
 			providers[name] = map[string]any{"type": "inline", "behavior": e.Behavior, "payload": e.Items}
 		}

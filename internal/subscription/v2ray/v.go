@@ -2,8 +2,7 @@ package v2ray
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net/url"
 	"strconv"
 	"strings"
@@ -15,10 +14,10 @@ func handleVShareLink(names map[string]int, url *url.URL, scheme string, proxy m
 	query := url.Query()
 	proxy["name"] = uniqueName(names, url.Fragment)
 	if url.Hostname() == "" {
-		return errors.New("url.Hostname() is empty")
+		return i18n.Errorf("backend.subscription.url_hostname_is_empty", "url.Hostname() is empty")
 	}
 	if url.Port() == "" {
-		return errors.New("url.Port() is empty")
+		return i18n.Errorf("backend.subscription.url_port_is_empty", "url.Port() is empty")
 	}
 	proxy["type"] = scheme
 	proxy["server"] = url.Hostname()
@@ -112,7 +111,7 @@ func handleVShareLink(names map[string]int, url *url.URL, scheme string, proxy m
 		if earlyData := query.Get("ed"); earlyData != "" {
 			med, err := strconv.Atoi(earlyData)
 			if err != nil {
-				return fmt.Errorf("bad WebSocket max early data size: %v", err)
+				return i18n.Errorf("backend.subscription.bad_websocket_max_early_data_size_v", "bad WebSocket max early data size: %v", err)
 			}
 			switch network {
 			case "ws":

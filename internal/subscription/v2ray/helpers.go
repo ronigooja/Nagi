@@ -1,6 +1,6 @@
 package v2ray
 
-import "errors"
+import "github.com/ronigooja/Nagi/internal/i18n"
 
 func RandUserAgent() string { return "Nagi/mihomo-subscription" }
 
@@ -9,7 +9,7 @@ func RandUserAgent() string { return "Nagi/mihomo-subscription" }
 // link into a profile mapping and must not reject newer mihomo methods here.
 func VerifyMethod(cipher, password string) error {
 	if cipher == "" || password == "" {
-		return errors.New("missing shadowsocks credentials")
+		return i18n.Errorf("backend.subscription.missing_shadowsocks_credentials", "missing shadowsocks credentials")
 	}
 	return nil
 }

@@ -2,7 +2,6 @@ package subscription
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/ronigooja/Nagi/internal/i18n"
 	"net"
@@ -42,14 +41,14 @@ func Document(data []byte) (map[string]any, string, error) {
 		completeGroups(doc, items)
 		return doc, "mihomo-v2ray", nil
 	}
-	return nil, "", errors.New("unsupported subscription format; expected mihomo YAML or V2Ray links")
+	return nil, "", i18n.Errorf("backend.subscription.unsupported_subscription_format_expected_mihomo_yaml_or_v2ray_links", "unsupported subscription format; expected mihomo YAML or V2Ray links")
 }
 
 func checkProxies(proxies []any) error {
 	for _, item := range proxies {
 		p, ok := item.(map[string]any)
 		if !ok || stringValue(p["name"]) == "" || stringValue(p["type"]) == "" {
-			return errors.New("subscription contains a node without a name or type")
+			return i18n.Errorf("backend.subscription.subscription_contains_a_node_without_a_name_or_type", "subscription contains a node without a name or type")
 		}
 	}
 	return nil
@@ -283,18 +282,18 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 	incoming["bind-address"] = "127.0.0.1"
 	for _, field := range []string{"ss-config", "vmess-config"} {
 		if raw, exists := incoming[field]; exists && raw != nil && raw != "" {
-			return nil, fmt.Errorf("%s defines an inbound from an external file and cannot be bound to loopback", field)
+			return nil, i18n.Errorf("backend.subscription.s_defines_an_inbound_from_an_external_file_and_cannot_be_bound_to_loopback", "%s defines an inbound from an external file and cannot be bound to loopback", field)
 		}
 	}
 	if raw, exists := incoming["tuic-server"]; exists {
 		server, ok := raw.(map[string]any)
 		if !ok {
-			return nil, errors.New("tuic-server must be a mapping")
+			return nil, i18n.Errorf("backend.subscription.tuic_server_must_be_a_mapping", "tuic-server must be a mapping")
 		}
 		if address, exists := server["listen"]; exists {
 			value, ok := address.(string)
 			if !ok {
-				return nil, errors.New("tuic-server.listen must be a host:port address")
+				return nil, i18n.Errorf("backend.subscription.tuic_server_listen_must_be_a_host_port_address", "tuic-server.listen must be a host:port address")
 			}
 			if value != "" {
 				local, err := loopbackAddress(value, "tuic-server.listen")
@@ -303,16 +302,16 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 				}
 				server["listen"] = local
 			} else if server["enable"] == true {
-				return nil, errors.New("tuic-server.listen is required when tuic-server.enable is true")
+				return nil, i18n.Errorf("backend.subscription.tuic_server_listen_is_required_when_tuic_server_enable_is_true", "tuic-server.listen is required when tuic-server.enable is true")
 			}
 		} else if server["enable"] == true {
-			return nil, errors.New("tuic-server.listen is required when tuic-server.enable is true")
+			return nil, i18n.Errorf("backend.subscription.tuic_server_listen_is_required_when_tuic_server_enable_is_true", "tuic-server.listen is required when tuic-server.enable is true")
 		}
 	}
 	if raw, exists := incoming["tunnels"]; exists {
 		items, ok := raw.([]any)
 		if !ok {
-			return nil, errors.New("tunnels must be a list")
+			return nil, i18n.Errorf("backend.subscription.tunnels_must_be_a_list", "tunnels must be a list")
 		}
 		for i, item := range items {
 			field := fmt.Sprintf("tunnels[%d].address", i)
@@ -320,7 +319,7 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 			case map[string]any:
 				address, ok := tunnel["address"].(string)
 				if !ok {
-					return nil, fmt.Errorf("%s must be a host:port address", field)
+					return nil, i18n.Errorf("backend.subscription.s_must_be_a_host_port_address", "%s must be a host:port address", field)
 				}
 				local, err := loopbackAddress(address, field)
 				if err != nil {
@@ -330,7 +329,7 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 			case string:
 				parts := strings.Split(tunnel, ",")
 				if len(parts) != 3 && len(parts) != 4 {
-					return nil, fmt.Errorf("tunnels[%d] must have network,address,target[,proxy]", i)
+					return nil, i18n.Errorf("backend.subscription.tunnels_d_must_have_network_address_target_proxy", "tunnels[%d] must have network,address,target[,proxy]", i)
 				}
 				local, err := loopbackAddress(strings.TrimSpace(parts[1]), field)
 				if err != nil {
@@ -339,33 +338,33 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 				parts[1] = local
 				items[i] = strings.Join(parts, ",")
 			default:
-				return nil, fmt.Errorf("tunnels[%d] must be a mapping or string", i)
+				return nil, i18n.Errorf("backend.subscription.tunnels_d_must_be_a_mapping_or_string", "tunnels[%d] must be a mapping or string", i)
 			}
 		}
 	}
 	if listeners, exists := incoming["listeners"]; exists {
 		items, ok := listeners.([]any)
 		if !ok {
-			return nil, errors.New("listeners must be a list")
+			return nil, i18n.Errorf("backend.subscription.listeners_must_be_a_list", "listeners must be a list")
 		}
 		for i, item := range items {
 			m, ok := item.(map[string]any)
 			if !ok {
-				return nil, fmt.Errorf("listeners[%d] must be a mapping", i)
+				return nil, i18n.Errorf("backend.subscription.listeners_d_must_be_a_mapping", "listeners[%d] must be a mapping", i)
 			}
 			if _, ok := m["type"].(string); !ok {
-				return nil, fmt.Errorf("listeners[%d].type must be a string", i)
+				return nil, i18n.Errorf("backend.subscription.listeners_d_type_must_be_a_string", "listeners[%d].type must be a string", i)
 			}
 			if _, exists := m["listen"]; exists {
 				if _, ok := m["listen"].(string); !ok {
-					return nil, fmt.Errorf("listeners[%d].listen must be a host address", i)
+					return nil, i18n.Errorf("backend.subscription.listeners_d_listen_must_be_a_host_address", "listeners[%d].listen must be a host address", i)
 				}
 			}
 			if m["type"] != "tun" {
 				if raw, exists := m["listen"]; exists {
 					host := raw.(string)
 					if strings.ContainsAny(host, ":/") && net.ParseIP(host) == nil {
-						return nil, fmt.Errorf("listeners[%d].listen must be a host address; use port for the port", i)
+						return nil, i18n.Errorf("backend.subscription.listeners_d_listen_must_be_a_host_address_use_port_for_the_port", "listeners[%d].listen must be a host address; use port for the port", i)
 					}
 				}
 				m["listen"] = "127.0.0.1"
@@ -375,12 +374,12 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 	if rawDNS, exists := incoming["dns"]; exists {
 		dns, ok := rawDNS.(map[string]any)
 		if !ok {
-			return nil, errors.New("dns must be a mapping")
+			return nil, i18n.Errorf("backend.subscription.dns_must_be_a_mapping", "dns must be a mapping")
 		}
 		if raw, exists := dns["listen"]; exists {
 			address, ok := raw.(string)
 			if !ok {
-				return nil, errors.New("dns.listen must be a host:port address")
+				return nil, i18n.Errorf("backend.subscription.dns_listen_must_be_a_host_port_address", "dns.listen must be a host:port address")
 			}
 			if address != "" {
 				local, err := loopbackAddress(address, "dns.listen")
@@ -406,15 +405,15 @@ func NormalizeChecked(incoming map[string]any) (map[string]any, error) {
 
 func loopbackAddress(address, field string) (string, error) {
 	if strings.Contains(address, "://") {
-		return "", fmt.Errorf("%s has unsupported protocol; expected host:port", field)
+		return "", i18n.Errorf("backend.subscription.s_has_unsupported_protocol_expected_host_port", "%s has unsupported protocol; expected host:port", field)
 	}
 	_, port, err := net.SplitHostPort(address)
 	if err != nil {
-		return "", fmt.Errorf("%s must be a host:port address", field)
+		return "", i18n.Errorf("backend.subscription.s_must_be_a_host_port_address", "%s must be a host:port address", field)
 	}
 	n, err := strconv.Atoi(port)
 	if err != nil || n < 1 || n > 65535 {
-		return "", fmt.Errorf("%s has invalid port", field)
+		return "", i18n.Errorf("backend.subscription.s_has_invalid_port", "%s has invalid port", field)
 	}
 	return net.JoinHostPort("127.0.0.1", port), nil
 }

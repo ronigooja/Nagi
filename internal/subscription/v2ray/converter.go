@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"net/url"
 	"strconv"
 	"strings"
@@ -708,7 +709,7 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 	}
 
 	if len(proxies) == 0 {
-		return nil, fmt.Errorf("convert v2ray subscribe error: format invalid")
+		return nil, i18n.Errorf("backend.subscription.convert_v2ray_subscribe_error_format_invalid", "convert v2ray subscribe error: format invalid")
 	}
 
 	return proxies, nil

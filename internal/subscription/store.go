@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"io/fs"
 	"net/http"
@@ -169,7 +169,7 @@ func (s *Store) read() ([]Entry, error) {
 		Subscriptions []storedEntry `json:"subscriptions"`
 	}
 	if err := json.Unmarshal(data, &file); err != nil {
-		return nil, errors.New("invalid subscriptions index")
+		return nil, i18n.Errorf("backend.subscription.invalid_subscriptions_index", "invalid subscriptions index")
 	}
 	seen := map[string]bool{}
 	result := make([]Entry, 0, len(file.Subscriptions))
@@ -179,7 +179,7 @@ func (s *Store) read() ([]Entry, error) {
 			e.PauseReason = e.LastFailureReason // Migrate indices written before pause_reason existed.
 		}
 		if !validName(e.Name) || !validURL(e.URL) || seen[e.Name] || (e.HealthcheckURL != nil && !ValidHealthcheckURL(*e.HealthcheckURL)) || (e.HealthcheckIntervalSeconds != nil && (*e.HealthcheckIntervalSeconds < 1 || *e.HealthcheckIntervalSeconds > 31536000)) || e.ScheduleSeconds < 0 || e.ScheduleSeconds > MaxScheduleSeconds || (e.Profile != "" && !validName(e.Profile)) {
-			return nil, errors.New("invalid subscriptions index")
+			return nil, i18n.Errorf("backend.subscription.invalid_subscriptions_index", "invalid subscriptions index")
 		}
 		seen[e.Name] = true
 		result = append(result, e)
@@ -234,7 +234,7 @@ func (s *Store) Find(name string) (Entry, error) {
 				return nil
 			}
 		}
-		return errors.New("subscription not found")
+		return i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 	return found, err
 }
@@ -283,13 +283,13 @@ func (s *Store) AddWithOptions(name, rawURL string, options AddOptions) error {
 		seconds = *options.ScheduleSeconds
 	}
 	if seconds < 0 || seconds > MaxScheduleSeconds {
-		return errors.New("schedule seconds must be 0 (off) or 1..31536000")
+		return i18n.Errorf("backend.subscription.schedule_seconds_must_be_0_off_or_1_31536000", "schedule seconds must be 0 (off) or 1..31536000")
 	}
 	if options.HealthcheckURL != nil && !ValidHealthcheckURL(*options.HealthcheckURL) {
-		return errors.New("test URL must be absolute HTTP(S) without user information or fragment")
+		return i18n.Errorf("backend.subscription.test_url_must_be_absolute_http_s_without_user_information_or_fragment", "test URL must be absolute HTTP(S) without user information or fragment")
 	}
 	if !validName(name) || !validURL(rawURL) {
-		return errors.New("invalid subscription name or URL")
+		return i18n.Errorf("backend.subscription.invalid_subscription_name_or_url", "invalid subscription name or URL")
 	}
 	var generation [16]byte
 	if _, err := rand.Read(generation[:]); err != nil {
@@ -298,7 +298,7 @@ func (s *Store) AddWithOptions(name, rawURL string, options AddOptions) error {
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for _, e := range entries {
 			if e.Name == name {
-				return nil, errors.New("subscription already exists")
+				return nil, i18n.Errorf("backend.subscription.subscription_already_exists", "subscription already exists")
 			}
 		}
 		var nextDue time.Time
@@ -311,7 +311,7 @@ func (s *Store) AddWithOptions(name, rawURL string, options AddOptions) error {
 
 func (s *Store) Remove(name string) error {
 	if !validName(name) {
-		return errors.New("invalid subscription name")
+		return i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name")
 	}
 	return s.withIndexLock(func() error {
 		entries, err := s.read()
@@ -331,13 +331,13 @@ func (s *Store) Remove(name string) error {
 				return errors.Join(cacheErr, s.ClearKey(name))
 			}
 		}
-		return errors.New("subscription not found")
+		return i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
 
 func (s *Store) Schedule(name string, seconds int64) error {
 	if !validName(name) || seconds < 0 || seconds > MaxScheduleSeconds {
-		return errors.New("schedule seconds must be 0 (off) or 1..31536000")
+		return i18n.Errorf("backend.subscription.schedule_seconds_must_be_0_off_or_1_31536000", "schedule seconds must be 0 (off) or 1..31536000")
 	}
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for i := range entries {
@@ -351,7 +351,7 @@ func (s *Store) Schedule(name string, seconds int64) error {
 				return entries, nil
 			}
 		}
-		return nil, errors.New("subscription not found")
+		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
 
@@ -360,7 +360,7 @@ func (s *Store) Schedule(name string, seconds int64) error {
 // cache version used by the caller, even if a newer download exists.
 func (s *Store) RecordApplySuccess(name, profileName, cacheVersion string, source []byte) error {
 	if !validName(profileName) || cacheVersion == "" {
-		return errors.New("invalid apply metadata")
+		return i18n.Errorf("backend.subscription.invalid_apply_metadata", "invalid apply metadata")
 	}
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for i := range entries {
@@ -381,7 +381,7 @@ func (s *Store) RecordApplySuccess(name, profileName, cacheVersion string, sourc
 				return entries, nil
 			}
 		}
-		return nil, errors.New("subscription not found")
+		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
 
@@ -404,7 +404,7 @@ func (s *Store) RecordFailure(name, stage, reason string, nextDue time.Time) err
 	allowedStage := map[string]bool{"fetch": true, "decrypt": true, "validate": true, "apply": true, "paused": true}
 	allowedReason := map[string]bool{"network_error": true, "invalid_content": true, "identity_unavailable": true, "activation_failed": true, "engine_unavailable": true, "profile_changed": true, "schedule_off": true, "source_unreadable": true, "dns_target_missing": true, "custom_rule_conflict": true, "selection_conflict": true}
 	if !allowedStage[stage] || !allowedReason[reason] {
-		return errors.New("invalid failure metadata")
+		return i18n.Errorf("backend.subscription.invalid_failure_metadata", "invalid failure metadata")
 	}
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for i := range entries {
@@ -418,7 +418,7 @@ func (s *Store) RecordFailure(name, stage, reason string, nextDue time.Time) err
 				return entries, nil
 			}
 		}
-		return nil, errors.New("subscription not found")
+		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
 
@@ -426,7 +426,7 @@ func (s *Store) RecordFailure(name, stage, reason string, nextDue time.Time) err
 // of the most recent download failure and its retry schedule.
 func (s *Store) RecordPause(name, reason string) error {
 	if reason != "profile_changed" && reason != "source_unreadable" {
-		return errors.New("invalid pause reason")
+		return i18n.Errorf("backend.subscription.invalid_pause_reason", "invalid pause reason")
 	}
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for i := range entries {
@@ -439,7 +439,7 @@ func (s *Store) RecordPause(name, reason string) error {
 				return entries, nil
 			}
 		}
-		return nil, errors.New("subscription not found")
+		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
 
@@ -460,7 +460,7 @@ func (s *Store) RecordDownloadSuccess(name string, nextDue time.Time) error {
 				return entries, nil
 			}
 		}
-		return nil, errors.New("subscription not found")
+		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
 
@@ -481,7 +481,7 @@ func (s *Store) RecordSuccess(name string, nextDue time.Time) error {
 				return entries, nil
 			}
 		}
-		return nil, errors.New("subscription not found")
+		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
 
@@ -494,7 +494,7 @@ func (s *Store) cachePath(name string) string {
 
 func (s *Store) Cached(name string) ([]byte, error) {
 	if !validName(name) {
-		return nil, errors.New("invalid subscription name")
+		return nil, i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name")
 	}
 	entries, err := s.read()
 	if err != nil {
@@ -505,13 +505,13 @@ func (s *Store) Cached(name string) ([]byte, error) {
 			return os.ReadFile(s.cachePath(name))
 		}
 	}
-	return nil, errors.New("subscription not found")
+	return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 }
 
 func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error) {
 	var zero RefreshResult
 	if !validName(name) {
-		return zero, errors.New("invalid subscription name")
+		return zero, i18n.Errorf("backend.subscription.invalid_subscription_name", "invalid subscription name")
 	}
 	entries, err := s.read()
 	if err != nil {
@@ -527,7 +527,7 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 		}
 	}
 	if !found {
-		return zero, errors.New("subscription not found")
+		return zero, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	}
 	keyVersion, err := s.keyVersion(name)
 	if err != nil {
@@ -535,24 +535,24 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, original.URL, nil)
 	if err != nil {
-		return zero, errors.New("invalid subscription request")
+		return zero, i18n.Errorf("backend.subscription.invalid_subscription_request", "invalid subscription request")
 	}
 	req.Header.Set("User-Agent", subscriptionUserAgent)
 	req.Header.Set("Accept", "application/yaml, text/yaml, text/plain;q=0.9, */*;q=0.8")
 	resp, err := s.Client.Do(req)
 	if err != nil {
-		return zero, fmt.Errorf("subscription fetch failed: %w", sanitizeError(err))
+		return zero, i18n.Errorf("backend.subscription.subscription_fetch_failed_w", "subscription fetch failed: %w", sanitizeError(err))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return zero, fmt.Errorf("subscription fetch returned HTTP %d", resp.StatusCode)
+		return zero, i18n.Errorf("backend.subscription.subscription_fetch_returned_http_d", "subscription fetch returned HTTP %d", resp.StatusCode)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSubscriptionSize+1))
 	if err != nil {
-		return zero, errors.New("subscription read failed")
+		return zero, i18n.Errorf("backend.subscription.subscription_read_failed", "subscription read failed")
 	}
 	if len(data) == 0 || len(data) > maxSubscriptionSize {
-		return zero, errors.New("subscription content empty or too large")
+		return zero, i18n.Errorf("backend.subscription.subscription_content_empty_or_too_large", "subscription content empty or too large")
 	}
 	if strings.HasPrefix(string(data), "-----BEGIN AGE ENCRYPTED FILE-----") {
 		data, err = s.decrypt(ctx, name, data)
@@ -583,7 +583,7 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 						return err
 					}
 					if latest[i].URL != original.URL || latest[i].Generation != original.Generation || currentKeyVersion != keyVersion {
-						return errors.New("subscription changed during download; retry update")
+						return i18n.Errorf("backend.subscription.subscription_changed_during_download_retry_update", "subscription changed during download; retry update")
 					}
 					cachePath := s.cachePath(name)
 					old, oldErr := os.ReadFile(cachePath)
@@ -623,7 +623,7 @@ func (s *Store) Refresh(ctx context.Context, name string) (RefreshResult, error)
 					return nil
 				}
 			}
-			return errors.New("subscription removed during download; retry update")
+			return i18n.Errorf("backend.subscription.subscription_removed_during_download_retry_update", "subscription removed during download; retry update")
 		})
 	}
 	if s.CommitUnderConfigLock != nil {
@@ -646,11 +646,11 @@ func (s *Store) keyVersion(name string) (string, error) {
 		return "", nil
 	}
 	if err != nil || !info.Mode().IsRegular() || info.Size() > maxIdentitySize {
-		return "", errors.New("subscription identity is unavailable")
+		return "", i18n.Errorf("backend.subscription.subscription_identity_is_unavailable", "subscription identity is unavailable")
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", errors.New("cannot read subscription identity")
+		return "", i18n.Errorf("backend.subscription.cannot_read_subscription_identity", "cannot read subscription identity")
 	}
 	return Hash(data), nil
 }
@@ -663,7 +663,7 @@ func sanitizeError(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return context.DeadlineExceeded
 	}
-	return errors.New("network error")
+	return i18n.Errorf("backend.subscription.network_error", "network error")
 }
 
 func parseUserInfo(header string) (time.Time, int64, int64, int64) {
@@ -721,7 +721,7 @@ func writeReplace(path string, data []byte) error {
 		return err
 	}
 	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
-		return errors.New("target is not a regular file")
+		return i18n.Errorf("backend.subscription.target_is_not_a_regular_file", "target is not a regular file")
 	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
@@ -752,7 +752,7 @@ func writeReplace(path string, data []byte) error {
 // The caller owns config.lock and the outer configuration transaction.
 func (s *Store) SetHealthcheckInterval(name string, seconds *int) error {
 	if seconds != nil && (*seconds < 1 || *seconds > 31536000) {
-		return errors.New("SECONDS must be an integer from 1 to 31536000")
+		return i18n.Errorf("backend.subscription.seconds_must_be_an_integer_from_1_to_31536000", "SECONDS must be an integer from 1 to 31536000")
 	}
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for i := range entries {
@@ -761,7 +761,7 @@ func (s *Store) SetHealthcheckInterval(name string, seconds *int) error {
 				return entries, nil
 			}
 		}
-		return nil, errors.New("subscription not found")
+		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }
 
@@ -770,7 +770,7 @@ func (s *Store) SetHealthcheckInterval(name string, seconds *int) error {
 // applied version and source hash after activation succeeds.
 func (s *Store) StageProfileAssociation(name, profileName string) error {
 	if !validName(profileName) {
-		return errors.New("invalid profile name")
+		return i18n.Errorf("backend.subscription.invalid_profile_name", "invalid profile name")
 	}
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		found := -1
@@ -781,7 +781,7 @@ func (s *Store) StageProfileAssociation(name, profileName string) error {
 			}
 		}
 		if found < 0 {
-			return nil, errors.New("subscription not found")
+			return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 		}
 		for i := range entries {
 			if i != found && entries[i].Profile == profileName {
@@ -817,7 +817,7 @@ func publicHealthcheckURL(raw *string) *string {
 // The caller owns config.lock and the enclosing configuration transaction.
 func (s *Store) SetHealthcheckURL(name string, value *string) error {
 	if value != nil && !ValidHealthcheckURL(*value) {
-		return errors.New("test URL must be absolute HTTP(S) without user information or fragment")
+		return i18n.Errorf("backend.subscription.test_url_must_be_absolute_http_s_without_user_information_or_fragment", "test URL must be absolute HTTP(S) without user information or fragment")
 	}
 	return s.mutate(func(entries []Entry) ([]Entry, error) {
 		for i := range entries {
@@ -826,6 +826,6 @@ func (s *Store) SetHealthcheckURL(name string, value *string) error {
 				return entries, nil
 			}
 		}
-		return nil, errors.New("subscription not found")
+		return nil, i18n.Errorf("backend.subscription.subscription_not_found", "subscription not found")
 	})
 }

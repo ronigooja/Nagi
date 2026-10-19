@@ -2,7 +2,7 @@ package v2ray
 
 import (
 	"encoding/base64"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"strings"
 )
 
@@ -61,5 +61,5 @@ func TryDecodeBase64(s string) (decoded []byte, err error) {
 			return
 		}
 	}
-	return nil, fmt.Errorf("invalid base64-encoded string")
+	return nil, i18n.Errorf("backend.subscription.invalid_base64_encoded_string", "invalid base64-encoded string")
 }
