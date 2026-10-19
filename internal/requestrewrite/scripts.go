@@ -265,7 +265,25 @@ func (s *Snapshot) runResponseScript(ctx context.Context, r Rule, o Operation, r
 		}
 		var raw []byte
 		if original.StatusCode == 206 {
-			raw, e = TransformFragmentsWithHook(ctx, body.current, work.Header, []Operation{o}, apply)
+			baseline := cloneResponse(work)
+			var result *http.Response
+			consistent := func(ctx context.Context, decoded []byte, h http.Header, op Operation) ([]byte, error) {
+				*work = *cloneResponse(baseline)
+				out, err := apply(ctx, decoded, h, op)
+				if err != nil {
+					return nil, err
+				}
+				if result != nil && (result.StatusCode != work.StatusCode || !reflect.DeepEqual(result.Header, work.Header) || !reflect.DeepEqual(result.Trailer, work.Trailer)) {
+					return nil, invalid()
+				}
+				result = cloneResponse(work)
+				return out, nil
+			}
+			e = body.transformFragments(ctx, original.Header, baseline.Header, []Operation{o}, consistent)
+			if e == nil {
+				*work = *result
+			}
+			return e
 		} else {
 			raw, e = BodyTransformWithHook(ctx, body.current, work.Header, []Operation{o}, apply)
 		}

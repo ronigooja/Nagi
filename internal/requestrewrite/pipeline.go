@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -167,6 +168,7 @@ func (s *Snapshot) TransformUpgrade(ctx context.Context, r *http.Request) (Resul
 var bodyMemory = make(chan struct{}, 1)
 
 type bodyTransaction struct {
+	fragments                                              *fragmentTransaction
 	original                                               []byte
 	current                                                []byte
 	complete, consumed, reserved, initialized, transferred bool
@@ -216,6 +218,20 @@ func (b *bodyTransaction) read(ctx context.Context, r io.ReadCloser) error {
 	b.current = append([]byte{}, raw...)
 	return nil
 }
+func (b *bodyTransaction) transformFragments(ctx context.Context, original, current http.Header, ops []Operation, hook BodyOperationHook) error {
+	if b.fragments == nil {
+		var e error
+		b.fragments, e = newFragmentTransaction(b.original, original)
+		if e != nil {
+			return e
+		}
+		// The fragments now hold the working representation without a second
+		// serialized envelope retained between operations.
+		b.current = nil
+	}
+	return b.fragments.transform(ctx, current, ops, hook)
+}
+
 func (b *bodyTransaction) canRecover() bool { return !b.consumed || b.complete }
 func (b *bodyTransaction) reader(original bool) io.ReadCloser {
 	v := b.current
@@ -420,6 +436,9 @@ func (s *Snapshot) transform(parent context.Context, original *http.Request, upg
 					}
 				}
 			}
+			if e == nil && s.needsBody(o) {
+				invalidate(work.Trailer)
+			}
 			if e == nil && !headersValid(work) {
 				e = invalid()
 			}
@@ -546,6 +565,7 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 		return nil
 	}
 	lastRule := Rule{}
+	lastBodyRule := Rule{}
 	mode, e := s.RangeMode(originalRequest)
 	if e != nil {
 		return out, e
@@ -575,6 +595,9 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 				return out, &Error{Code: "rewrite_cancelled", RuleID: r.ID}
 			}
 			e = nil
+			if s.needsBody(o) {
+				lastBodyRule = r
+			}
 			if original.StatusCode == 101 && (s.needsBody(o) || o.Op == "status_set") {
 				return fallback(r, invalid())
 			}
@@ -617,12 +640,15 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 						if mode == "full" && (original.StatusCode == 206 || original.Header.Get("Content-Range") != "") {
 							e = invalid()
 						} else if original.StatusCode == 206 {
-							body.current, e = TransformFragments(ctx, body.current, work.Header, []Operation{o})
+							e = body.transformFragments(ctx, original.Header, work.Header, []Operation{o}, nil)
 						} else {
 							body.current, e = BodyTransform(ctx, body.current, work.Header, []Operation{o})
 						}
 					}
 				}
+			}
+			if e == nil && s.needsBody(o) {
+				invalidate(work.Trailer)
 			}
 			if e == nil && !validHeaders(work.Header, MaxHeadersBytes) {
 				e = invalid()
@@ -631,6 +657,23 @@ func (s *Snapshot) TransformResponse(parent context.Context, originalRequest *ht
 				return fallback(r, e)
 			}
 		}
+	}
+	if body.fragments != nil {
+		if !reflect.DeepEqual(headerValues(original.Header, "Content-Range"), headerValues(work.Header, "Content-Range")) {
+			return fallback(lastBodyRule, invalid())
+		}
+		if body.fragments.multipart {
+			om, op, oe := mime.ParseMediaType(original.Header.Get("Content-Type"))
+			wm, wp, we := mime.ParseMediaType(work.Header.Get("Content-Type"))
+			if oe != nil || we != nil || om != wm || op["boundary"] != wp["boundary"] {
+				return fallback(lastBodyRule, invalid())
+			}
+		}
+		body.current, e = body.fragments.finish()
+		if e != nil {
+			return fallback(lastBodyRule, e)
+		}
+		body.fragments = nil
 	}
 	if noBody(work.StatusCode) {
 		if len(trailers) > 0 {
@@ -708,6 +751,9 @@ func (s *Snapshot) TransformMessage(parent context.Context, stage string, req *h
 	defer cancel()
 	if parent.Err() != nil {
 		return out, &Error{Code: "rewrite_cancelled"}
+	}
+	if original.Type == "text" && !utf8.Valid(original.Body) {
+		return out, invalid()
 	}
 	if len(original.Body) > MaxBodyBytes {
 		return out, &Error{Code: "rewrite_limit"}
