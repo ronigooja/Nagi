@@ -11,10 +11,10 @@ No real OS TUN, system CA trust or installed user service was changed.
 The 2026-10-18 verification host is Linux ARM64 with Go 1.26.4, Python 3 and Bash.
 The implementing mihomo commit is
 `84369733b97b897a04a70e507183eda22e38e0c6`, published on
-`https://github.com/ronigooja/mihomo.git`, ref `request-rewrite-v2`, and recorded
-in `engine.lock`. Publishing that engine branch and fetching it back verified
-that the declared source object is available. Nagi release binaries have not
-been published for this change.
+`https://github.com/ronigooja/mihomo.git`, ref `main`, and recorded
+in `engine.lock`. The v2 commit was fast-forwarded into `main`; a subsequent
+fresh fetch returned the identical locked commit and verified source availability.
+Nagi release binaries have not been published for this change.
 
 The Nagi v2 configuration, immutable request/response/message pipeline, fixed
 QuickJS/WASM runner, CLI and terminal menu have software tests. The macOS source
@@ -32,7 +32,7 @@ acceptance remain **unverified**. Cross-compilation is only Go build evidence.
 | Guest reproducibility | Pinned QuickJS and WASI SDK input checksums, runner checksum, WASM checksum and licenses are tracked. A second temporary-directory build reproduced the artifact. See [guest reproduction](rewrite-script-guest.md). |
 | CLI/menu/output | Unit/race/vet checks cover scripts CRUD/reference protection/source sensitivity, rules, current invalid input, five staged preview kinds, complete JSON drafts, completion and output. |
 | Engine | `go test ./...` passed, including the existing long-running inbound suite; rewrite-focused race checks and Linux/Darwin AMD64/ARM64 builds passed. |
-| Publication | Engine branch push and subsequent fetch returned the identical locked commit. |
+| Publication | Fast-forward push to engine `main` and subsequent fresh fetch returned the identical locked commit. |
 
 ## Combined-source verification (2026-10-18)
 
