@@ -9,13 +9,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
-const MaxDocumentBytes = 256 << 10
+const MaxDocumentBytes = 1 << 20
+const MaxScriptBytes = 64 << 10
+const MaxTrailersBytes = 16 << 10
+const MaxWorkspaceBytes = 64 << 20
 const MaxBodyBytes = 8 << 20
 const MaxHeadersBytes = 64 << 10
 
@@ -32,20 +36,35 @@ func (e *Error) Error() string {
 }
 func invalid() error { return &Error{Code: "rewrite_invalid"} }
 
+const (
+	StageRequest         = "request"
+	StageResponse        = "response"
+	StageWebSocketClient = "websocket_client"
+	StageWebSocketServer = "websocket_server"
+)
+
 type Document struct {
 	Version int      `json:"version"`
 	Enabled bool     `json:"enabled"`
-	Domains []Domain `json:"domains"`
 	Rules   []Rule   `json:"rules"`
+	Scripts []Script `json:"scripts"`
 }
-type Domain struct {
-	ID      string `json:"id"`
-	Pattern string `json:"pattern"`
+type Script struct {
+	ID         string `json:"id"`
+	BodyAccess string `json:"body_access"`
+	Source     string `json:"source"`
 }
 type Match struct {
-	Domain     string   `json:"domain"`
-	Methods    []string `json:"methods"`
-	PathPrefix string   `json:"path_prefix"`
+	Domain          string              `json:"domain"`
+	Methods         []string            `json:"methods,omitempty"`
+	PathPrefix      string              `json:"path_prefix,omitempty"`
+	PathRegex       string              `json:"path_regex,omitempty"`
+	Query           map[string][]string `json:"query,omitempty"`
+	Headers         map[string][]string `json:"headers,omitempty"`
+	StatusCodes     []int               `json:"status_codes,omitempty"`
+	ContentTypes    []string            `json:"content_types,omitempty"`
+	ResponseHeaders map[string][]string `json:"response_headers,omitempty"`
+	MessageTypes    []string            `json:"message_types,omitempty"`
 }
 type Consent struct {
 	Domain  string   `json:"domain"`
@@ -55,17 +74,25 @@ type Consent struct {
 type Rule struct {
 	ID              string      `json:"id"`
 	Enabled         bool        `json:"enabled"`
+	Stage           string      `json:"stage"`
 	Match           Match       `json:"match"`
 	OnError         string      `json:"on_error"`
+	RangeMode       string      `json:"range_mode,omitempty"`
 	RedirectConsent []Consent   `json:"redirect_consent"`
 	Operations      []Operation `json:"operations"`
 }
 type Operation struct {
-	Op        string          `json:"op"`
-	Name      string          `json:"name,omitempty"`
-	Component string          `json:"component,omitempty"`
-	Pointer   string          `json:"pointer,omitempty"`
-	Value     json.RawMessage `json:"value,omitempty"`
+	Op          string          `json:"op"`
+	Name        string          `json:"name,omitempty"`
+	Component   string          `json:"component,omitempty"`
+	Pointer     string          `json:"pointer,omitempty"`
+	Value       json.RawMessage `json:"value,omitempty"`
+	Pattern     string          `json:"pattern,omitempty"`
+	Replacement string          `json:"replacement,omitempty"`
+	All         bool            `json:"all,omitempty"`
+	Encoding    string          `json:"encoding,omitempty"`
+	Script      string          `json:"script,omitempty"`
+	MessageType string          `json:"message_type,omitempty"`
 }
 
 // Snapshot exposes copies only; callers cannot mutate a request's rules/version.
@@ -73,6 +100,7 @@ type Snapshot struct {
 	doc       Document
 	canonical []byte
 	version   string
+	regex     map[string]*regexp.Regexp
 }
 
 func (s *Snapshot) Version() string    { return s.version }
@@ -86,7 +114,7 @@ func (s *Snapshot) ExportSensitive() []byte {
 	return b
 }
 func Empty() *Snapshot {
-	s, _ := Compile(Document{Version: 1, Domains: []Domain{}, Rules: []Rule{}})
+	s, _ := Compile(Document{Version: 2, Rules: []Rule{}, Scripts: []Script{}})
 	return s
 }
 func validID(s string) bool {
@@ -212,81 +240,88 @@ func fields(v any, names ...string) (map[string]any, error) {
 	}
 	return m, nil
 }
+
+// schema rejects unknown, missing, null and incorrectly typed fields using the
+// current contract only. The typed decoder below checks every nested field.
 func schema(v any) error {
-	m, e := fields(v, "version", "enabled", "domains", "rules")
+	m, e := fields(v, "version", "enabled", "rules", "scripts")
 	if e != nil {
 		return e
 	}
 	if _, ok := m["enabled"].(bool); !ok {
 		return invalid()
 	}
-	ds, ok := m["domains"].([]any)
-	if !ok {
-		return invalid()
-	}
 	rs, ok := m["rules"].([]any)
 	if !ok {
 		return invalid()
 	}
-	for _, d := range ds {
-		if _, e = fields(d, "id", "pattern"); e != nil {
+	ss, ok := m["scripts"].([]any)
+	if !ok {
+		return invalid()
+	}
+	for _, s := range ss {
+		if _, e := fields(s, "id", "body_access", "source"); e != nil {
 			return e
 		}
 	}
-	for _, r := range rs {
-		rm, e := fields(r, "id", "enabled", "match", "on_error", "redirect_consent", "operations")
-		if e != nil {
-			return e
-		}
-		if _, ok := rm["enabled"].(bool); !ok {
-			return invalid()
-		}
-		if _, e = fields(rm["match"], "domain", "methods", "path_prefix"); e != nil {
-			return e
-		}
-		cs, ok := rm["redirect_consent"].([]any)
+	for _, v := range rs {
+		r, ok := v.(map[string]any)
 		if !ok {
 			return invalid()
 		}
-		for _, c := range cs {
-			if _, e = fields(c, "domain", "schemes", "ports"); e != nil {
-				return e
+		for _, k := range []string{"id", "enabled", "stage", "match", "on_error", "redirect_consent", "operations"} {
+			if r[k] == nil {
+				return invalid()
 			}
 		}
-		ops, ok := rm["operations"].([]any)
+		if _, ok := r["enabled"].(bool); !ok {
+			return invalid()
+		}
+		match, ok := r["match"].(map[string]any)
+		if !ok || match["domain"] == nil {
+			return invalid()
+		}
+		if _, ok := r["redirect_consent"].([]any); !ok {
+			return invalid()
+		}
+		ops, ok := r["operations"].([]any)
 		if !ok {
 			return invalid()
 		}
-		for _, o := range ops {
-			om, ok := o.(map[string]any)
+		for _, v := range ops {
+			o, ok := v.(map[string]any)
 			if !ok {
 				return invalid()
 			}
 			var keys []string
-			switch om["op"] {
-			case "header_set":
+			switch o["op"] {
+			case "header_set", "header_append", "trailer_set":
 				keys = []string{"op", "name", "value"}
-			case "header_delete":
+			case "header_delete", "trailer_delete":
 				keys = []string{"op", "name"}
 			case "url_set":
 				keys = []string{"op", "component", "value"}
+			case "method_set", "status_set":
+				keys = []string{"op", "value"}
 			case "json_set":
 				keys = []string{"op", "pointer", "value"}
 			case "json_delete":
 				keys = []string{"op", "pointer"}
+			case "body_set":
+				keys = []string{"op", "value", "encoding"}
+			case "text_replace", "regex_replace":
+				keys = []string{"op", "pattern", "replacement", "all"}
+			case "script":
+				keys = []string{"op", "script"}
 			default:
 				return invalid()
 			}
-			if _, e = fields(o, keys...); e != nil {
-				return e
+			// Message type changes are explicit and only legal for WS body operations.
+			if _, ok := o["message_type"]; ok {
+				keys = append(keys, "message_type")
 			}
-			for _, key := range keys {
-				if key == "value" {
-					continue
-				}
-				if _, ok := om[key].(string); !ok {
-					return invalid()
-				}
+			if _, e := fields(v, keys...); e != nil {
+				return e
 			}
 		}
 	}
@@ -304,7 +339,9 @@ func Parse(data []byte) (*Snapshot, error) {
 		return nil, e
 	}
 	var d Document
-	if json.Unmarshal(data, &d) != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&d) != nil {
 		return nil, invalid()
 	}
 	return compile(d)
@@ -335,7 +372,18 @@ func compile(d Document) (*Snapshot, error) {
 		return nil, &Error{Code: "rewrite_limit"}
 	}
 	sum := sha256.Sum256(canonical)
-	return &Snapshot{doc: d, canonical: canonical, version: "sha256:" + hex.EncodeToString(sum[:])}, nil
+	s := &Snapshot{doc: d, canonical: canonical, version: "sha256:" + hex.EncodeToString(sum[:]), regex: map[string]*regexp.Regexp{}}
+	for _, r := range d.Rules {
+		if r.Match.PathRegex != "" {
+			s.regex[r.Match.PathRegex] = regexp.MustCompile(r.Match.PathRegex)
+		}
+		for _, o := range r.Operations {
+			if o.Op == "regex_replace" {
+				s.regex[o.Pattern] = regexp.MustCompile(o.Pattern)
+			}
+		}
+	}
+	return s, nil
 }
 func canonicalJSON(v any) []byte {
 	var b bytes.Buffer

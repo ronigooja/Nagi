@@ -1,9 +1,13 @@
 package requestrewrite
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"mime"
 	"net"
 	"net/url"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -67,22 +71,40 @@ func patternMatches(pattern, host string) bool {
 	}
 	return pattern == host
 }
-func contained(pattern, authorized string) bool {
-	if pattern == authorized {
-		return true
+
+// InterceptDomains and TargetDomains contain only enabled rule policy.
+func (s *Snapshot) InterceptDomains() []string { return s.policy(false) }
+func (s *Snapshot) TargetDomains() []string    { return s.policy(true) }
+func (s *Snapshot) HasEnabledRules() bool      { return len(s.InterceptDomains()) > 0 }
+func (s *Snapshot) policy(targets bool) []string {
+	set := map[string]bool{}
+	for _, r := range s.doc.Rules {
+		if !r.Enabled {
+			continue
+		}
+		set[r.Match.Domain] = true
+		if targets && r.Stage == StageRequest {
+			for _, c := range r.RedirectConsent {
+				set[c.Domain] = true
+			}
+		}
 	}
-	if strings.HasPrefix(pattern, "*.") {
-		return strings.HasPrefix(authorized, "*.") && strings.HasSuffix(pattern[2:], authorized[1:])
+	out := make([]string, 0, len(set))
+	for d := range set {
+		out = append(out, d)
 	}
-	return patternMatches(authorized, pattern)
+	sort.Strings(out)
+	return out
 }
-func (s *Snapshot) Authorized(host string) bool {
+func (s *Snapshot) Authorized(host string) bool       { return s.permits(host, s.InterceptDomains()) }
+func (s *Snapshot) TargetAuthorized(host string) bool { return s.permits(host, s.TargetDomains()) }
+func (s *Snapshot) permits(host string, patterns []string) bool {
 	h, e := NormalizeDomain(host)
 	if e != nil {
 		return false
 	}
-	for _, d := range s.doc.Domains {
-		if patternMatches(d.Pattern, h) {
+	for _, p := range patterns {
+		if patternMatches(p, h) {
 			return true
 		}
 	}
@@ -188,57 +210,105 @@ func validateURLValue(component, value string) error {
 	return nil
 }
 func validateDocument(d *Document) error {
-	if d.Version != 1 || d.Domains == nil || d.Rules == nil || len(d.Domains) > 256 || len(d.Rules) > 1024 {
+	if d.Version != 2 || d.Rules == nil || d.Scripts == nil || len(d.Rules) > 1024 || len(d.Scripts) > 1024 {
 		return invalid()
 	}
-	ids := map[string]bool{}
-	for i := range d.Domains {
-		a := &d.Domains[i]
-		if !validID(a.ID) || ids[a.ID] {
+	scripts := map[string]Script{}
+	for _, s := range d.Scripts {
+		if !validID(s.ID) || scripts[s.ID].ID != "" || s.BodyAccess != "none" && s.BodyAccess != "buffer" || len(s.Source) == 0 || len(s.Source) > MaxScriptBytes || !utf8.ValidString(s.Source) {
 			return invalid()
 		}
-		ids[a.ID] = true
-		v, e := normalizePattern(a.Pattern)
-		if e != nil {
-			return e
-		}
-		a.Pattern = v
+		scripts[s.ID] = s
 	}
-	authorized := func(p string) bool {
-		for _, a := range d.Domains {
-			if contained(p, a.Pattern) {
-				return true
-			}
-		}
-		return false
-	}
-	ids = map[string]bool{}
+	ids := map[string]bool{}
 	for i := range d.Rules {
 		r := &d.Rules[i]
-		if !validID(r.ID) || ids[r.ID] || r.RedirectConsent == nil || r.Operations == nil || len(r.Operations) < 1 || len(r.Operations) > 32 {
+		if !validID(r.ID) || ids[r.ID] || r.RedirectConsent == nil || len(r.Operations) < 1 || len(r.Operations) > 32 {
 			return invalid()
 		}
 		ids[r.ID] = true
+		if r.Stage != StageRequest && r.Stage != StageResponse && r.Stage != StageWebSocketClient && r.Stage != StageWebSocketServer {
+			return invalid()
+		}
 		var e error
 		r.Match.Domain, e = normalizePattern(r.Match.Domain)
-		if e != nil || !authorized(r.Match.Domain) {
+		if e != nil {
+			return e
+		}
+		m := &r.Match
+		if len(m.Methods) > 16 || len(m.PathPrefix) > 2048 || m.PathPrefix != "" && validateURLValue("path", m.PathPrefix) != nil {
 			return invalid()
 		}
-		if len(r.Match.Methods) < 1 || len(r.Match.Methods) > 16 || len(r.Match.PathPrefix) > 2048 || !utf8.ValidString(r.Match.PathPrefix) || !strings.HasPrefix(r.Match.PathPrefix, "/") {
+		for _, v := range m.Methods {
+			if !token(v) || strings.ToUpper(v) != v {
+				return invalid()
+			}
+		}
+		if len(m.PathRegex) > 8192 {
 			return invalid()
 		}
-		for _, m := range r.Match.Methods {
-			if !token(m) || m != strings.ToUpper(m) {
+		if m.PathRegex != "" {
+			if _, e := regexp.Compile(m.PathRegex); e != nil {
+				return invalid()
+			}
+		}
+		for pi, pairs := range []map[string][]string{m.Headers, m.ResponseHeaders, m.Query} {
+			seen := map[string]bool{}
+			for name, vs := range pairs {
+				key := name
+				if pi < 2 {
+					key = strings.ToLower(name)
+					if !token(name) {
+						return invalid()
+					}
+				}
+				if seen[key] || !cleanValue(name) || len(vs) == 0 {
+					return invalid()
+				}
+				seen[key] = true
+				for _, v := range vs {
+					if !cleanValue(v) {
+						return invalid()
+					}
+				}
+			}
+		}
+		if r.Stage == StageRequest && (len(m.StatusCodes) > 0 || len(m.ContentTypes) > 0 || len(m.ResponseHeaders) > 0) || r.Stage != StageWebSocketClient && r.Stage != StageWebSocketServer && len(m.MessageTypes) > 0 {
+			return invalid()
+		}
+		for _, n := range m.StatusCodes {
+			if n < 100 || n > 599 {
+				return invalid()
+			}
+		}
+		for j, v := range m.ContentTypes {
+			media, p, e := mime.ParseMediaType(v)
+			if e != nil || len(p) > 0 {
+				return invalid()
+			}
+			m.ContentTypes[j] = media
+		}
+		for _, v := range m.MessageTypes {
+			if v != "text" && v != "binary" {
 				return invalid()
 			}
 		}
 		if r.OnError != "block" && r.OnError != "forward_original" {
 			return invalid()
 		}
+		if r.RangeMode == "" {
+			r.RangeMode = "fragment"
+		}
+		if r.RangeMode != "fragment" && r.RangeMode != "full" {
+			return invalid()
+		}
+		if r.Stage != StageRequest && len(r.RedirectConsent) > 0 {
+			return invalid()
+		}
 		for j := range r.RedirectConsent {
 			c := &r.RedirectConsent[j]
 			c.Domain, e = normalizePattern(c.Domain)
-			if e != nil || !authorized(c.Domain) || len(c.Schemes) < 1 || len(c.Ports) < 1 {
+			if e != nil || len(c.Schemes) == 0 || len(c.Ports) == 0 {
 				return invalid()
 			}
 			for _, s := range c.Schemes {
@@ -254,28 +324,42 @@ func validateDocument(d *Document) error {
 		}
 		for j := range r.Operations {
 			o := &r.Operations[j]
+			ws := r.Stage == StageWebSocketClient || r.Stage == StageWebSocketServer
+			if o.MessageType != "" && (!ws || o.MessageType != "text" && o.MessageType != "binary" || !bodyOperation(*o)) {
+				return invalid()
+			}
 			switch o.Op {
-			case "header_set", "header_delete":
-				if !allowedHeader(o.Name) {
+			case "header_set", "header_append", "header_delete", "trailer_set", "trailer_delete":
+				if !allowedHeader(o.Name) || strings.HasPrefix(o.Op, "trailer_") && (ws || !allowedTrailer(o.Name)) {
 					return invalid()
 				}
-				if o.Op == "header_set" {
+				if o.Op == "header_set" || o.Op == "header_append" || o.Op == "trailer_set" {
 					v, e := stringValue(*o)
 					if e != nil || len(v) > 8192 || !cleanValue(v) {
 						return invalid()
 					}
 				}
 			case "url_set":
+				if r.Stage != StageRequest {
+					return invalid()
+				}
 				v, e := stringValue(*o)
 				if e != nil || validateURLValue(o.Component, v) != nil {
 					return invalid()
 				}
 				if o.Component == "host" {
 					v, _ = NormalizeDomain(v)
-					if !authorized(v) {
-						return invalid()
-					}
 					o.Value, _ = json.Marshal(v)
+				}
+			case "method_set":
+				v, e := stringValue(*o)
+				if r.Stage != StageRequest || e != nil || !token(v) || v != strings.ToUpper(v) || v == "CONNECT" {
+					return invalid()
+				}
+			case "status_set":
+				var n int
+				if r.Stage != StageResponse || json.Unmarshal(o.Value, &n) != nil || n < 200 || n > 599 {
+					return invalid()
 				}
 			case "json_set", "json_delete":
 				if _, e := pointerParts(o.Pointer); e != nil {
@@ -289,33 +373,88 @@ func validateDocument(d *Document) error {
 						return e
 					}
 				}
+			case "body_set":
+				v, e := stringValue(*o)
+				if e != nil || o.Encoding != "text" && o.Encoding != "base64" {
+					return invalid()
+				}
+				if o.Encoding == "base64" {
+					if _, e := base64.StdEncoding.Strict().DecodeString(v); e != nil || strings.ContainsAny(v, "\r\n") {
+						return invalid()
+					}
+				}
+			case "text_replace", "regex_replace":
+				if o.Pattern == "" || !utf8.ValidString(o.Pattern) || !utf8.ValidString(o.Replacement) {
+					return invalid()
+				}
+				if o.Op == "regex_replace" {
+					if _, e := regexp.Compile(o.Pattern); e != nil {
+						return invalid()
+					}
+				}
+			case "script":
+				if scripts[o.Script].ID == "" {
+					return invalid()
+				}
 			default:
 				return invalid()
 			}
 		}
 	}
+	s := &Snapshot{doc: *d}
+	if len(s.InterceptDomains()) > 256 || len(s.TargetDomains()) > 256 {
+		return &Error{Code: "rewrite_limit"}
+	}
 	return nil
 }
+func bodyOperation(o Operation) bool {
+	switch o.Op {
+	case "json_set", "json_delete", "body_set", "text_replace", "regex_replace":
+		return true
+	}
+	return false
+}
+func allowedTrailer(name string) bool {
+	switch strings.ToLower(name) {
+	case "authorization", "www-authenticate", "content-type", "content-range", "range", "cache-control", "max-forwards", "set-cookie":
+		return false
+	}
+	return allowedHeader(name)
+}
 
-// MarshalJSON preserves required empty pointers and exact operation-specific fields.
+// MarshalJSON preserves the exact fields required for each operation.
 func (o Operation) MarshalJSON() ([]byte, error) {
 	m := map[string]any{"op": o.Op}
 	switch o.Op {
-	case "header_set":
+	case "header_set", "header_append", "trailer_set":
 		m["name"] = o.Name
 		m["value"] = o.Value
-	case "header_delete":
+	case "header_delete", "trailer_delete":
 		m["name"] = o.Name
 	case "url_set":
 		m["component"] = o.Component
+		m["value"] = o.Value
+	case "method_set", "status_set":
 		m["value"] = o.Value
 	case "json_set":
 		m["pointer"] = o.Pointer
 		m["value"] = o.Value
 	case "json_delete":
 		m["pointer"] = o.Pointer
+	case "body_set":
+		m["value"] = o.Value
+		m["encoding"] = o.Encoding
+	case "text_replace", "regex_replace":
+		m["pattern"] = o.Pattern
+		m["replacement"] = o.Replacement
+		m["all"] = o.All
+	case "script":
+		m["script"] = o.Script
 	default:
 		return nil, invalid()
+	}
+	if o.MessageType != "" {
+		m["message_type"] = o.MessageType
 	}
 	return json.Marshal(m)
 }

@@ -19,42 +19,6 @@ func (s Store) Edit(ctx context.Context, edit func(*Document) error) (SaveResult
 	}
 	return s.save(ctx, candidate, old.version)
 }
-func (s Store) AddDomain(ctx context.Context, domain Domain) (SaveResult, error) {
-	return s.Edit(ctx, func(d *Document) error {
-		for _, v := range d.Domains {
-			if v.ID == domain.ID {
-				return invalid()
-			}
-		}
-		d.Domains = append(d.Domains, domain)
-		return nil
-	})
-}
-func (s Store) UpdateDomain(ctx context.Context, id string, domain Domain) (SaveResult, error) {
-	return s.Edit(ctx, func(d *Document) error {
-		if id != domain.ID {
-			return invalid()
-		}
-		for i, v := range d.Domains {
-			if v.ID == id {
-				d.Domains[i] = domain
-				return nil
-			}
-		}
-		return invalid()
-	})
-}
-func (s Store) RemoveDomain(ctx context.Context, id string) (SaveResult, error) {
-	return s.Edit(ctx, func(d *Document) error {
-		for i, v := range d.Domains {
-			if v.ID == id {
-				d.Domains = append(d.Domains[:i], d.Domains[i+1:]...)
-				return nil
-			}
-		}
-		return invalid()
-	})
-}
 func (s Store) AddRule(ctx context.Context, rule Rule) (SaveResult, error) {
 	return s.Edit(ctx, func(d *Document) error {
 		for _, v := range d.Rules {
@@ -129,6 +93,8 @@ func (s Store) ReorderRules(ctx context.Context, ids []string) (SaveResult, erro
 type RuleSummary struct {
 	ID         string   `json:"id"`
 	Enabled    bool     `json:"enabled"`
+	Stage      string   `json:"stage"`
+	RangeMode  string   `json:"range_mode"`
 	Match      Match    `json:"match"`
 	Operations []string `json:"operations"`
 	OnError    string   `json:"on_error"`
@@ -136,15 +102,83 @@ type RuleSummary struct {
 
 func (s *Snapshot) RuleSummaries() []RuleSummary {
 	out := []RuleSummary{}
-	for _, r := range s.doc.Rules {
+	for _, r := range s.Document().Rules {
 		methods := append([]string{}, r.Match.Methods...)
 		m := r.Match
 		m.Methods = methods
-		v := RuleSummary{ID: r.ID, Enabled: r.Enabled, Match: m, Operations: []string{}, OnError: r.OnError}
+		v := RuleSummary{ID: r.ID, Enabled: r.Enabled, Stage: r.Stage, RangeMode: r.RangeMode, Match: m, Operations: []string{}, OnError: r.OnError}
 		for _, o := range r.Operations {
 			v.Operations = append(v.Operations, o.Op)
 		}
 		out = append(out, v)
 	}
 	return out
+}
+
+// Script summaries omit source. Reading full source requires a sensitive export.
+type ScriptSummary struct {
+	ID          string   `json:"id"`
+	BodyAccess  string   `json:"body_access"`
+	SourceBytes int      `json:"source_bytes"`
+	RuleIDs     []string `json:"rule_ids"`
+}
+
+func (s *Snapshot) ScriptSummaries() []ScriptSummary {
+	out := []ScriptSummary{}
+	for _, v := range s.doc.Scripts {
+		x := ScriptSummary{ID: v.ID, BodyAccess: v.BodyAccess, SourceBytes: len(v.Source), RuleIDs: []string{}}
+		for _, r := range s.doc.Rules {
+			for _, o := range r.Operations {
+				if o.Op == "script" && o.Script == v.ID {
+					x.RuleIDs = append(x.RuleIDs, r.ID)
+					break
+				}
+			}
+		}
+		out = append(out, x)
+	}
+	return out
+}
+func (s Store) AddScript(ctx context.Context, script Script) (SaveResult, error) {
+	return s.Edit(ctx, func(d *Document) error {
+		for _, v := range d.Scripts {
+			if v.ID == script.ID {
+				return invalid()
+			}
+		}
+		d.Scripts = append(d.Scripts, script)
+		return nil
+	})
+}
+func (s Store) UpdateScript(ctx context.Context, id string, script Script) (SaveResult, error) {
+	return s.Edit(ctx, func(d *Document) error {
+		if id != script.ID {
+			return invalid()
+		}
+		for i, v := range d.Scripts {
+			if v.ID == id {
+				d.Scripts[i] = script
+				return nil
+			}
+		}
+		return invalid()
+	})
+}
+func (s Store) RemoveScript(ctx context.Context, id string) (SaveResult, error) {
+	return s.Edit(ctx, func(d *Document) error {
+		for _, r := range d.Rules {
+			for _, o := range r.Operations {
+				if o.Op == "script" && o.Script == id {
+					return &Error{Code: "rewrite_script_referenced"}
+				}
+			}
+		}
+		for i, v := range d.Scripts {
+			if v.ID == id {
+				d.Scripts = append(d.Scripts[:i], d.Scripts[i+1:]...)
+				return nil
+			}
+		}
+		return invalid()
+	})
 }
