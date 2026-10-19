@@ -29,17 +29,18 @@ import (
 )
 
 type fixture struct {
-	caDir    string
-	childDER []byte
-	s        *Service
-	engine   tls.Certificate
-	config   Configuration
-	root     *x509.CertPool
-	listener net.Listener
-	wg       sync.WaitGroup
-	mu       sync.Mutex
-	opens    []string
-	origin   string
+	caDir         string
+	childDER      []byte
+	s             *Service
+	engine        tls.Certificate
+	config        Configuration
+	root          *x509.CertPool
+	listener      net.Listener
+	wg            sync.WaitGroup
+	mu            sync.Mutex
+	opens         []string
+	origin        string
+	streamTimeout time.Duration
 }
 
 func engineCert(t *testing.T) tls.Certificate {
@@ -57,6 +58,10 @@ func engineCert(t *testing.T) tls.Certificate {
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
 }
 func newFixture(t *testing.T, origin string, documents ...[]byte) *fixture {
+	return newFixtureWithTimeout(t, origin, 5*time.Second, documents...)
+}
+
+func newFixtureWithTimeout(t *testing.T, origin string, timeout time.Duration, documents ...[]byte) *fixture {
 	t.Helper()
 	dir := t.TempDir()
 	store := domain.CAStore{ConfigDir: dir}
@@ -94,7 +99,7 @@ func newFixture(t *testing.T, origin string, documents ...[]byte) *fixture {
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(cert)
-	f := &fixture{caDir: dir, s: s, engine: engine, config: c, root: roots, listener: l, origin: origin}
+	f := &fixture{caDir: dir, s: s, engine: engine, config: c, root: roots, listener: l, origin: origin, streamTimeout: timeout}
 	f.wg.Add(1)
 	go func() {
 		defer f.wg.Done()
@@ -113,7 +118,9 @@ func newFixture(t *testing.T, origin string, documents ...[]byte) *fixture {
 }
 func (f *fixture) receive(raw net.Conn) {
 	defer raw.Close()
-	raw.SetDeadline(time.Now().Add(10 * time.Second))
+	stop := context.AfterFunc(f.s.ctx, func() { _ = raw.Close() })
+	defer stop()
+	raw.SetDeadline(time.Now().Add(f.streamTimeout + 5*time.Second))
 	f.mu.Lock()
 	der := f.childDER
 	if der == nil {
@@ -156,7 +163,9 @@ func (f *fixture) receive(raw net.Conn) {
 		return
 	}
 	defer up.Close()
-	up.SetDeadline(time.Now().Add(5 * time.Second))
+	stopUp := context.AfterFunc(f.s.ctx, func() { _ = up.Close() })
+	defer stopUp()
+	up.SetDeadline(time.Now().Add(f.streamTimeout))
 	done := make(chan struct{})
 	go func() { io.Copy(up, r); close(done) }()
 	io.Copy(conn, up)

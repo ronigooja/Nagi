@@ -276,3 +276,86 @@ one-second deadline (1.03 seconds). Each case then passed five isolated repeats;
 no cause was established and no production timeout was changed. A prior native
 fixture development run also saw an HTTP/2 flow `INTERNAL_ERROR`; ten focused
 repeats and the subsequent full suite passed without a source change.
+
+### Sustained recorder resources (local service)
+
+The opt-in resource fixtures exercise the actual capture adapter, authenticated
+loopback handoff and private Unix recorder service in one Go test process. They
+use a local HTTP/WebSocket origin and fictitious content; they do not change host
+routes, install software, use TUN or establish native App/sleep acceptance. Heap,
+RSS, CPU, descriptors and goroutines therefore include the adapter, recorder,
+origin and test harness, rather than measuring a standalone recorder process.
+
+Reproduce the sustained phase separately from concurrent build/race workloads:
+
+```sh
+NAGI_CAPTURE_RESOURCE_DURATION=3m go test ./internal/requestrewriteservice \
+  -run '^TestCaptureSustainedResources$' -count=1 -timeout=5m -v
+NAGI_CAPTURE_RESOURCE_DURATION=3m go test -race \
+  ./internal/capture ./internal/requestrewriteservice \
+  -run '^TestCaptureResource(Adversaries|DiscardedBytes)$' -count=1 -v
+```
+
+The sustained duration must be at least three minutes. Ordinary `go test` skips
+these opt-in tests. Two HTTP workers rotate 256 KiB responses alongside one
+continuous HTTP response and one bidirectional WebSocket connection, with every
+forwarded byte checked against its original content. The first minute has no UI
+queries; later, slow original-content searches follow cursors concurrently with
+writes and evictions. Fifteen-second samples collect recorder status, heap after
+GC, Linux RSS/descriptors, goroutines and cumulative process CPU. Regression
+checks compare middle/final peak windows for continued heap, goroutine and
+file-descriptor growth; they are not physical-memory ceilings.
+
+Recorded on **2026-10-19 07:15 UTC**, Linux 6.1.0-50 ARM64 with Go 1.26.4:
+two isolated three-minute runs passed. The final run used the complete HTTP/1
+deadline/closure fix (`cfa5fb1`) and recorded:
+
+| Measurement | Final 180-second run |
+| --- | --- |
+| Forwarding checks | 4,498 HTTP responses, 899 bidirectional WebSocket round trips, one continuous 14,741,504-byte HTTP response; original bytes unchanged. |
+| Concurrent reads | 171 successful search/cursor operations after the no-UI phase. |
+| Recorder retention | 168–170 records; 55.76–55.92 MiB logical allocated content/metadata; 6,128 quota evictions. |
+| Whole test-process heap after GC | 65.25–67.26 MiB across twelve samples. |
+| Whole test-process RSS | 154.13–157.14 MiB; no continuing duration-related growth after saturation. |
+| Active sampled goroutines / descriptors | 44–53 / 26–31; final cancellation sample dropped to 32 / 24. |
+| Cumulative process CPU | 82.09 CPU seconds over 180 seconds, including all local fixture endpoints. |
+
+The middle/final peak checks passed, as did final capture/service package race
+tests and `go vet`. The earlier isolated pass forwarded the same HTTP/long-stream
+counts and 899 WebSocket round trips, with 171 successful search/cursor reads.
+
+The finite adversarial phases also passed with the race detector:
+
+- One-byte events retained 65,536 body bytes in five 16 KiB allocations (81,920
+  bytes); a maximum-size 262,144-byte event used seventeen blocks (278,528 bytes).
+  Fixed-block slack and allocation overhead are counted in the recorder budget.
+- Repeated completed 1 MiB records reached 58,600,709 logical bytes and evicted
+  45 records, retaining 55, with the ingress reserve intact.
+- Exactly 1,000 active WebSocket parents remained bounded while 1,000 incoming
+  records were rejected. Closing a parent made it evictable and admitted the next
+  record.
+- A stalled recorder retained 64 queued events and one delivery worker, with
+  705,678 serialized bytes including its in-flight event and 10,064 rejected
+  offers. Offering events added four transport goroutines rather than one waiter
+  per offer; cancellation returned the shared queue accounting to zero.
+- A real capture body read one byte at a time forwarded all 65,536 original bytes
+  while retaining only 65 bytes after overload. Its recorded state was `cutoff`,
+  preserving the distinction from a complete body.
+
+The first sustained attempt exposed a reproducible HTTP/1 gate defect: waiting
+for a subsequent request header could cancel a still-active response after one
+minute. The gate now waits for response completion before starting the next
+header-idle clock, clears the header deadline before streaming, and releases its
+wait after connection closure. Focused tests cover a cancellation-sensitive long
+response, pipelining, slow upload, upgraded traffic, incomplete-header timeout,
+idle closure, cancellation, TCP half-close and server rejection. The long-response
+regression failed against the preceding implementation. A separate retry during
+concurrent package/race checks ended with an unlabelled EOF after 43 seconds;
+its cause was not established. Subsequent isolated sustained runs are recorded
+below rather than attributing that failure to an assumed cause.
+
+The 64 MiB contract bounds logical retained content/event buffers, with the store
+reserving space for ingress and transport. It does not cap process heap or RSS;
+Go allocator/GC behavior, metadata, TLS, HTTP and the test harness add memory.
+These local service checks do not replace sustained measurement on native hosts
+with actual TUN, helper and App workloads.
