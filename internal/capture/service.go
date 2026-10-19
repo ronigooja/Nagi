@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -60,7 +61,7 @@ func secureParent(path string, uid int) error {
 	}
 	for p := dir; ; p = filepath.Dir(p) {
 		info, err = os.Lstat(p)
-		if err != nil || info.Mode()&os.ModeSymlink != 0 {
+		if err != nil || info.Mode()&os.ModeSymlink != 0 || (info.Mode().Perm()&0022 != 0 && info.Mode()&os.ModeSticky == 0) || (!ownedBy(info, uid) && !ownedBy(info, 0)) {
 			return errors.New("capture_directory_invalid")
 		}
 		if p == filepath.Dir(p) {
@@ -124,7 +125,7 @@ func Serve(ctx context.Context, socket string, ownerUID int) error {
 			return
 		}
 		var q Request
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, MaxChunk*2))
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, (3*DefaultBodyLimit)/2))
 		dec.DisallowUnknownFields()
 		if dec.Decode(&q) != nil {
 			_ = json.NewEncoder(w).Encode(fail("capture_request_invalid"))
@@ -176,6 +177,9 @@ type Sink struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 }
+
+var sinkQueued atomic.Int64
+
 type sinkEvent struct {
 	event Event
 	bytes int
@@ -200,8 +204,17 @@ func (s *Sink) Offer(e Event) bool {
 		return false
 	}
 	n := int(size(e))
-	if n > MaxChunk*2 || s.bytes+n > DefaultBodyLimit {
+	if n > DefaultBodyLimit || s.bytes+n > DefaultBodyLimit {
 		return false
+	}
+	for {
+		old := sinkQueued.Load()
+		if old+int64(n) > DefaultBodyLimit {
+			return false
+		}
+		if sinkQueued.CompareAndSwap(old, old+int64(n)) {
+			break
+		}
 	}
 	e = clone(e)
 	select {
@@ -209,17 +222,24 @@ func (s *Sink) Offer(e Event) bool {
 		s.bytes += n
 		return true
 	default:
+		sinkQueued.Add(-int64(n))
 		return false
 	}
 }
 func (s *Sink) run() {
 	defer close(s.done)
+	defer func() {
+		for e := range s.queue {
+			sinkQueued.Add(-int64(e.bytes))
+		}
+	}()
 	for e := range s.queue {
 		ctx, cancel := context.WithTimeout(s.ctx, 2*time.Second)
 		_, _ = Call(ctx, s.socket, Request{Action: "event", SessionID: s.session, Event: &e.event})
 		cancel()
 		s.mu.Lock()
 		s.bytes -= e.bytes
+		sinkQueued.Add(-int64(e.bytes))
 		s.mu.Unlock()
 		if s.ctx.Err() != nil {
 			return

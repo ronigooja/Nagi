@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -75,7 +76,7 @@ func TestIsolationLifecycleAndBounds(t *testing.T) {
 func TestRecordAndMetadataBounds(t *testing.T) {
 	s := started(t, 1)
 	for i := 0; i < MaxRecords; i++ {
-		add(t, s, string(rune(i+1)))
+		add(t, s, strconv.Itoa(i+1))
 	}
 	r := Record{ID: "overflow", SessionID: "session", Kind: "http", Identity: Identity{SessionID: "session", Revision: 1}}
 	out := s.Handle(Request{Action: "event", SessionID: "session", Event: &Event{Type: "record", SessionID: "session", RecordID: r.ID, Record: &r}})

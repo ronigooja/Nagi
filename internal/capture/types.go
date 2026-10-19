@@ -95,6 +95,8 @@ type Event struct {
 	Snapshot   string              `json:"snapshot,omitempty"`
 	Record     *Record             `json:"record,omitempty"`
 	Data       []byte              `json:"data,omitempty"`
+	Offset     int64               `json:"offset,omitempty"`
+	BodySize   int64               `json:"body_size,omitempty"`
 	State      string              `json:"state,omitempty"`
 	Trailers   map[string][]string `json:"trailers,omitempty"`
 	Outcome    string              `json:"outcome,omitempty"`

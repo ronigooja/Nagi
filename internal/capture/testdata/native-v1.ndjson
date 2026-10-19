@@ -1,0 +1,6 @@
+{"type":"session","version":1,"status":{"session_id":"fixture-session","revision":1,"state":"stopped","body_limit":1048576}}
+{"type":"record","record":{"id":"http-1","session_id":"fixture-session","kind":"http","identity":{"session_id":"fixture-session","revision":1},"outcome":"complete","snapshots":{"request_original":{"scheme":"https","host":"fixture.example","method":"POST","path":"/messages","query":"token=fictional-credential","headers":{"Authorization":["Bearer fictional-credential"]},"body_state":"complete","body_size":2,"captured":2}}}}
+{"type":"body","record_id":"http-1","snapshot":"request_original","data":"e30="}
+{"type":"record","record":{"id":"ws-1","session_id":"fixture-session","parent_id":"http-1","kind":"websocket","stage":"client_to_server","identity":{"session_id":"fixture-session","revision":1},"outcome":"complete","snapshots":{"message_original":{"message_type":"binary","headers":{},"body_state":"complete","body_size":1,"captured":1}}}}
+{"type":"body","record_id":"ws-1","snapshot":"message_original","data":"AA=="}
+{"type":"end","records":2}
