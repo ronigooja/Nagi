@@ -161,10 +161,10 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 				value = latencyText(*item.DelayMS)
 			}
 			if item.Error != "" {
-				value = item.Error
+				value = RenderMessageField(item, "/error", item.Error, writerLanguage(w))
 			}
 			if item.Unmeasurable != "" {
-				value = text(w, "cli.output.write.no_latency", "no latency (") + item.Unmeasurable + ")"
+				value = text(w, "cli.output.write.no_latency", "no latency (") + RenderMessageField(item, "/unmeasurable", item.Unmeasurable, writerLanguage(w)) + ")"
 			}
 			if err := line(w, item.Proxy+": "+value); err != nil {
 				return err
@@ -540,10 +540,10 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				label += text(w, "cli.output.writehumanmap.applied_version", "  Applied version: ") + entry.AppliedCacheVersion
 			}
 			if entry.LastFailureStage != "" {
-				label += text(w, "cli.output.writehumanmap.last_failure", "  Last failure: ") + entry.LastFailureStage + " (" + entry.LastFailureReason + ")"
+				label += text(w, "cli.output.writehumanmap.last_failure", "  Last failure: ") + entry.LastFailureStage + " (" + RenderMessageField(entry, "/last_failure_reason", entry.LastFailureReason, writerLanguage(w)) + ")"
 			}
 			if entry.PauseReason != "" {
-				label += text(w, "cli.output.writehumanmap.automatic_apply_paused", "  Automatic apply paused: ") + entry.PauseReason
+				label += text(w, "cli.output.writehumanmap.automatic_apply_paused", "  Automatic apply paused: ") + RenderMessageField(entry, "/pause_reason", entry.PauseReason, writerLanguage(w))
 			}
 
 			if err := line(w, label); err != nil {
@@ -728,7 +728,8 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 				return err
 			}
 			if warnings, ok := v["warnings"].([]string); ok {
-				for _, warning := range warnings {
+				for index, warning := range warnings {
+					warning = fieldText(w, fmt.Sprintf("/warnings/%d", index), warning)
 					if err := line(w, renderText(w, "cli.output.writehumanmap.warning.message", map[string]any{"detail": fmt.Sprint(warning)}, "Warning: "+fmt.Sprint(warning))); err != nil {
 						return err
 					}
@@ -996,6 +997,7 @@ func printSystemDNS(w io.Writer, data map[string]any) error {
 	}
 	for _, key := range []string{"system_dns_error", "system_dns_recovery_error"} {
 		if message, ok := data[key].(string); ok && message != "" {
+			message = fieldText(w, "/"+key, message)
 			if err := line(w, renderText(w, "cli.output.printsystemdns.system_dns_needs_attention.message", map[string]any{"detail": fmt.Sprint(RedactError(message))}, "System DNS needs attention: "+fmt.Sprint(RedactError(message))+". Inspect `nagi tun status` or retry `nagi stop`.")); err != nil {
 				return err
 			}

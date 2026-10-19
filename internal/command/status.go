@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/ronigooja/Nagi/internal/control"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/output"
 	"github.com/ronigooja/Nagi/internal/traffic"
 )
@@ -12,7 +13,8 @@ import (
 // appendStatusReads runs independent enrichment only after lifecycle status and
 // any stopped-engine recovery have completed. Each read owns its result; the
 // response map is updated by the caller's goroutine after all reads finish.
-func appendStatusReads(ctx context.Context, data map[string]any, running bool, client *control.Client, dnsStatus func(context.Context) (traffic.DNSState, error)) {
+func appendStatusReads(ctx context.Context, data map[string]any, running bool, client *control.Client, dnsStatus func(context.Context) (traffic.DNSState, error)) map[string]i18n.Descriptor {
+	messages := map[string]i18n.Descriptor{}
 	var wg sync.WaitGroup
 	var dns traffic.DNSState
 	var dnsErr, versionErr, configErr error
@@ -43,6 +45,7 @@ func appendStatusReads(ctx context.Context, data map[string]any, running bool, c
 		data["system_dns"] = dns
 		if dnsErr != nil {
 			data["system_dns_error"] = output.RedactError(dnsErr.Error())
+			rememberError(messages, "/system_dns_error", dnsErr)
 		}
 	}
 	if running && versionErr == nil {
@@ -51,4 +54,5 @@ func appendStatusReads(ctx context.Context, data map[string]any, running bool, c
 	if running && configErr == nil {
 		data["mixed_port"] = config["mixed-port"]
 	}
+	return messages
 }

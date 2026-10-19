@@ -1,0 +1,13 @@
+{
+  "cli.diff.warning.type": {
+    "arg0": "string"
+  },
+  "cli.diff.warning.rules": {},
+  "cli.diff.warning.dns": {},
+  "cli.diff.warning.removed": {},
+  "cli.diff.warning.order": {},
+  "cli.diff.warning.exposure": {},
+  "cli.diff.warning.invalid_yaml": {
+    "arg0": "string"
+  }
+}

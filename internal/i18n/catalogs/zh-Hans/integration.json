@@ -1,0 +1,9 @@
+{
+  "cli.diff.warning.type": "YAML 类型在 {arg0} 处发生变化；请确认目标配置接受此类型。",
+  "cli.diff.warning.rules": "规则顺序或内容已更改；请检查路由优先级。",
+  "cli.diff.warning.dns": "DNS 策略已更改；请检查加密路由和泄漏防护。",
+  "cli.diff.warning.removed": "代理或组已移除；请检查所选节点和规则目标。",
+  "cli.diff.warning.order": "代理或组的顺序已更改；请检查首选项和显示顺序。",
+  "cli.diff.warning.exposure": "网络暴露设置已更改；请检查绑定和认证设置。",
+  "cli.diff.warning.invalid_yaml": "{arg0}；仍可查看行差异"
+}

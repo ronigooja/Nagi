@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"gopkg.in/yaml.v3"
 	"reflect"
 	"sort"
@@ -52,7 +53,7 @@ type StructuralChange struct {
 	After  any    `json:"after,omitempty"`
 }
 
-func structuralDiff(before, after []byte) ([]StructuralChange, []string, error) {
+func structuralDiff(before, after []byte, metadata ...map[string]i18n.Descriptor) ([]StructuralChange, []string, error) {
 	var oldTree, newTree any
 	if err := yaml.Unmarshal(before, &oldTree); err != nil {
 		return nil, nil, messageError("cli.error.profile_diff.current_profile_is_not_valid_yaml_w", "current profile is not valid YAML: %w", err)
@@ -63,23 +64,33 @@ func structuralDiff(before, after []byte) ([]StructuralChange, []string, error) 
 	changes := []StructuralChange{}
 	walkStructure("", oldTree, newTree, &changes)
 	warnings := []string{}
+	seen := map[string]bool{}
+	appendWarning := func(message *i18n.Message) {
+		if seen[message.Error()] {
+			return
+		}
+		seen[message.Error()] = true
+		if len(metadata) > 0 {
+			metadata[0][fmt.Sprintf("/warnings/%d", len(warnings))] = message.Descriptor()
+		}
+		warnings = append(warnings, message.Error())
+	}
 	for _, change := range changes {
 		switch {
 		case change.Kind == "type_change":
-			warnings = append(warnings, "YAML type changed at "+change.Path+"; verify the target profile accepts it.")
+			appendWarning(messageError("cli.diff.warning.type", "YAML type changed at %s; verify the target profile accepts it.", change.Path))
 		case change.Path == "/rules" || strings.HasPrefix(change.Path, "/rules/"):
-			warnings = append(warnings, "Rule order or contents changed; verify routing priority.")
+			appendWarning(messageError("cli.diff.warning.rules", "Rule order or contents changed; verify routing priority."))
 		case change.Path == "/dns" || strings.HasPrefix(change.Path, "/dns/"):
-			warnings = append(warnings, "DNS policy changed; verify encrypted routing and leak protection.")
+			appendWarning(messageError("cli.diff.warning.dns", "DNS policy changed; verify encrypted routing and leak protection."))
 		case change.Kind == "removed" && (change.Path == "/proxies" || change.Path == "/proxy-groups" || strings.HasPrefix(change.Path, "/proxies/") || strings.HasPrefix(change.Path, "/proxy-groups/")):
-			warnings = append(warnings, "A proxy or group was removed; check selections and rule targets.")
+			appendWarning(messageError("cli.diff.warning.removed", "A proxy or group was removed; check selections and rule targets."))
 		case change.Kind == "order_changed" && (change.Path == "/proxy-groups" || change.Path == "/proxies"):
-			warnings = append(warnings, "Proxy or group order changed; check first-choice and display order.")
+			appendWarning(messageError("cli.diff.warning.order", "Proxy or group order changed; check first-choice and display order."))
 		case strings.HasPrefix(change.Path, "/external-controller") || change.Path == "/allow-lan" || change.Path == "/bind-address" || change.Path == "/secret" || change.Path == "/authentication" || change.Path == "/lan-allowed-ips":
-			warnings = append(warnings, "Network exposure setting changed; check bind and authentication settings.")
+			appendWarning(messageError("cli.diff.warning.exposure", "Network exposure setting changed; check bind and authentication settings."))
 		}
 	}
-	warnings = uniqueStrings(warnings)
 	if _, err := json.Marshal(changes); err != nil {
 		return nil, nil, messageError("cli.error.profile_diff.structural_yaml_values_cannot_be_represented_in_json_w", "structural YAML values cannot be represented in JSON: %w", err)
 	}

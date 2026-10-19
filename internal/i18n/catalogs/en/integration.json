@@ -1,0 +1,9 @@
+{
+  "cli.diff.warning.type": "YAML type changed at {arg0}; verify the target profile accepts it.",
+  "cli.diff.warning.rules": "Rule order or contents changed; verify routing priority.",
+  "cli.diff.warning.dns": "DNS policy changed; verify encrypted routing and leak protection.",
+  "cli.diff.warning.removed": "A proxy or group was removed; check selections and rule targets.",
+  "cli.diff.warning.order": "Proxy or group order changed; check first-choice and display order.",
+  "cli.diff.warning.exposure": "Network exposure setting changed; check bind and authentication settings.",
+  "cli.diff.warning.invalid_yaml": "{arg0}; line diff remains available"
+}

@@ -849,6 +849,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 		}
 		data := map[string]any{"running": status.Running, "socket_path": status.SocketPath, "log_path": status.LogPath}
+		messages := map[string]i18n.Descriptor{}
 		if recoveryError, e := os.ReadFile(dnsRecoveryErrorPath(paths)); e == nil {
 			data["system_dns_recovery_error"] = output.RedactError(string(recoveryError))
 		}
@@ -864,13 +865,16 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		if profileErr != nil {
 			data["profile_error"] = profileErr.Error()
+			rememberError(messages, "/profile_error", profileErr)
 		}
 		var dnsStatus func(context.Context) (traffic.DNSState, error)
 		if tunDNSOS == "darwin" {
 			dnsStatus = func(ctx context.Context) (traffic.DNSState, error) { return statusTUNDNS(ctx, paths) }
 		}
-		appendStatusReads(ctx, data, status.Running, client, dnsStatus)
-		return data, nil
+		for pointer, descriptor := range appendStatusReads(ctx, data, status.Running, client, dnsStatus) {
+			messages[pointer] = descriptor
+		}
+		return resultWithMessages(data, messages), nil
 	case "logs":
 		if backendMode == privilegedBackend {
 			b := helperBackend{profile: profileName, paths: paths}
@@ -1292,17 +1296,19 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		enabled, _ := tun["enable"].(bool)
 		if args[1] == "status" {
 			result := map[string]any{"enabled": enabled, "settings": tun}
+			messages := map[string]i18n.Descriptor{}
 			if tunDNSOS == "darwin" {
 				state, dnsErr := statusTUNDNS(ctx, paths)
 				result["system_dns"] = state
 				if dnsErr != nil {
 					result["system_dns_error"] = output.RedactError(dnsErr.Error())
+					rememberError(messages, "/system_dns_error", dnsErr)
 				}
 			}
 			for key, value := range tunAdapterReport(tun, net.Interfaces) {
 				result[key] = value
 			}
-			return result, nil
+			return resultWithMessages(result, messages), nil
 		}
 		requested := args[1] == "enable"
 		if !requested {
@@ -1332,17 +1338,19 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		tun, _ = cfg["tun"].(map[string]any)
 		enabled, _ = tun["enable"].(bool)
 		result := map[string]any{"enabled": enabled, "settings": tun}
+		messages := map[string]i18n.Descriptor{}
 		if tunDNSOS == "darwin" {
 			state, dnsErr := statusTUNDNS(ctx, paths)
 			result["system_dns"] = state
 			if dnsErr != nil {
 				result["system_dns_error"] = output.RedactError(dnsErr.Error())
+				rememberError(messages, "/system_dns_error", dnsErr)
 			}
 		}
 		for key, value := range tunAdapterReport(tun, net.Interfaces) {
 			result[key] = value
 		}
-		return result, nil
+		return resultWithMessages(result, messages), nil
 	case "ports":
 		cfg, e := trafficConfig(ctx, client)
 		if e != nil {
@@ -1510,19 +1518,22 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				reachable = client.Get(ctx, "/version", &v) == nil
 			}
 			result := map[string]any{"checked": true, "running": st.Running, "control_api": reachable}
+			messages := map[string]i18n.Descriptor{}
 			if runtime.GOOS == "darwin" && st.Running && reachable {
 				dnsState, dnsErr := syncTUNDNS(ctx, paths, client, st.PID)
 				result["system_dns"] = dnsState
 				if dnsErr != nil {
 					result["system_dns_error"] = output.RedactError(dnsErr.Error())
+					rememberError(messages, "/system_dns_error", dnsErr)
 				}
 				proxyCheck, checkErr := trafficManager.Recheck(ctx, st.PID)
 				result["system_proxy"] = proxyCheck
 				if checkErr != nil {
 					result["system_proxy_error"] = output.RedactError(checkErr.Error())
+					rememberError(messages, "/system_proxy_error", checkErr)
 				}
 			}
-			return result, nil
+			return resultWithMessages(result, messages), nil
 		}
 		return nil, usage("startup status|enable|disable|check")
 	case "service":
@@ -1673,12 +1684,15 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 		if err != nil {
 			return nil, fail("profile_error", err)
 		}
-		changes, warnings, parseErr := structuralDiff(before, after)
+		messages := map[string]i18n.Descriptor{}
+		changes, warnings, parseErr := structuralDiff(before, after, messages)
 		if parseErr != nil {
-			warnings = []string{parseErr.Error() + "; line diff remains available"}
+			warning := messageError("cli.diff.warning.invalid_yaml", "%s; line diff remains available", parseErr.Error())
+			warnings = []string{warning.Error()}
+			messages = map[string]i18n.Descriptor{"/warnings/0": warning.Descriptor()}
 			changes = []StructuralChange{}
 		}
-		return map[string]any{"name": args[2], "other": other, "diff": profileDiff(before, after), "changed": string(before) != string(after), "changes": changes, "warnings": warnings}, nil
+		return resultWithMessages(map[string]any{"name": args[2], "other": other, "diff": profileDiff(before, after), "changed": string(before) != string(after), "changes": changes, "warnings": warnings}, messages), nil
 	case "override":
 		if len(args) < 3 {
 			return nil, usage("profile override set NAME FILE|show NAME|clear NAME|apply-default NAME|default-status NAME|restore-default NAME")
@@ -1790,17 +1804,20 @@ func profileCommandWithCurrentError(ctx context.Context, args []string, store *p
 			return nil, err
 		}
 		data := map[string]any{"profiles": list}
+		messages := map[string]i18n.Descriptor{}
 		if currentErr != nil {
 			data["current_error"] = currentErr.Error()
+			rememberError(messages, "/current_error", currentErr)
 		} else {
 			current, err := store.Current()
 			if err != nil {
 				data["current_error"] = err.Error()
+				rememberError(messages, "/current_error", err)
 			} else {
 				data["current"] = current
 			}
 		}
-		return data, nil
+		return resultWithMessages(data, messages), nil
 	}
 	return profileCommand(ctx, args, store)
 }
