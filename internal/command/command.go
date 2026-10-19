@@ -171,7 +171,7 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		runner := menu.NewInputCommandRunner(func(argv []string, input io.Reader, out, errOut io.Writer) int {
 			return RunWithInput(argv, input, out, errOut, version, commit)
 		})
-		return menu.Run(context.Background(), menu.NewSession(runner, stdin, stdout))
+		return menu.Run(ctx, menu.NewSessionWithLanguage(runner, stdin, stdout, locale))
 	}
 	if len(filtered) == 2 && filtered[0] == "subscription" && filtered[1] == "watch" {
 		return runForegroundSubscriptionWatch(ctx, stdout, stderr, jsonMode, version, commit)
