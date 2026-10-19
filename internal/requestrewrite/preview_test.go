@@ -13,7 +13,7 @@ func TestPreviewSensitiveNoNetworkAndFraming(t *testing.T) {
 	d.Rules = []Rule{rule("edit", Operation{Op: "header_set", Name: "Cookie", Value: str("fictitious-secret")}, Operation{Op: "json_set", Pointer: "/n", Value: raw(`9007199254740993`)})}
 	s := compiled(t, d)
 	fixture := Fixture{Scheme: "https", Host: "api.service.example", Port: 443, Method: "POST", Path: "/v1/items", Query: "token=fictitious", Headers: map[string][]string{"Content-Type": {"application/json"}}, BodyBase64: base64.StdEncoding.EncodeToString([]byte(`{}`))}
-	input, _ := json.Marshal(fixture)
+	input, _ := json.Marshal(PreviewInput{Stage: StageRequest, Request: fixture})
 	result, e := s.PreviewSensitive(context.Background(), input)
 	if e != nil || !result.Sensitive || result.Outcome != "rewritten" || result.Request.Headers["Cookie"][0] != "fictitious-secret" {
 		t.Fatal(result, e)

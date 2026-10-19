@@ -323,6 +323,20 @@ func schema(v any) error {
 			if _, e := fields(v, keys...); e != nil {
 				return e
 			}
+			for _, k := range keys {
+				if k == "value" {
+					continue
+				}
+				if k == "all" {
+					if _, ok := o[k].(bool); !ok {
+						return invalid()
+					}
+				} else {
+					if _, ok := o[k].(string); !ok {
+						return invalid()
+					}
+				}
+			}
 		}
 	}
 	return nil

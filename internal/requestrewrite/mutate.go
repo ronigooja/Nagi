@@ -106,6 +106,11 @@ func (s *Snapshot) RuleSummaries() []RuleSummary {
 		methods := append([]string{}, r.Match.Methods...)
 		m := r.Match
 		m.Methods = methods
+		for _, pairs := range []map[string][]string{m.Query, m.Headers, m.ResponseHeaders} {
+			for k := range pairs {
+				pairs[k] = []string{"<redacted>"}
+			}
+		}
 		v := RuleSummary{ID: r.ID, Enabled: r.Enabled, Stage: r.Stage, RangeMode: r.RangeMode, Match: m, Operations: []string{}, OnError: r.OnError}
 		for _, o := range r.Operations {
 			v.Operations = append(v.Operations, o.Op)

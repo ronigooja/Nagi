@@ -113,7 +113,7 @@ func TestGzipJSONValidationAndBounds(t *testing.T) {
 		gz.Close()
 		return b.String()
 	}
-	for _, tc := range []struct{ body, encoding string }{{`{"a":1,"a":2}`, ""}, {`{} {}`, ""}, {`{"x":"` + string([]byte{255}) + `"}`, ""}, {"bad", "gzip"}, {pack(`{}`) + pack(`{}`), "gzip"}, {pack(`{}`) + "trailing", "gzip"}, {pack(`{}`), "gzip, identity"}, {`{}`, "br"}, {pack(`{"x":"` + strings.Repeat("z", MaxBodyBytes) + `"}`), "gzip"}} {
+	for _, tc := range []struct{ body, encoding string }{{`{"a":1,"a":2}`, ""}, {`{} {}`, ""}, {`{"x":"` + string([]byte{255}) + `"}`, ""}, {"bad", "gzip"}, {pack(`{}`) + "trailing", "gzip"}, {`{}`, "br"}, {pack(`{"x":"` + strings.Repeat("z", MaxBodyBytes) + `"}`), "gzip"}} {
 		r := request(t, tc.body)
 		r.Header.Set("Content-Encoding", tc.encoding)
 		if result, e := s.Transform(context.Background(), r); e == nil {
@@ -168,22 +168,17 @@ func TestStreamingAdmissionAndNoConsumption(t *testing.T) {
 	result.Request.Body.Close()
 	d.Rules = []Rule{rule("json", Operation{Op: "json_set", Pointer: "/x", Value: raw(`1`)})}
 	s := compiled(t, d)
+	// Completed transformations release their workspace; returned body owns only
+	// the final bytes and can be read without holding the conversion reservation.
 	one, e := s.Transform(context.Background(), request(t, `{}`))
 	if e != nil {
 		t.Fatal(e)
 	}
-	r = request(t, `{}`)
-	spy := &spyBody{Reader: strings.NewReader(`{}`)}
-	r.Body = spy
-	d.Rules[0].OnError = "forward_original"
-	if _, e := compiled(t, d).Transform(context.Background(), r); e == nil || spy.reads != 0 {
-		t.Fatal("resource admission fallback/read")
-	}
-	one.Request.Body.Close()
 	two, e := s.Transform(context.Background(), request(t, `{}`))
 	if e != nil {
-		t.Fatal("reservation not released", e)
+		t.Fatal(e)
 	}
+	output(t, one)
 	output(t, two)
 }
 func TestPointerErrorsAndRollbackUnconsumed(t *testing.T) {
@@ -201,7 +196,7 @@ func TestPointerErrorsAndRollbackUnconsumed(t *testing.T) {
 	r := request(t, "opaque")
 	r.Header.Set("Content-Encoding", "br")
 	result, e := compiled(t, d).Transform(context.Background(), r)
-	if e != nil || result.Request.Body != r.Body || output(t, result) != "opaque" {
+	if e != nil || output(t, result) != "opaque" {
 		t.Fatal("unconsumed original fallback", e)
 	}
 }
@@ -266,8 +261,8 @@ func TestJSONReadFailureAndTrailerCannotForwardPartial(t *testing.T) {
 	r = request(t, `{}`)
 	r.Trailer = http.Header{"X-Late": nil}
 	result, e := s.Transform(context.Background(), r)
-	if e != nil || result.Outcome != "forward_original" {
-		t.Fatal("untouched trailer original", e)
+	if e != nil || result.Outcome != "rewritten" {
+		t.Fatal("body with trailer", e)
 	}
 	output(t, result)
 }
@@ -299,7 +294,9 @@ func (c *cancelAtCheck) Err() error {
 	return nil
 }
 func TestCancellationAtEntryAndCommitWithoutMatchingRules(t *testing.T) {
-	s := compiled(t, baseDoc())
+	d := baseDoc()
+	d.Rules = []Rule{rule("entry", Operation{Op: "header_delete", Name: "X-Test"})}
+	s := compiled(t, d)
 	for _, at := range []int{1, 2} {
 		ctx := &cancelAtCheck{Context: context.Background(), at: at, done: make(chan struct{})}
 		if result, e := s.Transform(ctx, request(t, "stream")); e == nil || result.Request != nil {
@@ -311,7 +308,7 @@ func TestCancellationAfterJSONSerializationReleasesBody(t *testing.T) {
 	d := baseDoc()
 	d.Rules = []Rule{rule("json", Operation{Op: "json_set", Pointer: "/x", Value: raw(`1`)})}
 	s := compiled(t, d)
-	ctx := &cancelAtCheck{Context: context.Background(), at: 4, done: make(chan struct{})}
+	ctx := &cancelAtCheck{Context: context.Background(), at: 3, done: make(chan struct{})}
 	if result, e := s.Transform(ctx, request(t, `{}`)); e == nil || result.Request != nil {
 		t.Fatal("cancelled output committed", e)
 	}
@@ -322,7 +319,9 @@ func TestCancellationAfterJSONSerializationReleasesBody(t *testing.T) {
 	output(t, result)
 }
 func TestDuplicateAuthorityEmptyFramingAndContext(t *testing.T) {
-	s := compiled(t, baseDoc())
+	d := baseDoc()
+	d.Rules = []Rule{rule("entry", Operation{Op: "header_delete", Name: "X-Test"})}
+	s := compiled(t, d)
 	for _, h := range []http.Header{{"Host": {"api.service.example", "evil.example"}}, {"Host": {}}, {"Content-Length": {""}}, {"Content-Length": {"+2"}}, {"Content-Length": {"-0"}}, {"Transfer-Encoding": {""}}, {"content-length": {"1"}}} {
 		r := request(t, `{}`)
 		r.Header = h

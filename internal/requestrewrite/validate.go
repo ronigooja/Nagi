@@ -414,13 +414,7 @@ func bodyOperation(o Operation) bool {
 	}
 	return false
 }
-func allowedTrailer(name string) bool {
-	switch strings.ToLower(name) {
-	case "authorization", "www-authenticate", "content-type", "content-range", "range", "cache-control", "max-forwards", "set-cookie":
-		return false
-	}
-	return allowedHeader(name)
-}
+func allowedTrailer(name string) bool { return ValidTrailerName(name) && allowedHeader(name) }
 
 // MarshalJSON preserves the exact fields required for each operation.
 func (o Operation) MarshalJSON() ([]byte, error) {

@@ -38,11 +38,8 @@ func TestStoreIsolationMutationsAndRedaction(t *testing.T) {
 		t.Fatal(result, e)
 	}
 	other, e := (Store{ConfigDir: dir, Profile: "other"}).Load()
-	if e != nil || len(other.doc.Domains) != 0 {
+	if e != nil || len(other.doc.Rules) != 0 {
 		t.Fatal("profile leak")
-	}
-	if _, e = s.RemoveDomain(ctx, "api"); e == nil {
-		t.Fatal("dangling authorization allowed")
 	}
 	if _, e = s.AddRule(ctx, rule("two", Operation{Op: "header_delete", Name: "Cookie"})); e != nil {
 		t.Fatal(e)
@@ -109,12 +106,12 @@ func TestStoreActivationRollbackAndEnabledImport(t *testing.T) {
 		t.Fatal(e)
 	}
 	portable := baseDoc()
-	portable.Domains = append(portable.Domains, Domain{"more", "more.example"})
+	portable.Rules = append(portable.Rules, rule("more", Operation{Op: "header_delete", Name: "X-Example"}))
 	if _, e := s.ImportSensitive(ctx, mustJSON(t, portable)); e != nil {
 		t.Fatal(e)
 	}
 	got, _ = s.Load()
-	if !got.doc.Enabled || len(got.doc.Domains) != 3 {
+	if !got.doc.Enabled || len(got.doc.Rules) != 1 {
 		t.Fatal("intent not retained independently")
 	}
 	if _, e := s.save(ctx, old, old.Version()); e == nil || e.Error() != "rewrite_conflict" {

@@ -58,7 +58,7 @@ func TransformTrailers(original http.Header, ops []Operation) (http.Header, erro
 			n += len(name) + len(v) + 4
 		}
 	}
-	if n > MaxHeadersBytes {
+	if n > MaxTrailersBytes {
 		return nil, &Error{Code: "rewrite_limit"}
 	}
 	return out, nil
