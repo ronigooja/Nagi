@@ -163,7 +163,8 @@ enum CaptureDetailSection: String, CaseIterable {
     }
     @ViewBuilder private func headerRows(_ fields: [String: [String]]?, kind: String, stage: String?, allowsRule: Bool = true) -> some View {
         if let fields, !fields.isEmpty {
-            ForEach(fields.keys.sorted(), id: \.self) { key in
+            let keys = fields.keys.sorted()
+            ForEach(keys, id: \.self) { key in
                 let value = (fields[key] ?? []).joined(separator: "\n")
                 VStack(alignment: .leading, spacing: 4) {
                     Text(key).font(.system(.caption, design: .monospaced).weight(.semibold)).foregroundColor(.secondary)
@@ -179,7 +180,7 @@ enum CaptureDetailSection: String, CaseIterable {
                             .disabled(!canCreateRule)
                     }
                 }
-                Divider()
+                if key != keys.last { Divider() }
             }
         } else { Text("No headers.").font(.callout).foregroundColor(.secondary) }
     }
