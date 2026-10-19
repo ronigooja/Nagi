@@ -3,8 +3,8 @@ import XCTest
 @testable import NagiApp
 
 final class CaptureTests: XCTestCase {
-    private func reply(owner: String = "cli", state: String = "recording", records: Bool = false) throws -> CaptureReply {
-        let status: [String: Any] = ["session_id": "session", "revision": 1, "state": state, "profile": "default", "backend": "user", "owner": owner, "scope": ["domains": [], "process_paths": [], "app_paths": []], "body_limit": 1048576, "records": 1, "bytes": 0, "dropped": 0, "truncated": 0, "read_only": false]
+    private func reply(owner: String = "cli", state: String = "recording", records: Bool = false, scope: CaptureScope = CaptureScope()) throws -> CaptureReply {
+        let status: [String: Any] = ["session_id": "session", "revision": 1, "state": state, "profile": "default", "backend": "user", "owner": owner, "scope": ["domains": scope.domains, "process_paths": scope.processPaths, "app_paths": scope.appPaths], "body_limit": 1048576, "records": 1, "bytes": 0, "dropped": 0, "truncated": 0, "read_only": false]
         var value: [String: Any] = ["sensitive": true, "status": status]
         if records { value["records"] = [try JSONSerialization.jsonObject(with: recordData)] }
         return try JSONDecoder().decode(CaptureReply.self, from: JSONSerialization.data(withJSONObject: value))
@@ -125,6 +125,35 @@ final class CaptureTests: XCTestCase {
         XCTAssertFalse(actions.contains("start")); XCTAssertFalse(actions.contains("resume"))
         model.setVisible(false)
     }
+    @MainActor func testScopeReflectsObservedSessionAndUnlocksOnlyAfterStop() async throws {
+        let scope = CaptureScope(domains: ["example.invalid"], processPaths: [], appPaths: ["/Applications/Fictional.app"])
+        var current = try reply(scope: scope)
+        var mutations = 0
+        let model = CaptureModel(read: { _, _ in current }, submit: { _, _ in mutations += 1; return current }, export: { _ in }, interval: 60_000_000_000)
+        XCTAssertNil(model.activeScope)
+        XCTAssertTrue(model.canEditScope)
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        await wait { !model.isReading }
+        // CLI-owned and paused/uncertain sessions must show their actual scope,
+        // even when this window has never edited or started a capture.
+        for state in ["recording", "paused", "uncertain"] {
+            current = try reply(state: state, scope: scope)
+            model.refresh(); await wait { !model.isReading }
+            XCTAssertEqual(model.activeScope, scope)
+            XCTAssertFalse(model.canEditScope)
+        }
+        current = try reply(state: "stopped", scope: scope)
+        model.refresh(); await wait { !model.isReading }
+        XCTAssertNil(model.activeScope)
+        XCTAssertTrue(model.canEditScope)
+        model.setBlocked(true)
+        XCTAssertFalse(model.canEditScope)
+        model.setBlocked(false)
+        XCTAssertTrue(model.canEditScope)
+        XCTAssertEqual(mutations, 0)
+    }
+
     @MainActor func testScopeSentThroughInputAndBlockedMutationRejected() async throws {
         var input: Data?, submitted: [String] = []
         let status = try reply()

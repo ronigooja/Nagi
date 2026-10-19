@@ -128,10 +128,11 @@ truncated imports preserve the previous session.
 The CLI owns the sequential readiness query used when opening the terminal
 capture page or native capture window. `capture check` stops at the first unmet
 prerequisite without inspecting later stages. It reuses activation prerequisite
-validation and does not need or start a recorder. Both interfaces display one
-readiness message without setup actions, preserving offline history/archive
-access. The App checks again on explicit Refresh or window reopening, rather
-than on automatic record polling; canceled checks cannot publish stale results.
+validation and does not need or start a recorder. Both interfaces display the
+first unmet prerequisite without setup actions, preserving offline history/archive
+access. The App omits the success message when ready. It checks again on explicit
+Refresh or window reopening, rather than on automatic record polling; canceled
+checks cannot publish stale results.
 Start retains its independent validation. The exact check order and response
 contract belong to the [CLI reference](../reference/cli.md#original-request-capture-and-capture-derived-drafts).
 
@@ -142,6 +143,20 @@ gate with settings and quit. The list and snapshot views display original
 content, including URLs, headers, trailers and bodies. Body views support text,
 JSON, hex and original/actual comparison. Context selections feed a local quick
 rule draft through the CLI; operation validation and saving remain CLI work.
+
+The capture toolbar contains session controls, a scope summary, Refresh and a
+More menu. The window title identifies the page; the content does not repeat a
+page title or profile name. Scope opens a popover for domain patterns, exact
+process paths and application paths. With no active session, edits stay in the
+window's draft and Start submits them directly. Recording, paused and uncertain
+sessions show the observed session scope in the popover without editing; Stop
+must complete before scope editing becomes available again. This also applies
+to sessions started through the CLI. Scope is separate from the search and
+filters applied to retained records. More contains the next-session body limit,
+import, export and clear. Generic operation/export success notices are omitted;
+session state and records show results, while errors and recovery remain visible.
+The footer shows record count, formatted byte size and nonzero loss counters,
+with a fixed-size refresh indicator slot to avoid shifting content.
 
 AppKit owns the capture window size. The SwiftUI host does not derive window
 minimum, maximum or ideal sizes from capture content; layout is bounded by the

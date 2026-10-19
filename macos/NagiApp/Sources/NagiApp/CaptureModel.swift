@@ -19,7 +19,6 @@ import Foundation
     private(set) var selectedBody = Data()
     private(set) var bodyText = ""
     private(set) var error: String?
-    private(set) var notice: String?
     private(set) var prerequisiteMessage: String?
     private(set) var prerequisitesReady = false
     private var pendingPrerequisiteCheck = false
@@ -30,6 +29,11 @@ import Foundation
     private(set) var format: CaptureBodyFormat = .raw
     var selectedRecord: CaptureRecord? { records.first { $0.id == selectedID } }
     var canOperate: Bool { !blocked && !suspended && !operationInProgress }
+    var activeScope: CaptureScope? {
+        guard let status, !status.canStartNewSession else { return nil }
+        return status.scope
+    }
+    var canEditScope: Bool { canOperate && activeScope == nil }
     var ownsSession: Bool { status?.owner == owner }
     var isReading: Bool { readTask != nil }
     private var visible = false, blocked = false, suspended = false
@@ -221,13 +225,12 @@ import Foundation
     func mutate(_ action: String) async { guard let id = status?.sessionID else { return }; _ = await perform([action, id]) }
     @discardableResult func perform(_ args: [String], input: Data? = nil) async -> Bool {
         guard canOperate else { return false }
-        operationInProgress = true; cancelReads(); error = nil; notice = nil; notify()
+        operationInProgress = true; cancelReads(); error = nil; notify()
         await waitForCancelledRead()
         do {
             let reply = try await submit(args, input)
             status = reply.status ?? status
             if args.first == "clear" || args.first == "import" || args.first == "start" { records = []; select(nil) }
-            notice = "Operation completed."
             operationInProgress = false; updateActivity(); onStatusChange?(); return true
         } catch {
             self.error = error.localizedDescription + " Refresh before retrying if the result is uncertain."
@@ -237,7 +240,7 @@ import Foundation
     func exportFile(_ file: String, format: String) async {
         guard canOperate else { return }
         operationInProgress = true; cancelReads(); await waitForCancelledRead(); notify()
-        do { try await export([file, format]); notice = "Export completed." }
+        do { try await export([file, format]) }
         catch { self.error = error.localizedDescription }
         operationInProgress = false; updateActivity()
     }

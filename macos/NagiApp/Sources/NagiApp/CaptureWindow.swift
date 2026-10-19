@@ -72,8 +72,7 @@ import SwiftUI
     @State private var process = ""
     @State private var ascending = false
     @State private var bodyLimit = 1_048_576
-    @State private var archiveFormat = "native"
-    @State private var scopeExpanded = true
+    @State private var scopePresented = false
     @State private var jsonPointer = ""
     private var model: CaptureModel { presentation.model }
     var body: some View {
@@ -86,13 +85,13 @@ import SwiftUI
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
             ScrollView(.horizontal) { controls }.fixedSize(horizontal: false, vertical: true)
-            if let message = model.prerequisiteMessage {
-                Text(message).font(.callout).foregroundColor(model.prerequisitesReady ? .secondary : .orange).textSelection(.enabled)
+            if !model.prerequisitesReady, let message = model.prerequisiteMessage {
+                Text(message).font(.callout).foregroundColor(.orange).textSelection(.enabled)
             }
-            DisclosureGroup("Capture Scope", isExpanded: $scopeExpanded) { scope }
             ScrollView(.horizontal) { HStack {
-                TextField("Search original URLs, headers and bodies", text: $query)
+                TextField("Search requests", text: $query)
                     .frame(minWidth: 220)
+                    .help("Search original URLs, headers and bodies")
                 Picker("Kind", selection: $kind) { Text("All").tag(""); Text("HTTP").tag("http"); Text("WebSocket").tag("websocket") }.frame(width: 170)
                 TextField("Domain", text: $domain).frame(width: 160)
                 TextField("Process path", text: $process).frame(width: 180)
@@ -105,63 +104,122 @@ import SwiftUI
                 details.frame(minWidth: 440)
             }
             HStack {
-                Text(model.stale ? "Displayed capture may be stale." : "\(model.records.count) matching records")
-                if let status = model.status { Text("\(status.bytes) bytes · \(status.dropped) dropped · \(status.truncated) truncated") }
+                Text("\(model.records.count) records")
+                if model.stale { Text("Out of date").foregroundColor(.orange) }
+                if let status = model.status {
+                    Text(ByteCountFormatter.string(fromByteCount: status.bytes, countStyle: .file))
+                    if status.dropped > 0 { Text("\(status.dropped) dropped").foregroundColor(.orange) }
+                    if status.truncated > 0 { Text("\(status.truncated) truncated").foregroundColor(.orange) }
+                }
                 Spacer()
-                if model.isReading || model.readingBody { ProgressView().controlSize(.small) }
+                // Keep the status row the same size between refreshes.
+                ZStack {
+                    if model.isReading || model.readingBody { ProgressView().controlSize(.small) }
+                }.frame(width: 16, height: 16)
             }.font(.caption).foregroundColor(.secondary)
             if let error = model.error { Text(error).foregroundColor(.red).textSelection(.enabled) }
             if let status = model.status, let recovery = status.recovery {
                 Text("Recorder: \(status.recorderState ?? "unknown"). \(recovery)").font(.callout).foregroundColor(.orange).textSelection(.enabled)
             }
-            if let notice = model.notice { Text(notice).font(.caption).foregroundColor(.secondary) }
         }.padding()
     }
     private var controls: some View {
         HStack {
-            Text("Capture").font(.title2.bold())
-            Text(model.status.map { "\($0.state.capitalized) · \($0.profile)" } ?? "No session").foregroundColor(model.status?.state == "recording" ? .red : .secondary)
-            if model.status?.readOnly == true { Text("Imported · Read only").foregroundColor(.secondary) }
-            Spacer()
-            Button("Start") { Task { await model.start(scope: CaptureScope(domains: lines(domains), processPaths: lines(processes), appPaths: lines(apps)), bodyLimit: bodyLimit) } }
+            Button("Start") { Task { await model.start(scope: draftScope, bodyLimit: bodyLimit) } }
                 .disabled(!model.canOperate || model.status?.canStartNewSession == false)
             Button(model.status?.state == "paused" ? "Resume" : "Pause") { Task { await model.mutate(model.status?.state == "paused" ? "resume" : "pause") } }
                 .disabled(!model.canOperate || model.status?.canPauseOrResume != true)
             Button("Stop") { Task { await model.mutate("stop") } }.disabled(!model.canOperate || model.status?.canStop != true)
-            Button("Clear") { Task { await model.mutate("clear") } }.disabled(!model.canOperate || model.status == nil || model.status?.readOnly == true)
-            Button("Refresh") { model.refreshPrerequisites() }.disabled(!model.canOperate)
-            Button("Import…") { importFile() }.disabled(!model.canOperate || model.status?.canStartNewSession == false)
-            Menu("Export…") {
-                Button("Native Archive…") { exportFile("native") }
-                Button("HAR…") { exportFile("har") }
-            }.disabled(!model.canOperate || model.status == nil)
+            Divider().frame(height: 16)
+            Button { scopePresented.toggle() } label: {
+                HStack(spacing: 4) {
+                    Text("Scope: \(scopeSummary)")
+                    Image(systemName: "chevron.down").font(.caption2)
+                }
+            }
+            .popover(isPresented: $scopePresented, arrowEdge: .bottom) { scope }
+            if model.status?.readOnly == true { Text("Read only").foregroundColor(.secondary) }
+            else if let status = model.status {
+                Text(status.state.capitalized).foregroundColor(status.state == "recording" ? .red : .secondary)
+            }
+            Spacer(minLength: 16)
+            Button { model.refreshPrerequisites() } label: { Image(systemName: "arrow.clockwise") }
+                .help("Refresh").accessibilityLabel("Refresh").disabled(!model.canOperate)
+            Menu {
+                Picker("Body limit", selection: bodyLimitSelection) {
+                    Text("1 MiB").tag(1_048_576); Text("4 MiB").tag(4_194_304); Text("8 MiB").tag(8_388_608)
+                }.disabled(!model.canEditScope)
+                Divider()
+                Button("Import…") { importFile() }.disabled(!model.canOperate || model.status?.canStartNewSession == false)
+                Menu("Export") {
+                    Button("Native Archive…") { exportFile("native") }
+                    Button("HAR…") { exportFile("har") }
+                }.disabled(!model.canOperate || model.status == nil)
+                Divider()
+                Button("Clear") { Task { await model.mutate("clear") } }.disabled(!model.canOperate || model.status == nil || model.status?.readOnly == true)
+            } label: { Image(systemName: "ellipsis") }.help("More").accessibilityLabel("More")
         }
     }
+    private var draftScope: CaptureScope {
+        CaptureScope(domains: lines(domains), processPaths: lines(processes), appPaths: lines(apps))
+    }
+    private var displayedScope: CaptureScope { model.activeScope ?? draftScope }
+    private var bodyLimitSelection: Binding<Int> {
+        Binding(get: { model.activeScope == nil ? bodyLimit : (model.status?.bodyLimit ?? bodyLimit) },
+                set: { if model.canEditScope { bodyLimit = $0 } })
+    }
+    private var scopeSummary: String {
+        let value = displayedScope
+        let parts = [(value.domains.count, "domain", "domains"),
+                     (value.processPaths.count, "process", "processes"),
+                     (value.appPaths.count, "application", "applications")]
+            .filter { $0.0 > 0 }
+            .map { "\($0.0) \($0.0 == 1 ? $0.1 : $0.2)" }
+        return parts.isEmpty ? "All traffic" : parts.joined(separator: " · ")
+    }
     private var scope: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Capture shows complete URLs, credentials and bodies. Empty scope includes all applications. Domain, process and application restrictions combine.").font(.callout).foregroundColor(.secondary)
-            HStack(alignment: .top) {
-                scopeField("Domains (one pattern per line)", text: $domains)
-                scopeField("Process paths (one per line)", text: $processes)
-                scopeField("Application paths (one .app per line)", text: $apps)
+        VStack(alignment: .leading, spacing: 12) {
+            scopeField("Domains", text: $domains, current: displayedScope.domains)
+                .help("One domain pattern per line. Empty matches all domains. Different scope categories combine.")
+            scopeField("Processes", text: $processes, current: displayedScope.processPaths)
+                .help("One exact absolute process path per line")
+            scopeField("Applications", text: $apps, current: displayedScope.appPaths)
+                .help("One absolute .app path per line, including its helper processes")
+            if model.activeScope == nil {
+                HStack {
+                    Button("Find Applications") { model.discoverApplications() }
+                    Menu("Add Application") {
+                        ForEach(model.applications) { app in
+                            Button(app.appPath.isEmpty ? app.processPath : app.appPath) {
+                                if app.appPath.isEmpty { processes += (processes.isEmpty ? "" : "\n") + app.processPath }
+                                else { apps += (apps.isEmpty ? "" : "\n") + app.appPath }
+                            }
+                        }
+                    }.disabled(model.applications.isEmpty)
+                }.disabled(!model.canEditScope)
+            }
+            if model.activeScope != nil {
+                Text("Stop capture to change the scope.").font(.caption).foregroundColor(.secondary)
             }
             HStack {
-                Button("Find Applications") { model.discoverApplications() }
-                Menu("Add Application") {
-                    ForEach(model.applications) { app in
-                        Button(app.appPath.isEmpty ? app.processPath : app.appPath) {
-                            if app.appPath.isEmpty { processes += (processes.isEmpty ? "" : "\n") + app.processPath }
-                            else { apps += (apps.isEmpty ? "" : "\n") + app.appPath }
-                        }
-                    }
-                }.disabled(model.applications.isEmpty)
-                Picker("Body limit", selection: $bodyLimit) { Text("1 MiB").tag(1_048_576); Text("4 MiB").tag(4_194_304); Text("8 MiB").tag(8_388_608) }.frame(width: 210)
-                Text("Scope applies when starting a new session.").font(.caption).foregroundColor(.secondary)
+                Spacer()
+                Button("Done") { scopePresented = false }.keyboardShortcut(.defaultAction)
             }
-        }.padding(.vertical, 6)
+        }.padding(16).frame(width: 420)
     }
-    private func scopeField(_ title: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading) { Text(title).font(.caption); TextEditor(text: text).font(.system(.caption, design: .monospaced)).frame(height: 52).border(Color.secondary.opacity(0.3)) }
+    private func scopeField(_ title: String, text: Binding<String>, current: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption).foregroundColor(.secondary)
+            if model.activeScope != nil {
+                ScrollView {
+                    Text(current.isEmpty ? "All" : current.joined(separator: "\n"))
+                        .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                }.frame(height: 52)
+            } else {
+                TextEditor(text: text).frame(height: 52).border(Color.secondary.opacity(0.3))
+                    .disabled(!model.canEditScope)
+            }
+        }.font(.system(.caption, design: .monospaced))
     }
     private var recordList: some View {
         List(selection: Binding(get: { model.selectedID }, set: { model.select($0) })) {
@@ -217,7 +275,7 @@ import SwiftUI
                     Button("Create Rule…") { model.createRule() }
                 }.disabled(model.onCreateRule == nil || model.readingBody)
             }.padding(8)
-        } else { Text("Select a request or WebSocket message to inspect its content. After starting capture, create a new connection in the application.").foregroundColor(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity) }
+        } else { Text("Select a request").foregroundColor(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity) }
     }
     private func headerRows(_ fields: [String: [String]]?, kind: String, stage: String?) -> some View {
         ForEach((fields ?? [:]).keys.sorted(), id: \.self) { key in

@@ -34,9 +34,13 @@ available when prerequisites are unmet.
 
 ## Start and inspect
 
-On macOS, open **Request Capture…** in the menu bar app. Set domain patterns, exact
-process paths or outermost `.app` paths, then choose **Start**. **Find
-Applications** lists observed identities; a path may also be entered before the
+On macOS, open **Request Capture…** in the menu bar app. Open **Scope: All traffic**
+in the toolbar, enter domain patterns, exact process paths or outermost `.app`
+paths, close the popover, then choose **Start**. During recording or pause, Scope
+shows the actual session conditions; stop capture before editing them. The
+**More** (ellipsis) menu contains **Body limit**, **Import…**, **Export** and
+**Clear**. **Find Applications** in the scope popover lists observed identities;
+a path may also be entered before the
 application appears. Empty categories impose no restriction. Populated domain,
 process and application categories combine with AND; alternatives within each
 category combine with OR. Unknown process identity cannot match a process or

@@ -61,6 +61,12 @@ configuring TUN and certificate trust through the existing controls. Starting
 capture never enables TUN or installs trust. Capture applies to new connections;
 create a new connection in the application after starting it.
 
+The toolbar's **Scope: All traffic** control opens a popover for the next
+capture. Edits stay in the window; **Start** uses them directly. During recording,
+pause or uncertain recovery, the control shows the actual session scope for
+inspection; stop capture before editing it. The **More** (ellipsis) menu contains
+the next-session **Body limit**, **Import…**, **Export** and **Clear** actions.
+
 The scope accepts domain patterns, exact process paths and application bundle
 paths, including paths entered before the application appears in **Find
 Applications**. Empty scope captures all applications. Different scope categories
@@ -97,7 +103,9 @@ before the existing quit cleanup. Profile/backend changes or TUN/engine exit sto
 capture, and later restart does not resume it. Settings operations, capture
 mutations and quit cleanup share the App operation gate.
 
-The native source compiles and has model, transport and window lifecycle tests.
+The native source has model, transport and window lifecycle tests. The toolbar
+and scope popover changes have not been compiled or interactively verified on
+the Linux authoring host; native macOS build, tests and interaction remain pending.
 Actual Linux/macOS TUN and helper fixtures, native trust cleanup and the
 model-to-CLI capture-to-rule chain have verification evidence. Manual menu-bar
 clicks and sleep/wake acceptance remain unverified. See the [capture guide](../../docs/guides/request-capture.md),
