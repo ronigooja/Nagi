@@ -592,19 +592,8 @@
   "system.privileged.multiple.yaml.documents.are.not.allowed.field": {
     "field": "string"
   },
-  "system.privileged.root.privileges.required.for.resource.snapshot.field": {
-    "field": "string"
-  },
-  "system.privileged.is.not.root.owned.field": {
-    "arg0": "string",
-    "field": "string"
-  },
   "system.privileged.tun.is.outside.the.privileged.allowlist.field": {
     "arg1": "string",
-    "field": "string"
-  },
-  "system.privileged.is.not.a.directory.field": {
-    "arg0": "string",
     "field": "string"
   },
   "system.privileged.rule.provider.has.no.type.field": {
@@ -619,14 +608,6 @@
     "field": "string"
   },
   "system.privileged.expected.true.or.false.field": {
-    "field": "string"
-  },
-  "system.privileged.resource.size.is.outside.1.bytes.field": {
-    "arg1": "string",
-    "field": "string"
-  },
-  "system.privileged.is.writable.or.readable.by.other.users.field": {
-    "arg0": "string",
     "field": "string"
   },
   "system.privileged.may.access.a.local.file.or.execute.code.field": {
@@ -646,9 +627,6 @@
     "arg1": "string",
     "field": "string"
   },
-  "system.privileged.provider.tailscale.nodes.are.not.supported.field": {
-    "field": "string"
-  },
   "system.privileged.configuration.must.be.1.bytes.field": {
     "arg1": "string",
     "field": "string"
@@ -658,9 +636,6 @@
     "field": "string"
   },
   "system.privileged.expected.a.literal.string.field": {
-    "field": "string"
-  },
-  "system.privileged.snapshot.directory.must.be.an.absolute.clean.path.field": {
     "field": "string"
   },
   "system.privileged.yaml.nesting.is.too.deep.field": {
@@ -676,10 +651,102 @@
   "system.privileged.must.be.false.field": {
     "field": "string"
   },
-  "system.privileged.root.privileges.required.for.configuration.snapshot.field": {
-    "field": "string"
-  },
   "system.privileged.field.invalid": {
     "field": "string"
-  }
+  },
+  "system.rewrite.invalid": {},
+  "system.rewrite.invalid.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.limit": {},
+  "system.rewrite.limit.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.cancelled": {},
+  "system.rewrite.cancelled.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.ca.exists": {},
+  "system.rewrite.ca.exists.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.ca.invalid": {},
+  "system.rewrite.ca.invalid.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.ca.required": {},
+  "system.rewrite.ca.required.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.storage": {},
+  "system.rewrite.storage.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.script.referenced": {},
+  "system.rewrite.script.referenced.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.auth": {},
+  "system.rewrite.auth.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.range.conflict": {},
+  "system.rewrite.range.conflict.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.transform": {},
+  "system.rewrite.transform.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.script.block": {},
+  "system.rewrite.script.block.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.script.execution": {},
+  "system.rewrite.script.execution.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.script.output": {},
+  "system.rewrite.script.output.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.script.timeout": {},
+  "system.rewrite.script.timeout.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.activation.failed": {},
+  "system.rewrite.activation.failed.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.activation.required": {},
+  "system.rewrite.activation.required.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.conflict": {},
+  "system.rewrite.conflict.rule": {
+    "rule": "string"
+  },
+  "system.rewrite.state.uncertain": {},
+  "system.rewrite.state.uncertain.rule": {
+    "rule": "string"
+  },
+  "system.capture.request.invalid": {},
+  "system.capture.archive.invalid": {},
+  "system.capture.format.invalid": {},
+  "system.capture.export.failed": {},
+  "system.capture.state.invalid": {},
+  "system.capture.byte.limit": {},
+  "system.capture.unavailable": {},
+  "system.capture.directory.invalid": {},
+  "system.capture.owner.invalid": {},
+  "system.capture.socket.exists": {},
+  "system.capture.bind.failed": {},
+  "system.capture.permissions.failed": {},
+  "system.capture.service.failed": {},
+  "system.rewritescript.busy": {},
+  "system.rewritescript.limit": {},
+  "system.rewritescript.execution.failed": {},
+  "system.rewritescript.invalid.output": {},
+  "system.rewritescript.timeout": {},
+  "system.rewritescript.canceled": {}
 }

@@ -94,6 +94,18 @@ func (m *Manager) record() (record, error) {
 
 // Manage owns maintenance operations; the terminal menu and App only dispatch.
 func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOption ...bool) (map[string]any, error) {
+	return m.manage(ctx, action, tag, nil, purgeDataOption...)
+}
+
+// ManageWithMessages preserves Manage's data and validation while exposing
+// source metadata for presentation-aware CLI consumers.
+func (m *Manager) ManageWithMessages(ctx context.Context, action, tag string, purgeDataOption ...bool) (i18n.Result, error) {
+	var messages map[string]i18n.Descriptor
+	value, err := m.manage(ctx, action, tag, &messages, purgeDataOption...)
+	return i18n.Result{Value: value, Messages: messages}, err
+}
+
+func (m *Manager) manage(ctx context.Context, action, tag string, messages *map[string]i18n.Descriptor, purgeDataOption ...bool) (map[string]any, error) {
 	if m.LockFD == 3 && m.PreparedArtifact == "" {
 		return nil, i18n.Errorf("system.installation.missing.prepared.update.artifact", "missing prepared update artifact")
 	}
@@ -109,7 +121,14 @@ func (m *Manager) Manage(ctx context.Context, action, tag string, purgeDataOptio
 		return nil, i18n.Errorf("system.installation.app.management.is.supported.only.on.macos", "App management is supported only on macOS")
 	}
 	if action == "app-update-error" {
-		return consumeUpdateError()
+		result, err := consumeUpdateErrorResult()
+		if err != nil {
+			return nil, err
+		}
+		if messages != nil {
+			*messages = result.Messages
+		}
+		return result.Value.(map[string]any), nil
 	}
 	background := action == "background-update"
 	if background && m.OS != "darwin" {

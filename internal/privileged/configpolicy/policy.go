@@ -368,6 +368,10 @@ func fieldError(field string, err error) error {
 	var message *i18n.Message
 	if errors.As(err, &message) {
 		descriptor := message.Descriptor()
+		if inner, ok := descriptor.Args["field"].(string); ok && strings.HasSuffix(descriptor.ID, ".field") {
+			descriptor.Args["field"] = field + "." + inner
+			return i18n.NewMessage(descriptor.ID, descriptor.Args, original.Error(), original)
+		}
 		// Compose a registered event variant from the source ID, never error text.
 		if i18n.ValidDescriptor(i18n.Descriptor{ID: descriptor.ID + ".field", Args: withField(descriptor.Args, field)}) {
 			return i18n.NewMessage(descriptor.ID+".field", withField(descriptor.Args, field), original.Error(), original)

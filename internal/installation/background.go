@@ -2,7 +2,12 @@ package installation
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,25 +44,125 @@ func SaveUpdateError(err error) error {
 	if len(message) > 32768 {
 		message = message[:32768]
 	}
-	return os.WriteFile(path, []byte(message), 0600)
+	if e := removeUpdateErrorMetadata(path); e != nil {
+		return e
+	}
+	if e := os.WriteFile(path, []byte(message), 0600); e != nil {
+		return e
+	}
+	if e := os.Chmod(path, 0600); e != nil {
+		return e
+	}
+	var source *i18n.Message
+	if !errors.As(err, &source) || source.Error() != err.Error() {
+		return nil
+	}
+	descriptor := source.Descriptor()
+	if !i18n.ValidDescriptor(descriptor) {
+		return nil
+	}
+	for key, value := range descriptor.Args {
+		if text, ok := value.(string); ok {
+			descriptor.Args[key] = output.RedactError(text)
+		}
+	}
+	encoded, e := json.Marshal(updateErrorMetadata{Digest: updateErrorDigest(message), Message: descriptor})
+	if e != nil {
+		return e
+	}
+	temp, e := os.CreateTemp(filepath.Dir(path), ".update-error-message-*")
+	if e != nil {
+		return e
+	}
+	defer os.Remove(temp.Name())
+	if _, e := temp.Write(encoded); e != nil {
+		_ = temp.Close()
+		return e
+	}
+	if e := temp.Close(); e != nil {
+		return e
+	}
+	return os.Rename(temp.Name(), path+".messages")
+}
+
+type updateErrorMetadata struct {
+	Digest  string          `json:"sha256"`
+	Message i18n.Descriptor `json:"message"`
+}
+
+func updateErrorDigest(message string) string {
+	digest := sha256.Sum256([]byte(message))
+	return hex.EncodeToString(digest[:])
+}
+func removeUpdateErrorMetadata(path string) error {
+	err := os.Remove(path + ".messages")
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+func readUpdateErrorMessage(path, message string) (i18n.Descriptor, bool) {
+	file, err := os.Open(path + ".messages")
+	if err != nil {
+		return i18n.Descriptor{}, false
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 128<<10))
+	if err != nil {
+		return i18n.Descriptor{}, false
+	}
+	var metadata updateErrorMetadata
+	if json.Unmarshal(data, &metadata) != nil || metadata.Digest != updateErrorDigest(message) || !i18n.ValidDescriptor(metadata.Message) {
+		return i18n.Descriptor{}, false
+	}
+	// Explicit null arguments are malformed optional metadata, including no-arg IDs.
+	var fields struct {
+		Message struct {
+			Args json.RawMessage `json:"args"`
+		} `json:"message"`
+	}
+	if json.Unmarshal(data, &fields) != nil || strings.TrimSpace(string(fields.Message.Args)) == "null" {
+		return i18n.Descriptor{}, false
+	}
+	return metadata.Message, true
 }
 
 func consumeUpdateError() (map[string]any, error) {
-	path, err := updateErrorPath()
+	result, err := consumeUpdateErrorResult()
 	if err != nil {
 		return nil, err
+	}
+	return result.Value.(map[string]any), nil
+}
+
+func consumeUpdateErrorResult() (i18n.Result, error) {
+	path, err := updateErrorPath()
+	if err != nil {
+		return i18n.Result{}, err
 	}
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return map[string]any{"error": ""}, nil
+		if err := removeUpdateErrorMetadata(path); err != nil {
+			return i18n.Result{}, err
+		}
+		return i18n.Result{Value: map[string]any{"error": ""}}, nil
 	}
 	if err != nil {
-		return nil, err
+		return i18n.Result{}, err
+	}
+	message := output.RedactError(string(data))
+	descriptor, valid := readUpdateErrorMessage(path, message)
+	if err := removeUpdateErrorMetadata(path); err != nil {
+		return i18n.Result{}, err
 	}
 	if err := os.Remove(path); err != nil {
-		return nil, err
+		return i18n.Result{}, err
 	}
-	return map[string]any{"error": output.RedactError(string(data))}, nil
+	result := i18n.Result{Value: map[string]any{"error": message}}
+	if valid && message != "" {
+		result.Messages = map[string]i18n.Descriptor{"/error": descriptor}
+	}
+	return result, nil
 }
 
 // The shell keeps the inherited maintenance lock and authorization worker alive

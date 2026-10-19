@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -22,12 +23,12 @@ const (
 )
 
 var (
-	ErrBusy      = errors.New("script_busy")
-	ErrLimit     = errors.New("script_limit")
-	ErrExecution = errors.New("script_execution_failed")
-	ErrOutput    = errors.New("script_invalid_output")
-	ErrTimeout   = errors.New("script_timeout")
-	ErrCanceled  = errors.New("script_canceled")
+	ErrBusy      = i18n.Errorf("system.rewritescript.busy", "script_busy")
+	ErrLimit     = i18n.Errorf("system.rewritescript.limit", "script_limit")
+	ErrExecution = i18n.Errorf("system.rewritescript.execution.failed", "script_execution_failed")
+	ErrOutput    = i18n.Errorf("system.rewritescript.invalid.output", "script_invalid_output")
+	ErrTimeout   = i18n.Errorf("system.rewritescript.timeout", "script_timeout")
+	ErrCanceled  = i18n.Errorf("system.rewritescript.canceled", "script_canceled")
 	//go:embed guest/quickjs.wasm
 	wasm  []byte
 	slots = make(chan struct{}, 2)

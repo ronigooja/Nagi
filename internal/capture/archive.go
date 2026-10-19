@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"net/http"
 	"sort"
@@ -16,7 +17,7 @@ import (
 
 const ArchiveVersion = 1
 
-var ErrArchive = errors.New("capture_archive_invalid")
+var ErrArchive = i18n.Errorf("system.capture.archive.invalid", "capture_archive_invalid")
 
 type archiveLine struct {
 	Type     string  `json:"type"`
@@ -34,7 +35,7 @@ type archiveLine struct {
 // replacement/clear aborts the stream; the native end marker detects truncation.
 func Export(ctx context.Context, socket string, w io.Writer, format string) error {
 	if format != "native" && format != "har" {
-		return errors.New("capture_format_invalid")
+		return i18n.Errorf("system.capture.format.invalid", "capture_format_invalid")
 	}
 	client := httpClient(socket)
 	client.Timeout = 0
@@ -49,11 +50,11 @@ func Export(ctx context.Context, socket string, w io.Writer, format string) erro
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return errors.New("capture_export_failed")
+		return i18n.Errorf("system.capture.export.failed", "capture_export_failed")
 	}
 	_, err = io.Copy(w, resp.Body)
 	if err != nil {
-		return errors.New("capture_export_failed")
+		return i18n.Errorf("system.capture.export.failed", "capture_export_failed")
 	}
 	return nil
 }
@@ -211,7 +212,7 @@ func (s *Store) importNative(reader io.Reader) (Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.status.State == "recording" || s.status.State == "paused" {
-		return Status{}, errors.New("capture_state_invalid")
+		return Status{}, i18n.Errorf("system.capture.state.invalid", "capture_state_invalid")
 	}
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 4096), (3*DefaultBodyLimit)/2)
@@ -321,7 +322,7 @@ func (s *Store) importNative(reader io.Reader) (Status, error) {
 		}
 		// Retaining the old session during transactional import shares the quota.
 		if next.bytes+s.bytes > MaxBytes-8*DefaultBodyLimit {
-			return Status{}, errors.New("capture_byte_limit")
+			return Status{}, i18n.Errorf("system.capture.byte.limit", "capture_byte_limit")
 		}
 	}
 	if scanner.Err() != nil || !seenHeader || !ended {

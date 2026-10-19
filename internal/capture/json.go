@@ -3,7 +3,7 @@ package capture
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"reflect"
 	"strings"
@@ -13,7 +13,7 @@ import (
 // DecodeJSON rejects duplicate object keys at every depth, trailing values,
 // unknown fields and invalid UTF-8 before decoding private command inputs.
 func DecodeJSON(data []byte, out any) error {
-	invalid := errors.New("capture_request_invalid")
+	invalid := i18n.Errorf("system.capture.request.invalid", "capture_request_invalid")
 	if out == nil || reflect.TypeOf(out).Kind() != reflect.Pointer || reflect.ValueOf(out).IsNil() || !utf8.Valid(data) {
 		return invalid
 	}

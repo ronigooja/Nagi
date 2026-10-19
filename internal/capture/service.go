@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io"
 	"net"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-var ErrUnavailable = errors.New("capture_unavailable")
+var ErrUnavailable = i18n.Errorf("system.capture.unavailable", "capture_unavailable")
 
 // Call performs one private local operation. Errors contain fixed codes only.
 func Call(ctx context.Context, socket string, q Request) (Reply, error) {
@@ -54,15 +55,15 @@ func secureParent(path string, uid int) error {
 	dir := filepath.Dir(path)
 	info, err := os.Lstat(dir)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
-		return errors.New("capture_directory_invalid")
+		return i18n.Errorf("system.capture.directory.invalid", "capture_directory_invalid")
 	}
 	if !ownedBy(info, uid) {
-		return errors.New("capture_owner_invalid")
+		return i18n.Errorf("system.capture.owner.invalid", "capture_owner_invalid")
 	}
 	for p := dir; ; p = filepath.Dir(p) {
 		info, err = os.Lstat(p)
 		if err != nil || info.Mode()&os.ModeSymlink != 0 || (info.Mode().Perm()&0022 != 0 && info.Mode()&os.ModeSticky == 0) || (!ownedBy(info, uid) && !ownedBy(info, 0)) {
-			return errors.New("capture_directory_invalid")
+			return i18n.Errorf("system.capture.directory.invalid", "capture_directory_invalid")
 		}
 		if p == filepath.Dir(p) {
 			break
@@ -79,19 +80,19 @@ func Serve(ctx context.Context, socket string, ownerUID int) error {
 		return err
 	}
 	if _, err := os.Lstat(socket); !os.IsNotExist(err) {
-		return errors.New("capture_socket_exists")
+		return i18n.Errorf("system.capture.socket.exists", "capture_socket_exists")
 	}
 	ln, err := net.Listen("unix", socket)
 	if err != nil {
-		return errors.New("capture_bind_failed")
+		return i18n.Errorf("system.capture.bind.failed", "capture_bind_failed")
 	}
 	defer ln.Close()
 	if err = os.Chmod(socket, 0600); err != nil {
-		return errors.New("capture_permissions_failed")
+		return i18n.Errorf("system.capture.permissions.failed", "capture_permissions_failed")
 	}
 	socketInfo, err := os.Lstat(socket)
 	if err != nil {
-		return errors.New("capture_bind_failed")
+		return i18n.Errorf("system.capture.bind.failed", "capture_bind_failed")
 	}
 	defer func() {
 		current, e := os.Lstat(socket)
@@ -173,7 +174,7 @@ func Serve(ctx context.Context, socket string, ownerUID int) error {
 	if errors.Is(err, http.ErrServerClosed) || ctx.Err() != nil {
 		return nil
 	}
-	return errors.New("capture_service_failed")
+	return i18n.Errorf("system.capture.service.failed", "capture_service_failed")
 }
 
 // Sink never blocks traffic producers; its one MiB queue has one delivery worker.
