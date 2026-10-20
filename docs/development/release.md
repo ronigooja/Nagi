@@ -67,6 +67,11 @@ check its release version and locked engine commit, and checks the App's
 or version mismatch fails publication. Local build scripts do not enforce all
 release policy, so the remaining checklist still requires review.
 
+Its test step runs `make test` with `GOFLAGS=-p=1`, so Go test packages run
+serially. This reduces competition with the bounded script throughput fixture;
+it does not skip tests or change production deadlines. See the
+[diagnostic comparison](build-and-test.md) for the measured results.
+
 ## Preparing a release
 
 1. Confirm that the working tree is clean and that the intended version follows

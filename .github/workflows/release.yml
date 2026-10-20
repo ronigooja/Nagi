@@ -46,6 +46,7 @@ jobs:
       - name: Run tests
         env:
           TMPDIR: /private/tmp
+          GOFLAGS: -p=1
         run: make test
 
       - name: Build unsigned macOS App

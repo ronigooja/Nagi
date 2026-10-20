@@ -9,6 +9,17 @@ test logs, exit statuses, and an isolated CPU profile and execution trace for
 seven days. It preserves test assertions and production deadlines; profiling
 can itself affect timing. This diagnostic workflow does not publish releases.
 
+The [October 2026 comparison](https://github.com/ronigooja/Nagi/actions/runs/39353178212)
+on three-CPU, 7 GiB macOS runners passed five isolated 8 MiB samples
+(852–931 ms) and the full serial suite (854 ms for the sample). The parallel
+suite failed only that sample with `script_timeout` after 1.037 seconds.
+The CPU profile from the preceding diagnostic run attributed most samples to
+QuickJS/WASM execution, with little time in compilation. These observations
+show sensitivity to concurrent load; they do not establish host throttling or
+guarantee throughput on other machines. Release CI sets `GOFLAGS=-p=1` for
+`make test` to reduce package competition while retaining all assertions and
+the one-second production deadline.
+
 Use Go 1.24.0 or newer. `engine.lock` records the mihomo repository, ref, and exact commit. `make build cli` creates `bin/nagi` without rebuilding mihomo and prints `Nagi CLI build succeeded: PATH` on success or `Nagi CLI build failed` on a compilation error. The CLI build uses Go from `PATH`, then checks `$HOME/environment/go*/bin/go`, `/opt/homebrew/bin/go`, and `/usr/local/go/bin/go`. This also works in macOS SSH sessions whose non-interactive `PATH` omits Homebrew. Set `GO=/path/to/go` to choose another executable. On macOS, `make build app` packages `bin/Nagi.app` through `macos/NagiApp/package-app.sh` and prints `Nagi App build succeeded: PATH` or `Nagi App build failed`. Run `./scripts/build.sh` for a full pinned mihomo and CLI build; it reports the result of each compilation. The mihomo build includes `with_gvisor`, which is required when a profile selects the gVisor TUN stack. Set `MIHOMO_DIR` to a checkout at the exact locked commit for local builds. Otherwise the script clones or updates `.build/mihomo` and checks out that commit. A mismatch fails the build.
 
 ```sh
