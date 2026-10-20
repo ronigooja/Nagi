@@ -147,3 +147,16 @@ proxy-providers: {Feed: {type: inline, payload: [{name: Inner, type: socks5, dia
 		}
 	}
 }
+
+func TestAcceptanceProviderGraphNamespaceDoesNotCollideWithNodeName(t *testing.T) {
+	s := tailscaleFixture(t, `proxies:
+ - {name: 'provider:Feed', type: socks5}
+ - {name: Hop, type: socks5}
+ - {name: Target, type: vmess}
+proxy-providers:
+ Feed: {type: inline, override: {dialer-proxy: 'provider:Feed'}, payload: [{name: Inner, type: socks5}]}
+`)
+	if _, err := s.PlanProxyChain("work", "node", []string{"Target"}, []string{"Hop"}, false); err != nil {
+		t.Fatalf("valid node/provider names confused by dependency graph: %v", err)
+	}
+}
