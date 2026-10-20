@@ -119,20 +119,21 @@ func bashCompletion(roots []string, children map[string][]string) string {
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates healthcheck-targets "${semantic[3]}" 2>/dev/null); return 0
     fi
   fi
-  if [[ ${semantic[0]} == proxy && ${semantic[1]} == tailscale ]]; then
-    if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'list show targets add edit bind unbind remove' -- "$cur") ); return 0; fi
-    if [[ ${#semantic[@]} -eq 3 && ( ${semantic[2]} == show || ${semantic[2]} == edit || ${semantic[2]} == bind || ${semantic[2]} == remove ) ]]; then
-      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates tailscale-nodes 2>/dev/null); return 0
+  if [[ ${semantic[0]} == proxy && ${semantic[1]} == node ]]; then
+    if [[ ${semantic[${#semantic[@]}-1]} == --auth-key-file ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
+    if [[ ${semantic[${#semantic[@]}-1]} == --group ]]; then while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates node-groups 2>/dev/null); return 0; fi
+    if [[ ${#semantic[@]} -eq 3 && ${semantic[2]} == add ]]; then COMPREPLY=( $(compgen -W 'tailscale' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 3 && ( ${semantic[2]} == show || ${semantic[2]} == edit || ${semantic[2]} == remove ) || ${#semantic[@]} -eq 4 && ${semantic[2]} == groups ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates proxy-nodes 2>/dev/null); return 0
     fi
-    if [[ ${#semantic[@]} -eq 3 && ${semantic[2]} == unbind || ${#semantic[@]} -eq 4 && ${semantic[2]} == bind ]]; then COMPREPLY=( $(compgen -W 'node provider subscription' -- "$cur") ); return 0; fi
-    if [[ ${#semantic[@]} -ge 4 && ${semantic[2]} == unbind || ${#semantic[@]} -ge 5 && ${semantic[2]} == bind ]]; then
-      local target_kind="${semantic[3]}"; [[ ${semantic[2]} == bind ]] && target_kind="${semantic[4]}"
-      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates tailscale-targets "$target_kind" 2>/dev/null); return 0
-    fi
-    if [[ "$cur" == --* && ( ${semantic[2]} == add || ${semantic[2]} == edit ) ]]; then
-      local flags='--hostname --control-url --auth-key --auth-key-stdin'; [[ ${semantic[2]} == edit ]] && flags+=' --exit-node --auth-key-file'; COMPREPLY=( $(compgen -W "$flags" -- "$cur") ); return 0
-    fi
-    if [[ ${#semantic[@]} -eq 5 && ${semantic[2]} == add || ${semantic[${#semantic[@]}-1]} == --auth-key-file ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
+    if [[ ${#semantic[@]} -ge 5 && ${semantic[2]} == groups && ${semantic[3]} == set ]]; then while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates node-groups 2>/dev/null); return 0; fi
+    if [[ "$cur" == --* && ( ${semantic[2]} == add || ${semantic[2]} == edit ) ]]; then local flags='--hostname --control-url --auth-key --auth-key-stdin --auth-key-file'; [[ ${semantic[2]} == edit ]] && flags+=' --exit-node' || flags+=' --group'; COMPREPLY=( $(compgen -W "$flags" -- "$cur") ); return 0; fi
+  fi
+  if [[ ${semantic[0]} == proxy && ${semantic[1]} == chain ]]; then
+    if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'node provider subscription' -- "$cur") ); return 0; fi
+    if [[ ${semantic[${#semantic[@]}-1]} == --via ]]; then while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates proxy-nodes 2>/dev/null); return 0; fi
+    if [[ "$cur" == --* ]]; then COMPREPLY=( $(compgen -W '--via --dry-run' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -ge 4 ]]; then while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates chain-targets "${semantic[3]}" 2>/dev/null); return 0; fi
   fi
   if [[ "$cur" == --* || "$cur" == -* ]]; then
     COMPREPLY=( $(compgen -W '--json --help -h --lang' -- "$cur") ); return 0
@@ -144,7 +145,7 @@ func bashCompletion(roots []string, children map[string][]string) string {
   fi
   root="${semantic[0]}"
   if [[ ${#semantic[@]} -eq 2 && "$root" == completion && "${semantic[1]}" == candidates ]]; then
-    COMPREPLY=( $(compgen -W 'profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets healthcheck-targets' -- "$cur") ); return 0
+    COMPREPLY=( $(compgen -W 'profile subscription profile-groups groups nodes providers proxy-nodes node-groups chain-targets healthcheck-targets' -- "$cur") ); return 0
   fi
   if [[ ${#semantic[@]} -eq 2 ]]; then
     if [[ "$root" == profile && ( "${semantic[1]}" == use || "${semantic[1]}" == remove ) ]]; then
@@ -268,20 +269,22 @@ _nagi() {
     if (( ${#semantic} == 3 )); then compadd -- group provider subscription; return; fi
     if (( ${#semantic} == 4 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
-  if [[ ${semantic[1]} == proxy && ${semantic[2]} == tailscale ]]; then
-    if (( ${#semantic} == 2 )); then compadd -- list show targets add edit bind unbind remove; return; fi
-    if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == show || ${semantic[3]} == edit || ${semantic[3]} == bind || ${semantic[3]} == remove ]]; then compadd -- ${(f)"$(nagi completion candidates tailscale-nodes 2>/dev/null)"}; return; fi
-    if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == unbind ]] || (( ${#semantic} == 4 )) && [[ ${semantic[3]} == bind ]]; then compadd -- node provider subscription; return; fi
-    if (( ${#semantic} >= 4 )) && [[ ${semantic[3]} == unbind ]] || (( ${#semantic} >= 5 )) && [[ ${semantic[3]} == bind ]]; then
-      local target_kind="${semantic[4]}"; [[ ${semantic[3]} == bind ]] && target_kind="${semantic[5]}"
-      compadd -- ${(f)"$(nagi completion candidates tailscale-targets "$target_kind" 2>/dev/null)"}; return
-    fi
-    if [[ ${words[CURRENT]} == --* && ( ${semantic[3]} == add || ${semantic[3]} == edit ) ]]; then compadd -- --hostname --control-url --auth-key --auth-key-stdin; [[ ${semantic[3]} == edit ]] && compadd -- --exit-node --auth-key-file; return; fi
-    if (( ${#semantic} == 5 )) && [[ ${semantic[3]} == add ]] || [[ ${semantic[-1]} == --auth-key-file ]]; then _files; return; fi
+  if [[ ${semantic[1]} == proxy && ${semantic[2]} == node ]]; then
+    if [[ ${semantic[-1]} == --auth-key-file ]]; then _files; return; fi
+    if [[ ${semantic[-1]} == --group ]]; then compadd -- ${(f)"$(nagi completion candidates node-groups 2>/dev/null)"}; return; fi
+    if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == add ]]; then compadd -- tailscale; return; fi
+    if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == show || ${semantic[3]} == edit || ${semantic[3]} == remove ]] || (( ${#semantic} == 4 )) && [[ ${semantic[3]} == groups ]]; then compadd -- ${(f)"$(nagi completion candidates proxy-nodes 2>/dev/null)"}; return; fi
+    if [[ ${words[CURRENT]} == --* && ( ${semantic[3]} == add || ${semantic[3]} == edit ) ]]; then compadd -- --hostname --control-url --auth-key --auth-key-stdin --auth-key-file; [[ ${semantic[3]} == edit ]] && compadd -- --exit-node || compadd -- --group; return; fi
+  fi
+  if [[ ${semantic[1]} == proxy && ${semantic[2]} == chain ]]; then
+    if (( ${#semantic} == 3 )); then compadd -- node provider subscription; return; fi
+    if [[ ${semantic[-1]} == --via ]]; then compadd -- ${(f)"$(nagi completion candidates proxy-nodes 2>/dev/null)"}; return; fi
+    if [[ ${words[CURRENT]} == --* ]]; then compadd -- --via --dry-run; return; fi
+    if (( ${#semantic} >= 4 )); then compadd -- ${(f)"$(nagi completion candidates chain-targets "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
   if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h --lang; return; fi
   if (( ${#semantic} == 0 )); then compadd -- %s; return; fi
-  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets healthcheck-targets; return; fi
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == completion && ${semantic[2]} == candidates ]]; then compadd -- profile subscription profile-groups groups nodes providers proxy-nodes node-groups chain-targets healthcheck-targets; return; fi
   if (( ${#semantic} == 2 )); then
     if [[ ${semantic[1]} == profile && ( ${semantic[2]} == use || ${semantic[2]} == remove ) ]]; then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
     if [[ ${semantic[1]} == subscription && ( ${semantic[2]} == update || ${semantic[2]} == apply || ${semantic[2]} == remove || ${semantic[2]} == key || ${semantic[2]} == schedule ) ]]; then compadd -- ${(f)"$(nagi completion candidates subscription 2>/dev/null)"}; return; fi
@@ -382,7 +385,7 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and t
 		fmt.Fprintf(&b, "complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = %s' -a '%s'\n", root, shellWords(values))
 	}
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 1; and test \"$s[1]\" = mode' -a 'rule global direct'\n")
-	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription profile-groups groups nodes providers tailscale-nodes tailscale-targets healthcheck-targets'\n")
+	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = completion; and test \"$s[2]\" = candidates' -a 'profile subscription profile-groups groups nodes providers proxy-nodes node-groups chain-targets healthcheck-targets'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = profile; and contains -- $s[2] use remove' -a '(nagi completion candidates profile 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test \"$s[1]\" = subscription; and contains -- $s[2] update apply remove key schedule' -a '(nagi completion candidates subscription 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = subscription; and test \"$s[2]\" = key' -F -a clear\n")
@@ -404,16 +407,18 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and t
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider; and test \"$s[3]\" = add' -a '(nagi completion candidates groups 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test \"$s[1]\" = proxy; and test \"$s[2]\" = provider; and test \"$s[3]\" != add; and test \"$s[3]\" != interval' -a '(nagi completion candidates providers 2>/dev/null)'\n")
 	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
-	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = tailscale' -a 'list show targets add edit bind unbind remove'
-complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] show edit bind remove' -a '(nagi completion candidates tailscale-nodes 2>/dev/null)'
-complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -eq 3; and test "$s[3]" = unbind; or test (count $s) -eq 4; and test "$s[3]" = bind; end' -a 'node provider subscription'
-complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -ge 4; and test "$s[3]" = unbind; or test (count $s) -ge 5; and test "$s[3]" = bind; end' -a '(set -l s (__nagi_semantic); set -l target_kind $s[4]; if test "$s[3]" = bind; set target_kind $s[5]; end; nagi completion candidates tailscale-targets "$target_kind" 2>/dev/null)'
-complete -c nagi -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and begin; test (count $s) -eq 5; and test "$s[3]" = add; or test "$s[-1]" = --auth-key-file; end' -F
-complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] add edit' -l auth-key -l auth-key-stdin
-complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] add edit' -l hostname
-complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and contains -- $s[3] add edit' -l control-url
-complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and test "$s[3]" = edit' -l exit-node
-complete -c nagi -r -F -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = tailscale; and test "$s[3]" = edit' -l auth-key-file
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = node; and test "$s[3]" = add' -a 'tailscale'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = node; and contains -- $s[3] show edit remove' -a '(nagi completion candidates proxy-nodes 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = chain' -a 'node provider subscription'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -ge 4; and test "$s[1]" = proxy; and test "$s[2]" = chain' -a '(set -l s (__nagi_semantic); nagi completion candidates chain-targets "$s[4]" 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = chain; and test "$s[-1]" = --via' -a '(nagi completion candidates proxy-nodes 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = chain; and contains -- $s[3] set clear' -l dry-run
+complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = chain; and test "$s[3]" = set' -l via
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = node; and contains -- $s[3] add edit' -l auth-key -l auth-key-stdin
+complete -c nagi -r -F -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = node; and contains -- $s[3] add edit' -l auth-key-file
+complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = node; and contains -- $s[3] add edit' -l hostname -l control-url
+complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = node; and test "$s[3]" = edit' -l exit-node
+complete -c nagi -f -r -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = node; and test "$s[3]" = add' -l group -a '(nagi completion candidates node-groups 2>/dev/null)'
 `)
 
 	return b.String()

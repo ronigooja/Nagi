@@ -394,22 +394,22 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 	if v["exception_changed"] == true {
 		return line(w, renderText(w, "cli.output.writehumanmap.updated_dns_exception_for_v", map[string]any{"domain": fmt.Sprint(v["domain"])}, fmt.Sprintf("Updated DNS exception for %v.", v["domain"])))
 	}
+	if plan, ok := v["plan"].(profile.ProxyChainPlan); ok {
+		if err := writeProxyChainPlan(w, plan, v["dry_run"] == true); err != nil {
+			return err
+		}
+		if v["dry_run"] == true {
+			return nil
+		}
+	}
 	if v["saved"] == true && v["action"] != nil && v["profile"] != nil && v["reloaded"] != nil {
-		state := text(w, "cli.output.writehumanmap.saved_mihomo_is_stopped_run_nagi_start_to_activate", "Saved; mihomo is stopped. Run `nagi start` to activate.")
+		if err := line(w, renderText(w, "cli.output.proxy_node.saved", map[string]any{"resource": fmt.Sprint(v["resource"]), "action": fmt.Sprint(v["action"]), "profile": fmt.Sprint(v["profile"])}, fmt.Sprintf("Saved %v %v in profile %v.", v["resource"], v["action"], v["profile"]))); err != nil {
+			return err
+		}
 		if v["reloaded"] == true {
-			state = text(w, "cli.output.writehumanmap.saved_and_reloaded_mihomo", "Saved and reloaded mihomo.")
+			return line(w, text(w, "cli.output.writehumanmap.saved_and_reloaded_mihomo", "Saved and reloaded mihomo."))
 		}
-		if v["kind"] == "subscription" {
-			if v["action"] == "bind" {
-				state += text(w, "cli.output.writehumanmap.entire_subscription_policy_survives_apply_and_scheduled_refresh_", " Entire-subscription policy survives apply and scheduled refresh; new nodes inherit the exit.")
-			} else {
-				state += text(w, "cli.output.writehumanmap.removed_entire_subscription_policy_retained_the_tailscale_node", " Removed entire-subscription policy; retained the Tailscale node.")
-			}
-		}
-		if targets, ok := v["targets"].([]string); ok {
-			return line(w, renderText(w, "cli.output.writehumanmap.tailscale_s_d_s_targets_in_profile_s_s", map[string]any{"action": stateText(w, fmt.Sprint(v["action"])), "count": len(targets), "kind": stateText(w, fmt.Sprint(v["kind"])), "profile": fmt.Sprint(v["profile"]), "state": fmt.Sprint(state)}, fmt.Sprintf("Tailscale %s: %d %s targets in profile %s. %s", v["action"], len(targets), v["kind"], v["profile"], state)))
-		}
-		return line(w, renderText(w, "cli.output.writehumanmap.tailscale_s_in_profile_s_s", map[string]any{"action": stateText(w, fmt.Sprint(v["action"])), "profile": fmt.Sprint(v["profile"]), "state": fmt.Sprint(state)}, fmt.Sprintf("Tailscale %s in profile %s. %s", v["action"], v["profile"], state)))
+		return line(w, text(w, "cli.output.writehumanmap.saved_mihomo_is_stopped_run_nagi_start_to_activate", "Saved; mihomo is stopped. Run `nagi start` to activate."))
 	}
 
 	if v["saved"] == true && v["profile"] != nil && v["action"] == nil {
@@ -776,47 +776,38 @@ func writeHumanMap(w io.Writer, v map[string]any) error {
 			return line(w, renderText(w, "cli.output.writehumanmap.selected_s_in_proxy_group_s", map[string]any{"node": fmt.Sprint(node), "group": fmt.Sprint(group)}, fmt.Sprintf("Selected %s in proxy group %s.", node, group)))
 		}
 	}
-	if nodes, ok := v["nodes"].([]profile.TailscaleNode); ok {
+	if nodes, ok := v["nodes"].([]profile.ProxyNode); ok {
 		if len(nodes) == 0 {
-			return line(w, renderText(w, "cli.output.writehumanmap.no_tailscale_nodes_configured_in_profile.message", map[string]any{"profile": fmt.Sprint(fmt.Sprint(v["profile"]))}, "No Tailscale nodes configured in profile "+fmt.Sprint(fmt.Sprint(v["profile"]))+"."))
+			return line(w, text(w, "cli.output.proxy_node.empty", "No eligible top-level proxy nodes."))
 		}
-		for _, n := range nodes {
-			if err := line(w, renderText(w, "cli.output.writehumanmap.s_exit_node_s_hostname_s_control_url_s_auth_key_configured_t", map[string]any{"name": fmt.Sprint(n.Name), "exit": fmt.Sprint(n.ExitNode), "hostname": fmt.Sprint(n.Hostname), "control_url": fmt.Sprint(n.ControlURL), "auth_key_configured": n.AuthKeyConfigured}, fmt.Sprintf("%s: exit node %s; hostname %s; control URL %s; auth key configured: %t", n.Name, n.ExitNode, n.Hostname, n.ControlURL, n.AuthKeyConfigured))); err != nil {
+		for _, node := range nodes {
+			if err := writeProxyNode(w, node); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	if n, ok := v["node"].(profile.TailscaleNode); ok {
-		if err := line(w, renderText(w, "cli.output.writehumanmap.tailscale_s_exit_node_s_hostname_s_control_url_s_auth_key_config", map[string]any{"name": fmt.Sprint(n.Name), "exit": fmt.Sprint(n.ExitNode), "hostname": fmt.Sprint(n.Hostname), "control_url": fmt.Sprint(n.ControlURL), "auth_key_configured": n.AuthKeyConfigured}, fmt.Sprintf("Tailscale %s: exit node %s; hostname %s; control URL %s; auth key configured: %t", n.Name, n.ExitNode, n.Hostname, n.ControlURL, n.AuthKeyConfigured))); err != nil {
-			return err
+	if node, ok := v["node"].(profile.ProxyNode); ok {
+		return writeProxyNode(w, node)
+	}
+	if groups, ok := v["groups"].(profile.ProxyNodeGroups); ok {
+		return writeProxyNodeGroups(w, groups)
+	}
+	if chains, ok := v["chains"].([]profile.ProxyChainTarget); ok {
+		if len(chains) == 0 {
+			return line(w, text(w, "cli.output.proxy_chain.empty", "No eligible chain targets."))
 		}
-		bindings, _ := v["bindings"].([]profile.TailscaleBinding)
-		if len(bindings) == 0 {
-			return line(w, text(w, "cli.output.writehumanmap.no_targets_bound_to_this_node", "No targets bound to this node."))
-		}
-		for _, b := range bindings {
-			if err := line(w, fmt.Sprintf("%s %s -> %s", b.Kind, b.Name, b.DialerProxy)); err != nil {
+		for _, target := range chains {
+			if err := writeProxyChainTarget(w, target); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	if targets, ok := v["targets"].([]profile.TailscaleTarget); ok {
-		if len(targets) == 0 {
-			return line(w, text(w, "cli.output.writehumanmap.no_eligible_proxy_nodes_providers_or_applied_subscriptions", "No eligible proxy nodes, providers, or applied subscriptions."))
-		}
-		for _, t := range targets {
-			dialer := t.DialerProxy
-			if dialer == "" {
-				dialer = "none"
-			}
-			if err := line(w, renderText(w, "cli.output.writehumanmap.s_s_s_dialer_proxy_s", map[string]any{"kind": fmt.Sprint(t.Kind), "name": fmt.Sprint(t.Name), "type": fmt.Sprint(t.Type), "dialer": fmt.Sprint(dialer)}, fmt.Sprintf("%s %s (%s): dialer proxy %s", t.Kind, t.Name, t.Type, dialer))); err != nil {
-				return err
-			}
-		}
-		return nil
+	if chain, ok := v["chain"].(profile.ProxyChainTarget); ok {
+		return writeProxyChainTarget(w, chain)
 	}
+
 	if provider, ok := v["provider"].(string); ok {
 		if v["removed"] == true {
 			return line(w, renderText(w, "cli.output.writehumanmap.removed_proxy_provider.message", map[string]any{"provider": fmt.Sprint(provider), "profile": fmt.Sprint(fmt.Sprint(v["profile"]))}, "Removed proxy provider "+fmt.Sprint(provider)+" from profile "+fmt.Sprint(fmt.Sprint(v["profile"]))+"."))

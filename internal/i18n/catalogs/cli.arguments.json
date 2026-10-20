@@ -2260,5 +2260,236 @@
   },
   "cli.output.writeruletest.note.message": {
     "detail": "string"
+  },
+  "cli.error.proxy_chain.dry_run_is_only_valid_for_set_or_clear": {},
+  "cli.error.proxy_chain.duplicate_dry_run": {},
+  "cli.error.proxy_chain.duplicate_target": {},
+  "cli.error.proxy_chain.kind_and_target_are_required": {},
+  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription": {},
+  "cli.error.proxy_chain.missing_chain_action": {},
+  "cli.error.proxy_chain.select_exactly_one_subscription_associated_with_the_selected_profile": {},
+  "cli.error.proxy_chain.set_requires_at_least_one_via_node_in_traffic_order": {},
+  "cli.error.proxy_chain.show_requires_exactly_one_target": {},
+  "cli.error.proxy_chain.subscription_not_associated": {},
+  "cli.error.proxy_chain.subscription_remove_blocked": {},
+  "cli.error.proxy_chain.subscription_source_changed": {},
+  "cli.error.proxy_chain.target_is_required": {},
+  "cli.error.proxy_chain.target_must_precede_options_unknown_chain_option": {},
+  "cli.error.proxy_chain.via_is_only_valid_for_set": {},
+  "cli.error.proxy_chain.via_requires_a_node_name": {},
+  "cli.error.proxy_node.add_requires_tailscale_name_exit_node": {},
+  "cli.error.proxy_node.auth_key_input_unavailable": {},
+  "cli.error.proxy_node.choose_one_auth_key_input_method": {},
+  "cli.error.proxy_node.duplicate_group": {},
+  "cli.error.proxy_node.duplicate_node_option": {},
+  "cli.error.proxy_node.edit_requires_at_least_one_option": {},
+  "cli.error.proxy_node.exit_node_is_only_valid_for_edit": {},
+  "cli.error.proxy_node.groups_requires_show_set_or_clear_and_name": {},
+  "cli.error.proxy_node.missing_node_action": {},
+  "cli.error.proxy_node.name_is_required": {},
+  "cli.error.proxy_node.option_requires_a_value": {},
+  "cli.error.proxy_node.unknown_groups_action": {},
+  "cli.error.proxy_node.unknown_node_option": {},
+  "cli.error.proxy_node.use_node_groups_set_to_change_groups": {},
+  "cli.output.proxy_chain.change": {
+    "after": "string",
+    "before": "string",
+    "kind": "string",
+    "name": "string"
+  },
+  "cli.output.proxy_chain.conflict": {
+    "conflict": "string"
+  },
+  "cli.output.proxy_chain.empty": {},
+  "cli.output.proxy_chain.preview": {},
+  "cli.output.proxy_chain.shared": {
+    "kind": "string",
+    "name": "string",
+    "via": "string"
+  },
+  "cli.output.proxy_chain.target": {
+    "kind": "string",
+    "name": "string",
+    "path": "string"
+  },
+  "cli.output.proxy_node.empty": {},
+  "cli.output.proxy_node.groups.automatic": {
+    "groups": "string"
+  },
+  "cli.output.proxy_node.groups.available": {
+    "groups": "string"
+  },
+  "cli.output.proxy_node.groups.excluded": {
+    "groups": "string"
+  },
+  "cli.output.proxy_node.groups.explicit": {
+    "groups": "string"
+  },
+  "cli.output.proxy_node.none": {},
+  "cli.output.proxy_node.saved": {
+    "action": "string",
+    "profile": "string",
+    "resource": "string"
+  },
+  "cli.output.proxy_node.summary": {
+    "managed": "boolean",
+    "name": "string",
+    "type": "string"
+  },
+  "cli.output.proxy_node.tailscale": {
+    "auth_key_configured": "boolean",
+    "control_url": "string",
+    "exit": "string",
+    "hostname": "string"
+  },
+  "cli.error.proxy_chain.dry_run_is_only_valid_for_set_or_clear.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.duplicate_dry_run.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.duplicate_target.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.kind_and_target_are_required.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.missing_chain_action.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.select_exactly_one_subscription_associated_with_the_selected_profile.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.set_requires_at_least_one_via_node_in_traffic_order.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.show_requires_exactly_one_target.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.subscription_not_associated.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.subscription_remove_blocked.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.subscription_source_changed.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.target_is_required.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.target_must_precede_options_unknown_chain_option.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.via_is_only_valid_for_set.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_chain.via_requires_a_node_name.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.add_requires_tailscale_name_exit_node.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.auth_key_input_unavailable.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.choose_one_auth_key_input_method.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.duplicate_group.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.duplicate_node_option.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.edit_requires_at_least_one_option.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.exit_node_is_only_valid_for_edit.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.groups_requires_show_set_or_clear_and_name.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.missing_node_action.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.name_is_required.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.option_requires_a_value.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.unknown_groups_action.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.unknown_node_option.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
+  },
+  "cli.error.proxy_node.use_node_groups_set_to_change_groups.usage": {
+    "syntax": "string",
+    "path": "string",
+    "hint": "string"
   }
 }

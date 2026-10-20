@@ -199,8 +199,8 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 		ctx = context.WithValue(ctx, captureOutputKey{}, stdout)
 		ctx = context.WithValue(ctx, rewriteInputKey{}, input)
 	}
-	if tailscaleInvocation(filtered) {
-		options, _ := tailscaleArguments(filtered) // Invocation was validated above.
+	if nodeInvocation(filtered) {
+		options, _ := nodeArguments(filtered) // Invocation was validated above.
 		if options.AuthKey != nil {
 			var key *string
 			key, inputErr = prepareTailscaleAuthInput(filtered, stdin, stderr, jsonMode, options.stdin, locale)
@@ -391,7 +391,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				names, e := store.HealthcheckTargets(name, args[3])
 				return output.Candidates(names), e
 			}
-			if args[2] == "tailscale-nodes" || args[2] == "tailscale-targets" {
+			if args[2] == "proxy-nodes" || args[2] == "node-groups" || args[2] == "chain-targets" {
 				paths, e := nagiruntime.Resolve()
 				if e != nil {
 					return nil, e
@@ -402,32 +402,37 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 					return nil, e
 				}
 				names := output.Candidates{}
-				if args[2] == "tailscale-nodes" {
-					nodes, e := store.TailscaleNodes(name)
+				if args[2] == "node-groups" {
+					groups, e := store.ProxyNodeGroupCandidates(name)
+					return output.Candidates(groups), e
+				}
+				if args[2] == "proxy-nodes" {
+					nodes, e := store.ProxyNodes(name)
 					if e != nil {
 						return nil, e
 					}
-					for _, n := range nodes {
-						names = append(names, n.Name)
+					for _, node := range nodes {
+						names = append(names, node.Name)
 					}
 				} else {
-					targets, e := store.TailscaleTargets(name)
-					if e == nil {
-						entire, candidateErr := subscriptionTailscaleTargets(subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), nil), store, name)
-						targets = append(targets, entire...)
-						e = candidateErr
+					var targets []profile.ProxyChainTarget
+					if len(args) == 4 && args[3] == "subscription" {
+						targets, e = chainSubscriptions(subscription.NewStore(paths.ConfigDir, filepath.Join(paths.DataDir, "cache", "subscriptions"), nil), store, name)
+					} else {
+						targets, e = store.ProxyChains(name)
 					}
 					if e != nil {
 						return nil, e
 					}
-					for _, t := range targets {
-						if len(args) == 3 || args[3] == t.Kind {
-							names = append(names, t.Name)
+					for _, target := range targets {
+						if len(args) == 3 || args[3] == target.Kind {
+							names = append(names, target.Name)
 						}
 					}
 				}
 				return names, nil
 			}
+
 			if len(args) == 4 && args[2] == "profile-groups" {
 				paths, e := nagiruntime.Resolve()
 				if e != nil {
@@ -678,7 +683,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	healthcheckURL := healthcheck && len(args) > 2 && args[2] == "url"
 	subscriptionHealthcheck := healthcheck && (len(args) > 3 && args[3] == "subscription" || healthcheckURL && len(args) > 4 && args[4] == "subscription")
 	providerInterval := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "interval"
-	needsProfile := healthcheck && !subscriptionHealthcheck || tailscaleInvocation(args) || addingProvider || removingProvider || providerInterval || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	needsProfile := healthcheck && !subscriptionHealthcheck || nodeInvocation(args) || chainInvocation(args) || addingProvider || removingProvider || providerInterval || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -1150,30 +1155,40 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 			return r, nil
 		}
-		if tailscaleInvocation(args) {
+		if nodeInvocation(args) || chainInvocation(args) {
+			code := "proxy_node_error"
+			if chainInvocation(args) {
+				code = "proxy_chain_error"
+			}
 			var store *profile.Store
 			reloaded := false
-			if tailscaleRead(args) {
+			if nodeInvocation(args) && nodeRead(args) || chainInvocation(args) && chainRead(args) {
 				store = profile.NewStore(paths.ConfigDir, nil, nil)
 			} else {
 				var e error
 				store, e = getProfiles()
 				if e != nil {
-					return nil, fail("proxy_tailscale_error", e)
+					return nil, fail(code, e)
 				}
 				backend, e := getLifecycle()
 				if e != nil {
-					return nil, fail("proxy_tailscale_error", e)
+					return nil, fail(code, e)
 				}
 				status, e := backend.Status(ctx)
 				if e != nil {
-					return nil, fail("proxy_tailscale_error", e)
+					return nil, fail(code, e)
 				}
 				reloaded = status.Running
 			}
-			result, e := tailscaleCommand(ctx, args, store, subs, profileName, reloaded)
+			var result any
+			var e error
+			if chainInvocation(args) {
+				result, e = chainCommand(ctx, args, store, subs, profileName, reloaded)
+			} else {
+				result, e = nodeCommand(ctx, args, store, profileName, reloaded)
+			}
 			if e != nil {
-				return nil, fail("proxy_tailscale_error", e)
+				return nil, fail(code, e)
 			}
 			return result, nil
 		}
@@ -1617,7 +1632,7 @@ func profileCommand(ctx context.Context, args []string, store *profile.Store, su
 		if len(data) > 8<<20 {
 			return nil, fail("profile_error", messageError("cli.error.command.profile_exceeds_8_mib", "profile exceeds 8 MiB"))
 		}
-		if err := store.ClearSubscriptionTailscale(args[2]); err != nil {
+		if err := store.ClearSubscriptionChain(args[2]); err != nil {
 			return nil, fail("profile_error", err)
 		}
 		if subs != nil {
@@ -1894,12 +1909,12 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 			return nil, fail("subscription_error", err)
 		}
 		if entry.Profile != "" {
-			policy, err := profile.NewStore(store.ConfigDir, nil, nil).SubscriptionTailscale(entry.Profile)
+			policy, err := profile.NewStore(store.ConfigDir, nil, nil).SubscriptionChain(entry.Profile)
 			if err != nil {
 				return nil, fail("subscription_error", err)
 			}
 			if policy != nil && policy.Subscription == entry.Name {
-				return nil, fail("subscription_error", messageError("cli.error.command.subscription_has_a_persistent_tailscale_binding_unbind_the_subscript", "subscription has a persistent Tailscale binding; unbind the subscription before removing it"))
+				return nil, fail("subscription_error", messageError("cli.error.proxy_chain.subscription_remove_blocked", "subscription has a persistent chain; run `nagi proxy chain clear subscription NAME` before removing it"))
 			}
 		}
 		if entry.Profile != "" && (entry.HealthcheckIntervalSeconds != nil || entry.HealthcheckURL != nil) && profiles != nil {

@@ -75,11 +75,11 @@ func TestTechnicalPlaceholdersStayLiteralWhileStatesAreLocalized(t *testing.T) {
 				}
 			}
 			out.Reset()
-			targets := map[string]any{"targets": []profile.TailscaleTarget{{Kind: "node", Name: "running", Type: "vless"}}}
+			targets := map[string]any{"chains": []profile.ProxyChainTarget{{Kind: "node", Name: "running", Type: "vless"}}}
 			if err := WriteLocalized(&out, false, locale, targets); err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(out.String(), "running") || !strings.Contains(out.String(), "none") || strings.Contains(out.String(), "无") {
+			if !strings.Contains(out.String(), "running") || strings.Contains(out.String(), "无") {
 				t.Fatalf("technical name or placeholder translated: %s", &out)
 			}
 		})
