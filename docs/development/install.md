@@ -144,6 +144,22 @@ make build cli
 ./scripts/installer.sh uninstall --purge-data
 ```
 
+For a local artifact update with an installed login service, use the installed
+CLI to stop and remove that service before updating (default prefix shown):
+
+```sh
+/usr/local/bin/nagi service uninstall
+./scripts/installer.sh update
+```
+
+This interrupts the current monitor and mihomo. `startup disable` only changes
+next-login startup: `Enabled: no` with `Active: yes` still blocks the update.
+Even an inactive service definition must be removed. After a successful update,
+run `/usr/local/bin/nagi startup enable` if login startup is wanted, then
+`/usr/local/bin/nagi start` to resume the engine. Unlike `nagi update`, the
+artifact installer does not restore service preferences or restart the engine.
+Use the same service-removal step before an artifact uninstall.
+
 The installer uses existing artifacts and never compiles anything. Build the CLI and macOS App explicitly before installing or updating. As a development example, `./scripts/sync_to_mac.sh` copies source files to a configured remote checkout and leaves remote `.git`, `bin/`, `dist/`, and build caches intact. Set the destination in your local shell, or save it in the ignored `.nagi-sync.local` file at the repository root, then run the script:
 
 ```sh

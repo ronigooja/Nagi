@@ -65,7 +65,7 @@ case "${2:-}" in
     service)
         [[ "${3:-}" == status ]] || exit 2
         if [[ "${NAGI_TEST_SERVICE_ACTIVE:-0}" == 1 ]]; then
-            printf '{"ok":true,"installed":true,"active":true}\n'
+            printf '{"ok":true,"installed":true,"enabled":%s,"active":true}\n' "${NAGI_TEST_SERVICE_ENABLED:-true}"
         elif [[ "${NAGI_TEST_SERVICE_INSTALLED:-0}" == 1 ]]; then
             printf '{"ok":true,"installed":true,"active":false}\n'
         else
@@ -211,8 +211,23 @@ printf 'local default\n' > "$profile_dir/default.yaml"
 
 expect_failure 'mihomo is running' env NAGI_TEST_RUNNING=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
 assert_installed_from "$artifact_v1"
-expect_failure 'login service is active' env NAGI_TEST_SERVICE_ACTIVE=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"
-assert_installed_from "$artifact_v1"
+# Disabling next-login startup leaves a current monitor active. Both maintenance
+# actions must direct users to remove it, regardless of its enabled preference.
+for action in update uninstall; do
+    maintenance_args=("$action" --prefix "$prefix")
+    if [[ "$action" == update ]]; then maintenance_args+=(--artifact-dir "$artifact_v2"); fi
+    for enabled in true false; do
+        expect_failure "login service is active; run '$prefix/bin/nagi service uninstall' and retry; startup disable only changes next-login startup" \
+            env NAGI_TEST_SERVICE_ACTIVE=1 NAGI_TEST_SERVICE_ENABLED=$enabled \
+            bash "$installer" "${maintenance_args[@]}"
+        assert_installed_from "$artifact_v1"
+        [[ $(cat "$profile_dir/default.yaml") == 'local default' ]] || fail_test 'service preflight changed default profile'
+    done
+    # Even an inactive definition must be removed before replacing its executable.
+    expect_failure "login service is installed; run '$prefix/bin/nagi service uninstall' before changing its executable" \
+        env NAGI_TEST_SERVICE_INSTALLED=1 bash "$installer" "${maintenance_args[@]}"
+    assert_installed_from "$artifact_v1"
+done
 
 # A failed post-install version check must restore both previous binaries.
 expect_failure 'installed nagi failed its version check' env NAGI_TEST_FAIL_INSTALLED_VERSION=1 bash "$installer" update --artifact-dir "$artifact_v2" --prefix "$prefix"

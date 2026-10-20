@@ -347,9 +347,9 @@ else
     status=$("$nagi" --json status) || fail "cannot inspect running engine; stop it and retry"
     [[ "$status" == *'"ok":true'* ]] || fail "cannot inspect running engine"
     [[ "$status" != *'"running":true'* ]] || fail "mihomo is running; run '$nagi quit' and retry"
-    service=$("$nagi" --json service status) || fail "cannot inspect login service; disable it and retry"
+    service=$("$nagi" --json service status) || fail "cannot inspect login service; run '$nagi service status' to diagnose and retry"
     [[ "$service" == *'"ok":true'* ]] || fail "cannot inspect login service"
-    [[ "$service" != *'"active":true'* ]] || fail "login service is active; run '$nagi startup disable' and retry"
+    [[ "$service" != *'"active":true'* ]] || fail "login service is active; run '$nagi service uninstall' and retry; startup disable only changes next-login startup"
     [[ "$service" != *'"installed":true'* ]] || fail "login service is installed; run '$nagi service uninstall' before changing its executable"
     if [[ "$platform" == Darwin ]]; then
         helper=$("$nagi" --json privileged-helper status) || fail "cannot inspect privileged helper; stop it and retry"
