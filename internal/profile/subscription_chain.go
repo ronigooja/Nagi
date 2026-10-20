@@ -493,7 +493,7 @@ func chainDifferences(before, after []ProxyChainTarget) []ProxyChainChange {
 		}
 		old := edges[v.Kind+":"+v.Name]
 		if old != edge {
-			out = append(out, ProxyChainChange{v.Kind, v.Name, old, edge})
+			out = append(out, ProxyChainChange{Kind: v.Kind, Name: v.Name, Before: old, After: edge})
 		}
 	}
 	return out

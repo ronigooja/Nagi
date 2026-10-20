@@ -12,16 +12,24 @@ import (
 )
 
 type ProxyChainTarget struct {
-	Kind string   `json:"kind"`
-	Name string   `json:"name"`
-	Type string   `json:"type"`
-	Via  []string `json:"via"`
+	Kind              string         `json:"kind"`
+	Name              string         `json:"name"`
+	Type              string         `json:"type"`
+	Via               []string       `json:"via"`
+	Provider          string         `json:"provider,omitempty"`
+	ID                string         `json:"id,omitempty"`
+	Available         bool           `json:"available"`
+	Supported         bool           `json:"supported"`
+	UnsupportedReason string         `json:"unsupported_reason,omitempty"`
+	PathRefs          []ChainNodeRef `json:"path_refs,omitempty"`
+	Outlet            string         `json:"outlet,omitempty"`
 }
 type ProxyChainChange struct {
-	Kind   string `json:"kind"`
-	Name   string `json:"name"`
-	Before string `json:"before"`
-	After  string `json:"after"`
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+	Before   string `json:"before"`
+	After    string `json:"after"`
+	Provider string `json:"provider,omitempty"`
 }
 type ProxyChainReference struct {
 	Kind string `json:"kind"`
@@ -29,14 +37,16 @@ type ProxyChainReference struct {
 	Via  string `json:"via"`
 }
 type ProxyChainPlan struct {
-	Kind       string                     `json:"kind"`
-	Targets    []string                   `json:"targets"`
-	Via        []string                   `json:"via"`
-	Changes    []ProxyChainChange         `json:"changes"`
-	Persistent bool                       `json:"persistent"`
-	SharedUse  []ProxyChainReference      `json:"shared_use"`
-	Conflicts  []string                   `json:"conflicts"`
-	Messages   map[string]i18n.Descriptor `json:"-"`
+	Outlet       string                     `json:"outlet,omitempty"`
+	OutletGroups []string                   `json:"outlet_groups,omitempty"`
+	Kind         string                     `json:"kind"`
+	Targets      []string                   `json:"targets"`
+	Via          []string                   `json:"via"`
+	Changes      []ProxyChainChange         `json:"changes"`
+	Persistent   bool                       `json:"persistent"`
+	SharedUse    []ProxyChainReference      `json:"shared_use"`
+	Conflicts    []string                   `json:"conflicts"`
+	Messages     map[string]i18n.Descriptor `json:"-"`
 }
 
 func chainSupported(kind string) bool {
@@ -71,17 +81,17 @@ func chainTargets(cfg map[string]any) []ProxyChainTarget {
 	result := []ProxyChainTarget{}
 	for _, v := range tsProxies(cfg) {
 		m, _ := v.(map[string]any)
-		result = append(result, ProxyChainTarget{"node", tsString(m, "name"), tsString(m, "type"), chainPath(cfg, tsString(m, "dialer-proxy"))})
+		result = append(result, ProxyChainTarget{Kind: "node", Name: tsString(m, "name"), Type: tsString(m, "type"), Via: chainPath(cfg, tsString(m, "dialer-proxy")), Available: true, Supported: chainHop(tsString(m, "type"))})
 	}
 	providers, _ := cfg["proxy-providers"].(map[string]any)
 	for n, v := range providers {
 		p, _ := v.(map[string]any)
-		result = append(result, ProxyChainTarget{"provider", n, tsString(p, "type"), chainPath(cfg, chainProviderDialer(p))})
+		result = append(result, ProxyChainTarget{Kind: "provider", Name: n, Type: tsString(p, "type"), Via: chainPath(cfg, chainProviderDialer(p))})
 	}
 	groups, _ := cfg["proxy-groups"].([]any)
 	for _, v := range groups {
 		m, _ := v.(map[string]any)
-		result = append(result, ProxyChainTarget{"group", tsString(m, "name"), tsString(m, "type"), []string{}})
+		result = append(result, ProxyChainTarget{Kind: "group", Name: tsString(m, "name"), Type: tsString(m, "type"), Via: []string{}})
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Kind == result[j].Kind {
@@ -111,7 +121,22 @@ func (s *Store) ProxyChains(name string) ([]ProxyChainTarget, error) {
 	if err != nil {
 		return nil, err
 	}
+	members, err := s.savedProviderMembers(name)
+	if err != nil {
+		return nil, err
+	}
+	stripProviderResources(cfg, members)
 	out := chainTargets(cfg)
+	for i, t := range out {
+		if t.Kind == "node" {
+			out[i].PathRefs = chainPathRefs(cfg, tsString(tsFind(cfg, t.Name), "dialer-proxy"), members)
+			out[i].PathRefs = append(out[i].PathRefs, ChainNodeRef{Kind: "node", Name: t.Name})
+			out[i].Via = []string{}
+			for _, r := range out[i].PathRefs[:len(out[i].PathRefs)-1] {
+				out[i].Via = append(out[i].Via, r.Name)
+			}
+		}
+	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Kind == "node" && out[j].Kind == "node" {
 			return sourceNodeLess(out[i].Name, out[j].Name, ranks)
@@ -123,7 +148,7 @@ func (s *Store) ProxyChains(name string) ([]ProxyChainTarget, error) {
 		return nil, err
 	}
 	if p != nil {
-		out = append(out, ProxyChainTarget{"subscription", p.Subscription, "", append([]string{}, p.Via...)})
+		out = append(out, ProxyChainTarget{Kind: "subscription", Name: p.Subscription, Via: append([]string{}, p.Via...)})
 	}
 	return out, nil
 }
@@ -392,7 +417,7 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 	}
 	changes := func(k, n, b, a string) {
 		if b != a {
-			p.Changes = append(p.Changes, ProxyChainChange{k, n, b, a})
+			p.Changes = append(p.Changes, ProxyChainChange{Kind: k, Name: n, Before: b, After: a})
 		}
 	}
 	for i, n := range via {

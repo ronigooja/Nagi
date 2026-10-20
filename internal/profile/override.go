@@ -87,6 +87,10 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		if err != nil {
 			return nil, err
 		}
+		managed, err = s.applyProviderChainsData(name, managed)
+		if err != nil {
+			return nil, err
+		}
 		applied, err := rules.Apply(managed, s.Dir, name)
 		if err != nil {
 			return nil, err
@@ -175,6 +179,10 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		return nil, err
 	}
 	managed, err := applyManaged(name, merged)
+	if err != nil {
+		return nil, err
+	}
+	managed, err = s.applyProviderChainsData(name, managed)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +281,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 		if err := yaml.Unmarshal(old, &previous); err != nil || previous == nil {
 			return i18n.Errorf("backend.profile.existing_override_must_be_a_yaml_mapping", "existing override must be a YAML mapping")
 		}
-		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", proxyAdditionsKey, groupHealthcheckIntervalsKey, groupHealthcheckURLsKey} {
+		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", proxyAdditionsKey, groupHealthcheckIntervalsKey, groupHealthcheckURLsKey, ProviderChainMembersKey} {
 			if value, ok := previous[key]; ok {
 				source[key] = value
 			}
@@ -395,7 +403,7 @@ func (s *Store) RestoreDefaultOverride(ctx context.Context, name string) error {
 }
 
 var defaultOverrideExcludedKeys = map[string]struct{}{
-	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {}, proxyAdditionsKey: {}, groupHealthcheckIntervalsKey: {}, groupHealthcheckURLsKey: {},
+	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {}, proxyAdditionsKey: {}, ProviderChainMembersKey: {}, groupHealthcheckIntervalsKey: {}, groupHealthcheckURLsKey: {},
 	"external-controller": {}, "external-controller-unix": {}, "external-controller-tls": {},
 	"external-controller-pipe": {}, "external-controller-cors": {}, "external-controller-routing-mark": {},
 	"external-ui": {}, "external-ui-url": {}, "secret": {}, "authentication": {},

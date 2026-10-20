@@ -23,12 +23,15 @@ type ProviderChainMember struct {
 	RawName  string `json:"-" yaml:"raw-name"`
 	Type     string `json:"type" yaml:"type"`
 	Dialer   string `json:"dialer" yaml:"dialer-proxy"`
+	Outlet   bool   `json:"outlet" yaml:"outlet,omitempty"`
 }
 
 func (m ProviderChainMember) ID() string {
 	digest := sha256.Sum256([]byte(m.Provider + "\x00" + m.Node))
 	return fmt.Sprintf("nagi-chain-%x", digest[:12])
 }
+
+func (m ProviderChainMember) OutletName() string { return "Chain: " + m.Provider + " / " + m.Node }
 
 func (m ProviderChainMember) providerID() string { return m.ID() + "-source" }
 
@@ -228,6 +231,36 @@ func (s *Store) applyProviderChainMembers(profileName string, cfg map[string]any
 			"name": member.ID(), "type": "select", "use": []any{member.providerID()},
 			"filter": exactProviderName(member.Node), "empty-fallback": "REJECT", "hidden": true,
 		})
+	}
+	for _, member := range members {
+		if !member.Outlet {
+			continue
+		}
+		outlet := member.OutletName()
+		if tsFind(cfg, outlet) != nil {
+			return fmt.Errorf("chain outlet name conflicts with an existing node")
+		}
+		for _, value := range groups {
+			g, _ := value.(map[string]any)
+			if tsString(g, "name") == outlet {
+				return fmt.Errorf("chain outlet name conflicts with an existing group")
+			}
+		}
+		for _, value := range groups {
+			g, _ := value.(map[string]any)
+			if tsString(g, "type") != "select" || tsString(g, "name") == member.ID() {
+				continue
+			}
+			uses, _ := g["use"].([]any)
+			for _, use := range uses {
+				if use == member.Provider {
+					ps, _ := g["proxies"].([]any)
+					g["proxies"] = append(ps, outlet)
+					break
+				}
+			}
+		}
+		groups = append(groups, map[string]any{"name": outlet, "type": "select", "proxies": []any{member.ID()}})
 	}
 	cfg["proxy-groups"] = groups
 	return nil

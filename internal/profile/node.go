@@ -167,6 +167,13 @@ func (s *Store) ProxyNodeProviderCandidates(profileName string) ([]string, error
 			}
 		}
 	}
+	members, err := s.savedProviderMembers(profileName)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range members {
+		delete(providers, m.providerID())
+	}
 	remaining := []string{}
 	for name := range providers {
 		if !seen[name] {
