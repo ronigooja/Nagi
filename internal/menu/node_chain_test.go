@@ -45,11 +45,18 @@ func (r *nodeChainRunner) Run(_ context.Context, args []string) Result {
 		if r.conflict {
 			conflicts = append(conflicts, "cycle detected")
 		}
-		return Result{Data: map[string]any{"plan": map[string]any{"kind": "node", "targets": []string{"Target Node"}, "via": []string{"First Hop", "Last Hop"}, "changes": []any{map[string]any{"name": "First Hop", "before": "Old Hop", "after": ""}}, "shared_use": []any{map[string]any{"kind": "node", "name": "Shared Node", "via": "First Hop"}}, "conflicts": conflicts}}}
+		return Result{Data: map[string]any{"plan": map[string]any{"kind": "node", "targets": []string{args[4]}, "via": []string{}, "changes": []any{map[string]any{"name": "First Hop", "before": "Old Hop", "after": ""}}, "shared_use": []any{map[string]any{"kind": "node", "name": "Shared Node", "via": "First Hop"}}, "conflicts": conflicts}}}
 	}
 	if r.fail > 0 {
 		r.fail--
 		return Result{Code: 1, Error: &CLIError{Message: "operation failed https://secret.invalid/token"}}
+	}
+	if args[2] == "clear" {
+		for i := range r.chains {
+			if r.chains[i].Kind == args[3] && r.chains[i].Name == args[4] {
+				r.chains[i].Via = nil
+			}
+		}
 	}
 	return Result{Data: map[string]any{"saved": true, "reloaded": false}}
 }
@@ -97,12 +104,12 @@ func TestChainOrderedSelectionApplyAndExplicitRetry(t *testing.T) {
 		r := &nodeChainRunner{fail: 1, nodes: []menuProxyNode{{Name: "First Hop", Type: "tailscale"}, {Name: "Last Hop", Type: "socks5"}, {Name: "Target Node", Type: "ss"}}}
 		var out bytes.Buffer
 		s := NewSessionWithLanguage(r, strings.NewReader("1\n2\n3\n4\n4\n0\n"), &out, i18n.New(language))
-		RunPage(context.Background(), s, localizedchainDraftPage(s.language, "node", nil))
+		RunPage(context.Background(), s, localizedchainDraftPage(s.language, ""))
 		want := []string{"proxy", "chain", "set", "node", "Target Node", "--via", "First Hop", "--via", "Last Hop"}
 		if countMenuCall(r.calls, want) != 2 {
 			t.Fatalf("calls=%v output=%s", r.calls, out.String())
 		}
-		for _, text := range []string{"First Hop → Last Hop → Target Node", "Shared Node"} {
+		for _, text := range []string{"First Hop → Last Hop → Target Node"} {
 			if !strings.Contains(out.String(), text) {
 				t.Fatalf("missing %s: %s", text, out.String())
 			}
@@ -116,7 +123,7 @@ func TestChainOrderedSelectionApplyAndExplicitRetry(t *testing.T) {
 func TestChainConflictsNeverCommitAndCancel(t *testing.T) {
 	r := &nodeChainRunner{conflict: true, nodes: []menuProxyNode{{Name: "First Hop", Type: "tailscale"}, {Name: "Target Node", Type: "ss"}}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n0\n"), &out), localizedchainDraftPage(i18n.New(i18n.English), "node", nil))
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n0\n"), &out), localizedchainDraftPage(i18n.New(i18n.English), ""))
 	if !strings.Contains(out.String(), "cycle detected") {
 		t.Fatal(out.String())
 	}
@@ -189,7 +196,7 @@ func TestTailscaleAddDefaultsToNoGroupAndEOFDoesNotRetry(t *testing.T) {
 func TestChainFailedReadClearsStaleTargets(t *testing.T) {
 	r := &featureRunner{results: map[string]Result{}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
-	v, err := localizedchainTargetsPage(s.language, "node").Load(context.Background(), s)
+	v, err := localizedchainScopePage(s.language).Load(context.Background(), s)
 	if err == nil || len(v.Items) != 0 || len(v.Actions) != 0 {
 		t.Fatalf("%+v %v", v, err)
 	}

@@ -24,8 +24,9 @@ type PageView struct {
 }
 
 type Navigation struct {
-	Next *Page
-	Back bool
+	ReturnTo string // Return to an existing ancestor page after a completed flow.
+	Next     *Page
+	Back     bool
 }
 
 // Item opens a page, dispatches a command, or performs a custom flow.

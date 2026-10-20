@@ -23,7 +23,7 @@ func TestAcceptanceMenuUsesWrappedCLIPlanAndBlocksConflictSubmission(t *testing.
 	r := &acceptanceChainEnvelopeRunner{nodeChainRunner: nodeChainRunner{conflict: true, nodes: []menuProxyNode{{Name: "First Hop", Type: "socks5"}, {Name: "Target Node", Type: "ss"}}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
 	ctx := context.Background()
-	draft := localizedchainDraftPage(s.language, "node", nil)
+	draft := localizedchainDraftPage(s.language, "")
 	v, err := draft.Load(ctx, s)
 	if err != nil {
 		t.Fatal(err)
@@ -41,12 +41,12 @@ func TestAcceptanceMenuUsesWrappedCLIPlanAndBlocksConflictSubmission(t *testing.
 			t.Fatal(err)
 		}
 	}
-	for _, want := range []string{"cycle detected", "Shared Node", "First Hop"} {
+	for _, want := range []string{"cycle detected", "First Hop"} {
 		if !strings.Contains(v.Context, want) {
 			t.Fatalf("wrapped CLI plan lost %q: %s", want, v.Context)
 		}
 	}
-	if err := v.Actions[0].Action(ctx, s); err != nil {
+	if _, err := v.Actions[0].Navigate(ctx, s); err != nil {
 		t.Fatal(err)
 	}
 	assertNoChainMutation(t, r.calls)

@@ -264,7 +264,15 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 			}
 		}
 		current.loaded = false
-		if err == nil && nav.Back && len(stack) > 1 {
+		if err == nil && nav.ReturnTo != "" {
+			for i := len(stack) - 1; i >= 0; i-- {
+				if stack[i].page.ID == nav.ReturnTo {
+					stack = stack[:i+1]
+					stack[i].loaded = false
+					break
+				}
+			}
+		} else if err == nil && nav.Back && len(stack) > 1 {
 			stack = stack[:len(stack)-1]
 			stack[len(stack)-1].loaded = false
 		} else if err == nil && nav.Next != nil {
