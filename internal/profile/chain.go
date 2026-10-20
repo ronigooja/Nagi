@@ -37,6 +37,7 @@ type ProxyChainReference struct {
 	Via  string `json:"via"`
 }
 type ProxyChainPlan struct {
+	PathChanges  []ProxyChainPathChange     `json:"path_changes"`
 	Outlet       string                     `json:"outlet,omitempty"`
 	OutletGroups []string                   `json:"outlet_groups,omitempty"`
 	Kind         string                     `json:"kind"`
@@ -113,7 +114,7 @@ func (s *Store) chainConfig(name string) (map[string]any, error) {
 	return cfg, nil
 }
 func (s *Store) ProxyChains(name string) ([]ProxyChainTarget, error) {
-	cfg, err := s.chainConfig(name)
+	cfg, err := s.chainLogicalConfig(name)
 	if err != nil {
 		return nil, err
 	}

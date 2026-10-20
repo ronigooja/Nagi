@@ -191,6 +191,7 @@ func orderedProxyService(client proxy.Client, configDir string) *proxy.Service {
 	if err != nil {
 		return service
 	}
+	service.ProviderChainSources, _ = store.ProviderChainSources(selected)
 	service.GroupOrder, _ = proxy.GroupOrderFromYAML(effective)
 	_ = service.Configure(effective)
 	return service
@@ -252,6 +253,16 @@ func materializeProfileWithSelections(store *profile.Store, configDir, name stri
 	if err != nil {
 		return "", err
 	}
+	cleanupCaches, err := profile.PrepareProviderChainCaches(data, configDir, name)
+	if err != nil {
+		return "", err
+	}
+	completed := false
+	defer func() {
+		if !completed {
+			cleanupCaches()
+		}
+	}()
 	if err := store.Validate(data); err != nil {
 		return "", err
 	}
@@ -280,6 +291,7 @@ func materializeProfileWithSelections(store *profile.Store, configDir, name stri
 	if err := os.Rename(file.Name(), path); err != nil {
 		return "", err
 	}
+	completed = true
 	return path, nil
 }
 

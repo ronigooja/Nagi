@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -133,7 +134,7 @@ func (s *Store) resolveProviderMember(cfg map[string]any, r ChainNodeRef) (Provi
 	return m, nil
 }
 func (s *Store) ProviderChainInventory(name string) ([]ProxyChainTarget, []string, error) {
-	cfg, err := s.chainConfig(name)
+	cfg, err := s.chainLogicalConfig(name)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -187,6 +188,28 @@ func (s *Store) ProviderChainInventory(name string) ([]ProxyChainTarget, []strin
 			out = append(out, t)
 		}
 	}
+	for _, m := range members {
+		found := false
+		for _, t := range out {
+			if t.ID == m.ID() {
+				found = true
+			}
+		}
+		if found {
+			continue
+		}
+		r := ChainNodeRef{Kind: "provider-node", Name: m.Node, Provider: m.Provider}
+		path := chainPathRefs(cfg, m.Dialer, members)
+		path = append(path, r)
+		t := ProxyChainTarget{Kind: r.Kind, Name: r.Name, Provider: r.Provider, ID: m.ID(), Type: m.Type, Supported: true, Available: false, Via: []string{}, PathRefs: path, UnsupportedReason: "saved provider node is unavailable in its current source"}
+		for _, x := range path[:len(path)-1] {
+			t.Via = append(t.Via, x.Name)
+		}
+		if m.Outlet {
+			t.Outlet = m.OutletName()
+		}
+		out = append(out, t)
+	}
 	return out, unavailable, nil
 }
 func chainPathRefs(cfg map[string]any, dialer string, members []ProviderChainMember) []ChainNodeRef {
@@ -225,7 +248,11 @@ func (s *Store) MutateScopedProxyChain(ctx context.Context, name, kind string, t
 	if err != nil {
 		return p, err
 	}
-	return p, s.SetOverride(ctx, name, data)
+	err = s.SetOverride(ctx, name, data)
+	if err == nil {
+		err = s.CleanupProviderChainCaches(name)
+	}
+	return p, err
 }
 func stripProviderResources(cfg map[string]any, members []ProviderChainMember) {
 	providers, _ := cfg["proxy-providers"].(map[string]any)
@@ -258,8 +285,8 @@ func stripProviderResources(cfg map[string]any, members []ProviderChainMember) {
 	cfg["proxy-groups"] = out
 }
 func (s *Store) scopedChainCandidate(name, kind string, targets []string, targetProvider string, refs []ChainNodeRef, clear bool) (map[string]any, ProxyChainPlan, map[string]any, error) {
-	p := ProxyChainPlan{Kind: kind, Targets: append([]string{}, targets...), Via: []string{}, Changes: []ProxyChainChange{}, SharedUse: []ProxyChainReference{}, Conflicts: []string{}}
-	cfg, err := s.chainConfig(name)
+	p := ProxyChainPlan{PathChanges: []ProxyChainPathChange{}, Kind: kind, Targets: append([]string{}, targets...), Via: []string{}, Changes: []ProxyChainChange{}, SharedUse: []ProxyChainReference{}, Conflicts: []string{}}
+	cfg, err := s.chainLogicalConfig(name)
 	if err != nil {
 		return nil, p, nil, err
 	}
@@ -267,6 +294,8 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 	if err != nil {
 		return nil, p, nil, err
 	}
+	beforePaths := logicalChainPaths(cfg, members)
+	originalMembers := append([]ProviderChainMember{}, members...)
 	stripProviderResources(cfg, members)
 	overlay, err := s.chainOverride(name)
 	if err != nil {
@@ -396,7 +425,7 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 	}
 	kept := []ProviderChainMember{}
 	for _, m := range members {
-		if needed[m.ID()] {
+		if needed[m.ID()] || m.Dialer != "" {
 			kept = append(kept, m)
 		}
 	}
@@ -462,5 +491,92 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 			}
 		}
 	}
+	afterPaths := logicalChainPaths(cfg, members)
+	for _, b := range beforePaths {
+		excluded := false
+		for _, r := range refs {
+			if r.Name == b.Name && r.Provider == b.Provider {
+				excluded = true
+			}
+		}
+		if b.Kind == kind && b.Provider == targetProvider {
+			for _, t := range targets {
+				if t == b.Name {
+					excluded = true
+				}
+			}
+		}
+		if excluded {
+			continue
+		}
+		for _, a := range afterPaths {
+			if a.Kind == b.Kind && a.Name == b.Name && a.Provider == b.Provider && !reflect.DeepEqual(a.PathRefs, b.PathRefs) {
+				p.PathChanges = append(p.PathChanges, ProxyChainPathChange{Kind: b.Kind, Name: b.Name, Provider: b.Provider, BeforeRefs: b.PathRefs, AfterRefs: a.PathRefs})
+			}
+		}
+	}
+	_ = originalMembers
 	return overlay, p, cfg, nil
+}
+
+// chainLogicalConfig deliberately omits generated resources so inspection and
+// disconnect remain available after a source changes its name mapping.
+func (s *Store) chainLogicalConfig(name string) (map[string]any, error) {
+	source, err := s.Show(name)
+	if err != nil {
+		return nil, err
+	}
+	o, err := s.chainOverride(name)
+	if err != nil {
+		return nil, err
+	}
+	delete(o, ProviderChainMembersKey)
+	patch, err := yaml.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	data, err := s.effectiveSourceWithOverride(name, source, patch, nil)
+	if err != nil {
+		return nil, err
+	}
+	var cfg map[string]any
+	err = yaml.Unmarshal(data, &cfg)
+	return cfg, err
+}
+
+type ProxyChainPathChange struct {
+	Kind       string         `json:"kind"`
+	Name       string         `json:"name"`
+	Provider   string         `json:"provider,omitempty"`
+	BeforeRefs []ChainNodeRef `json:"before_refs"`
+	AfterRefs  []ChainNodeRef `json:"after_refs"`
+}
+
+func logicalChainPaths(cfg map[string]any, members []ProviderChainMember) []ProxyChainTarget {
+	result := []ProxyChainTarget{}
+	for _, v := range tsProxies(cfg) {
+		m, _ := v.(map[string]any)
+		name := tsString(m, "name")
+		refs := chainPathRefs(cfg, tsString(m, "dialer-proxy"), members)
+		refs = append(refs, ChainNodeRef{Kind: "node", Name: name})
+		result = append(result, ProxyChainTarget{Kind: "node", Name: name, PathRefs: refs})
+	}
+	for _, m := range members {
+		if !m.Outlet {
+			continue
+		}
+		refs := chainPathRefs(cfg, m.Dialer, members)
+		refs = append(refs, ChainNodeRef{Kind: "provider-node", Name: m.Node, Provider: m.Provider})
+		result = append(result, ProxyChainTarget{Kind: "provider-node", Name: m.Node, Provider: m.Provider, PathRefs: refs})
+	}
+	return result
+}
+
+func (s *Store) ProviderChainSources(name string) (map[string][]string, error) {
+	members, err := s.savedProviderMembers(name)
+	out := map[string][]string{}
+	for _, m := range members {
+		out[m.Provider] = append(out[m.Provider], m.providerID())
+	}
+	return out, err
 }

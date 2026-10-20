@@ -268,3 +268,26 @@ func (s SelectionStore) Restore(ctx context.Context, profile string, service *Se
 	}
 	return result, nil
 }
+
+// RemoveTarget forgets only choices of a removed generated chain outlet.
+func (s SelectionStore) RemoveTarget(profile, target string) error {
+	all, err := s.read()
+	if err != nil {
+		return err
+	}
+	changed := false
+	for group, node := range all[profile] {
+		if node == target || group == target {
+			delete(all[profile], group)
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	data, err := json.MarshalIndent(all, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeSelections(s.Path, data)
+}

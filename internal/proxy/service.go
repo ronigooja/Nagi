@@ -18,10 +18,11 @@ type Client interface {
 }
 
 type Service struct {
-	Client        Client
-	GroupOrder    []string
-	config        *effectiveConfig
-	requireConfig bool
+	ProviderChainSources map[string][]string
+	Client               Client
+	GroupOrder           []string
+	config               *effectiveConfig
+	requireConfig        bool
 }
 type Candidates []string
 

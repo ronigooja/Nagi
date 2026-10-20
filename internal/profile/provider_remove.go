@@ -29,6 +29,15 @@ func (s *Store) RemoveProvider(ctx context.Context, profileName, name string) er
 	if err := ValidateProviderRemoval(name); err != nil {
 		return err
 	}
+	members, err := s.savedProviderMembers(profileName)
+	if err != nil {
+		return err
+	}
+	for _, m := range members {
+		if m.Provider == name {
+			return i18n.Errorf("backend.profile.provider_chain_source_in_use", "provider is used by a node chain; disconnect its chain first")
+		}
+	}
 	data, err := s.Effective(profileName)
 	if err != nil {
 		return err

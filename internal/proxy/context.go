@@ -37,6 +37,9 @@ type effectiveConfig struct {
 	Groups    []groupConfig `yaml:"proxy-groups"`
 	Providers map[string]struct {
 		HealthCheck checkConfig `yaml:"health-check"`
+		Type        string      `yaml:"type"`
+		URL         string      `yaml:"url"`
+		Path        string      `yaml:"path"`
 	} `yaml:"proxy-providers"`
 }
 

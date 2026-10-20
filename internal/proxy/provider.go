@@ -39,7 +39,7 @@ func (s *Service) Providers(ctx context.Context) ([]Provider, error) {
 	}
 	result := make([]Provider, 0, len(response.Providers))
 	for name, raw := range response.Providers {
-		if name == "COMPATIBLE" || raw.VehicleType == "Compatible" {
+		if name == "COMPATIBLE" || raw.VehicleType == "Compatible" || s.generatedProvider(name) {
 			continue
 		}
 		p := Provider{Name: name, Type: raw.Type, VehicleType: raw.VehicleType, UpdatedAt: raw.UpdatedAt, Nodes: []string{}, NodeDelays: map[string]NodeDelay{}, NodeInfo: map[string]NodeInfo{}}
@@ -113,7 +113,23 @@ func (s *Service) ProviderUpdate(ctx context.Context, name string) error {
 	if err := s.Client.Put(ctx, "/providers/proxies/"+url.PathEscape(name), nil, nil); err != nil {
 		return i18n.Errorf("backend.proxy.proxy_provider_update_failed_inspect_mihomo_logs", "proxy provider update failed; inspect mihomo logs")
 	}
+	for _, derived := range s.ProviderChainSources[name] {
+		if err := s.Client.Put(ctx, "/providers/proxies/"+url.PathEscape(derived), nil, nil); err != nil {
+			return i18n.Errorf("backend.proxy.provider_chain_refresh_failed", "provider updated, but a selected chain node refresh failed; mihomo retained its last good node; inspect mihomo logs")
+		}
+	}
+
 	return nil
+}
+func (s *Service) generatedProvider(name string) bool {
+	for _, names := range s.ProviderChainSources {
+		for _, n := range names {
+			if name == n {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *Service) ProviderHealthcheck(ctx context.Context, name string) error {

@@ -2,6 +2,9 @@ package server
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"fmt"
+	"github.com/ronigooja/Nagi/internal/profile"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"path/filepath"
 	"strings"
@@ -15,14 +18,55 @@ import (
 // prepareConfig copies every permitted local reference before the root child
 // receives the profile. Relative references are anchored at the source profile.
 func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []string, error) {
-	if err := configpolicy.Validate(data); err != nil {
-		return "", nil, err
-	}
 	var doc yaml.Node
 	if yaml.Unmarshal(data, &doc) != nil || len(doc.Content) != 1 {
 		return "", nil, i18n.Errorf("system.privileged.invalid.configuration.yaml", "invalid configuration YAML")
 	}
 	root := doc.Content[0]
+	// Generated HTTP providers carry a user-mode cache path. Remove only the
+	// exact generated path before policy validation; root never opens that path.
+	type generatedCache struct {
+		provider *yaml.Node
+		name     string
+	}
+	var generated []generatedCache
+	profileName := strings.TrimSuffix(filepath.Base(source), filepath.Ext(source))
+	profileName = strings.TrimPrefix(profileName, ".effective-")
+	profileName = strings.TrimPrefix(profileName, ".restore-")
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "proxy-providers" {
+			continue
+		}
+		mapping := root.Content[i+1]
+		for j := 0; j+1 < len(mapping.Content); j += 2 {
+			name := mapping.Content[j].Value
+			p := mapping.Content[j+1]
+			if field(p, "type") != "http" {
+				continue
+			}
+			path := field(p, "path")
+			if path == "" {
+				continue
+			}
+			if !profile.IsProviderChainCache(name, path, filepath.Dir(source), profileName) {
+				continue
+			}
+			for k := 0; k+1 < len(p.Content); k += 2 {
+				if p.Content[k].Value == "path" {
+					p.Content = append(p.Content[:k], p.Content[k+2:]...)
+					break
+				}
+			}
+			generated = append(generated, generatedCache{p, name})
+		}
+	}
+	sanitized, err := yaml.Marshal(&doc)
+	if err != nil {
+		return "", nil, err
+	}
+	if err = configpolicy.Validate(sanitized); err != nil {
+		return "", nil, err
+	}
 	var resources []string
 	fail := func() (string, []string, error) {
 		removeSnapshots("", resources)
@@ -71,6 +115,16 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 				return fail()
 			}
 		}
+	}
+	// Allocate a private, stable cache independent of the user path. The
+	// URL participates in identity so a different source never inherits old data.
+	for _, g := range generated {
+		digest := sha256.Sum256([]byte(profileName + "\x00" + g.name + "\x00" + field(g.provider, "url")))
+		path := filepath.Join(h.PrivateDir, ".chain-cache", fmt.Sprintf("%x.yaml", digest[:16]))
+		if _, err := profile.PreparePrivateChainCache(h.PrivateDir, path); err != nil {
+			return fail()
+		}
+		g.provider.Content = append(g.provider.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "path"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: path})
 	}
 	var out bytes.Buffer
 	if yaml.NewEncoder(&out).Encode(&doc) != nil {

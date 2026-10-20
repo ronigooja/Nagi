@@ -2,6 +2,8 @@ package command
 
 import (
 	"context"
+	"github.com/ronigooja/Nagi/internal/proxy"
+	"path/filepath"
 	"strings"
 
 	"github.com/ronigooja/Nagi/internal/profile"
@@ -12,6 +14,8 @@ type chainOptions struct {
 	kind         string
 	targets, via []string
 	dryRun       bool
+	provider     string
+	refs         []profile.ChainNodeRef
 }
 
 func chainInvocation(args []string) bool {
@@ -49,7 +53,7 @@ func chainArguments(args []string) (chainOptions, error) {
 		}
 		o.kind = args[3]
 	}
-	if o.kind != "node" && o.kind != "provider" && o.kind != "subscription" {
+	if o.kind != "node" && o.kind != "provider" && o.kind != "subscription" && o.kind != "provider-node" {
 		return o, messageError("cli.error.proxy_chain.kind_must_be_node_provider_or_subscription", "KIND must be node, provider, or subscription")
 	}
 	if action == "list" {
@@ -69,6 +73,14 @@ func chainArguments(args []string) (chainOptions, error) {
 			}
 			o.dryRun = true
 			options = true
+		case "--via-provider":
+			if action != "set" || i+2 >= len(args) || strings.HasPrefix(args[i+1], "--") || strings.HasPrefix(args[i+2], "--") {
+				return o, messageError("cli.error.proxy_chain.via_provider_requires_names", "--via-provider requires PROVIDER NODE and is only valid for set")
+			}
+			o.refs = append(o.refs, profile.ChainNodeRef{Kind: "provider-node", Provider: args[i+1], Name: args[i+2]})
+			o.via = append(o.via, args[i+2])
+			i += 2
+			options = true
 		case "--via":
 			if action != "set" {
 				return o, messageError("cli.error.proxy_chain.via_is_only_valid_for_set", "--via is only valid for set")
@@ -81,6 +93,7 @@ func chainArguments(args []string) (chainOptions, error) {
 				return o, err
 			}
 			o.via = append(o.via, args[i])
+			o.refs = append(o.refs, profile.ChainNodeRef{Kind: "node", Name: args[i]})
 			options = true
 		default:
 			if options || strings.HasPrefix(arg, "--") {
@@ -89,12 +102,19 @@ func chainArguments(args []string) (chainOptions, error) {
 			if err := profile.ValidateTailscaleName(arg); err != nil {
 				return o, err
 			}
-			if seen[arg] {
+			if seen[arg] && o.kind != "provider-node" {
 				return o, messageError("cli.error.proxy_chain.duplicate_target", "duplicate TARGET")
 			}
 			seen[arg] = true
 			o.targets = append(o.targets, arg)
 		}
+	}
+	if o.kind == "provider-node" {
+		if len(o.targets) != 2 {
+			return o, messageError("cli.error.proxy_chain.provider_node_requires_names", "provider-node requires PROVIDER NODE")
+		}
+		o.provider = o.targets[0]
+		o.targets = o.targets[1:]
 	}
 	if len(o.targets) == 0 {
 		return o, messageError("cli.error.proxy_chain.target_is_required", "TARGET is required")
@@ -176,18 +196,22 @@ func chainCommand(ctx context.Context, args []string, store *profile.Store, cach
 		if err != nil {
 			return nil, err
 		}
-		all := append(targets, entire...)
+		providerNodes, unavailable, err := store.ProviderChainInventory(name)
+		if err != nil {
+			return nil, err
+		}
+		all := append(append(targets, entire...), providerNodes...)
 		filtered := []profile.ProxyChainTarget{}
 		seen := map[string]bool{}
 		for _, t := range all {
-			key := t.Kind + "\x00" + t.Name
+			key := t.Kind + "\x00" + t.Provider + "\x00" + t.Name
 			if seen[key] || o.kind != "" && o.kind != t.Kind {
 				continue
 			}
 			seen[key] = true
 			filtered = append(filtered, t)
 		}
-		return map[string]any{"profile": name, "chains": filtered}, nil
+		return map[string]any{"profile": name, "chains": filtered, "unavailable_providers": unavailable}, nil
 	}
 	if err := validateChainSubscription(cache, store, name, o, action == "set"); err != nil {
 		return nil, err
@@ -195,6 +219,20 @@ func chainCommand(ctx context.Context, args []string, store *profile.Store, cach
 	switch action {
 	case "show":
 		target, err := store.ProxyChain(name, o.kind, o.targets[0])
+		if o.kind == "provider-node" {
+			values, _, e := store.ProviderChainInventory(name)
+			err = e
+			if e == nil {
+				err = messageError("cli.error.proxy_chain.provider_node_not_found", "provider node unavailable; refresh its source or inspect its local cache")
+				for _, v := range values {
+					if v.Provider == o.provider && v.Name == o.targets[0] {
+						target = v
+						err = nil
+						break
+					}
+				}
+			}
+		}
 		if o.kind == "subscription" && err != nil {
 			policy, e := store.SubscriptionChain(name)
 			if e != nil {
@@ -208,16 +246,62 @@ func chainCommand(ctx context.Context, args []string, store *profile.Store, cach
 		return map[string]any{"profile": name, "chain": target}, err
 	case "candidates":
 		nodes, err := store.ProxyChainCandidates(name, o.kind, o.targets)
-		return map[string]any{"profile": name, "nodes": nodes}, err
+		if err != nil {
+			return nil, err
+		}
+		values, unavailable, err := store.ProviderChainInventory(name)
+		if err != nil {
+			return nil, err
+		}
+		all := []any{}
+		for _, n := range nodes {
+			all = append(all, n)
+		}
+		for _, v := range values {
+			if !v.Supported || o.kind == "provider-node" && v.Provider == o.provider && v.Name == o.targets[0] {
+				continue
+			}
+			all = append(all, v)
+		}
+		return map[string]any{"profile": name, "nodes": all, "unavailable_providers": unavailable}, nil
+	}
+	removedOutlet := ""
+	if action == "clear" && o.kind == "provider-node" {
+		values, _, _ := store.ProviderChainInventory(name)
+		for _, v := range values {
+			if v.Provider == o.provider && v.Name == o.targets[0] {
+				removedOutlet = v.Outlet
+			}
+		}
 	}
 	var plan profile.ProxyChainPlan
-	if o.dryRun {
+	scoped := o.kind != "subscription"
+	if scoped && o.dryRun {
+		plan, err = store.PlanScopedProxyChain(name, o.kind, o.targets, o.provider, o.refs, action == "clear")
+	} else if scoped {
+		plan, err = store.MutateScopedProxyChain(ctx, name, o.kind, o.targets, o.provider, o.refs, action == "clear")
+	} else if o.dryRun {
+		for _, r := range o.refs {
+			if r.Provider != "" {
+				return nil, messageError("cli.error.proxy_chain.subscription_provider_hops", "subscription policies require static top-level hops; use node or provider-node scope")
+			}
+		}
 		plan, err = store.PlanProxyChain(name, o.kind, o.targets, o.via, action == "clear")
 	} else {
+		for _, r := range o.refs {
+			if r.Provider != "" {
+				return nil, messageError("cli.error.proxy_chain.subscription_provider_hops", "subscription policies require static top-level hops; use node or provider-node scope")
+			}
+		}
 		plan, err = store.MutateProxyChain(ctx, name, o.kind, o.targets, o.via, action == "clear")
 	}
 	if err != nil {
 		return nil, err
+	}
+	if removedOutlet != "" && !o.dryRun {
+		if err := (proxy.SelectionStore{Path: filepath.Join(store.Dir, "proxy-selections.json")}).RemoveTarget(name, removedOutlet); err != nil {
+			return nil, err
+		}
 	}
 	return map[string]any{"profile": name, "action": action, "plan": plan, "dry_run": o.dryRun, "saved": !o.dryRun, "reloaded": reloaded && !o.dryRun, "resource": "chain"}, nil
 }
