@@ -216,3 +216,20 @@ func TestRetiredOutletChoicesRollbackOnReloadFailure(t *testing.T) {
 		}
 	}
 }
+
+func TestProviderChainLocalCompletion(t *testing.T) {
+	providerChainCommandFixture(t)
+	for _, args := range [][]string{{"completion", "candidates", "chain-targets", "provider-node"}, {"completion", "candidates", "chain-targets", "provider-node", "Q"}} {
+		var out, errs bytes.Buffer
+		if code := Run(args, &out, &errs, "test", "test"); code != 0 {
+			t.Fatalf("%d %s", code, &errs)
+		}
+		want := "P\nQ\n"
+		if len(args) == 5 {
+			want = "Shared\n"
+		}
+		if out.String() != want {
+			t.Fatalf("%v: %q", args, out.String())
+		}
+	}
+}

@@ -558,5 +558,9 @@
   "backend.profile.chain_provider_payload_external": "提供方载荷存在外部前置代理",
   "backend.profile.chain_target_external": "{arg0} {arg1} 存在外部前置代理",
   "backend.profile.chain_policy_owns_edge": "订阅策略拥有已修改的依赖；请先清除订阅链式代理",
-  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": "本地新增代理必须包含具名且兼容的节点"
+  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": "本地新增代理必须包含具名且兼容的节点",
+  "backend.profile.chain_provider_protocol_unsupported": "此 Provider 节点协议不支持独立串联",
+  "backend.profile.chain_provider_node_unavailable": "已保存的 Provider 节点在当前来源中不可用",
+  "backend.profile.chain_provider_policy_incompatible": "Provider 单节点串联不能与整个订阅串联策略并用；请先清除现有串联",
+  "backend.proxy.provider_chain_refresh_failed": "Provider 已更新，但所选串联节点刷新失败；mihomo 保留了上次可用节点，请检查 mihomo 日志"
 }

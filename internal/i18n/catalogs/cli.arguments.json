@@ -2495,5 +2495,6 @@
     "arg2": "string",
     "arg3": "string",
     "arg4": "string"
-  }
+  },
+  "cli.error.validation.provider_chain_completion": {}
 }

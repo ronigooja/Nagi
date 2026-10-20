@@ -118,3 +118,31 @@ func TestProviderInventoryDistinctSourcesAndNoGenerated(t *testing.T) {
 		t.Fatal(values)
 	}
 }
+
+func TestProviderScopedSharedUseCompatibilityAndPolicyBoundary(t *testing.T) {
+	s := providerScopedFixture(t)
+	// An ordinary chain preview retains the established shared_use contract.
+	_, err := s.MutateScopedProxyChain(context.Background(), "default", "node", []string{"Exit"}, "", []ChainNodeRef{{Name: "Entry"}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.PlanScopedProxyChain("default", "provider", []string{"Q"}, "", []ChainNodeRef{{Name: "Entry"}}, false)
+	if err != nil || len(got.SharedUse) == 0 {
+		t.Fatal("shared uses omitted", got)
+	}
+	// Both composition directions explicitly refuse the unsupported policy mix.
+	s = providerScopedFixture(t)
+	if _, err = s.MutateProxyChain(context.Background(), "default", "subscription", []string{"feed"}, []string{"Entry"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.PlanScopedProxyChain("default", "provider-node", []string{"Shared"}, "P", []ChainNodeRef{{Name: "Exit"}}, false); err == nil {
+		t.Fatal("policy/provider-node mix accepted")
+	}
+	s = providerScopedFixture(t)
+	if _, err = s.MutateScopedProxyChain(context.Background(), "default", "provider-node", []string{"Shared"}, "P", []ChainNodeRef{{Name: "Entry"}}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.PlanProxyChain("default", "subscription", []string{"feed"}, []string{"Exit"}, false); err == nil {
+		t.Fatal("provider-node/policy mix accepted")
+	}
+}

@@ -503,6 +503,15 @@ func (s *Store) subscriptionChainCandidate(name string, targets, via []string, c
 	if len(targets) != 1 || !validName(targets[0]) {
 		return nil, p, i18n.Errorf("backend.profile.chain_subscription_chain_requires_one_subscription_name", "subscription chain requires one subscription name")
 	}
+	if !clear {
+		members, err := s.savedProviderMembers(name)
+		if err != nil {
+			return nil, p, err
+		}
+		if len(members) > 0 {
+			return nil, p, i18n.Errorf("backend.profile.chain_provider_policy_incompatible", "provider-node chains cannot be combined with a subscription chain policy; clear the existing chain first")
+		}
+	}
 	old, err := s.SubscriptionChain(name)
 	if err != nil {
 		return nil, p, err

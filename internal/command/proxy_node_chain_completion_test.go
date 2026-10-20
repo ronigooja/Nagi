@@ -39,7 +39,7 @@ func TestNodeChainCompletionAllShells(t *testing.T) {
 }
 func TestNodeChainBashCompletion(t *testing.T) {
 	script, _ := completion("bash")
-	probe := `nagi() { case "$3" in proxy-nodes) printf '%s\n' 'My Tail' Other;; node-groups) printf '%s\n' 'My Group';; chain-targets) printf '%s\n' 'Target A';; esac; }
+	probe := `nagi() { case "$3" in proxy-nodes) printf '%s\n' 'My Tail' Other;; node-groups) printf '%s\n' 'My Group';; chain-targets) if [[ "$4" == provider-node ]]; then if [[ "$5" == "Source P" ]]; then printf '%s\n' 'Shared Node'; else printf '%s\n' 'Source P'; fi; else printf '%s\n' 'Target A'; fi;; esac; }
 ` + script + `
 COMP_WORDS=(nagi proxy node ''); COMP_CWORD=3; _nagi_complete; printf 'NODE_ACTIONS:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi proxy node add ''); COMP_CWORD=4; _nagi_complete; printf 'TYPE:%s\n' "${COMPREPLY[*]}"
@@ -48,6 +48,11 @@ COMP_WORDS=(nagi proxy node add tailscale Tail exit --group My); COMP_CWORD=8; _
 COMP_WORDS=(nagi proxy chain set ''); COMP_CWORD=4; _nagi_complete; printf 'KIND:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi proxy chain set node Target); COMP_CWORD=5; _nagi_complete; printf 'TARGET:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
 COMP_WORDS=(nagi proxy chain set node 'Target A' --via My); COMP_CWORD=7; _nagi_complete; printf 'VIA:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
+COMP_WORDS=(nagi proxy chain set provider-node Source); COMP_CWORD=5; _nagi_complete; printf 'SOURCE:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
+COMP_WORDS=(nagi proxy chain set provider-node 'Source P' Shared); COMP_CWORD=6; _nagi_complete; printf 'MEMBER:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
+COMP_WORDS=(nagi proxy chain set node 'Target A' --via-provider Source); COMP_CWORD=7; _nagi_complete; printf 'VIA_SOURCE:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
+COMP_WORDS=(nagi proxy chain set node 'Target A' --via-provider 'Source P' Shared); COMP_CWORD=8; _nagi_complete; printf 'VIA_MEMBER:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
+
 `
 	shells := []string{"bash"}
 	if _, err := os.Stat("/root/environment/bash-3.2/bin/bash"); err == nil {
@@ -58,7 +63,7 @@ COMP_WORDS=(nagi proxy chain set node 'Target A' --via My); COMP_CWORD=7; _nagi_
 		if err != nil {
 			t.Fatalf("%s %v %s", shell, err, out)
 		}
-		for _, want := range []string{"NODE_ACTIONS:", "TYPE:tailscale", "SHOW:1:My Tail", "GROUP:1:My Group", "KIND:node provider-node provider subscription", "TARGET:1:Target A", "VIA:1:My Tail"} {
+		for _, want := range []string{"NODE_ACTIONS:", "TYPE:tailscale", "SHOW:1:My Tail", "GROUP:1:My Group", "KIND:node provider-node provider subscription", "TARGET:1:Target A", "VIA:1:My Tail", "SOURCE:1:Source P", "MEMBER:1:Shared Node", "VIA_SOURCE:1:Source P", "VIA_MEMBER:1:Shared Node"} {
 			if !strings.Contains(string(out), want) {
 				t.Fatalf("%s omitted %s in %s", shell, want, out)
 			}

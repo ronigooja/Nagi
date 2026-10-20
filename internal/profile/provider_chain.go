@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"gopkg.in/yaml.v3"
 )
 
@@ -383,7 +384,7 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 	}
 	if policy != nil {
 		if !clear && (kind == "provider-node" || lenProviderRefs(refs) > 0) {
-			return nil, p, nil, fmt.Errorf("provider-node chains cannot be combined with an active subscription chain policy; clear the subscription chain first")
+			return nil, p, nil, i18n.Errorf("backend.profile.chain_provider_policy_incompatible", "provider-node chains cannot be combined with a subscription chain policy; clear the existing chain first")
 		}
 		for _, c := range p.Changes {
 			if policyOwnsEdge(policy, c.Kind, c.Name) {

@@ -224,7 +224,7 @@
   "cli.error.proxy_chain.duplicate_target.usage": "TARGET 重复\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.proxy_chain.kind_and_target_are_required": "需要 KIND 和 TARGET",
   "cli.error.proxy_chain.kind_and_target_are_required.usage": "需要 KIND 和 TARGET\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
-  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription": "KIND 必须为 node、provider 或 subscription",
+  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription": "KIND 必须为 node、provider-node、provider 或 subscription",
   "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription.usage": "KIND 必须为 node、provider 或 subscription\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.proxy_chain.missing_chain_action": "缺少链式代理操作",
   "cli.error.proxy_chain.missing_chain_action.usage": "缺少链式代理操作\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
@@ -500,8 +500,8 @@
   "cli.error.validation.invalid_profile.usage": "无效的 PROFILE\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.validation.kind_must_be_group_provider_or_subscription": "KIND 必须为 group、provider 或 subscription",
   "cli.error.validation.kind_must_be_group_provider_or_subscription.usage": "KIND 必须为 group、provider 或 subscription\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
-  "cli.error.validation.kind_must_be_node_provider_or_subscription": "KIND 必须为 node、provider 或 subscription",
-  "cli.error.validation.kind_must_be_node_provider_or_subscription.usage": "KIND 必须为 node、provider 或 subscription\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
+  "cli.error.validation.kind_must_be_node_provider_or_subscription": "KIND 必须为 node、provider-node、provider 或 subscription",
+  "cli.error.validation.kind_must_be_node_provider_or_subscription.usage": "KIND 必须为 node、provider-node、provider 或 subscription\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.validation.lines_must_be_an_integer_from_1_to_10000": "行数必须为 1 到 10000 的整数",
   "cli.error.validation.lines_must_be_an_integer_from_1_to_10000.usage": "行数必须为 1 到 10000 的整数\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.validation.missing_argument": "缺少参数",
@@ -805,5 +805,6 @@
   "cli.state.yes": "是",
   "cli.stream.connections.sample": "采样：{arg0}",
   "cli.stream.subscription.started": "订阅调度器运行中；中断以停止。",
-  "cli.stream.traffic.sample": "上传：{arg0} B/s（总计 {arg1} B）  下载：{arg2} B/s（总计 {arg3} B）  采样：{arg4}"
+  "cli.stream.traffic.sample": "上传：{arg0} B/s（总计 {arg1} B）  下载：{arg2} B/s（总计 {arg3} B）  采样：{arg4}",
+  "cli.error.validation.provider_chain_completion": "PROVIDER 只能用于 chain-targets provider-node 之后"
 }

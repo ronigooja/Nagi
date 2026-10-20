@@ -101,3 +101,38 @@ func TestAutoAndGroupDelayUseNativeRoutesAndRemoveSavedPin(t *testing.T) {
 		t.Fatalf("choices=%s err=%v", b, err)
 	}
 }
+
+type chainRefreshClient struct {
+	providerClient
+	failPath string
+}
+
+func (f *chainRefreshClient) Put(_ context.Context, path string, _ any, _ any) error {
+	f.paths = append(f.paths, path)
+	if path == f.failPath {
+		return errors.New("https://secret.example/?private=credential")
+	}
+	return nil
+}
+func TestProviderUpdateRefreshesAllExactDependents(t *testing.T) {
+	for _, fail := range []string{"", "/providers/proxies/work", "/providers/proxies/derived-one"} {
+		f := &chainRefreshClient{failPath: fail}
+		s := NewService(f)
+		s.ProviderChainSources = map[string][]string{"work": {"derived-one", "derived-two"}, "other": {"unrelated"}}
+		err := s.ProviderUpdate(context.Background(), "work")
+		if (err != nil) != (fail != "") || err != nil && strings.Contains(err.Error(), "secret") {
+			t.Fatal(err)
+		}
+		calls := strings.Join(f.paths, ",")
+		if strings.Contains(calls, "unrelated") {
+			t.Fatal(calls)
+		}
+		refreshed := strings.Contains(calls, "/providers/proxies/derived-two")
+		if refreshed != (fail != "/providers/proxies/work") {
+			t.Fatal(calls)
+		}
+		if fail == "/providers/proxies/derived-one" && !strings.Contains(err.Error(), "provider updated") {
+			t.Fatal(err)
+		}
+	}
+}

@@ -558,5 +558,9 @@
   "backend.profile.chain_provider_payload_external": "provider payload has an external front proxy",
   "backend.profile.chain_target_external": "{arg0} {arg1} has an external front proxy",
   "backend.profile.chain_policy_owns_edge": "subscription policy owns a changed edge; clear the subscription chain first",
-  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": "local proxy additions must contain named compatible nodes"
+  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": "local proxy additions must contain named compatible nodes",
+  "backend.profile.chain_provider_protocol_unsupported": "provider node protocol is unsupported for isolated chains",
+  "backend.profile.chain_provider_node_unavailable": "saved provider node is unavailable in its current source",
+  "backend.profile.chain_provider_policy_incompatible": "provider-node chains cannot be combined with a subscription chain policy; clear the existing chain first",
+  "backend.proxy.provider_chain_refresh_failed": "provider updated, but a selected chain node refresh failed; mihomo retained its last good node; inspect mihomo logs"
 }

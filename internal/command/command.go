@@ -405,6 +405,23 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 					return nil, e
 				}
 				names := output.Candidates{}
+				if args[2] == "chain-targets" && len(args) >= 4 && args[3] == "provider-node" {
+					if len(args) == 4 {
+						providers, e := store.ProxyNodeProviderCandidates(name)
+						return output.Candidates(providers), e
+					}
+					inventory, _, e := store.ProviderChainInventory(name)
+					if e != nil {
+						return nil, e
+					}
+					for _, node := range inventory {
+						if node.Provider == args[4] {
+							names = append(names, node.Name)
+						}
+					}
+					return names, nil
+				}
+
 				if args[2] == "node-groups" {
 					groups, e := store.ProxyNodeGroupCandidates(name)
 					return output.Candidates(groups), e

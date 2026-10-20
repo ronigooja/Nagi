@@ -870,5 +870,9 @@
     "arg1": "string"
   },
   "backend.profile.chain_policy_owns_edge": {},
-  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": {}
+  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": {},
+  "backend.profile.chain_provider_protocol_unsupported": {},
+  "backend.profile.chain_provider_node_unavailable": {},
+  "backend.profile.chain_provider_policy_incompatible": {},
+  "backend.proxy.provider_chain_refresh_failed": {}
 }

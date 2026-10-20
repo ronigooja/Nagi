@@ -648,3 +648,14 @@ func (p *ProxyChainPlan) addConflict(message *i18n.Message) {
 	p.Messages[fmt.Sprintf("/conflicts/%d", len(p.Conflicts))] = message.Descriptor()
 	p.Conflicts = append(p.Conflicts, message.Error())
 }
+
+func (t ProxyChainTarget) MessageDescriptors() map[string]i18n.Descriptor {
+	if t.UnsupportedReason == "" {
+		return nil
+	}
+	id := "backend.profile.chain_provider_protocol_unsupported"
+	if !t.Available {
+		id = "backend.profile.chain_provider_node_unavailable"
+	}
+	return map[string]i18n.Descriptor{"/unsupported_reason": {ID: id}}
+}

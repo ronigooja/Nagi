@@ -185,7 +185,7 @@ var commandSpecs = []commandSpec{
 	{"completion bash", "completion bash", "Generate Bash completion", "Prints a Bash completion script.", "nagi completion bash", "", 0, 0},
 	{"completion zsh", "completion zsh", "Generate Zsh completion", "Prints a Zsh completion script.", "nagi completion zsh", "", 0, 0},
 	{"completion fish", "completion fish", "Generate Fish completion", "Prints a Fish completion script.", "nagi completion fish", "", 0, 0},
-	{"completion candidates", "completion candidates profile|subscription|rules|rewrite-scripts [PROFILE]|rewrite-rules [PROFILE]|profile-groups NAME|groups|nodes [GROUP]|provider-nodes PROVIDER|providers|proxy-nodes|node-groups|chain-targets [node|provider-node|provider|subscription]|healthcheck-targets group|provider|subscription", "List completion candidates", "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 2},
+	{"completion candidates", "completion candidates profile|subscription|rules|rewrite-scripts [PROFILE]|rewrite-rules [PROFILE]|profile-groups NAME|groups|nodes [GROUP]|provider-nodes PROVIDER|providers|proxy-nodes|node-groups|chain-targets [node|provider-node|provider|subscription] [PROVIDER]|healthcheck-targets group|provider|subscription", "List completion candidates", "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.", "nagi completion candidates profile-groups work", "", 1, 3},
 }
 
 func findSpec(path string) *commandSpec {
@@ -427,10 +427,13 @@ func validateInvocation(args []string) error {
 			return syntaxError(messageError("cli.error.validation.healthcheck_targets_requires_group_provider_or_subscription", "healthcheck-targets requires group, provider, or subscription"), spec)
 		}
 
-		if n == 2 && args[2] == "chain-targets" && args[3] != "node" && args[3] != "provider" && args[3] != "subscription" {
-			return syntaxError(messageError("cli.error.validation.kind_must_be_node_provider_or_subscription", "KIND must be node, provider, or subscription"), spec)
+		if n >= 2 && args[2] == "chain-targets" && args[3] != "provider-node" && args[3] != "node" && args[3] != "provider" && args[3] != "subscription" {
+			return syntaxError(messageError("cli.error.validation.kind_must_be_node_provider_or_subscription", "KIND must be node, provider-node, provider, or subscription"), spec)
 		}
 
+		if n == 3 && (args[2] != "chain-targets" || args[3] != "provider-node") {
+			return syntaxError(messageError("cli.error.validation.provider_chain_completion", "PROVIDER is only valid after chain-targets provider-node"), spec)
+		}
 		if n == 1 && args[2] == "provider-nodes" {
 			return syntaxError(messageError("cli.error.validation.provider_nodes_requires_provider", "provider-nodes requires PROVIDER"), spec)
 		}

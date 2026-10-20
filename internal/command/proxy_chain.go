@@ -52,7 +52,7 @@ func chainArguments(args []string) (chainOptions, error) {
 		o.kind = args[3]
 	}
 	if o.kind != "node" && o.kind != "provider" && o.kind != "subscription" && o.kind != "provider-node" {
-		return o, messageError("cli.error.proxy_chain.kind_must_be_node_provider_or_subscription", "KIND must be node, provider, or subscription")
+		return o, messageError("cli.error.proxy_chain.kind_must_be_node_provider_or_subscription", "KIND must be node, provider-node, provider, or subscription")
 	}
 	if action == "list" {
 		return o, nil
