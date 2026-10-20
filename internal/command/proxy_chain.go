@@ -2,8 +2,6 @@ package command
 
 import (
 	"context"
-	"github.com/ronigooja/Nagi/internal/proxy"
-	"path/filepath"
 	"strings"
 
 	"github.com/ronigooja/Nagi/internal/profile"
@@ -284,15 +282,6 @@ func chainCommand(ctx context.Context, args []string, store *profile.Store, cach
 		}
 		return map[string]any{"profile": name, "nodes": all, "unavailable_providers": unavailable}, nil
 	}
-	removedOutlet := ""
-	if action == "clear" && o.kind == "provider-node" {
-		values, _, _ := store.ProviderChainInventory(name)
-		for _, v := range values {
-			if v.Provider == o.provider && v.Name == o.targets[0] {
-				removedOutlet = v.Outlet
-			}
-		}
-	}
 	var plan profile.ProxyChainPlan
 	scoped := o.kind != "subscription"
 	if scoped && o.dryRun {
@@ -316,11 +305,6 @@ func chainCommand(ctx context.Context, args []string, store *profile.Store, cach
 	}
 	if err != nil {
 		return nil, err
-	}
-	if removedOutlet != "" && !o.dryRun {
-		if err := (proxy.SelectionStore{Path: filepath.Join(store.Dir, "proxy-selections.json")}).RemoveTarget(name, removedOutlet); err != nil {
-			return nil, err
-		}
 	}
 	return map[string]any{"profile": name, "action": action, "plan": plan, "dry_run": o.dryRun, "saved": !o.dryRun, "reloaded": reloaded && !o.dryRun, "resource": "chain"}, nil
 }

@@ -449,7 +449,11 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 	if err := writeReplace(path, data); err != nil {
 		return err
 	}
+	var undoChoices func() error
 	rollback := func(cause error) error {
+		if undoChoices != nil {
+			cause = errors.Join(cause, undoChoices())
+		}
 		return errors.Join(cause, restore(path, old, errors.Is(oldErr, fs.ErrNotExist)))
 	}
 	effective, err := s.Effective(name)
@@ -457,6 +461,10 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 		return rollback(err)
 	}
 	if err := s.validate(name, effective); err != nil {
+		return rollback(err)
+	}
+	undoChoices, err = s.removeRetiredChainOutlets(name, old)
+	if err != nil {
 		return rollback(err)
 	}
 	current, err := s.Current()
@@ -483,7 +491,13 @@ func (s *Store) ClearOverride(ctx context.Context, name string) error {
 	if err := os.Remove(path); err != nil {
 		return err
 	}
-	rollback := func(cause error) error { return errors.Join(cause, writeReplace(path, old)) }
+	var undoChoices func() error
+	rollback := func(cause error) error {
+		if undoChoices != nil {
+			cause = errors.Join(cause, undoChoices())
+		}
+		return errors.Join(cause, writeReplace(path, old))
+	}
 	base, err := s.Show(name)
 	if err != nil {
 		return rollback(err)
@@ -492,6 +506,10 @@ func (s *Store) ClearOverride(ctx context.Context, name string) error {
 		return rollback(err)
 	}
 	if err := s.validateManagedCandidate(name, base); err != nil {
+		return rollback(err)
+	}
+	undoChoices, err = s.removeRetiredChainOutlets(name, old)
+	if err != nil {
 		return rollback(err)
 	}
 	current, err := s.Current()
@@ -504,4 +522,42 @@ func (s *Store) ClearOverride(ctx context.Context, name string) error {
 		}
 	}
 	return s.CleanupProviderChainCaches(name)
+}
+
+// removeRetiredChainOutlets compares saved identities rather than names guessed
+// from generated resources. Ordinary selections and retained outlets are untouched.
+func (s *Store) removeRetiredChainOutlets(name string, old []byte) (func() error, error) {
+	if s.RemoveChainOutlets == nil {
+		return nil, nil
+	}
+	var before map[string]any
+	if len(old) > 0 {
+		if err := yaml.Unmarshal(old, &before); err != nil {
+			return nil, err
+		}
+	}
+	members, err := providerChainMembers(before)
+	if err != nil {
+		return nil, err
+	}
+	after, err := s.savedProviderMembers(name)
+	if err != nil {
+		return nil, err
+	}
+	retained := map[string]bool{}
+	for _, m := range after {
+		if m.Outlet {
+			retained[m.OutletName()] = true
+		}
+	}
+	removed := []string{}
+	for _, m := range members {
+		if m.Outlet && !retained[m.OutletName()] {
+			removed = append(removed, m.OutletName())
+		}
+	}
+	if len(removed) == 0 {
+		return nil, nil
+	}
+	return s.RemoveChainOutlets(name, removed)
 }

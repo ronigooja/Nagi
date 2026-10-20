@@ -365,6 +365,11 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 	for _, m := range members {
 		cfg["proxies"] = append(tsProxies(cfg), map[string]any{"name": m.ID(), "type": m.Type, "dialer-proxy": m.Dialer})
 	}
+	shared, err := chainSharedUses(cfg, actualKind, actualTargets, via)
+	if err != nil {
+		return nil, p, nil, err
+	}
+	p.SharedUse = shared
 	basePlan, err := prepareChain(cfg, actualKind, actualTargets, via, clear)
 	if err != nil {
 		return nil, p, nil, err
@@ -377,6 +382,9 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 		return nil, p, nil, e
 	}
 	if policy != nil {
+		if !clear && (kind == "provider-node" || lenProviderRefs(refs) > 0) {
+			return nil, p, nil, fmt.Errorf("provider-node chains cannot be combined with an active subscription chain policy; clear the subscription chain first")
+		}
 		for _, c := range p.Changes {
 			if policyOwnsEdge(policy, c.Kind, c.Name) {
 				return nil, p, nil, fmt.Errorf("subscription policy owns a changed edge; clear the subscription chain first")
@@ -574,4 +582,14 @@ func (s *Store) ProviderChainSources(name string) (map[string][]string, error) {
 		out[m.Provider] = append(out[m.Provider], m.providerID())
 	}
 	return out, err
+}
+
+func lenProviderRefs(refs []ChainNodeRef) int {
+	n := 0
+	for _, r := range refs {
+		if r.Provider != "" {
+			n++
+		}
+	}
+	return n
 }

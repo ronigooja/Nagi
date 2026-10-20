@@ -2,12 +2,16 @@ package command
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/ronigooja/Nagi/internal/profile"
+	"github.com/ronigooja/Nagi/internal/proxy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -133,5 +137,82 @@ func TestProviderChainCachesParticipateInConfigRollback(t *testing.T) {
 	info, _ := os.Stat(old)
 	if string(data) != "last-good fixture" || info.Mode().Perm() != 0600 {
 		t.Fatal("last-good cache not restored privately", string(data), info.Mode())
+	}
+}
+
+func TestGenericOverrideRetiresOnlyRemovedOutletChoices(t *testing.T) {
+	for _, action := range []string{"set", "clear"} {
+		t.Run(action, func(t *testing.T) {
+			dir := providerChainCommandFixture(t)
+			runNodeChainJSON(t, "proxy", "chain", "set", "provider-node", "Q", "Shared", "--via", "First")
+			path := filepath.Join(dir, "proxy-selections.json")
+			choices := `{"default":{"Choice":"Chain: Q / Shared","Chain: Q / Shared":"Shared","Keep":"First"},"other":{"Choice":"Chain: Q / Shared"}}`
+			if err := os.WriteFile(path, []byte(choices), 0600); err != nil {
+				t.Fatal(err)
+			}
+			args := []string{"profile", "override", action, "default"}
+			if action == "set" {
+				patch := filepath.Join(t.TempDir(), "override.yaml")
+				os.WriteFile(patch, []byte("mode: rule\n"), 0600)
+				args = append(args, patch)
+			}
+			runNodeChainJSON(t, args...)
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got map[string]map[string]string
+			json.Unmarshal(data, &got)
+			if len(got["default"]) != 1 || got["default"]["Keep"] != "First" || got["other"]["Choice"] != "Chain: Q / Shared" {
+				t.Fatal(string(data))
+			}
+			runNodeChainJSON(t, "proxy", "chain", "set", "provider-node", "Q", "Shared", "--via", "First")
+			effective, err := profile.NewStore(dir, nil, nil).Effective("default")
+			if err != nil {
+				t.Fatal(err)
+			}
+			from := proxy.SelectionStore{Path: path}
+			replay, _, err := from.ApplyDefaults("default", effective)
+			if err != nil || bytes.Contains(replay, []byte("default-selected: 'Chain:")) || bytes.Contains(replay, []byte("default-selected: Chain:")) {
+				t.Fatalf("unexpected replay %s: %v", replay, err)
+			}
+		})
+	}
+}
+
+func TestRetiredOutletChoicesRollbackOnReloadFailure(t *testing.T) {
+	dir := providerChainCommandFixture(t)
+	runNodeChainJSON(t, "proxy", "chain", "set", "provider-node", "Q", "Shared", "--via", "First")
+	path := filepath.Join(dir, "proxy-selections.json")
+	saved := []byte(`{"default":{"Choice":"Chain: Q / Shared","Keep":"First"}}`)
+	os.WriteFile(path, saved, 0600)
+	old, _ := profile.NewStore(dir, nil, nil).Override("default")
+	paths, err := nagiruntime.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := newProfileStore(paths, "", nil, nil)
+	store.Validate = func([]byte) error { return nil }
+	store.Reload = func(context.Context) error {
+		data, _ := os.ReadFile(path)
+		if bytes.Contains(data, []byte("Chain:")) {
+			t.Fatal("removed outlet replayed during reload")
+		}
+		return errors.New("activation failed")
+	}
+	for _, clear := range []bool{false, true} {
+		if clear {
+			err = store.ClearOverride(context.Background(), "default")
+		} else {
+			err = store.SetOverride(context.Background(), "default", []byte("mode: rule\n"))
+		}
+		if err == nil {
+			t.Fatal("expected failed reload")
+		}
+		got, _ := os.ReadFile(path)
+		override, _ := store.Override("default")
+		if !bytes.Equal(got, saved) || !bytes.Equal(override, old) {
+			t.Fatalf("rollback changed state: %s %s", got, override)
+		}
 	}
 }

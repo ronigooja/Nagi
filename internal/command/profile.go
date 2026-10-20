@@ -173,6 +173,24 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		return nil
 	}
 	store = profile.NewStore(paths.ConfigDir, validate, reload)
+	store.RemoveChainOutlets = func(name string, outlets []string) (func() error, error) {
+		path := filepath.Join(paths.ConfigDir, "proxy-selections.json")
+		old, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		undo := func() error { return os.WriteFile(path, old, 0600) }
+		choices := proxy.SelectionStore{Path: path}
+		for _, outlet := range outlets {
+			if err := choices.RemoveTarget(name, outlet); err != nil {
+				return undo, err
+			}
+		}
+		return undo, nil
+	}
 	store.EffectiveOverlay = func(data []byte) ([]byte, error) { return applySavedTUN(paths, data) }
 	return store
 }

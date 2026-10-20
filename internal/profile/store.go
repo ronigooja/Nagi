@@ -22,6 +22,9 @@ type Store struct {
 	Reload   func(context.Context) error
 	// EffectiveOverlay applies durable user preferences after profile layers.
 	EffectiveOverlay func([]byte) ([]byte, error)
+	// RemoveChainOutlets clears saved choices before activation and returns an undo
+	// action for failed mutations. Selection persistence belongs to the caller.
+	RemoveChainOutlets func(string, []string) (func() error, error)
 }
 
 var ErrInvalidSelectedProfile = i18n.Errorf("backend.profile.invalid_selected_profile", "invalid selected profile")

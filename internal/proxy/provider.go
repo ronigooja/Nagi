@@ -113,12 +113,16 @@ func (s *Service) ProviderUpdate(ctx context.Context, name string) error {
 	if err := s.Client.Put(ctx, "/providers/proxies/"+url.PathEscape(name), nil, nil); err != nil {
 		return i18n.Errorf("backend.proxy.proxy_provider_update_failed_inspect_mihomo_logs", "proxy provider update failed; inspect mihomo logs")
 	}
+	failed := false
 	for _, derived := range s.ProviderChainSources[name] {
 		if err := s.Client.Put(ctx, "/providers/proxies/"+url.PathEscape(derived), nil, nil); err != nil {
-			return i18n.Errorf("backend.proxy.provider_chain_refresh_failed", "provider updated, but a selected chain node refresh failed; mihomo retained its last good node; inspect mihomo logs")
+			failed = true
 		}
 	}
 
+	if failed {
+		return i18n.Errorf("backend.proxy.provider_chain_refresh_failed", "provider updated, but a selected chain node refresh failed; mihomo retained its last good node; inspect mihomo logs")
+	}
 	return nil
 }
 func (s *Service) generatedProvider(name string) bool {
