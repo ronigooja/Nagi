@@ -150,7 +150,7 @@ func TestChainDisconnectUsesDetailExitAndRetainsOnFailure(t *testing.T) {
 		t.Fatal(r.calls)
 	}
 	v = loadChainPage(t, p, s)
-	if len(v.Actions) != 0 || !strings.Contains(v.Context, "This device → B → Destination") || !strings.Contains(v.Context, "Upstream segments") {
+	if len(v.Actions) != 0 || !strings.Contains(v.Context, "This device → B → Destination") || strings.Contains(v.Context, "Upstream segments") {
 		t.Fatal(v)
 	}
 }

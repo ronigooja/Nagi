@@ -11,11 +11,69 @@ import (
 	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
+type menuChainRef struct {
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+	Provider string `json:"provider,omitempty"`
+}
+
 type menuChainTarget struct {
-	Kind string   `json:"kind"`
-	Name string   `json:"name"`
-	Type string   `json:"type"`
-	Via  []string `json:"via"`
+	Kind              string         `json:"kind"`
+	Name              string         `json:"name"`
+	Type              string         `json:"type"`
+	Via               []string       `json:"via"`
+	ID                string         `json:"id,omitempty"`
+	Provider          string         `json:"provider,omitempty"`
+	PathRefs          []menuChainRef `json:"path_refs,omitempty"`
+	Outlet            string         `json:"outlet,omitempty"`
+	Available         *bool          `json:"available,omitempty"`
+	Supported         *bool          `json:"supported,omitempty"`
+	UnsupportedReason string         `json:"unsupported_reason,omitempty"`
+}
+
+func (t menuChainTarget) ref() menuChainRef {
+	return menuChainRef{Kind: t.Kind, Name: t.Name, Provider: t.Provider}
+}
+func (t menuChainTarget) selectable() bool {
+	return (t.Kind == "node" || t.Kind == "provider-node") && (t.Available == nil || *t.Available) && (t.Supported == nil || *t.Supported)
+}
+func (t menuChainTarget) refs() []menuChainRef {
+	if len(t.PathRefs) > 0 {
+		return t.PathRefs
+	}
+	refs := make([]menuChainRef, 0, len(t.Via)+1)
+	for _, name := range t.Via {
+		refs = append(refs, menuChainRef{Kind: "node", Name: name})
+	}
+	return append(refs, t.ref())
+}
+func chainRefLabel(ref menuChainRef) string {
+	if ref.Kind == "provider-node" {
+		return ref.Name + " [" + ref.Provider + "]"
+	}
+	return ref.Name
+}
+func chainRefsText(l i18n.Context, refs []menuChainRef) string {
+	names := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		names = append(names, chainRefLabel(ref))
+	}
+	return chainPathText(l, names)
+}
+func chainRefArgs(target menuChainRef, via []menuChainRef, clear bool) []string {
+	targets := []string{target.Name}
+	if target.Kind == "provider-node" {
+		targets = []string{target.Provider, target.Name}
+	}
+	args := chainArgs(target.Kind, targets, nil, clear)
+	for _, ref := range via {
+		if ref.Kind == "provider-node" {
+			args = append(args, "--via-provider", ref.Provider, ref.Name)
+		} else {
+			args = append(args, "--via", ref.Name)
+		}
+	}
+	return args
 }
 
 func chainText(l i18n.Context, key, fallback string) string {
@@ -59,29 +117,39 @@ func selectMenuItem(s *Session, title string, v PageView) (Item, error) {
 
 // Chains are native edges, so list only terminal node paths, not their prefixes.
 func terminalNodeChains(chains []menuChainTarget) []menuChainTarget {
-	used := map[string]bool{}
+	used := map[menuChainRef]bool{}
 	for _, t := range chains {
-		if t.Kind == "node" && len(t.Via) > 0 {
-			for _, name := range t.Via {
-				used[name] = true
+		if (t.Kind == "node" || t.Kind == "provider-node") && len(t.refs()) > 1 {
+			refs := t.refs()
+			for _, ref := range refs[:len(refs)-1] {
+				used[ref] = true
 			}
 		}
 	}
 	result := []menuChainTarget{}
 	for _, t := range chains {
-		if t.Kind == "node" && len(t.Via) > 0 && !used[t.Name] {
+		if (t.Kind == "node" || t.Kind == "provider-node") && len(t.refs()) > 1 && !used[t.ref()] {
 			result = append(result, t)
 		}
 	}
 	return result
 }
 
-func readMenuChains(ctx context.Context, s *Session) ([]menuChainTarget, error) {
+func readMenuChainInventory(ctx context.Context, s *Session) ([]menuChainTarget, []string, error) {
 	var data struct {
-		Chains []menuChainTarget `json:"chains"`
+		Chains               []menuChainTarget `json:"chains"`
+		UnavailableProviders []string          `json:"unavailable_providers"`
 	}
-	err := localizeddecodeMenuResult(s.language, s.Fetch(ctx, "proxy", "chain", "list"), &data)
-	return data.Chains, err
+	r := s.Fetch(ctx, "proxy", "chain", "list")
+	err := localizeddecodeMenuResult(s.language, r, &data)
+	for i := range data.Chains {
+		data.Chains[i].UnsupportedReason = r.message(s.language, "/data/chains/"+strconv.Itoa(i)+"/unsupported_reason", data.Chains[i].UnsupportedReason)
+	}
+	return data.Chains, data.UnavailableProviders, err
+}
+func readMenuChains(ctx context.Context, s *Session) ([]menuChainTarget, error) {
+	chains, _, err := readMenuChainInventory(ctx, s)
+	return chains, err
 }
 
 func localizedchainScopePage(l i18n.Context) *Page {
@@ -93,7 +161,7 @@ func localizedchainScopePage(l i18n.Context) *Page {
 		}
 		for _, t := range terminalNodeChains(chains) {
 			t := t
-			v.Items = append(v.Items, Item{ID: "chain.target", Name: t.Name, Label: chainPathText(l, append(append([]string{}, t.Via...), t.Name)), Next: func() *Page { return localizedchainDetailPage(l, t.Name) }})
+			v.Items = append(v.Items, Item{ID: "chain.target", Name: t.Name, Label: chainRefsText(l, t.refs()), Next: func() *Page { return localizedchainRefDetailPage(l, t.ref()) }})
 		}
 		v.Actions = []Item{{ID: "chain.new", Label: chainText(l, "new", "New chain"), Next: func() *Page { return localizedchainDraftPage(l) }}}
 		return v, nil
@@ -101,6 +169,10 @@ func localizedchainScopePage(l i18n.Context) *Page {
 }
 
 func localizedchainDetailPage(l i18n.Context, name string) *Page {
+	return localizedchainRefDetailPage(l, menuChainRef{Kind: "node", Name: name})
+}
+
+func localizedchainRefDetailPage(l i18n.Context, target menuChainRef) *Page {
 	return &Page{ID: "chain.detail", Title: chainText(l, "title", "Node Chains"), Load: func(ctx context.Context, s *Session) (PageView, error) {
 		v := PageView{}
 		chains, err := readMenuChains(ctx, s)
@@ -108,15 +180,15 @@ func localizedchainDetailPage(l i18n.Context, name string) *Page {
 			return v, err
 		}
 		for _, t := range chains {
-			if t.Kind != "node" || t.Name != name {
+			if t.ref() != target {
 				continue
 			}
-			v.Context = chainPathText(l, append(append([]string{}, t.Via...), name))
-			if len(t.Via) == 0 {
-				v.Context += "\n" + chainText(l, "disconnected", "Chain disconnected. Upstream segments and nodes are retained.")
+			v.Context = chainRefsText(l, t.refs())
+			if len(t.refs()) <= 1 {
+				v.Context += "\n" + chainText(l, "disconnected", "Chain disconnected.")
 				return v, nil
 			}
-			clearArgs := chainArgs("node", []string{name}, nil, true)
+			clearArgs := chainRefArgs(target, nil, true)
 			var effects []string
 			if plan, err := chainPlan(ctx, s, clearArgs); err != nil {
 				v.Context += "\n" + err.Error()
@@ -128,7 +200,7 @@ func localizedchainDetailPage(l i18n.Context, name string) *Page {
 			}
 			v.Actions = []Item{
 				{ID: "chain.clear", Label: chainText(l, "clear", "Disconnect chain"), Impact: chainText(l, "disconnect_effect", "Disconnects only the exit's incoming edge; upstream segments and nodes remain."), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
-					if applyMenuChain(ctx, s, chainArgs("node", []string{name}, nil, true)) {
+					if applyMenuChain(ctx, s, chainRefArgs(target, nil, true)) {
 						return Navigation{ReturnTo: "chain.list"}, nil
 					}
 					return Navigation{}, nil
@@ -187,17 +259,17 @@ func chainPlanContext(l i18n.Context, plan menuChainPlan) string {
 // A new draft starts empty; selection order determines the exit and predecessors.
 // The CLI remains the sole owner of validation, persistence and activation.
 func localizedchainDraftPage(l i18n.Context) *Page {
-	members := []string{}
+	members := []menuChainRef{}
 	return &Page{ID: "chain.draft", Title: chainText(l, "title", "Node Chains"), Load: func(ctx context.Context, s *Session) (PageView, error) {
 		v := PageView{Empty: chainText(l, "no_nodes", "No nodes available.")}
-		chains, err := readMenuChains(ctx, s)
+		chains, unavailable, err := readMenuChainInventory(ctx, s)
 		if err != nil {
 			return v, err
 		}
-		available := map[string]menuChainTarget{}
+		available := map[menuChainRef]menuChainTarget{}
 		for _, t := range chains {
-			if t.Kind == "node" {
-				available[t.Name] = t
+			if t.selectable() {
+				available[t.ref()] = t
 			}
 		}
 		for _, name := range members {
@@ -206,23 +278,39 @@ func localizedchainDraftPage(l i18n.Context) *Page {
 			}
 		}
 		for _, n := range chains {
-			if n.Kind != "node" {
+			if n.Kind != "node" && n.Kind != "provider-node" {
 				continue
 			}
 			n := n
-			v.Items = append(v.Items, Item{ID: "chain.member", Name: n.Name, Label: n.Name + " (" + n.Type + ")", Selected: slices.Contains(members, n.Name), Action: func(context.Context, *Session) error {
-				if index := slices.Index(members, n.Name); index >= 0 {
+			label := n.Name + " (" + n.Type + ")"
+			if n.Provider != "" {
+				label += " — " + n.Provider
+			}
+			if !n.selectable() {
+				reason := n.UnsupportedReason
+				if reason == "" {
+					reason = chainText(l, "node_unavailable", "Unavailable")
+				}
+				label += " — " + reason
+				v.Items = append(v.Items, Item{ID: "chain.unavailable", Name: n.Name, Label: label, Action: func(context.Context, *Session) error { s.feedback(feedbackWarning, reason); return nil }})
+				continue
+			}
+			v.Items = append(v.Items, Item{ID: "chain.member", Name: n.Name, Label: label, Selected: slices.Contains(members, n.ref()), Action: func(context.Context, *Session) error {
+				if index := slices.Index(members, n.ref()); index >= 0 {
 					members = slices.Delete(members, index, index+1)
 				} else {
-					members = append(members, n.Name)
+					members = append(members, n.ref())
 				}
 				return nil
 			}})
 		}
-		v.Context = chainPathText(l, members)
+		v.Context = chainRefsText(l, members)
+		for _, provider := range unavailable {
+			v.Context += "\n" + chainText(l, "provider_unavailable", "Provider nodes unavailable: ") + provider
+		}
 		var args []string
 		if len(members) >= 2 {
-			args = chainArgs("node", members[len(members)-1:], members[:len(members)-1], false)
+			args = chainRefArgs(members[len(members)-1], members[:len(members)-1], false)
 		}
 		effects := []string{}
 		if len(args) > 0 {
@@ -356,13 +444,22 @@ func applyMenuChain(ctx context.Context, s *Session, args []string) bool {
 		return false
 	}
 	var result struct {
-		Saved    bool `json:"saved"`
-		Reloaded bool `json:"reloaded"`
+		Saved    bool          `json:"saved"`
+		Reloaded bool          `json:"reloaded"`
+		Plan     menuChainPlan `json:"plan"`
 	}
 	if data, err := json.Marshal(r.Data); err == nil && json.Unmarshal(data, &result) == nil && result.Saved {
 		message := chainText(s.language, "saved", "Chain saved.")
 		if args[2] == "clear" {
 			message = chainText(s.language, "cleared", "Chain disconnected.")
+		}
+		if args[2] != "clear" && result.Plan.Outlet != "" {
+			message += " " + chainText(s.language, "outlet", "Select chain outlet: ") + result.Plan.Outlet
+			groups := result.Plan.OutletGroups
+			if len(groups) == 0 {
+				groups = []string{"GLOBAL"}
+			}
+			message += " (" + strings.Join(groups, ", ") + ")."
 		}
 		if result.Reloaded && args[2] != "clear" {
 			message += " " + chainText(s.language, "reloaded", "Configuration reloaded.")
@@ -376,10 +473,12 @@ func applyMenuChain(ctx context.Context, s *Session, args []string) bool {
 }
 
 type menuChainPlan struct {
-	Kind    string   `json:"kind"`
-	Targets []string `json:"targets"`
-	Via     []string `json:"via"`
-	Changes []struct {
+	Outlet       string   `json:"outlet"`
+	OutletGroups []string `json:"outlet_groups"`
+	Kind         string   `json:"kind"`
+	Targets      []string `json:"targets"`
+	Via          []string `json:"via"`
+	Changes      []struct {
 		Kind   string `json:"kind"`
 		Name   string `json:"name"`
 		Before string `json:"before"`
