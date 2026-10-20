@@ -170,8 +170,9 @@ func (s *Store) Remove(name string) error {
 	}
 	override, _ := s.overridePath(name)
 	state, _ := s.defaultOverrideStatePath(name)
-	policy, _ := s.subscriptionTailscalePath(name)
-	paths := []string{rules.Path(s.Dir, name), policy, path + ".bak", override, override + ".bak", state, filepath.Join(s.Dir, "profiles", ".effective-"+name+".yaml"), path}
+	policy, _ := s.subscriptionChainPath(name)
+	legacyPolicy, _ := s.subscriptionTailscalePath(name)
+	paths := []string{rules.Path(s.Dir, name), policy, legacyPolicy, path + ".bak", override, override + ".bak", state, filepath.Join(s.Dir, "profiles", ".effective-"+name+".yaml"), path}
 	// Check all targets before deleting anything; never remove directories or links.
 	for _, target := range paths {
 		info, err := os.Lstat(target)

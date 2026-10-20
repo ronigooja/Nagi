@@ -71,6 +71,9 @@ func (s *Store) effectiveSource(name string, source []byte) ([]byte, error) {
 }
 
 func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, err error) ([]byte, error) {
+	if checkErr := s.validateSubscriptionChainSource(name, source); checkErr != nil {
+		return nil, checkErr
+	}
 	if errors.Is(err, fs.ErrNotExist) {
 		source, err := s.applySubscriptionHealthcheckSource(name, source)
 		if err != nil {
@@ -135,7 +138,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 	}
 	for _, value := range additions {
 		node, _ := value.(map[string]any)
-		if node == nil || tsString(node, "type") != "tailscale" || ValidateTailscaleName(tsString(node, "name")) != nil {
+		if node == nil || !chainHop(tsString(node, "type")) || ValidateTailscaleName(tsString(node, "name")) != nil {
 			return nil, i18n.Errorf("backend.profile.local_proxy_additions_must_contain_named_tailscale_nodes", "local proxy additions must contain named Tailscale nodes")
 		}
 		providers, _ := base["proxy-providers"].(map[string]any)
@@ -150,7 +153,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 			}
 		}
 		if existing := tsFind(base, tsString(node, "name")); existing != nil {
-			if tsString(existing, "type") != "tailscale" {
+			if tsString(existing, "type") != tsString(node, "type") {
 				return nil, i18n.Errorf("backend.profile.local_proxy_addition_conflicts_with_a_source_node", "local proxy addition conflicts with a source node")
 			}
 			for i, v := range tsProxies(base) {
@@ -415,10 +418,19 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 		return err
 	}
 	if policy != nil {
-		if _, exists := patch["proxies"]; exists {
-			return i18n.Errorf("backend.profile.subscription_tailscale_policy_requires_source_nodes_unbind_the_subscription_before_setting_a_full_pr", "subscription Tailscale policy requires source nodes; unbind the subscription before setting a full proxy override")
+		managed, loadErr := s.SubscriptionChain(name)
+		if loadErr != nil {
+			return loadErr
+		}
+		if err := s.sanitizeManagedSnapshot(name, patch, managed); err != nil {
+			return err
+		}
+		data, err = yaml.Marshal(patch)
+		if err != nil {
+			return err
 		}
 	}
+
 	old, oldErr := s.Override(name)
 	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
 		return oldErr
