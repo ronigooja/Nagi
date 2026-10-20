@@ -139,3 +139,41 @@ func TestProviderTransientLossRetainsDraftThroughRealNumericJourney(t *testing.T
 		t.Fatalf("%v\n%s", r.calls, out.String())
 	}
 }
+
+func TestProviderChangedPathsUseStructuredRefsInsteadOfNativeIDs(t *testing.T) {
+	plan := decodeChainPlan(t, `{"kind":"node","targets":["Exit"],"changes":[{"kind":"provider-node","name":"Same","provider":"First","before":"nagi-chain-secretid","after":"nagi-chain-otherid"}],"shared_use":[{"kind":"group","name":"Manual"}],"path_changes":[{"kind":"provider-node","name":"Same","provider":"Second","before_refs":[{"kind":"node","name":"Entry"},{"kind":"provider-node","name":"Same","provider":"First"},{"kind":"provider-node","name":"Same","provider":"Second"}],"after_refs":[{"kind":"provider-node","name":"Same","provider":"First"},{"kind":"provider-node","name":"Same","provider":"Second"}]}]}`)
+	effects := chainPathEffects(i18n.New(i18n.English), nil, plan)
+	if len(effects) != 1 || strings.Contains(effects[0], "nagi-chain-") || strings.Contains(effects[0], "Manual") || effects[0] != "This device → Entry → Same [First] → Same [Second] → Destination ⇒ This device → Same [First] → Same [Second] → Destination" {
+		t.Fatal(effects)
+	}
+	empty := []menuChainPathChange{}
+	plan.PathChanges = &empty
+	if got := chainPathEffects(i18n.New(i18n.English), []menuChainTarget{{Kind: "node", Name: "Shared", Via: []string{"Entry"}}}, plan); len(got) != 0 {
+		t.Fatal(got)
+	}
+}
+
+func TestProviderPaginationAndEOFKeepMixedSourceOrder(t *testing.T) {
+	for _, input := range []string{"13\n2\n5\n1\n11\n0\n", "13\n2\n5\n1\n"} {
+		r := &providerMenuRunner{}
+		for _, provider := range []string{"Z source", "A source"} {
+			for _, name := range []string{"One", "Two", "Three", "Four", "Five", "Six"} {
+				r.chains = append(r.chains, menuChainTarget{Kind: "provider-node", Provider: provider, Name: name, Type: "ss"})
+			}
+		}
+		var out bytes.Buffer
+		s := NewSession(r, strings.NewReader(input), &out)
+		RunPage(context.Background(), s, localizedchainDraftPage(s.language))
+		if !strings.Contains(out.String(), "Six [A source] → One [Z source]") {
+			t.Fatal(out.String())
+		}
+		if strings.HasSuffix(input, "11\n0\n") {
+			want := []string{"proxy", "chain", "set", "provider-node", "Z source", "One", "--via-provider", "A source", "Six"}
+			if countMenuCall(r.calls, want) != 1 {
+				t.Fatal(r.calls)
+			}
+		} else {
+			assertNoChainMutation(t, r.calls)
+		}
+	}
+}

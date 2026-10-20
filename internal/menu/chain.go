@@ -371,6 +371,22 @@ func appendChainEffects(l i18n.Context, v *PageView, effects []string) {
 // replacements. Derive display-only path differences from changes and inventory;
 // never infer a group's selected route or alter the CLI plan contract.
 func chainPathEffects(l i18n.Context, chains []menuChainTarget, plan menuChainPlan) []string {
+	if plan.PathChanges != nil {
+		result := []string{}
+		seen := map[string]bool{}
+		for _, change := range *plan.PathChanges {
+			if slices.Equal(change.BeforeRefs, change.AfterRefs) {
+				continue
+			}
+			text := chainRefsText(l, change.BeforeRefs) + " ⇒ " + chainRefsText(l, change.AfterRefs)
+			if !seen[text] {
+				result = append(result, text)
+				seen[text] = true
+			}
+		}
+		return result
+	}
+
 	before := map[string]string{}
 	after := map[string]string{}
 	for _, t := range chains {
@@ -482,12 +498,21 @@ func applyMenuChain(ctx context.Context, s *Session, args []string) bool {
 	return true
 }
 
+type menuChainPathChange struct {
+	Kind       string         `json:"kind"`
+	Name       string         `json:"name"`
+	Provider   string         `json:"provider,omitempty"`
+	BeforeRefs []menuChainRef `json:"before_refs"`
+	AfterRefs  []menuChainRef `json:"after_refs"`
+}
+
 type menuChainPlan struct {
-	Outlet       string   `json:"outlet"`
-	OutletGroups []string `json:"outlet_groups"`
-	Kind         string   `json:"kind"`
-	Targets      []string `json:"targets"`
-	Via          []string `json:"via"`
+	PathChanges  *[]menuChainPathChange `json:"path_changes"`
+	Outlet       string                 `json:"outlet"`
+	OutletGroups []string               `json:"outlet_groups"`
+	Kind         string                 `json:"kind"`
+	Targets      []string               `json:"targets"`
+	Via          []string               `json:"via"`
 	Changes      []struct {
 		Kind   string `json:"kind"`
 		Name   string `json:"name"`
