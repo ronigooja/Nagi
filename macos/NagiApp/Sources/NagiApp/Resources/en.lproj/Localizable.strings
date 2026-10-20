@@ -154,6 +154,7 @@
 "app.ui.create_rule_from_selection" = "Create Rule from Selection…";
 "app.ui.create_rule_from_url" = "Create Rule from URL…";
 "app.ui.current_mode_unavailable" = "Current mode unavailable";
+"app.ui.current_selection" = "Current: %1$@";
 "app.ui.custom" = "Custom…";
 "app.ui.custom_check_interval_in_seconds" = "Custom check interval in seconds";
 "app.ui.custom_interval" = "Custom interval";
@@ -289,6 +290,7 @@
 "app.ui.login" = "Login";
 "app.ui.manage_profiles" = "Manage Profiles";
 "app.ui.manual_updates_only" = "Manual updates only";
+"app.ui.manual_preference_not_active" = "Manual preference: %1$@ (not active)";
 "app.ui.match_conditions" = "Match Conditions";
 "app.ui.match_conditions_use_original_captured_metadata_more" = "Match conditions use original captured metadata. More Conditions shows how many additional filters are active. Hover over fields for accepted formats.";
 "app.ui.match_predicates_require_a_json_object_mapping" = "Match predicates require a JSON object mapping names to string arrays.";

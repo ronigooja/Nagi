@@ -54,6 +54,17 @@ final class LocalizationTests: XCTestCase {
         }
     }
 
+    func testInactiveManualPreferenceLabelsAcrossLanguages() throws {
+        let english = try bundle("en")
+        let chinese = try bundle("zh-Hans")
+        XCTAssertEqual(L10n.format("app.ui.current_selection", "Node A", bundle: english), "Current: Node A")
+        XCTAssertEqual(L10n.format("app.ui.current_selection", "Node A", bundle: chinese), "当前：Node A")
+        XCTAssertEqual(L10n.format("app.ui.manual_preference_not_active", "REJECT", bundle: english),
+                       "Manual preference: REJECT (not active)")
+        XCTAssertEqual(L10n.format("app.ui.manual_preference_not_active", "REJECT", bundle: chinese),
+                       "手动偏好：REJECT（未生效）")
+    }
+
     func testInstalledBundleWinsAfterRelocationWithoutDevelopmentFallback() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("nagi-relocated-\(UUID().uuidString)")
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }

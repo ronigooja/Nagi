@@ -445,7 +445,16 @@ import AppKit
         let choices = NSMenu()
         let automatic = group.automatic
         if automatic {
-            disabled(group.fixed.map { L10n.format("app.ui.fixed", String(describing: $0)) } ?? L10n.format("app.ui.automatic", String(describing: group.selected)), to: choices)
+            if let fixed = group.fixed, !fixed.isEmpty {
+                if fixed == group.selected {
+                    disabled(L10n.format("app.ui.fixed", fixed), to: choices)
+                } else {
+                    disabled(L10n.format("app.ui.current_selection", group.selected), to: choices)
+                    disabled(L10n.format("app.ui.manual_preference_not_active", fixed), to: choices)
+                }
+            } else {
+                disabled(L10n.format("app.ui.automatic", group.selected), to: choices)
+            }
             if let status = group.selectedStatus, status != "available" { disabled(L10n.format("app.ui.selection", String(describing: L10n.protocolLabel(status))), to: choices) }
             choices.addItem(.separator())
         }

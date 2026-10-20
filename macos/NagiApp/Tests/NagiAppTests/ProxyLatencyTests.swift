@@ -56,6 +56,35 @@ import AppKit
         XCTAssertFalse(model.busy) // Constructing/opening menus dispatches no test.
     }
 
+    func testAutomaticGroupHeaderDistinguishesManualPreferenceFromCurrentSelection() throws {
+        _ = NSApplication.shared
+        let model = AppModel()
+        let delegate = MenuAppDelegate(model: model)
+        let cases: [(fixed: String?, headers: [String])] = [
+            ("REJECT", ["Current: one", "Manual preference: REJECT (not active)"]),
+            ("two", ["Current: one", "Manual preference: two (not active)"]),
+            ("one", ["Fixed: one"]),
+            (nil, ["Automatic: one"]),
+            ("", ["Automatic: one"])
+        ]
+        for kind in ["URLTest", "Fallback"] {
+            for scenario in cases {
+                let group = ProxyGroup(name: "group", kind: kind, selected: "one", fixed: scenario.fixed,
+                                       selectedStatus: "available", nodes: ["REJECT", "one", "two"], hidden: false, icon: nil)
+                let menu = delegate.makeGroupMenu(group)
+                let headers = menu.items.prefix { !$0.isSeparatorItem }
+                XCTAssertEqual(headers.map(\.title), scenario.headers, "\(kind): \(String(describing: scenario.fixed))")
+                XCTAssertTrue(headers.allSatisfy { !$0.isEnabled && $0.representedObject == nil })
+                XCTAssertEqual(try XCTUnwrap(menu.item(withTitle: group.nodeTitle("one"))).state, .on)
+                XCTAssertEqual(try XCTUnwrap(menu.item(withTitle: "REJECT")).state, .off)
+                XCTAssertEqual(try XCTUnwrap(menu.item(withTitle: group.nodeTitle("two"))).state, .off)
+                XCTAssertEqual(try XCTUnwrap(menu.item(withTitle: "Restore Automatic Selection")).representedObject as? [String],
+                               ["proxy", "auto", "group"])
+            }
+        }
+        XCTAssertFalse(model.busy)
+    }
+
     func testLoadBalanceHealthcheckSettingsKeepMembersReadOnly() throws {
         _ = NSApplication.shared
         let delegate = MenuAppDelegate(model: AppModel())

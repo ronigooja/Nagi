@@ -154,6 +154,7 @@
 "app.ui.create_rule_from_selection" = "从所选内容创建规则…";
 "app.ui.create_rule_from_url" = "从 URL 创建规则…";
 "app.ui.current_mode_unavailable" = "当前模式不可用";
+"app.ui.current_selection" = "当前：%1$@";
 "app.ui.custom" = "自定义…";
 "app.ui.custom_check_interval_in_seconds" = "自定义检测间隔（秒）";
 "app.ui.custom_interval" = "自定义间隔";
@@ -289,6 +290,7 @@
 "app.ui.login" = "登录";
 "app.ui.manage_profiles" = "管理配置方案";
 "app.ui.manual_updates_only" = "仅手动更新";
+"app.ui.manual_preference_not_active" = "手动偏好：%1$@（未生效）";
 "app.ui.match_conditions" = "匹配条件";
 "app.ui.match_conditions_use_original_captured_metadata_more" = "匹配条件使用捕获的原始元数据。“更多条件”显示生效的额外筛选条件数量。将指针悬停在字段上可查看格式。";
 "app.ui.match_predicates_require_a_json_object_mapping" = "匹配条件需要将名称映射到字符串数组的 JSON 对象。";
