@@ -194,3 +194,84 @@ func TestSubscriptionChainValidationRollback(t *testing.T) {
 		t.Fatalf("policy not rolled back %#v %v", p, err)
 	}
 }
+
+func TestSubscriptionChainSwitchAndClearPlan(t *testing.T) {
+	s := durableStore(t)
+	ctx := context.Background()
+	if _, err := s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, []string{"A", "B"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, []string{"Other"}, false); err != nil {
+		t.Fatal(err)
+	}
+	cfg := effectiveDoc(t, s)
+	for _, n := range []string{"A", "B", "C"} {
+		if tsString(tsFind(cfg, n), "dialer-proxy") != "Other" {
+			t.Fatalf("old/ordinary node %s not covered by new policy", n)
+		}
+	}
+	p, err := s.PlanProxyChain("work", "subscription", []string{"work"}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	cfg = effectiveDoc(t, s)
+	for _, c := range p.Changes {
+		if c.Kind == "node" && tsString(tsFind(cfg, c.Name), "dialer-proxy") != c.After {
+			t.Fatalf("plan and actual differ: %#v", c)
+		}
+	}
+	if err = s.ApplySubscription(ctx, "work", []byte("proxies: [{name: Next, type: vmess}]\n")); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"A", "B", "Other"} {
+		if tsFind(effectiveDoc(t, s), n) == nil {
+			t.Fatalf("retained hop %s lost", n)
+		}
+	}
+}
+func TestSubscriptionChainClearRepairsSourceCollision(t *testing.T) {
+	s := durableStore(t)
+	ctx := context.Background()
+	if _, err := s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, []string{"A"}, false); err != nil {
+		t.Fatal(err)
+	}
+	path, _ := s.path("work")
+	if err := os.WriteFile(path, []byte("proxies: [{name: A, type: socks5, server: collision.example}]"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, nil, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestChainGraphProviderNamesAndSharedGroups(t *testing.T) {
+	s := durableStore(t)
+	source, _ := s.Show("work")
+	source = append(source, []byte("proxy-groups: [{name: G, type: select, proxies: [A]}]\n")...)
+	if err := s.Write(context.Background(), "work", source); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := s.PlanProxyChain("work", "node", []string{"C"}, []string{"A", "B"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, use := range plan.SharedUse {
+		if use.Kind == "group" && use.Name == "G" && use.Via == "A" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("shared group omitted")
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal([]byte("proxies: [{name: 'provider:Feed', type: socks5}]\nproxy-providers: {Feed: {type: inline, override: {dialer-proxy: 'provider:Feed'}, payload: []}}"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := chainValidateGraph(cfg); err != nil {
+		t.Fatalf("provider namespace collision: %v", err)
+	}
+}

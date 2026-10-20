@@ -205,6 +205,9 @@ func (s *Store) Use(ctx context.Context, name string) error {
 	if err = s.validate(name, data); err != nil {
 		return err
 	}
+	if err = s.validateManagedCandidate(name, data); err != nil {
+		return err
+	}
 	settings := filepath.Join(s.Dir, "settings.yaml")
 	old, oldErr := os.ReadFile(settings)
 	if oldErr != nil && !errors.Is(oldErr, fs.ErrNotExist) {
@@ -231,6 +234,9 @@ func (s *Store) Write(ctx context.Context, name string, data []byte) error {
 		return oldErr
 	}
 	if err := s.validate(name, data); err != nil {
+		return err
+	}
+	if err := s.validateManagedCandidate(name, data); err != nil {
 		return err
 	}
 	current, err := s.Current()
@@ -269,7 +275,7 @@ func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
 	if err := s.validate(name, data); err != nil {
 		return err
 	}
-	policy, err := s.SubscriptionTailscale(name)
+	policy, err := s.SubscriptionChain(name)
 	if err != nil {
 		return err
 	}

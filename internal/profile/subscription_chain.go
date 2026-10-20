@@ -196,7 +196,7 @@ func (s *Store) mutateSubscriptionChain(ctx context.Context, name, subscription 
 			return errors.New("subscription has no persistent chain")
 		}
 	} else {
-		cfg, err := s.chainConfig(name)
+		cfg, _, err := s.subscriptionChainCandidate(name, []string{subscription}, via, false)
 		if err != nil {
 			return err
 		}
@@ -239,7 +239,14 @@ func (s *Store) mutateSubscriptionChain(ctx context.Context, name, subscription 
 				}
 			}
 			if keep {
-				additions = append(additions, node)
+				retained := map[string]any{}
+				for k, v := range node {
+					retained[k] = v
+				}
+				if !clear {
+					retained["dialer-proxy"] = ""
+				}
+				additions = append(additions, retained)
 			}
 		}
 	}
@@ -443,4 +450,104 @@ func (s *Store) sanitizeManagedSnapshot(name string, overlay map[string]any, p *
 		overlay["proxies"] = kept
 	}
 	return nil
+}
+
+func (s *Store) unmanagedChainConfig(name string) (map[string]any, error) {
+	source, err := s.Show(name)
+	if err != nil {
+		return nil, err
+	}
+	patch, patchErr := s.Override(name)
+	data, err := s.effectiveSourceWithOverride(name, source, patch, patchErr, true)
+	if err != nil {
+		return nil, err
+	}
+	var cfg map[string]any
+	if yaml.Unmarshal(data, &cfg) != nil || cfg == nil {
+		return nil, errors.New("invalid effective profile")
+	}
+	return cfg, nil
+}
+
+func chainDifferences(before, after []ProxyChainTarget) []ProxyChainChange {
+	edges := map[string]string{}
+	for _, v := range before {
+		edge := ""
+		if len(v.Via) > 0 {
+			edge = v.Via[len(v.Via)-1]
+		}
+		edges[v.Kind+":"+v.Name] = edge
+	}
+	out := []ProxyChainChange{}
+	for _, v := range after {
+		edge := ""
+		if len(v.Via) > 0 {
+			edge = v.Via[len(v.Via)-1]
+		}
+		old := edges[v.Kind+":"+v.Name]
+		if old != edge {
+			out = append(out, ProxyChainChange{v.Kind, v.Name, old, edge})
+		}
+	}
+	return out
+}
+func (s *Store) subscriptionChainCandidate(name string, targets, via []string, clear bool) (map[string]any, ProxyChainPlan, error) {
+	p := ProxyChainPlan{Kind: "subscription", Targets: append([]string{}, targets...), Via: append([]string{}, via...), Changes: []ProxyChainChange{}, SharedUse: []ProxyChainReference{}, Conflicts: []string{}, Persistent: !clear}
+	if len(targets) != 1 || !validName(targets[0]) {
+		return nil, p, errors.New("subscription chain requires one subscription name")
+	}
+	old, err := s.SubscriptionChain(name)
+	if err != nil {
+		return nil, p, err
+	}
+	if clear && (old == nil || old.Subscription != targets[0]) {
+		return nil, p, errors.New("subscription has no persistent chain")
+	}
+	if clear && len(via) > 0 {
+		return nil, p, errors.New("clear requires no via nodes")
+	}
+	cfg, err := s.unmanagedChainConfig(name)
+	if err != nil {
+		return nil, p, err
+	}
+	if old != nil {
+		for _, node := range old.Nodes {
+			retained := map[string]any{}
+			for k, v := range node {
+				retained[k] = v
+			}
+			if !clear {
+				retained["dialer-proxy"] = ""
+			}
+			n := tsString(retained, "name")
+			replaced := false
+			for i, v := range tsProxies(cfg) {
+				m, _ := v.(map[string]any)
+				if tsString(m, "name") == n {
+					tsProxies(cfg)[i] = retained
+					replaced = true
+				}
+			}
+			if !replaced {
+				cfg["proxies"] = append(tsProxies(cfg), retained)
+			}
+		}
+	}
+	if clear {
+		return cfg, p, chainValidateGraph(cfg)
+	}
+	plan, err := prepareChain(cfg, "subscription", targets, via, false)
+	return cfg, plan, err
+}
+
+func (s *Store) validateManagedCandidate(name string, source []byte) error {
+	p, err := s.SubscriptionChain(name)
+	if err != nil || p == nil {
+		return err
+	}
+	effective, err := s.EffectiveSource(name, source)
+	if err != nil {
+		return err
+	}
+	return s.validate(name, effective)
 }

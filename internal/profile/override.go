@@ -70,8 +70,12 @@ func (s *Store) effectiveSource(name string, source []byte) ([]byte, error) {
 	return s.effectiveSourceWithOverride(name, source, patch, err)
 }
 
-func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, err error) ([]byte, error) {
-	if checkErr := s.validateSubscriptionChainSource(name, source); checkErr != nil {
+func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, err error, skipChain ...bool) ([]byte, error) {
+	unmanaged := len(skipChain) > 0 && skipChain[0]
+	applyManaged := s.applySubscriptionChain
+	if unmanaged {
+		applyManaged = func(_ string, data []byte) ([]byte, error) { return data, nil }
+	} else if checkErr := s.validateSubscriptionChainSource(name, source); checkErr != nil {
 		return nil, checkErr
 	}
 	if errors.Is(err, fs.ErrNotExist) {
@@ -79,7 +83,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		if err != nil {
 			return nil, err
 		}
-		managed, err := s.applySubscriptionTailscale(name, source)
+		managed, err := applyManaged(name, source)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +174,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 	if err != nil {
 		return nil, err
 	}
-	managed, err := s.applySubscriptionTailscale(name, merged)
+	managed, err := applyManaged(name, merged)
 	if err != nil {
 		return nil, err
 	}
@@ -413,16 +417,12 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 	if err := yaml.Unmarshal(data, &patch); err != nil || patch == nil {
 		return i18n.Errorf("backend.profile.override_must_be_a_yaml_mapping", "override must be a YAML mapping")
 	}
-	policy, err := s.SubscriptionTailscale(name)
+	policy, err := s.SubscriptionChain(name)
 	if err != nil {
 		return err
 	}
 	if policy != nil {
-		managed, loadErr := s.SubscriptionChain(name)
-		if loadErr != nil {
-			return loadErr
-		}
-		if err := s.sanitizeManagedSnapshot(name, patch, managed); err != nil {
+		if err := s.sanitizeManagedSnapshot(name, patch, policy); err != nil {
 			return err
 		}
 		data, err = yaml.Marshal(patch)
@@ -481,6 +481,9 @@ func (s *Store) ClearOverride(ctx context.Context, name string) error {
 		return rollback(err)
 	}
 	if err := s.validate(name, base); err != nil {
+		return rollback(err)
+	}
+	if err := s.validateManagedCandidate(name, base); err != nil {
 		return rollback(err)
 	}
 	current, err := s.Current()

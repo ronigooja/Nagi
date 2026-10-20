@@ -152,8 +152,10 @@ func (s *Store) ProxyChainCandidates(profileName, kind string, targets []string)
 	return out, nil
 }
 
-func chainValidateGraph(cfg map[string]any) error {
-	graph := map[string][]string{}
+type chainVertex struct{ Kind, Name string }
+
+func chainGraph(cfg map[string]any) (map[chainVertex][]chainVertex, error) {
+	graph := map[chainVertex][]chainVertex{}
 	names := map[string]bool{"DIRECT": true, "REJECT": true, "REJECT-DROP": true, "PASS": true, "COMPATIBLE": true, "GLOBAL": true}
 	providers, _ := cfg["proxy-providers"].(map[string]any)
 	addName := func(n string) error {
@@ -166,67 +168,84 @@ func chainValidateGraph(cfg map[string]any) error {
 	for _, v := range tsProxies(cfg) {
 		m, _ := v.(map[string]any)
 		if err := addName(tsString(m, "name")); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	groups, _ := cfg["proxy-groups"].([]any)
 	for _, v := range groups {
 		m, _ := v.(map[string]any)
 		if err := addName(tsString(m, "name")); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	for n := range providers {
-		names["provider:"+n] = true
-	}
-	add := func(a, b string) error {
-		if b == "" {
+	add := func(from chainVertex, to string, provider bool) error {
+		if to == "" {
 			return nil
 		}
-		if !names[b] {
-			return errors.New("proxy dependency references a missing node, group or provider")
+		kind := "proxy"
+		if provider {
+			kind = "provider"
+			if _, ok := providers[to]; !ok {
+				return errors.New("proxy group references a missing provider")
+			}
+		} else if !names[to] {
+			return errors.New("proxy dependency references a missing node or group")
 		}
-		graph[a] = append(graph[a], b)
+		graph[from] = append(graph[from], chainVertex{kind, to})
 		return nil
 	}
 	for _, v := range tsProxies(cfg) {
 		m, _ := v.(map[string]any)
-		if err := add(tsString(m, "name"), tsString(m, "dialer-proxy")); err != nil {
-			return err
+		if err := add(chainVertex{"proxy", tsString(m, "name")}, tsString(m, "dialer-proxy"), false); err != nil {
+			return nil, err
 		}
 	}
 	for n, v := range providers {
 		p, _ := v.(map[string]any)
+		from := chainVertex{"provider", n}
 		for _, d := range []string{chainProviderDialer(p), tsString(p, "proxy")} {
-			if err := add("provider:"+n, d); err != nil {
-				return err
+			if err := add(from, d, false); err != nil {
+				return nil, err
 			}
 		}
+		override, _ := p["override"].(map[string]any)
+		_, hasOverride := override["dialer-proxy"]
 		payload, _ := p["payload"].([]any)
-		for _, x := range payload {
-			m, _ := x.(map[string]any)
-			if chainProviderDialer(p) == "" {
-				if err := add("provider:"+n, tsString(m, "dialer-proxy")); err != nil {
-					return err
+		if !hasOverride {
+			for _, x := range payload {
+				m, _ := x.(map[string]any)
+				if err := add(from, tsString(m, "dialer-proxy"), false); err != nil {
+					return nil, err
 				}
 			}
 		}
 	}
 	for _, v := range groups {
 		m, _ := v.(map[string]any)
-		n := tsString(m, "name")
+		from := chainVertex{"proxy", tsString(m, "name")}
 		members, _ := m["proxies"].([]any)
 		for _, x := range members {
 			d, _ := x.(string)
-			if err := add(n, d); err != nil {
-				return err
+			node := tsFind(cfg, d)
+			excluded := false
+			var err error
+			if node != nil {
+				excluded, err = nodeGroupExcluded(m, node)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if !excluded {
+				if err := add(from, d, false); err != nil {
+					return nil, err
+				}
 			}
 		}
 		uses, _ := m["use"].([]any)
 		for _, x := range uses {
 			d, _ := x.(string)
-			if err := add(n, "provider:"+d); err != nil {
-				return err
+			if err := add(from, d, true); err != nil {
+				return nil, err
 			}
 		}
 		all, _ := m["include-all"].(bool)
@@ -234,32 +253,39 @@ func chainValidateGraph(cfg map[string]any) error {
 		pp, _ := m["include-all-providers"].(bool)
 		if all || pn {
 			for _, x := range tsProxies(cfg) {
-				p, _ := x.(map[string]any)
-				excluded, err := nodeGroupExcluded(m, p)
+				node, _ := x.(map[string]any)
+				excluded, err := nodeGroupExcluded(m, node)
 				if err != nil {
-					return err
+					return nil, err
 				}
-				matched, err := nodeGroupMatch(tsString(m, "filter"), tsString(p, "name"), true)
+				match, err := nodeGroupMatch(tsString(m, "filter"), tsString(node, "name"), true)
 				if err != nil {
-					return err
+					return nil, err
 				}
-				if matched && !excluded {
-					_ = add(n, tsString(p, "name"))
+				if match && !excluded {
+					_ = add(from, tsString(node, "name"), false)
 				}
 			}
 		}
 		if all || pp {
-			for d := range providers {
-				_ = add(n, "provider:"+d)
+			for n := range providers {
+				_ = add(from, n, true)
 			}
 		}
-		if err := add(n, tsString(m, "dialer-proxy")); err != nil {
-			return err
+		if err := add(from, tsString(m, "dialer-proxy"), false); err != nil {
+			return nil, err
 		}
 	}
-	state := map[string]int{}
-	var visit func(string) bool
-	visit = func(n string) bool {
+	return graph, nil
+}
+func chainValidateGraph(cfg map[string]any) error {
+	graph, err := chainGraph(cfg)
+	if err != nil {
+		return err
+	}
+	state := map[chainVertex]int{}
+	var visit func(chainVertex) bool
+	visit = func(n chainVertex) bool {
 		if state[n] == 1 {
 			return true
 		}
@@ -281,6 +307,49 @@ func chainValidateGraph(cfg map[string]any) error {
 		}
 	}
 	return nil
+}
+func chainSharedUses(cfg map[string]any, kind string, targets, via []string) ([]ProxyChainReference, error) {
+	graph, err := chainGraph(cfg)
+	if err != nil {
+		return nil, err
+	}
+	out := []ProxyChainReference{}
+	for _, target := range chainTargets(cfg) {
+		selected := false
+		for _, n := range targets {
+			if kind == target.Kind && n == target.Name {
+				selected = true
+			}
+		}
+		if selected {
+			continue
+		}
+		vKind := "proxy"
+		if target.Kind == "provider" {
+			vKind = "provider"
+		}
+		for _, hop := range via {
+			wanted := chainVertex{"proxy", hop}
+			seen := map[chainVertex]bool{}
+			var reaches func(chainVertex) bool
+			reaches = func(n chainVertex) bool {
+				if seen[n] {
+					return false
+				}
+				seen[n] = true
+				for _, next := range graph[n] {
+					if next == wanted || reaches(next) {
+						return true
+					}
+				}
+				return false
+			}
+			if reaches(chainVertex{vKind, target.Name}) {
+				out = append(out, ProxyChainReference{target.Kind, target.Name, hop})
+			}
+		}
+	}
+	return out, nil
 }
 
 func prepareChain(cfg map[string]any, kind string, targets, via []string, clear bool) (ProxyChainPlan, error) {
@@ -395,33 +464,38 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 	return p, nil
 }
 func (s *Store) PlanProxyChain(name, kind string, targets, via []string, clear bool) (ProxyChainPlan, error) {
+	if kind == "subscription" {
+		candidate, plan, err := s.subscriptionChainCandidate(name, targets, via, clear)
+		if err != nil {
+			return plan, err
+		}
+		cfg, activeErr := s.chainConfig(name)
+		if activeErr != nil && !clear {
+			return plan, activeErr
+		}
+		if activeErr == nil {
+			plan.Changes = chainDifferences(chainTargets(cfg), chainTargets(candidate))
+			shared, err := chainSharedUses(cfg, kind, targets, via)
+			if err != nil {
+				return plan, err
+			}
+			plan.SharedUse = shared
+		}
+		return plan, nil
+	}
 	cfg, err := s.chainConfig(name)
 	if err != nil {
 		return ProxyChainPlan{}, err
 	}
-	before := chainTargets(cfg)
+	shared, err := chainSharedUses(cfg, kind, targets, via)
+	if err != nil {
+		return ProxyChainPlan{}, err
+	}
 	p, err := prepareChain(cfg, kind, targets, via, clear)
 	if err != nil {
 		return p, err
 	}
-	for _, t := range before {
-		selected := false
-		for _, n := range targets {
-			if t.Kind == kind && t.Name == n {
-				selected = true
-			}
-		}
-		if selected {
-			continue
-		}
-		for _, hop := range via {
-			for _, d := range t.Via {
-				if hop == d {
-					p.SharedUse = append(p.SharedUse, ProxyChainReference{t.Kind, t.Name, hop})
-				}
-			}
-		}
-	}
+	p.SharedUse = shared
 	policy, err := s.SubscriptionChain(name)
 	if err != nil {
 		return p, err
