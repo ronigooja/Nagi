@@ -3,7 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"io/fs"
 	"net/url"
 	"sort"
@@ -60,7 +60,7 @@ func (s *Store) ProxyNode(profileName, name string) (ProxyNode, error) {
 	}
 	node := tsFind(cfg, name)
 	if node == nil {
-		return ProxyNode{}, fmt.Errorf("proxy node not found")
+		return ProxyNode{}, i18n.Errorf("backend.profile.node_proxy_node_not_found", "proxy node not found")
 	}
 	return s.proxyNode(profileName, cfg, node)
 }
@@ -83,7 +83,7 @@ func (s *Store) saveProxyNodeConfig(ctx context.Context, name string, cfg map[st
 	data, err := s.Override(name)
 	if err == nil {
 		if yaml.Unmarshal(data, &overlay) != nil || overlay == nil {
-			return fmt.Errorf("local override must be a YAML mapping")
+			return i18n.Errorf("backend.profile.node_local_override_must_be_a_yaml_mapping", "local override must be a YAML mapping")
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -97,7 +97,7 @@ func (s *Store) saveProxyNodeConfig(ctx context.Context, name string, cfg map[st
 	}
 	updated, err := yaml.Marshal(overlay)
 	if err != nil {
-		return fmt.Errorf("could not prepare proxy node override")
+		return i18n.Errorf("backend.profile.node_could_not_prepare_proxy_node_override", "could not prepare proxy node override")
 	}
 	return s.SetOverride(ctx, name, updated)
 }
@@ -134,18 +134,18 @@ func (s *Store) AddProxyNode(ctx context.Context, profileName, name string, o Ta
 		return err
 	}
 	if o.ExitNode == nil || (o.AuthKey == nil && o.AuthKeyFile == nil) {
-		return fmt.Errorf("add requires EXIT_NODE and an auth key")
+		return i18n.Errorf("backend.profile.node_add_requires_exit_node_and_an_auth_key", "add requires EXIT_NODE and an auth key")
 	}
 	cfg, err := s.tailscaleConfig(profileName)
 	if err != nil {
 		return err
 	}
 	if tsFind(cfg, name) != nil {
-		return fmt.Errorf("proxy name already exists")
+		return i18n.Errorf("backend.profile.node_proxy_name_already_exists", "proxy name already exists")
 	}
 	providers, _ := cfg["proxy-providers"].(map[string]any)
 	if _, ok := providers[name]; ok {
-		return fmt.Errorf("name conflicts with an existing provider")
+		return i18n.Errorf("backend.profile.node_name_conflicts_with_an_existing_provider", "name conflicts with an existing provider")
 	}
 	candidates, err := s.ProxyNodeGroupCandidates(profileName)
 	if err != nil {
@@ -153,7 +153,7 @@ func (s *Store) AddProxyNode(ctx context.Context, profileName, name string, o Ta
 	}
 	for _, group := range candidates {
 		if group == name {
-			return fmt.Errorf("name conflicts with an existing group")
+			return i18n.Errorf("backend.profile.node_name_conflicts_with_an_existing_group", "name conflicts with an existing group")
 		}
 	}
 	node := map[string]any{"name": name, "type": "tailscale", "udp": true, "control-url": nagiruntime.TailscaleControlURL}
@@ -173,10 +173,10 @@ func (s *Store) EditProxyNode(ctx context.Context, profileName, name string, o T
 	}
 	node := tsFind(cfg, name)
 	if node == nil {
-		return fmt.Errorf("proxy node not found")
+		return i18n.Errorf("backend.profile.node_proxy_node_not_found", "proxy node not found")
 	}
 	if tsString(node, "type") != "tailscale" {
-		return fmt.Errorf("editing this proxy type is not supported")
+		return i18n.Errorf("backend.profile.node_editing_this_proxy_type_is_not_supported", "editing this proxy type is not supported")
 	}
 	if err = updateTailscaleNode(node, o); err != nil {
 		return err
@@ -197,16 +197,16 @@ func (s *Store) RemoveProxyNode(ctx context.Context, profileName, name string) e
 	}
 	node := tsFind(cfg, name)
 	if node == nil {
-		return fmt.Errorf("proxy node not found")
+		return i18n.Errorf("backend.profile.node_proxy_node_not_found", "proxy node not found")
 	}
 	if tsString(node, "type") != "tailscale" {
-		return fmt.Errorf("removing this proxy type is not supported")
+		return i18n.Errorf("backend.profile.node_removing_this_proxy_type_is_not_supported", "removing this proxy type is not supported")
 	}
 	if err = s.CheckProxyNodeRemoval(profileName, name); err != nil {
 		return err
 	}
 	if nodeReferenced(cfg, name) {
-		return fmt.Errorf("proxy node is still referenced; remove its group, chain, rule, DNS or provider references first")
+		return i18n.Errorf("backend.profile.node_proxy_node_is_still_referenced_remove_its_group_chain_rule_dns_or_provider_references_first", "proxy node is still referenced; remove its group, chain, rule, DNS or provider references first")
 	}
 	list := []any{}
 	for _, v := range tsProxies(cfg) {

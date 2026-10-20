@@ -2,7 +2,7 @@ package profile
 
 import (
 	"context"
-	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"sort"
 	"strings"
 	"time"
@@ -74,12 +74,12 @@ func nodeGroupMatch(pattern, name string, empty bool) (bool, error) {
 	for _, part := range strings.Split(pattern, "`") {
 		re, err := regexp2.Compile(part, regexp2.None)
 		if err != nil {
-			return false, fmt.Errorf("proxy group contains an invalid filter")
+			return false, i18n.Errorf("backend.profile.node_proxy_group_contains_an_invalid_filter", "proxy group contains an invalid filter")
 		}
 		re.MatchTimeout = 100 * time.Millisecond
 		match, err := re.MatchString(name)
 		if err != nil {
-			return false, fmt.Errorf("proxy group filter could not be evaluated")
+			return false, i18n.Errorf("backend.profile.node_proxy_group_filter_could_not_be_evaluated", "proxy group filter could not be evaluated")
 		}
 		if match {
 			return true, nil
@@ -102,7 +102,7 @@ func (s *Store) ProxyNodeGroups(profileName, name string) (ProxyNodeGroups, erro
 	}
 	node := tsFind(cfg, name)
 	if node == nil {
-		return ProxyNodeGroups{}, fmt.Errorf("proxy node not found")
+		return ProxyNodeGroups{}, i18n.Errorf("backend.profile.node_proxy_node_not_found", "proxy node not found")
 	}
 	return nodeGroups(cfg, node)
 }
@@ -116,10 +116,10 @@ func setNodeGroups(cfg map[string]any, name string, wanted []string) error {
 	}
 	for _, group := range wanted {
 		if !available[group] {
-			return fmt.Errorf("proxy group not found")
+			return i18n.Errorf("backend.profile.node_proxy_group_not_found", "proxy group not found")
 		}
 		if selected[group] {
-			return fmt.Errorf("duplicate proxy group")
+			return i18n.Errorf("backend.profile.node_duplicate_proxy_group", "duplicate proxy group")
 		}
 		selected[group] = true
 	}
@@ -147,7 +147,7 @@ func setNodeGroups(cfg map[string]any, name string, wanted []string) error {
 		}
 	}
 	if tsCycle(cfg) {
-		return fmt.Errorf("proxy group membership would create a dependency cycle")
+		return i18n.Errorf("backend.profile.node_proxy_group_membership_would_create_a_dependency_cycle", "proxy group membership would create a dependency cycle")
 	}
 	return nil
 }
@@ -157,7 +157,7 @@ func (s *Store) SetProxyNodeGroups(ctx context.Context, profileName, name string
 		return err
 	}
 	if tsFind(cfg, name) == nil {
-		return fmt.Errorf("proxy node not found")
+		return i18n.Errorf("backend.profile.node_proxy_node_not_found", "proxy node not found")
 	}
 	if err = setNodeGroups(cfg, name, groups); err != nil {
 		return err
