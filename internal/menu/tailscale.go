@@ -71,7 +71,7 @@ func localizedtailscaleFields(language i18n.Context, edit bool) []Field {
 }
 
 func addTailscale(ctx context.Context, s *Session) error {
-	groups, err := selectNodeGroups(ctx, s, nil)
+	groups, err := selectNodeGroups(ctx, s, nil, nodeText(s.language, "continue", "Continue"))
 	if err != nil {
 		return err
 	}

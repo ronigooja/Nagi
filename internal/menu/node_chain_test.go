@@ -146,7 +146,7 @@ func (r *nodeChainRunner) chainTargets() []menuChainTarget {
 func TestGroupSelectionPaginationAndCancellation(t *testing.T) {
 	r := &nodeChainRunner{}
 	var out bytes.Buffer
-	_, err := selectNodeGroups(context.Background(), NewSession(r, strings.NewReader("0\n"), &out), nil)
+	_, err := selectNodeGroups(context.Background(), NewSession(r, strings.NewReader("0\n"), &out), nil, "Continue")
 	if err != ErrBack || len(r.calls) != 1 {
 		t.Fatalf("%v %v", err, r.calls)
 	}

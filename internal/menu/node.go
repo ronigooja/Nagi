@@ -87,8 +87,8 @@ func localizednodeDetailPage(l i18n.Context, name string) *Page {
 			v.Context += "\n" + nodeText(l, "exit", "Exit node: ") + t.ExitNode + "\n" + nodeText(l, "hostname", "Hostname: ") + t.Hostname + "\n" + nodeText(l, "control", "Control URL: ") + t.ControlURL + "\n" + nodeText(l, "key", "Auth key: ") + key
 			v.Actions = append(v.Actions, Item{ID: "node.edit", Label: nodeText(l, "edit", "Edit Tailscale node"), Action: func(ctx context.Context, s *Session) error { return editTailscale(ctx, s, t) }})
 		}
-		v.Actions = append(v.Actions, Item{ID: "node.groups", Label: nodeText(l, "groups", "Edit group membership"), Action: func(ctx context.Context, s *Session) error {
-			groups, err := selectNodeGroups(ctx, s, n.Groups.Explicit)
+		v.Actions = append(v.Actions, Item{ID: "node.groups", Label: nodeText(l, "groups", "Set group membership"), Action: func(ctx context.Context, s *Session) error {
+			groups, err := selectNodeGroups(ctx, s, n.Groups.Explicit, nodeText(l, "save", "Save changes"))
 			if err != nil {
 				return err
 			}
@@ -112,7 +112,7 @@ func localizednodeDetailPage(l i18n.Context, name string) *Page {
 }
 
 // Group selections are local form state; only the final CLI mutation persists them.
-func selectNodeGroups(ctx context.Context, s *Session, initial []string) ([]string, error) {
+func selectNodeGroups(ctx context.Context, s *Session, initial []string, doneLabel string) ([]string, error) {
 	var data menuNodeList
 	if err := localizeddecodeMenuResult(s.language, s.Fetch(ctx, "proxy", "node", "list"), &data); err != nil {
 		return nil, err
@@ -122,11 +122,11 @@ func selectNodeGroups(ctx context.Context, s *Session, initial []string) ([]stri
 		selected[g] = true
 	}
 	for {
-		v := PageView{Context: nodeText(s.language, "group_hint", "Choose groups to toggle. No groups are selected by default."), Actions: []Item{{Label: nodeText(s.language, "continue", "Continue")}}}
+		v := PageView{Context: nodeText(s.language, "group_hint", "Choose groups to toggle. No groups are selected by default."), Actions: []Item{{Label: doneLabel}}}
 		for _, g := range data.GroupCandidates {
 			v.Items = append(v.Items, Item{Name: g, Label: g, Selected: selected[g]})
 		}
-		choice, err := selectMenuItem(s, nodeText(s.language, "groups", "Edit group membership"), v)
+		choice, err := selectMenuItem(s, nodeText(s.language, "groups", "Set group membership"), v)
 		if err != nil {
 			return nil, err
 		}
