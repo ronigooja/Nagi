@@ -20,7 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Exercise the production mutation/materialization and privileged control path,
+// Exercise production profile mutation and the privileged control path,
 // including the pinned restricted engine's preflight and actual reload parser.
 func TestProviderChainMutationRealRestrictedReloadAndClear(t *testing.T) {
 	binary := os.Getenv("NAGI_TS_TEST_ENGINE")
@@ -62,10 +62,23 @@ func TestProviderChainMutationRealRestrictedReloadAndClear(t *testing.T) {
 	}
 	var store *profile.Store
 	var sequence int
+	var rejectNext bool
 	reload := func(ctx context.Context) error {
 		effective, err := store.Effective("work")
 		if err != nil {
 			return err
+		}
+		if rejectNext {
+			rejectNext = false
+			var rejected map[string]any
+			if err := yaml.Unmarshal(effective, &rejected); err != nil {
+				return err
+			}
+			rejected["proxy-providers"].(map[string]any)["P"].(map[string]any)["path"] = "/tmp/rejected-cache.yaml"
+			effective, err = yaml.Marshal(rejected)
+			if err != nil {
+				return err
+			}
 		}
 		next := filepath.Join(profiles, ".effective-work.yaml")
 		if err = os.WriteFile(next, effective, 0600); err != nil {
@@ -177,6 +190,22 @@ func TestProviderChainMutationRealRestrictedReloadAndClear(t *testing.T) {
 	assertActive(true)
 	if err := reload(ctx); err != nil {
 		t.Fatal("repeat reload", err)
+	}
+	assertActive(true)
+	// A failed actual helper activation rolls the saved production mutation back.
+	saved, err := store.Override("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptedSequence, acceptedSnapshot := sequence, h.snapshot
+	rejectNext = true
+	if _, err := store.MutateScopedProxyChain(ctx, "work", "provider-node", []string{"Raw A"}, "P", []profile.ChainNodeRef{{Kind: "node", Name: "Entry"}}, false); err == nil {
+		t.Fatal("rejected mutation unexpectedly succeeded")
+	}
+	sequence = acceptedSequence
+	restored, err := store.Override("work")
+	if err != nil || !bytes.Equal(saved, restored) || h.snapshot != acceptedSnapshot {
+		t.Fatal("failed activation did not restore override/root generation", err)
 	}
 	assertActive(true)
 	// A user-controlled HTTP path must still fail before forwarding and preserve
