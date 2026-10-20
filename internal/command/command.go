@@ -1189,6 +1189,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			reloaded := false
 			if nodeInvocation(args) && nodeRead(args) || chainInvocation(args) && chainRead(args) {
 				store = profile.NewStore(paths.ConfigDir, nil, nil)
+				if chainInvocation(args) {
+					configureProviderChainNodes(ctx, store, paths, client)
+				}
 			} else {
 				var e error
 				store, e = getProfiles()
