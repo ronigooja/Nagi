@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestProviderChainHTTPRootCacheRewrite(t *testing.T) {
+func TestProviderChainHTTPNativeCachePath(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("root snapshot test")
 	}
@@ -31,23 +31,14 @@ func TestProviderChainHTTPRootCacheRewrite(t *testing.T) {
 	}
 	defer removeSnapshots(snapshot, resources)
 	out, _ := os.ReadFile(snapshot)
-	if bytes.Contains(out, []byte(userPath)) || !bytes.Contains(out, []byte(filepath.Join(private, ".chain-cache"))) {
+	if bytes.Contains(out, []byte(userPath)) || bytes.Contains(out, []byte(".chain-cache")) {
 		t.Fatal(string(out))
 	}
 	var doc map[string]any
 	yaml.Unmarshal(out, &doc)
 	p := doc["proxy-providers"].(map[string]any)[id].(map[string]any)
-	path := p["path"].(string)
-	info, _ := os.Stat(path)
-	if len(resources) != 1 || resources[0] != path {
-		t.Fatal("cache not registered for snapshot cleanup", resources, path)
-	}
-	if info.Mode().Perm() != 0600 {
-		t.Fatal(info.Mode())
-	}
-	removeSnapshots(snapshot, resources)
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatal("cache survived generation cleanup", err)
+	if _, exists := p["path"]; exists || len(resources) != 0 {
+		t.Fatal("HTTP cache must remain native-managed")
 	}
 	cfg["proxy-providers"].(map[string]any)[id].(map[string]any)["path"] = "/tmp/arbitrary.yaml"
 	data, _ = yaml.Marshal(cfg)

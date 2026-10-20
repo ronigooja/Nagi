@@ -2,8 +2,6 @@ package server
 
 import (
 	"bytes"
-	"crypto/rand"
-	"fmt"
 	"github.com/ronigooja/Nagi/internal/profile"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"path/filepath"
@@ -25,11 +23,6 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 	root := doc.Content[0]
 	// Generated HTTP providers carry a user-mode cache path. Remove only the
 	// exact generated path before policy validation; root never opens that path.
-	type generatedCache struct {
-		provider *yaml.Node
-		name     string
-	}
-	var generated []generatedCache
 	profileName := strings.TrimSuffix(filepath.Base(source), filepath.Ext(source))
 	profileName = strings.TrimPrefix(profileName, ".effective-")
 	profileName = strings.TrimPrefix(profileName, ".restore-")
@@ -57,7 +50,6 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 					break
 				}
 			}
-			generated = append(generated, generatedCache{p, name})
 		}
 	}
 	sanitized, err := yaml.Marshal(&doc)
@@ -116,25 +108,15 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 			}
 		}
 	}
-	// Cache files belong to the private configuration generation and follow
-	// its existing resource lifetime, including uncertain native reloads.
-	for _, g := range generated {
-		var digest [16]byte
-		if _, err := rand.Read(digest[:]); err != nil {
-			return fail()
-		}
-		path := filepath.Join(h.PrivateDir, ".chain-cache", fmt.Sprintf("%x.yaml", digest[:]))
-		if _, err := profile.PreparePrivateChainCache(h.PrivateDir, path); err != nil {
-			return fail()
-		}
-		resources = append(resources, path)
-		g.provider.Content = append(g.provider.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "path"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: path})
-	}
+	// Restricted mihomo owns HTTP cache paths, including derived providers.
+	// Providers with the same URL share raw payload bytes, while their native
+	// parsers keep filters, overrides and dialer edges independent. These caches
+	// must not be removed with a generation: an original provider can use them.
 	var out bytes.Buffer
 	if yaml.NewEncoder(&out).Encode(&doc) != nil {
 		return fail()
 	}
-	snapshot, err := configpolicy.SnapshotWithProviderCaches(h.PrivateDir, out.Bytes())
+	snapshot, err := configpolicy.Snapshot(h.PrivateDir, out.Bytes())
 	if err != nil {
 		return fail()
 	}
