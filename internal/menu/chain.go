@@ -383,9 +383,9 @@ func applyMenuChain(ctx context.Context, s *Session, args []string) bool {
 	if data, err := json.Marshal(r.Data); err == nil && json.Unmarshal(data, &result) == nil && result.Saved {
 		message := chainText(s.language, "saved", "Chain saved.")
 		if args[2] == "clear" {
-			message = chainPathText(s.language, args[4:5]) + "\n" + chainText(s.language, "cleared", "Chain disconnected. Upstream segments and nodes are retained.")
+			message = chainText(s.language, "cleared", "Chain disconnected.")
 		}
-		if result.Reloaded {
+		if result.Reloaded && args[2] != "clear" {
 			message += " " + chainText(s.language, "reloaded", "Configuration reloaded.")
 		}
 		s.feedback(feedbackSuccess, message)

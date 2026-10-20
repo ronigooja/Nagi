@@ -5,7 +5,7 @@
   "menu.capture.stop": "Stop capture",
   "menu.chain.apply": "Apply",
   "menu.chain.clear": "Disconnect chain",
-  "menu.chain.cleared": "Chain disconnected. Upstream segments and nodes are retained.",
+  "menu.chain.cleared": "Chain disconnected.",
   "menu.chain.conflict": "Conflict: ",
   "menu.chain.destination": "Destination",
   "menu.chain.disconnect_effect": "Disconnects only the exit’s incoming edge; upstream segments and nodes remain.",

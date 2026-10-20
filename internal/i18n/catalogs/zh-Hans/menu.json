@@ -5,7 +5,7 @@
   "menu.capture.stop": "停止捕获",
   "menu.chain.apply": "应用",
   "menu.chain.clear": "断开串联",
-  "menu.chain.cleared": "串联已断开，保留上游片段及所有节点。",
+  "menu.chain.cleared": "串联已断开",
   "menu.chain.conflict": "冲突：",
   "menu.chain.destination": "目标网站",
   "menu.chain.disconnect_effect": "仅断开出口的入边，保留上游片段及所有节点。",
