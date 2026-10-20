@@ -12,6 +12,7 @@ import (
 )
 
 type ProxyChainTarget struct {
+	Subscription      string         `json:"subscription,omitempty"`
 	Kind              string         `json:"kind"`
 	Name              string         `json:"name"`
 	Type              string         `json:"type"`
@@ -118,7 +119,7 @@ func (s *Store) ProxyChains(name string) ([]ProxyChainTarget, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, ranks, err := s.subscriptionNodeOrder(name)
+	subscriptionName, ranks, err := s.subscriptionNodeOrder(name)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +130,9 @@ func (s *Store) ProxyChains(name string) ([]ProxyChainTarget, error) {
 	stripProviderResources(cfg, members)
 	out := chainTargets(cfg)
 	for i, t := range out {
+		if _, ok := ranks[t.Name]; ok && t.Kind == "node" {
+			out[i].Subscription = subscriptionName
+		}
 		if t.Kind == "node" {
 			out[i].PathRefs = chainPathRefs(cfg, tsString(tsFind(cfg, t.Name), "dialer-proxy"), members)
 			out[i].PathRefs = append(out[i].PathRefs, ChainNodeRef{Kind: "node", Name: t.Name})
@@ -166,11 +170,11 @@ func (s *Store) ProxyChain(profileName, kind, target string) (ProxyChainTarget, 
 	return ProxyChainTarget{}, i18n.Errorf("backend.profile.chain_chain_target_not_found", "chain target not found")
 }
 func (s *Store) ProxyChainCandidates(profileName, kind string, targets []string) ([]ProxyNode, error) {
-	cfg, err := s.chainConfig(profileName)
+	cfg, err := s.chainLogicalConfig(profileName)
 	if err != nil {
 		return nil, err
 	}
-	_, ranks, err := s.subscriptionNodeOrder(profileName)
+	subscriptionName, ranks, err := s.subscriptionNodeOrder(profileName)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +191,11 @@ func (s *Store) ProxyChainCandidates(profileName, kind string, targets []string)
 			}
 		}
 		if !excluded {
-			out = append(out, ProxyNode{Name: tsString(m, "name"), Type: tsString(m, "type")})
+			n := ProxyNode{Name: tsString(m, "name"), Type: tsString(m, "type")}
+			if _, ok := ranks[n.Name]; ok {
+				n.Subscription = subscriptionName
+			}
+			out = append(out, n)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return sourceNodeLess(out[i].Name, out[j].Name, ranks) })

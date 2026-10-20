@@ -133,9 +133,9 @@ func bashCompletion(roots []string, children map[string][]string) string {
     if [[ "$cur" == --* && ( ${semantic[2]} == add || ${semantic[2]} == edit ) ]]; then local flags='--hostname --control-url --auth-key --auth-key-stdin --auth-key-file'; [[ ${semantic[2]} == edit ]] && flags+=' --exit-node' || flags+=' --group'; COMPREPLY=( $(compgen -W "$flags" -- "$cur") ); return 0; fi
   fi
   if [[ ${semantic[0]} == proxy && ${semantic[1]} == chain ]]; then
-    if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'node provider subscription' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 3 ]]; then COMPREPLY=( $(compgen -W 'node provider-node provider subscription' -- "$cur") ); return 0; fi
     if [[ ${semantic[${#semantic[@]}-1]} == --via ]]; then while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates proxy-nodes 2>/dev/null); return 0; fi
-    if [[ "$cur" == --* ]]; then COMPREPLY=( $(compgen -W '--via --dry-run' -- "$cur") ); return 0; fi
+    if [[ "$cur" == --* ]]; then COMPREPLY=( $(compgen -W '--via --via-provider --dry-run' -- "$cur") ); return 0; fi
     if [[ ${#semantic[@]} -ge 4 ]]; then while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates chain-targets "${semantic[3]}" 2>/dev/null); return 0; fi
   fi
   if [[ "$cur" == --* || "$cur" == -* ]]; then
@@ -284,9 +284,9 @@ _nagi() {
     if [[ ${words[CURRENT]} == --* && ( ${semantic[3]} == add || ${semantic[3]} == edit ) ]]; then compadd -- --hostname --control-url --auth-key --auth-key-stdin --auth-key-file; [[ ${semantic[3]} == edit ]] && compadd -- --exit-node || compadd -- --group; return; fi
   fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == chain ]]; then
-    if (( ${#semantic} == 3 )); then compadd -- node provider subscription; return; fi
+    if (( ${#semantic} == 3 )); then compadd -- node provider-node provider subscription; return; fi
     if [[ ${semantic[-1]} == --via ]]; then compadd -- ${(f)"$(nagi completion candidates proxy-nodes 2>/dev/null)"}; return; fi
-    if [[ ${words[CURRENT]} == --* ]]; then compadd -- --via --dry-run; return; fi
+    if [[ ${words[CURRENT]} == --* ]]; then compadd -- --via --via-provider --dry-run; return; fi
     if (( ${#semantic} >= 4 )); then compadd -- ${(f)"$(nagi completion candidates chain-targets "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
   if [[ ${words[CURRENT]} == -* ]]; then compadd -- --json --help -h --lang; return; fi
@@ -419,7 +419,7 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and t
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = node; and contains -- $s[3] show edit remove' -a '(nagi completion candidates proxy-nodes 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = node; and test "$s[3]" = groups; and contains -- $s[4] show set clear' -a '(nagi completion candidates proxy-nodes 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -ge 5; and test "$s[1]" = proxy; and test "$s[2]" = node; and test "$s[3]" = groups; and test "$s[4]" = set' -a '(nagi completion candidates node-groups 2>/dev/null)'
-complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = chain' -a 'node provider subscription'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = chain' -a 'node provider-node provider subscription'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -ge 4; and test "$s[1]" = proxy; and test "$s[2]" = chain' -a '(set -l s (__nagi_semantic); nagi completion candidates chain-targets "$s[4]" 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = chain; and test "$s[-1]" = --via' -a '(nagi completion candidates proxy-nodes 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = chain; and contains -- $s[3] set clear' -l dry-run

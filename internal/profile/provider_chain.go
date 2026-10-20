@@ -295,7 +295,6 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 		return nil, p, nil, err
 	}
 	beforePaths := logicalChainPaths(cfg, members)
-	originalMembers := append([]ProviderChainMember{}, members...)
 	stripProviderResources(cfg, members)
 	overlay, err := s.chainOverride(name)
 	if err != nil {
@@ -425,7 +424,7 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 	}
 	kept := []ProviderChainMember{}
 	for _, m := range members {
-		if needed[m.ID()] || m.Dialer != "" {
+		if needed[m.ID()] {
 			kept = append(kept, m)
 		}
 	}
@@ -515,7 +514,6 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 			}
 		}
 	}
-	_ = originalMembers
 	return overlay, p, cfg, nil
 }
 

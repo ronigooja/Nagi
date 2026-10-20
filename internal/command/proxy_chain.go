@@ -200,7 +200,19 @@ func chainCommand(ctx context.Context, args []string, store *profile.Store, cach
 		if err != nil {
 			return nil, err
 		}
-		all := append(append(targets, entire...), providerNodes...)
+		all := []profile.ProxyChainTarget{}
+		for _, v := range targets {
+			if v.Kind == "node" && v.Subscription != "" {
+				all = append(all, v)
+			}
+		}
+		all = append(all, providerNodes...)
+		for _, v := range targets {
+			if v.Kind != "node" || v.Subscription == "" {
+				all = append(all, v)
+			}
+		}
+		all = append(all, entire...)
 		filtered := []profile.ProxyChainTarget{}
 		seen := map[string]bool{}
 		for _, t := range all {
@@ -255,13 +267,20 @@ func chainCommand(ctx context.Context, args []string, store *profile.Store, cach
 		}
 		all := []any{}
 		for _, n := range nodes {
-			all = append(all, n)
+			if n.Subscription != "" {
+				all = append(all, n)
+			}
 		}
 		for _, v := range values {
 			if !v.Supported || o.kind == "provider-node" && v.Provider == o.provider && v.Name == o.targets[0] {
 				continue
 			}
 			all = append(all, v)
+		}
+		for _, n := range nodes {
+			if n.Subscription == "" {
+				all = append(all, n)
+			}
 		}
 		return map[string]any{"profile": name, "nodes": all, "unavailable_providers": unavailable}, nil
 	}

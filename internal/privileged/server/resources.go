@@ -130,7 +130,7 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 	if yaml.NewEncoder(&out).Encode(&doc) != nil {
 		return fail()
 	}
-	snapshot, err := configpolicy.Snapshot(h.PrivateDir, out.Bytes())
+	snapshot, err := configpolicy.SnapshotWithProviderCaches(h.PrivateDir, out.Bytes())
 	if err != nil {
 		return fail()
 	}

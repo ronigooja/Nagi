@@ -126,7 +126,7 @@ func sourceNodeLess(left, right string, ranks map[string]int) bool {
 // ProxyNodeProviderCandidates preserves declaration order from the source and
 // then local overrides, omitting providers absent from effective configuration.
 func (s *Store) ProxyNodeProviderCandidates(profileName string) ([]string, error) {
-	cfg, err := s.tailscaleConfig(profileName)
+	cfg, err := s.chainLogicalConfig(profileName)
 	if err != nil {
 		return nil, err
 	}
