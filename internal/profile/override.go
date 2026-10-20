@@ -143,7 +143,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 	for _, value := range additions {
 		node, _ := value.(map[string]any)
 		if node == nil || !chainHop(tsString(node, "type")) || ValidateTailscaleName(tsString(node, "name")) != nil {
-			return nil, i18n.Errorf("backend.profile.local_proxy_additions_must_contain_named_tailscale_nodes", "local proxy additions must contain named Tailscale nodes")
+			return nil, i18n.Errorf("backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes", "local proxy additions must contain named compatible nodes")
 		}
 		providers, _ := base["proxy-providers"].(map[string]any)
 		if _, exists := providers[tsString(node, "name")]; exists {

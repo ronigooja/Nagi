@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"gopkg.in/yaml.v3"
 	"io/fs"
 	"os"
@@ -36,7 +37,7 @@ func (s *Store) SubscriptionChain(name string) (*SubscriptionChainPolicy, error)
 		return nil, err
 	}
 	if _, err = os.Lstat(old); err == nil {
-		return nil, errors.New("legacy subscription Tailscale policy is unsupported; remove the legacy policy explicitly before configuring a chain")
+		return nil, i18n.Errorf("backend.profile.chain_legacy_subscription_tailscale_policy_is_unsupported_remove_the_legacy_policy_explicitly_before_configuring_a_chain", "legacy subscription Tailscale policy is unsupported; remove the legacy policy explicitly before configuring a chain")
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func (s *Store) SubscriptionChain(name string) (*SubscriptionChainPolicy, error)
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("subscription chain policy must be a regular file")
+		return nil, i18n.Errorf("backend.profile.chain_subscription_chain_policy_must_be_a_regular_file", "subscription chain policy must be a regular file")
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
@@ -60,12 +61,12 @@ func (s *Store) SubscriptionChain(name string) (*SubscriptionChainPolicy, error)
 	}
 	var policy SubscriptionChainPolicy
 	if yaml.Unmarshal(data, &policy) != nil || policy.Version != subscriptionChainVersion || !validName(policy.Subscription) || len(policy.Via) == 0 || len(policy.Nodes) != len(policy.Via) {
-		return nil, errors.New("unsupported or invalid subscription chain policy")
+		return nil, i18n.Errorf("backend.profile.chain_unsupported_or_invalid_subscription_chain_policy", "unsupported or invalid subscription chain policy")
 	}
 	seen := map[string]bool{}
 	for i, n := range policy.Via {
 		if seen[n] || tsString(policy.Nodes[i], "name") != n || !chainHop(tsString(policy.Nodes[i], "type")) {
-			return nil, errors.New("invalid subscription chain definitions")
+			return nil, i18n.Errorf("backend.profile.chain_invalid_subscription_chain_definitions", "invalid subscription chain definitions")
 		}
 		seen[n] = true
 	}
@@ -122,13 +123,13 @@ func applyChainPolicy(cfg map[string]any, p *SubscriptionChainPolicy) error {
 		n := tsString(node, "name")
 		providers, _ := cfg["proxy-providers"].(map[string]any)
 		if _, ok := providers[n]; ok {
-			return errors.New("subscription provider conflicts with a managed chain node")
+			return i18n.Errorf("backend.profile.chain_subscription_provider_conflicts_with_a_managed_chain_node", "subscription provider conflicts with a managed chain node")
 		}
 		groups, _ := cfg["proxy-groups"].([]any)
 		for _, v := range groups {
 			m, _ := v.(map[string]any)
 			if tsString(m, "name") == n {
-				return errors.New("subscription group conflicts with a managed chain node")
+				return i18n.Errorf("backend.profile.chain_subscription_group_conflicts_with_a_managed_chain_node", "subscription group conflicts with a managed chain node")
 			}
 		}
 		existing := tsFind(cfg, n)
@@ -140,7 +141,7 @@ func applyChainPolicy(cfg map[string]any, p *SubscriptionChainPolicy) error {
 				}
 			}
 			if !allowed {
-				return errors.New("subscription node conflicts with a managed chain definition")
+				return i18n.Errorf("backend.profile.chain_subscription_node_conflicts_with_a_managed_chain_definition", "subscription node conflicts with a managed chain definition")
 			}
 			for i, v := range tsProxies(cfg) {
 				m, _ := v.(map[string]any)
@@ -157,7 +158,7 @@ func applyChainPolicy(cfg map[string]any, p *SubscriptionChainPolicy) error {
 		return err
 	}
 	if len(plan.Conflicts) > 0 {
-		return errors.New("subscription chain conflicts with an external front proxy")
+		return i18n.Errorf("backend.profile.chain_subscription_chain_conflicts_with_an_external_front_proxy", "subscription chain conflicts with an external front proxy")
 	}
 	return nil
 }
@@ -171,7 +172,7 @@ func (s *Store) applySubscriptionChain(name string, data []byte) ([]byte, error)
 	}
 	var cfg map[string]any
 	if yaml.Unmarshal(data, &cfg) != nil || cfg == nil {
-		return nil, errors.New("subscription profile must be a YAML mapping")
+		return nil, i18n.Errorf("backend.profile.chain_subscription_profile_must_be_a_yaml_mapping", "subscription profile must be a YAML mapping")
 	}
 	if err = applyChainPolicy(cfg, p); err != nil {
 		return nil, err
@@ -184,7 +185,7 @@ func (s *Store) mutateSubscriptionChain(ctx context.Context, name, subscription 
 		return err
 	}
 	if !validName(subscription) {
-		return errors.New("invalid subscription name")
+		return i18n.Errorf("backend.profile.chain_invalid_subscription_name", "invalid subscription name")
 	}
 	overlay, err := s.chainOverride(name)
 	if err != nil {
@@ -193,7 +194,7 @@ func (s *Store) mutateSubscriptionChain(ctx context.Context, name, subscription 
 	var next *SubscriptionChainPolicy
 	if clear {
 		if old == nil || old.Subscription != subscription {
-			return errors.New("subscription has no persistent chain")
+			return i18n.Errorf("backend.profile.chain_subscription_has_no_persistent_chain", "subscription has no persistent chain")
 		}
 	} else {
 		cfg, _, err := s.subscriptionChainCandidate(name, []string{subscription}, via, false)
@@ -207,12 +208,12 @@ func (s *Store) mutateSubscriptionChain(ctx context.Context, name, subscription 
 		}
 		var original map[string]any
 		if yaml.Unmarshal(source, &original) != nil {
-			return errors.New("invalid subscription source")
+			return i18n.Errorf("backend.profile.chain_invalid_subscription_source", "invalid subscription source")
 		}
 		for i, n := range via {
 			node := tsFind(cfg, n)
 			if node == nil || !chainHop(tsString(node, "type")) {
-				return errors.New("invalid chain hop")
+				return i18n.Errorf("backend.profile.chain_invalid_chain_hop", "invalid chain hop")
 			}
 			cloned := map[string]any{}
 			for k, v := range node {
@@ -303,7 +304,7 @@ func (s *Store) CheckProxyNodeRemoval(name, node string) error {
 		return err
 	}
 	if managed {
-		return errors.New("node belongs to a subscription chain; clear the subscription chain first")
+		return i18n.Errorf("backend.profile.chain_node_belongs_to_a_subscription_chain_clear_the_subscription_chain_first", "node belongs to a subscription chain; clear the subscription chain first")
 	}
 	return nil
 }
@@ -313,7 +314,7 @@ func (s *Store) EditManagedProxyNode(ctx context.Context, name, node string, def
 		return err
 	}
 	if p == nil {
-		return errors.New("managed chain node not found")
+		return i18n.Errorf("backend.profile.chain_managed_chain_node_not_found", "managed chain node not found")
 	}
 	previous, err := yaml.Marshal(p)
 	if err != nil {
@@ -331,7 +332,7 @@ func (s *Store) EditManagedProxyNode(ctx context.Context, name, node string, def
 		}
 	}
 	if !found {
-		return errors.New("managed chain node not found")
+		return i18n.Errorf("backend.profile.chain_managed_chain_node_not_found", "managed chain node not found")
 	}
 	if err = s.writeSubscriptionChain(name, p); err != nil {
 		return err
@@ -363,7 +364,7 @@ func (s *Store) validateSubscriptionChainSource(name string, data []byte) error 
 	}
 	var cfg map[string]any
 	if yaml.Unmarshal(data, &cfg) != nil {
-		return errors.New("invalid subscription source")
+		return i18n.Errorf("backend.profile.chain_invalid_subscription_source", "invalid subscription source")
 	}
 	for _, node := range p.Nodes {
 		n := tsString(node, "name")
@@ -375,18 +376,18 @@ func (s *Store) validateSubscriptionChainSource(name string, data []byte) error 
 				}
 			}
 			if !allowed {
-				return errors.New("subscription source conflicts with a managed chain definition")
+				return i18n.Errorf("backend.profile.chain_subscription_source_conflicts_with_a_managed_chain_definition", "subscription source conflicts with a managed chain definition")
 			}
 		}
 		providers, _ := cfg["proxy-providers"].(map[string]any)
 		if _, ok := providers[n]; ok {
-			return errors.New("subscription source provider conflicts with a managed chain node")
+			return i18n.Errorf("backend.profile.chain_subscription_source_provider_conflicts_with_a_managed_chain_node", "subscription source provider conflicts with a managed chain node")
 		}
 		groups, _ := cfg["proxy-groups"].([]any)
 		for _, v := range groups {
 			g, _ := v.(map[string]any)
 			if tsString(g, "name") == n {
-				return errors.New("subscription source group conflicts with a managed chain node")
+				return i18n.Errorf("backend.profile.chain_subscription_source_group_conflicts_with_a_managed_chain_node", "subscription source group conflicts with a managed chain node")
 			}
 		}
 	}
@@ -401,7 +402,7 @@ func (s *Store) sanitizeManagedSnapshot(name string, overlay map[string]any, p *
 	}
 	list, ok := raw.([]any)
 	if !ok {
-		return errors.New("proxies must be a list")
+		return i18n.Errorf("backend.profile.chain_proxies_must_be_a_list", "proxies must be a list")
 	}
 	source, err := s.Show(name)
 	if err != nil {
@@ -409,7 +410,7 @@ func (s *Store) sanitizeManagedSnapshot(name string, overlay map[string]any, p *
 	}
 	var original map[string]any
 	if yaml.Unmarshal(source, &original) != nil {
-		return errors.New("invalid subscription source")
+		return i18n.Errorf("backend.profile.chain_invalid_subscription_source", "invalid subscription source")
 	}
 	kept := []any{}
 	managed := map[string]bool{}
@@ -429,7 +430,7 @@ func (s *Store) sanitizeManagedSnapshot(name string, overlay map[string]any, p *
 		if chainSupported(tsString(m, "type")) {
 			dialer := tsString(m, "dialer-proxy")
 			if dialer != "" && dialer != last {
-				return errors.New("subscription policy owns this node edge; clear the subscription chain first")
+				return i18n.Errorf("backend.profile.chain_subscription_policy_owns_this_node_edge_clear_the_subscription_chain_first", "subscription policy owns this node edge; clear the subscription chain first")
 			}
 			if old := tsFind(original, n); old != nil {
 				if d, ok := old["dialer-proxy"]; ok {
@@ -464,7 +465,7 @@ func (s *Store) unmanagedChainConfig(name string) (map[string]any, error) {
 	}
 	var cfg map[string]any
 	if yaml.Unmarshal(data, &cfg) != nil || cfg == nil {
-		return nil, errors.New("invalid effective profile")
+		return nil, i18n.Errorf("backend.profile.chain_invalid_effective_profile", "invalid effective profile")
 	}
 	return cfg, nil
 }
@@ -494,17 +495,17 @@ func chainDifferences(before, after []ProxyChainTarget) []ProxyChainChange {
 func (s *Store) subscriptionChainCandidate(name string, targets, via []string, clear bool) (map[string]any, ProxyChainPlan, error) {
 	p := ProxyChainPlan{Kind: "subscription", Targets: append([]string{}, targets...), Via: append([]string{}, via...), Changes: []ProxyChainChange{}, SharedUse: []ProxyChainReference{}, Conflicts: []string{}, Persistent: !clear}
 	if len(targets) != 1 || !validName(targets[0]) {
-		return nil, p, errors.New("subscription chain requires one subscription name")
+		return nil, p, i18n.Errorf("backend.profile.chain_subscription_chain_requires_one_subscription_name", "subscription chain requires one subscription name")
 	}
 	old, err := s.SubscriptionChain(name)
 	if err != nil {
 		return nil, p, err
 	}
 	if clear && (old == nil || old.Subscription != targets[0]) {
-		return nil, p, errors.New("subscription has no persistent chain")
+		return nil, p, i18n.Errorf("backend.profile.chain_subscription_has_no_persistent_chain", "subscription has no persistent chain")
 	}
 	if clear && len(via) > 0 {
-		return nil, p, errors.New("clear requires no via nodes")
+		return nil, p, i18n.Errorf("backend.profile.chain_clear_requires_no_via_nodes", "clear requires no via nodes")
 	}
 	cfg, err := s.unmanagedChainConfig(name)
 	if err != nil {

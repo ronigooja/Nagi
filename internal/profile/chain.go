@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"gopkg.in/yaml.v3"
 	"io/fs"
 	"sort"
@@ -28,13 +29,14 @@ type ProxyChainReference struct {
 	Via  string `json:"via"`
 }
 type ProxyChainPlan struct {
-	Kind       string                `json:"kind"`
-	Targets    []string              `json:"targets"`
-	Via        []string              `json:"via"`
-	Changes    []ProxyChainChange    `json:"changes"`
-	Persistent bool                  `json:"persistent"`
-	SharedUse  []ProxyChainReference `json:"shared_use"`
-	Conflicts  []string              `json:"conflicts"`
+	Kind       string                     `json:"kind"`
+	Targets    []string                   `json:"targets"`
+	Via        []string                   `json:"via"`
+	Changes    []ProxyChainChange         `json:"changes"`
+	Persistent bool                       `json:"persistent"`
+	SharedUse  []ProxyChainReference      `json:"shared_use"`
+	Conflicts  []string                   `json:"conflicts"`
+	Messages   map[string]i18n.Descriptor `json:"-"`
 }
 
 func chainSupported(kind string) bool {
@@ -96,7 +98,7 @@ func (s *Store) chainConfig(name string) (map[string]any, error) {
 	}
 	var cfg map[string]any
 	if yaml.Unmarshal(data, &cfg) != nil || cfg == nil {
-		return nil, errors.New("profile must be a YAML mapping")
+		return nil, i18n.Errorf("backend.profile.chain_profile_must_be_a_yaml_mapping", "profile must be a YAML mapping")
 	}
 	return cfg, nil
 }
@@ -125,7 +127,7 @@ func (s *Store) ProxyChain(profileName, kind, target string) (ProxyChainTarget, 
 			return v, nil
 		}
 	}
-	return ProxyChainTarget{}, errors.New("chain target not found")
+	return ProxyChainTarget{}, i18n.Errorf("backend.profile.chain_chain_target_not_found", "chain target not found")
 }
 func (s *Store) ProxyChainCandidates(profileName, kind string, targets []string) ([]ProxyNode, error) {
 	cfg, err := s.chainConfig(profileName)
@@ -160,7 +162,7 @@ func chainGraph(cfg map[string]any) (map[chainVertex][]chainVertex, error) {
 	providers, _ := cfg["proxy-providers"].(map[string]any)
 	addName := func(n string) error {
 		if n == "" || names[n] {
-			return errors.New("duplicate or invalid proxy name")
+			return i18n.Errorf("backend.profile.chain_duplicate_or_invalid_proxy_name", "duplicate or invalid proxy name")
 		}
 		names[n] = true
 		return nil
@@ -186,10 +188,10 @@ func chainGraph(cfg map[string]any) (map[chainVertex][]chainVertex, error) {
 		if provider {
 			kind = "provider"
 			if _, ok := providers[to]; !ok {
-				return errors.New("proxy group references a missing provider")
+				return i18n.Errorf("backend.profile.chain_proxy_group_references_a_missing_provider", "proxy group references a missing provider")
 			}
 		} else if !names[to] {
-			return errors.New("proxy dependency references a missing node or group")
+			return i18n.Errorf("backend.profile.chain_proxy_dependency_references_a_missing_node_or_group", "proxy dependency references a missing node or group")
 		}
 		graph[from] = append(graph[from], chainVertex{kind, to})
 		return nil
@@ -303,7 +305,7 @@ func chainValidateGraph(cfg map[string]any) error {
 	}
 	for n := range graph {
 		if visit(n) {
-			return errors.New("proxy chain creates a dependency cycle")
+			return i18n.Errorf("backend.profile.chain_proxy_chain_creates_a_dependency_cycle", "proxy chain creates a dependency cycle")
 		}
 	}
 	return nil
@@ -355,23 +357,23 @@ func chainSharedUses(cfg map[string]any, kind string, targets, via []string) ([]
 func prepareChain(cfg map[string]any, kind string, targets, via []string, clear bool) (ProxyChainPlan, error) {
 	p := ProxyChainPlan{Kind: kind, Targets: append([]string{}, targets...), Via: append([]string{}, via...), Changes: []ProxyChainChange{}, SharedUse: []ProxyChainReference{}, Conflicts: []string{}, Persistent: kind == "subscription"}
 	if kind != "node" && kind != "provider" && kind != "subscription" {
-		return p, errors.New("chain kind must be node, provider or subscription")
+		return p, i18n.Errorf("backend.profile.chain_chain_kind_must_be_node_provider_or_subscription", "chain kind must be node, provider or subscription")
 	}
 	if len(targets) == 0 {
-		return p, errors.New("chain requires a target")
+		return p, i18n.Errorf("backend.profile.chain_chain_requires_a_target", "chain requires a target")
 	}
 	if clear && len(via) > 0 || !clear && len(via) == 0 {
-		return p, errors.New("chain requires ordered via nodes, or clear without via")
+		return p, i18n.Errorf("backend.profile.chain_chain_requires_ordered_via_nodes_or_clear_without_via", "chain requires ordered via nodes, or clear without via")
 	}
 	seen := map[string]bool{}
 	for _, n := range via {
 		if seen[n] {
-			return p, errors.New("chain contains a repeated hop")
+			return p, i18n.Errorf("backend.profile.chain_chain_contains_a_repeated_hop", "chain contains a repeated hop")
 		}
 		seen[n] = true
 		m := tsFind(cfg, n)
 		if m == nil || !chainHop(tsString(m, "type")) {
-			return p, errors.New("chain hops must be compatible static top-level nodes")
+			return p, i18n.Errorf("backend.profile.chain_chain_hops_must_be_compatible_static_top_level_nodes", "chain hops must be compatible static top-level nodes")
 		}
 	}
 	changes := func(k, n, b, a string) {
@@ -392,17 +394,17 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 	targetSeen := map[string]bool{}
 	for _, n := range targets {
 		if targetSeen[n] {
-			return p, errors.New("chain contains repeated targets")
+			return p, i18n.Errorf("backend.profile.chain_chain_contains_repeated_targets", "chain contains repeated targets")
 		}
 		targetSeen[n] = true
 		if seen[n] && kind == "node" {
-			return p, errors.New("chain target cannot be its own hop")
+			return p, i18n.Errorf("backend.profile.chain_chain_target_cannot_be_its_own_hop", "chain target cannot be its own hop")
 		}
 	}
 	actual := targets
 	if kind == "subscription" {
 		if len(targets) != 1 || !validName(targets[0]) {
-			return p, errors.New("subscription chain requires one subscription name")
+			return p, i18n.Errorf("backend.profile.chain_subscription_chain_requires_one_subscription_name", "subscription chain requires one subscription name")
 		}
 		actual = []string{}
 		for _, t := range chainTargets(cfg) {
@@ -425,14 +427,14 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 		if k == "node" {
 			m := tsFind(cfg, n)
 			if m == nil || !chainSupported(tsString(m, "type")) {
-				return p, errors.New("unsupported or missing chain target")
+				return p, i18n.Errorf("backend.profile.chain_unsupported_or_missing_chain_target", "unsupported or missing chain target")
 			}
 			before = tsString(m, "dialer-proxy")
 			m["dialer-proxy"] = after
 		} else {
 			m, _ := providers[n].(map[string]any)
 			if m == nil {
-				return p, errors.New("provider target not found")
+				return p, i18n.Errorf("backend.profile.chain_provider_target_not_found", "provider target not found")
 			}
 			before = chainProviderDialer(m)
 			if kind != "node" && !clear && before == "" {
@@ -441,7 +443,7 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 					node, _ := value.(map[string]any)
 					d := tsString(node, "dialer-proxy")
 					if d != "" && d != after && !seen[d] {
-						p.Conflicts = append(p.Conflicts, "provider payload has an external front proxy")
+						p.addConflict(i18n.Errorf("backend.profile.chain_provider_payload_external", "provider payload has an external front proxy"))
 						break
 					}
 				}
@@ -454,7 +456,7 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 			o["dialer-proxy"] = after
 		}
 		if kind != "node" && !clear && before != "" && before != after && !seen[before] {
-			p.Conflicts = append(p.Conflicts, fmt.Sprintf("%s %q has an external front proxy", k, n))
+			p.addConflict(i18n.Errorf("backend.profile.chain_target_external", "%s %q has an external front proxy", k, n))
 		}
 		changes(k, n, before, after)
 	}
@@ -503,7 +505,7 @@ func (s *Store) PlanProxyChain(name, kind string, targets, via []string, clear b
 	if policy != nil && kind != "subscription" {
 		for _, c := range p.Changes {
 			if policyOwnsEdge(policy, c.Kind, c.Name) {
-				p.Conflicts = append(p.Conflicts, "subscription policy owns a changed edge; clear the subscription chain first")
+				p.addConflict(i18n.Errorf("backend.profile.chain_policy_owns_edge", "subscription policy owns a changed edge; clear the subscription chain first"))
 			}
 		}
 	}
@@ -515,7 +517,15 @@ func (s *Store) MutateProxyChain(ctx context.Context, name, kind string, targets
 		return p, err
 	}
 	if len(p.Conflicts) > 0 {
-		return p, errors.New(strings.Join(p.Conflicts, "; "))
+		causes := []error{}
+		for i, text := range p.Conflicts {
+			if d, ok := p.Messages[fmt.Sprintf("/conflicts/%d", i)]; ok {
+				causes = append(causes, i18n.MessageFromDescriptor(d, text, nil))
+			} else {
+				causes = append(causes, errors.New(text))
+			}
+		}
+		return p, errors.Join(causes...)
 	}
 	if kind == "subscription" {
 		return p, s.mutateSubscriptionChain(ctx, name, targets[0], via, clear)
@@ -573,7 +583,18 @@ func (s *Store) chainOverride(name string) (map[string]any, error) {
 		return nil, err
 	}
 	if yaml.Unmarshal(data, &out) != nil || out == nil {
-		return nil, errors.New("local override must be a YAML mapping")
+		return nil, i18n.Errorf("backend.profile.chain_local_override_must_be_a_yaml_mapping", "local override must be a YAML mapping")
 	}
 	return out, nil
+}
+
+func (p ProxyChainPlan) MessageDescriptors() map[string]i18n.Descriptor {
+	return i18n.CopyDescriptors(p.Messages)
+}
+func (p *ProxyChainPlan) addConflict(message *i18n.Message) {
+	if p.Messages == nil {
+		p.Messages = map[string]i18n.Descriptor{}
+	}
+	p.Messages[fmt.Sprintf("/conflicts/%d", len(p.Conflicts))] = message.Descriptor()
+	p.Conflicts = append(p.Conflicts, message.Error())
 }
