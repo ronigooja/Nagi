@@ -41,14 +41,15 @@ func RuntimeRoot() string {
 type Operation string
 
 const (
-	Start         Operation = "start"
-	Stop          Operation = "stop"
-	Status        Operation = "status"
-	Control       Operation = "control"
-	Logs          Operation = "logs"
-	TUNDNSSync    Operation = "tun_dns_sync"
-	TUNDNSRestore Operation = "tun_dns_restore"
-	TUNDNSStatus  Operation = "tun_dns_status"
+	ProviderChainNodes Operation = "provider_chain_nodes"
+	Start              Operation = "start"
+	Stop               Operation = "stop"
+	Status             Operation = "status"
+	Control            Operation = "control"
+	Logs               Operation = "logs"
+	TUNDNSSync         Operation = "tun_dns_sync"
+	TUNDNSRestore      Operation = "tun_dns_restore"
+	TUNDNSStatus       Operation = "tun_dns_status"
 )
 
 // Request is one complete helper operation. A request is encoded as one JSON
@@ -57,6 +58,8 @@ const (
 type Request struct {
 	Version    int             `json:"version"`
 	Operation  Operation       `json:"operation"`
+	Provider   string          `json:"provider,omitempty"`
+	SourceHash string          `json:"source_hash,omitempty"`
 	Profile    string          `json:"profile,omitempty"`
 	BinaryPath string          `json:"binary_path,omitempty"`
 	ConfigPath string          `json:"config_path,omitempty"`
@@ -144,7 +147,17 @@ func (r Request) Validate(p Policy) error {
 	if p.PeerUID <= 0 {
 		return i18n.Errorf("system.privileged.untrusted.peer.uid", "untrusted peer uid")
 	}
+	if r.Operation != ProviderChainNodes && (r.Provider != "" || r.SourceHash != "") {
+		return errors.New("unexpected provider identity fields")
+	}
 	switch r.Operation {
+	case ProviderChainNodes:
+		if err := validateProfile(r.Profile); err != nil {
+			return err
+		}
+		if r.Provider == "" || len(r.Provider) > 1024 || len(r.SourceHash) != 64 || strings.Trim(r.SourceHash, "0123456789abcdef") != "" || r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 {
+			return errors.New("invalid provider identity request")
+		}
 	case Start:
 		if err := validateProfile(r.Profile); err != nil {
 			return err

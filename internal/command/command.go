@@ -410,6 +410,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 						providers, e := store.ProxyNodeProviderCandidates(name)
 						return output.Candidates(providers), e
 					}
+					candidateClient, e := controlClientForCurrentBackend(paths)
+					if e != nil {
+						return nil, e
+					}
+					configureProviderChainNodes(ctx, store, paths, candidateClient)
 					inventory, _, e := store.ProviderChainInventory(name)
 					if e != nil {
 						return nil, e

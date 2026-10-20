@@ -17,9 +17,12 @@ import (
 
 // Store manages profile files and the selected profile under a configuration directory.
 type Store struct {
-	Dir      string
-	Validate func([]byte) error
-	Reload   func(context.Context) error
+	// ProviderNodes supplies authenticated raw-name/type evidence for the active backend.
+	// A nil result delegates to local payload/cache inspection.
+	ProviderNodes func(string, string, map[string]any) ([]map[string]any, error)
+	Dir           string
+	Validate      func([]byte) error
+	Reload        func(context.Context) error
 	// EffectiveOverlay applies durable user preferences after profile layers.
 	EffectiveOverlay func([]byte) ([]byte, error)
 	// RemoveChainOutlets clears saved choices before activation and returns an undo

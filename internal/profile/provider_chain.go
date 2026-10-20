@@ -3,6 +3,8 @@ package profile
 import (
 	"context"
 	"crypto/md5"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -99,13 +101,13 @@ func (s *Store) localProviderNodes(source map[string]any) ([]map[string]any, err
 	}
 	return out, nil
 }
-func (s *Store) resolveProviderMember(cfg map[string]any, r ChainNodeRef) (ProviderChainMember, error) {
+func (s *Store) resolveProviderMember(name string, cfg map[string]any, r ChainNodeRef) (ProviderChainMember, error) {
 	providers, _ := cfg["proxy-providers"].(map[string]any)
 	source, _ := providers[r.Provider].(map[string]any)
 	if source == nil {
 		return ProviderChainMember{}, fmt.Errorf("provider not found")
 	}
-	nodes, err := s.localProviderNodes(source)
+	nodes, err := s.providerNodesForChainProfile(name, r.Provider, source)
 	if err != nil {
 		return ProviderChainMember{}, err
 	}
@@ -156,7 +158,7 @@ func (s *Store) ProviderChainInventory(name string) ([]ProxyChainTarget, []strin
 	unavailable := []string{}
 	for _, p := range names {
 		source, _ := providers[p].(map[string]any)
-		nodes, e := s.localProviderNodes(source)
+		nodes, e := s.providerNodesForChainProfile(name, p, source)
 		if e != nil {
 			unavailable = append(unavailable, p)
 			continue
@@ -314,7 +316,7 @@ func (s *Store) scopedChainCandidate(name, kind string, targets []string, target
 			return r.Name, nil
 		}
 		if _, ok := byID[r.key()]; !ok {
-			m, e := s.resolveProviderMember(cfg, r)
+			m, e := s.resolveProviderMember(name, cfg, r)
 			if e != nil {
 				return "", e
 			}
@@ -593,4 +595,37 @@ func lenProviderRefs(refs []ChainNodeRef) int {
 		}
 	}
 	return n
+}
+
+// ProviderSourceHash binds identity evidence to the exact logical source definition.
+// It contains no source URL or credentials.
+func ProviderSourceHash(source map[string]any) string {
+	data, _ := json.Marshal(source)
+	return fmt.Sprintf("%x", sha256.Sum256(data))
+}
+func (s *Store) providerNodesForChainProfile(name, provider string, source map[string]any) ([]map[string]any, error) {
+	if s.ProviderNodes != nil {
+		nodes, err := s.ProviderNodes(name, provider, source)
+		if err != nil || nodes != nil {
+			return nodes, err
+		}
+	}
+	return s.localProviderNodes(source)
+}
+
+// FilterProviderChainEvidence intersects raw source identities with active names
+// without guessing the inverse of a potentially lossy regex rename.
+func FilterProviderChainEvidence(source map[string]any, nodes []map[string]any, available map[string]bool) ([]map[string]any, error) {
+	out := []map[string]any{}
+	override, _ := source["override"].(map[string]any)
+	for _, node := range nodes {
+		name, err := providerNameAfterOverride(tsString(node, "name"), override)
+		if err != nil {
+			return nil, err
+		}
+		if available[name] {
+			out = append(out, node)
+		}
+	}
+	return out, nil
 }

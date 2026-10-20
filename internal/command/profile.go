@@ -173,6 +173,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		return nil
 	}
 	store = profile.NewStore(paths.ConfigDir, validate, reload)
+	configureProviderChainNodes(context.Background(), store, paths, client)
 	store.RemoveChainOutlets = func(name string, outlets []string) (func() error, error) {
 		path := filepath.Join(paths.ConfigDir, "proxy-selections.json")
 		old, err := os.ReadFile(path)

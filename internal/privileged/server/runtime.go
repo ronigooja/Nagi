@@ -29,6 +29,7 @@ import (
 // BinaryPath, SourceDir and PrivateDir are supplied by the root daemon, never
 // by a client request. SourceDir bounds user-controlled profile reads.
 type RuntimeHandler struct {
+	providerEvidence  providerEvidence
 	SessionUID        int
 	BinaryPath        string
 	SourceDir         string
@@ -71,6 +72,14 @@ func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged
 		return response, err
 	}
 	switch req.Operation {
+	case privileged.ProviderChainNodes:
+		if peerUID != h.SessionUID || peerUID <= 0 {
+			return privileged.Response{}, errors.New("untrusted provider identity peer")
+		}
+		if !h.status().Running || h.orphaned {
+			return privileged.Response{}, errors.New("provider identity unavailable")
+		}
+		return h.providerChainNodes(req)
 	case privileged.TUNDNSSync, privileged.TUNDNSRestore, privileged.TUNDNSStatus:
 		return h.handleDNS(ctx, req.Operation)
 	case privileged.Start:
@@ -315,6 +324,7 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 				return privileged.Response{}, i18n.Errorf("system.privileged.start.tun.dns.restore", "start TUN DNS: %w; restore: %v", err, restoreErr)
 			}
 			h.dnsError = nil
+			h.bindProviderEvidence(req.Profile, req.ConfigPath, snapshot, data)
 			return privileged.Response{OK: true, Running: true, PID: cmd.Process.Pid}, nil
 		}
 		select {
@@ -440,6 +450,7 @@ func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (re
 	// The only reload URL is built here; clients cannot supply an arbitrary
 	// controller path or a root-readable configuration filename.
 	forwarded = true
+	h.providerEvidence = providerEvidence{}
 	response, err = controlRequestReload(ctx, h.controllerPath(), req)
 	// A timed-out controller request can still apply later. Keep every snapshot
 	// and referenced resource until the child has exited.
@@ -447,6 +458,7 @@ func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (re
 	h.resources = append(h.resources, resources...)
 	h.snapshot = snapshot
 	if err == nil && response.OK {
+		h.bindProviderEvidence(profileFromSource(body.Path), body.Path, snapshot, data)
 		_, err = h.syncDNS(ctx)
 		h.dnsError = err
 	}
@@ -478,6 +490,7 @@ func removeSnapshots(snapshot string, resources []string) {
 }
 
 func (h *RuntimeHandler) removeSnapshots() {
+	h.providerEvidence = providerEvidence{}
 	removeSnapshots(h.snapshot, h.resources)
 	h.snapshot = ""
 	h.resources = nil
