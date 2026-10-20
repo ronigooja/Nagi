@@ -100,7 +100,7 @@ func localizednodeDetailPage(l i18n.Context, name string) *Page {
 			}
 			_, err = s.Form(ctx, nil, nil, func(map[string]string) Result { return runTailscale(ctx, s, args...) })
 			return err
-		}}, Item{ID: "node.chain", Label: menuText(l, "menu.chain.title", "Node Chains"), Next: func() *Page { return localizedchainDraftPage(l, "node", []string{name}) }})
+		}})
 		if n.Tailscale != nil {
 			v.Actions = append(v.Actions, Item{ID: "node.remove", Label: nodeText(l, "remove", "Delete Tailscale node"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
 				r := runTailscale(ctx, s, "remove", name)

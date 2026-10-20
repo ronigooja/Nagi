@@ -17,6 +17,7 @@ type nodeChainRunner struct {
 	fail     int
 	conflict bool
 	nodes    []menuProxyNode
+	chains   []menuChainTarget
 }
 
 func (r *nodeChainRunner) RunInput(ctx context.Context, args []string, in io.Reader) Result {
@@ -37,7 +38,7 @@ func (r *nodeChainRunner) Run(_ context.Context, args []string) Result {
 	case "proxy chain candidates":
 		return Result{Data: map[string]any{"nodes": r.nodes}}
 	case "proxy chain list":
-		return Result{Data: map[string]any{"chains": []menuChainTarget{{Kind: "node", Name: "Target Node"}, {Kind: "subscription", Name: "work-sub"}}}}
+		return Result{Data: map[string]any{"chains": r.chainTargets()}}
 	}
 	if args[len(args)-1] == "--dry-run" {
 		conflicts := []string{}
@@ -69,7 +70,7 @@ func TestNodeTopLevelInventoryAndCRUDScope(t *testing.T) {
 		t.Fatalf("%+v %v", v, err)
 	}
 	v, err = localizednodeDetailPage(s.language, "Ordinary").Load(context.Background(), s)
-	if err != nil || len(v.Actions) != 2 {
+	if err != nil || len(v.Actions) != 1 {
 		t.Fatalf("ordinary CRUD leaked: %+v %v", v, err)
 	}
 }
@@ -91,36 +92,57 @@ func TestTailscaleAddGroupsSingleCommitAndRetainedRetry(t *testing.T) {
 		}
 	}
 }
-func TestChainOrderedPreviewSharedImpactAndExplicitRetry(t *testing.T) {
+func TestChainOrderedSelectionApplyAndExplicitRetry(t *testing.T) {
 	for _, language := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
-		r := &nodeChainRunner{fail: 1, nodes: []menuProxyNode{{Name: "First Hop", Type: "tailscale"}, {Name: "Last Hop", Type: "socks5"}}}
+		r := &nodeChainRunner{fail: 1, nodes: []menuProxyNode{{Name: "First Hop", Type: "tailscale"}, {Name: "Last Hop", Type: "socks5"}, {Name: "Target Node", Type: "ss"}}}
 		var out bytes.Buffer
-		s := NewSessionWithLanguage(r, strings.NewReader("1\n1\n1\n2\n2\n1\n2\n3\n1\n\n1\n0\n0\n"), &out, i18n.New(language))
-		RunPage(context.Background(), s, localizedchainDraftPage(s.language, "node", []string{"Target Node"}))
+		s := NewSessionWithLanguage(r, strings.NewReader("1\n2\n3\n4\n4\n0\n"), &out, i18n.New(language))
+		RunPage(context.Background(), s, localizedchainDraftPage(s.language, "node", nil))
 		want := []string{"proxy", "chain", "set", "node", "Target Node", "--via", "First Hop", "--via", "Last Hop"}
-		if countMenuCall(r.calls, want) != 2 || countMenuCall(r.calls, append(append([]string{}, want...), "--dry-run")) != 1 {
+		if countMenuCall(r.calls, want) != 2 {
 			t.Fatalf("calls=%v output=%s", r.calls, out.String())
 		}
-		for _, text := range []string{"First Hop → Last Hop → [Target Node]", "Shared Node", "Old Hop"} {
+		for _, text := range []string{"First Hop → Last Hop → Target Node", "Shared Node"} {
 			if !strings.Contains(out.String(), text) {
 				t.Fatalf("missing %s: %s", text, out.String())
 			}
 		}
-	}
-}
-func TestChainConflictsNeverCommitAndCancel(t *testing.T) {
-	r := &nodeChainRunner{conflict: true}
-	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(r, strings.NewReader("3\n0\n0\n"), &out), localizedchainDraftPage(i18n.New(i18n.English), "node", []string{"Target Node"}))
-	if !strings.Contains(out.String(), "cycle detected") || strings.Contains(out.String(), "Submit changes") {
-		t.Fatal(out.String())
-	}
-	for _, c := range r.calls {
-		if len(c) > 2 && c[2] == "clear" && c[len(c)-1] != "--dry-run" {
-			t.Fatal(r.calls)
+		if strings.Contains(out.String(), "secret.invalid") {
+			t.Fatal(out.String())
 		}
 	}
 }
+
+func TestChainConflictsNeverCommitAndCancel(t *testing.T) {
+	r := &nodeChainRunner{conflict: true, nodes: []menuProxyNode{{Name: "First Hop", Type: "tailscale"}, {Name: "Target Node", Type: "ss"}}}
+	var out bytes.Buffer
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n0\n"), &out), localizedchainDraftPage(i18n.New(i18n.English), "node", nil))
+	if !strings.Contains(out.String(), "cycle detected") {
+		t.Fatal(out.String())
+	}
+	assertNoChainMutation(t, r.calls)
+}
+
+func assertNoChainMutation(t *testing.T, calls [][]string) {
+	t.Helper()
+	for _, c := range calls {
+		if len(c) > 2 && c[0] == "proxy" && c[1] == "chain" && (c[2] == "set" || c[2] == "clear") && c[len(c)-1] != "--dry-run" {
+			t.Fatal(calls)
+		}
+	}
+}
+
+func (r *nodeChainRunner) chainTargets() []menuChainTarget {
+	if r.chains != nil {
+		return r.chains
+	}
+	values := []menuChainTarget{}
+	for _, n := range r.nodes {
+		values = append(values, menuChainTarget{Kind: "node", Name: n.Name, Type: n.Type})
+	}
+	return append(values, menuChainTarget{Kind: "provider", Name: "work-feed"}, menuChainTarget{Kind: "subscription", Name: "work-sub"})
+}
+
 func TestGroupSelectionPaginationAndCancellation(t *testing.T) {
 	r := &nodeChainRunner{}
 	var out bytes.Buffer

@@ -20,28 +20,34 @@ func (r *acceptanceChainEnvelopeRunner) Run(ctx context.Context, args []string) 
 }
 
 func TestAcceptanceMenuUsesWrappedCLIPlanAndBlocksConflictSubmission(t *testing.T) {
-	r := &acceptanceChainEnvelopeRunner{nodeChainRunner: nodeChainRunner{conflict: true}}
+	r := &acceptanceChainEnvelopeRunner{nodeChainRunner: nodeChainRunner{conflict: true, nodes: []menuProxyNode{{Name: "First Hop", Type: "socks5"}, {Name: "Target Node", Type: "ss"}}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
 	ctx := context.Background()
-	draft := localizedchainDraftPage(s.language, "node", []string{"Target Node"})
+	draft := localizedchainDraftPage(s.language, "node", nil)
 	v, err := draft.Load(ctx, s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	nav, err := v.Actions[2].Navigate(ctx, s)
-	if err != nil || nav.Next == nil {
-		t.Fatalf("preview navigation %v %v", nav, err)
-	}
-	preview, err := nav.Next.Load(ctx, s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"cycle detected", "Shared Node", "Old Hop", "First Hop"} {
-		if !strings.Contains(preview.Context, want) {
-			t.Fatalf("wrapped CLI plan lost %q: %s", want, preview.Context)
+	for _, name := range []string{"First Hop", "Target Node"} {
+		for _, item := range v.Items {
+			if item.Name == name {
+				if err := item.Action(ctx, s); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		v, err = draft.Load(ctx, s)
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
-	if len(preview.Actions) != 0 {
-		t.Fatalf("conflicting plan offers submission: %+v", preview.Actions)
+	for _, want := range []string{"cycle detected", "Shared Node", "First Hop"} {
+		if !strings.Contains(v.Context, want) {
+			t.Fatalf("wrapped CLI plan lost %q: %s", want, v.Context)
+		}
 	}
+	if err := v.Actions[0].Action(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	assertNoChainMutation(t, r.calls)
 }

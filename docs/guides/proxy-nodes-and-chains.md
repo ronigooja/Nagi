@@ -14,7 +14,7 @@ nagi proxy node groups show 'TS Exit'
 
 Replace the example names and `EXIT_NODE` with your own configuration values. Tailscale requires a dedicated tailnet, an approved exit, and a valid Auth Key. The terminal form accepts visible key paste; do not paste credentials into shell arguments. For automation, use `--auth-key-file FILE` or `--auth-key-stdin`. Keep key files private. Headscale uses `--control-url https://headscale.example.com` with the service's key. Ordinary summaries show key presence, never key content. Raw configuration, override output, and explicitly viewed or exported logs can contain secrets.
 
-`node list` includes all top-level nodes, including WireGuard and SOCKS5. Provider payload nodes are managed through their provider. Adding and editing protocol settings currently supports Tailscale; ordinary nodes have details, group membership, and chain controls. Repeated `--group` options add a new node to several groups in the same transaction.
+`node list` includes all top-level nodes, including WireGuard and SOCKS5. Provider payload nodes are managed through their provider. Adding and editing protocol settings currently supports Tailscale; ordinary nodes have details and group membership controls. Configure chains through **Node Chains** or `proxy chain`. Repeated `--group` options add a new node to several groups in the same transaction.
 
 ```sh
 nagi proxy node groups set 'TS Exit' 'Proxy' 'Manual'
@@ -74,7 +74,9 @@ Removal fails while effective nodes, groups, providers, DNS settings, or an acti
 
 ## Use the terminal menu
 
-Open **Proxies → Node Management** to inspect nodes, add or edit Tailscale, and replace explicit group memberships. Applied subscription nodes appear first in source order, followed by provider entries, then other nodes grouped by type and sorted by name. Open a provider entry to see its nodes in source order; provider details require the running engine. See the [node list reference](../reference/cli.md#proxy-nodes-and-chains) for source classification and ordering rules. Open **Proxies → Node Chains** to select node, provider, or subscription targets, then append hops in traffic order. You can remove the last pending hop before submission. The preview shows replacements and shared-node effects. Submit commits the entire batch once; no second confirmation follows.
+Open **Proxies → Node Management** to inspect nodes, add or edit Tailscale, and replace explicit group memberships. Applied subscription nodes appear first in source order, followed by provider entries, then other nodes grouped by type and sorted by name. Open a provider entry to see its nodes in source order; provider details require the running engine. See the [node list reference](../reference/cli.md#proxy-nodes-and-chains) for source classification and ordering rules.
+
+Open **Proxies → Node Chains → Nodes** to build a chain on one page. Select nodes in traffic order using their numbers; selected nodes use the existing green style. The header updates the full path immediately, and the last selected node is the exit. Select a node again to remove it; reselect it to place it at the end. Existing paths load for editing as described in the [terminal menu reference](../reference/cli.md#terminal-menu). Choose **Apply** to validate and save the path. Shared-node effects and conflicts appear on the same page. Use **Clear Chain** explicitly to remove the saved incoming chain for the final node; deselecting nodes alone never clears saved configuration. To configure an entire provider or subscription, choose that scope and resource, then select its ordered nodes on the same editor. The resource stays at the end of the path.
 
 All choices are numeric and long lists are paginated. `0` or Ctrl-C cancels before submission; EOF exits. Failed operations retain entered values and selections for explicit retry. The menu dispatches CLI operations and does not implement configuration or forwarding itself.
 
