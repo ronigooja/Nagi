@@ -15,6 +15,7 @@ require (
 )
 
 require (
+	github.com/dlclark/regexp2 v1.12.0
 	golang.org/x/net v0.50.0
 	golang.org/x/text v0.34.0
 )
