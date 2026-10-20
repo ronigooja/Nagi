@@ -39,13 +39,13 @@ type ProxyChainPlan struct {
 
 func chainSupported(kind string) bool {
 	switch kind {
-	case "ss", "ssr", "socks5", "http", "vmess", "vless", "snell", "trojan", "hysteria", "hysteria2", "wireguard", "tuic", "gost-relay", "ssh", "mieru", "anytls", "sudoku", "masque", "trusttunnel", "openvpn":
+	case "tailscale", "ss", "ssr", "socks5", "http", "vmess", "vless", "snell", "trojan", "hysteria", "hysteria2", "wireguard", "tuic", "gost-relay", "ssh", "mieru", "anytls", "sudoku", "masque", "trusttunnel", "openvpn":
 		return true
 	}
 	return false
 }
 func chainHop(kind string) bool {
-	return kind == "tailscale" || kind == "wireguard" || kind == "socks5"
+	return chainSupported(kind)
 }
 func chainProviderDialer(p map[string]any) string {
 	o, _ := p["override"].(map[string]any)
@@ -235,7 +235,17 @@ func chainValidateGraph(cfg map[string]any) error {
 		if all || pn {
 			for _, x := range tsProxies(cfg) {
 				p, _ := x.(map[string]any)
-				_ = add(n, tsString(p, "name"))
+				excluded, err := nodeGroupExcluded(m, p)
+				if err != nil {
+					return err
+				}
+				matched, err := nodeGroupMatch(tsString(m, "filter"), tsString(p, "name"), true)
+				if err != nil {
+					return err
+				}
+				if matched && !excluded {
+					_ = add(n, tsString(p, "name"))
+				}
 			}
 		}
 		if all || pp {
@@ -292,7 +302,7 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 		seen[n] = true
 		m := tsFind(cfg, n)
 		if m == nil || !chainHop(tsString(m, "type")) {
-			return p, errors.New("chain hops must be static Tailscale, WireGuard or SOCKS5 nodes")
+			return p, errors.New("chain hops must be compatible static top-level nodes")
 		}
 	}
 	changes := func(k, n, b, a string) {
@@ -356,6 +366,17 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 				return p, errors.New("provider target not found")
 			}
 			before = chainProviderDialer(m)
+			if kind != "node" && !clear && before == "" {
+				payload, _ := m["payload"].([]any)
+				for _, value := range payload {
+					node, _ := value.(map[string]any)
+					d := tsString(node, "dialer-proxy")
+					if d != "" && d != after && !seen[d] {
+						p.Conflicts = append(p.Conflicts, "provider payload has an external front proxy")
+						break
+					}
+				}
+			}
 			o, _ := m["override"].(map[string]any)
 			if o == nil {
 				o = map[string]any{}

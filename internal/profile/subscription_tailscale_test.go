@@ -2,23 +2,20 @@ package profile
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 func durableStore(t *testing.T) *Store {
 	t.Helper()
 	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
-	if err := s.Write(context.Background(), "work", []byte("proxies:\n - {name: A, type: socks5, server: a.example, port: 1080}\nproxy-providers:\n feed: {type: inline, payload: [{name: B, type: socks5, server: b.example, port: 1080}]}\n")); err != nil {
-		t.Fatal(err)
-	}
-	key, exit := "test-key", "100.64.0.1"
-	if err := s.MutateTailscale(context.Background(), "work", "add", "TS", "", "", TailscaleOptions{AuthKey: &key, ExitNode: &exit}); err != nil {
+	data := []byte("proxies:\n - {name: A, type: socks5, server: a.example, port: 1080}\n - {name: B, type: wireguard, server: b.example, port: 51820}\n - {name: C, type: socks5, server: c.example, port: 1080}\n - {name: Other, type: socks5, server: other.example, port: 1080}\nproxy-providers:\n feed: {type: inline, payload: [{name: FeedNode, type: socks5, server: feed.example, port: 1080}]}\n")
+	if err := s.Write(context.Background(), "work", data); err != nil {
 		t.Fatal(err)
 	}
 	return s
@@ -35,216 +32,165 @@ func effectiveDoc(t *testing.T, s *Store) map[string]any {
 	}
 	return cfg
 }
-func TestSubscriptionTailscaleRefreshReapplyEditAndUnbind(t *testing.T) {
-	ctx := context.Background()
+func TestChainOrderedDryRunAndClear(t *testing.T) {
 	s := durableStore(t)
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err != nil {
+	ctx := context.Background()
+	before, err := s.Show("work")
+	if err != nil {
 		t.Fatal(err)
 	}
-	initial := effectiveDoc(t, s)
-	identity := tsString(tsFind(initial, "TS"), "state-dir")
-	next := []byte("proxies:\n - {name: C, type: socks5, server: c.example, port: 1080}\nproxy-providers:\n feed: {type: inline, payload: [{name: D, type: socks5, server: d.example, port: 1080}]}\n")
-	// Scheduled preserving-source apply and explicit destructive apply both regenerate inheritance.
-	if err := s.Apply(ctx, "work", next); err != nil {
+	p, err := s.PlanProxyChain("work", "node", []string{"C"}, []string{"A", "B"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Changes) != 2 {
+		t.Fatalf("changes %#v", p)
+	}
+	if _, err = s.Override("work"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dryrun wrote override: %v", err)
+	}
+	if _, err = s.MutateProxyChain(ctx, "work", "node", []string{"C"}, []string{"A", "B"}, false); err != nil {
 		t.Fatal(err)
 	}
 	cfg := effectiveDoc(t, s)
-	if tsFind(cfg, "A") != nil || tsString(tsFind(cfg, "C"), "dialer-proxy") != "TS" {
-		t.Fatalf("stale/new nodes: %#v", cfg)
+	if tsString(tsFind(cfg, "A"), "dialer-proxy") != "" || tsString(tsFind(cfg, "B"), "dialer-proxy") != "A" || tsString(tsFind(cfg, "C"), "dialer-proxy") != "B" {
+		t.Fatal("wrong order")
 	}
-	provider := cfg["proxy-providers"].(map[string]any)["feed"].(map[string]any)
-	dialer, _ := tsProviderDialer(provider)
-	if dialer != "TS" {
-		t.Fatalf("provider dialer %q", dialer)
-	}
-	exit, key := "100.64.0.2", "replacement-key"
-	if err := s.MutateTailscale(ctx, "work", "edit", "TS", "", "", TailscaleOptions{ExitNode: &exit, AuthKey: &key}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.ApplySubscription(ctx, "work", next); err != nil {
+	if _, err = s.MutateProxyChain(ctx, "work", "node", []string{"C"}, nil, true); err != nil {
 		t.Fatal(err)
 	}
 	cfg = effectiveDoc(t, s)
-	node := tsFind(cfg, "TS")
-	if tsString(node, "auth-key") != key || tsString(node, "exit-node") != exit || tsString(node, "state-dir") != identity {
-		t.Fatalf("definition lost: %#v", node)
-	}
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "unbind", ""); err != nil {
-		t.Fatal(err)
-	}
-	cfg = effectiveDoc(t, s)
-	if tsString(tsFind(cfg, "C"), "dialer-proxy") != "" || tsString(tsFind(cfg, "TS"), "auth-key") != key {
-		t.Fatalf("unbind changed source/exit: %#v", cfg)
-	}
-	provider = cfg["proxy-providers"].(map[string]any)["feed"].(map[string]any)
-	dialer, _ = tsProviderDialer(provider)
-	if dialer != "" {
-		t.Fatalf("unbind provider %q", dialer)
-	}
-}
-func TestSubscriptionTailscaleRollbackAndConflicts(t *testing.T) {
-	ctx := context.Background()
-	s := durableStore(t)
-	before, _ := s.Override("work")
-	s.Reload = func(context.Context) error { return errors.New("activation failed") }
-	// selected work is required for reload test
-	if err := os.WriteFile(filepath.Join(s.Dir, "settings.yaml"), []byte("profile: work\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err == nil {
-		t.Fatal("expected rollback")
-	}
-	after, _ := s.Override("work")
-	policy, _ := s.SubscriptionTailscale("work")
-	if string(before) != string(after) || policy != nil {
-		t.Fatal("rollback did not restore override/policy")
-	}
-	s.Reload = nil
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err != nil {
-		t.Fatal(err)
-	}
-	cases := []string{
-		"proxies: [{name: TS, type: socks5}]",
-		"proxies: [{name: A, type: socks5, dialer-proxy: OTHER}]",
-		"proxy-providers: {feed: {type: inline, payload: [{name: X, type: socks5, dialer-proxy: OTHER}]}}",
-		"proxy-groups: [{name: TS, type: select, proxies: [DIRECT]}]",
-	}
-	for _, source := range cases {
-		if _, err := s.EffectiveSource("work", []byte(source)); err == nil {
-			t.Fatalf("expected conflict for %s", source)
-		}
-	}
-	if err := s.MutateTailscaleBindings(ctx, "work", "unbind", "", "node", []string{"A"}); err == nil {
-		t.Fatal("individual binding should require detach")
-	}
-}
-func TestSubscriptionTailscaleRejectsArbitrarySnapshot(t *testing.T) {
-	s := durableStore(t)
-	data, _ := s.Override("work")
-	data = []byte(strings.Replace(string(data), "a.example", "changed.example", 1))
-	if err := s.SetOverride(context.Background(), "work", data); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MutateSubscriptionTailscale(context.Background(), "work", "work", "bind", "TS"); err == nil {
-		t.Fatal("must not discard arbitrary local node edits")
-	}
-}
-
-func TestSubscriptionTailscaleRebindAndPostUnbindEdit(t *testing.T) {
-	ctx := context.Background()
-	s := durableStore(t)
-	for _, action := range []string{"bind", "unbind", "bind"} {
-		if err := s.MutateSubscriptionTailscale(ctx, "work", "work", action, "TS"); err != nil {
-			t.Fatal(err)
-		}
-	}
-	key := "rebound-key"
-	if err := s.MutateTailscale(ctx, "work", "edit", "TS", "", "", TailscaleOptions{AuthKey: &key}); err != nil {
-		t.Fatal(err)
-	}
-	source, _ := s.Show("work")
-	if err := s.ApplySubscription(ctx, "work", source); err != nil {
-		t.Fatal(err)
-	}
-	if tsString(tsFind(effectiveDoc(t, s), "TS"), "auth-key") != key {
-		t.Fatal("rebound key lost")
-	}
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "unbind", ""); err != nil {
-		t.Fatal(err)
-	}
-	key = "unbound-key"
-	if err := s.MutateTailscale(ctx, "work", "edit", "TS", "", "", TailscaleOptions{AuthKey: &key}); err != nil {
-		t.Fatal(err)
-	}
-	if tsString(tsFind(effectiveDoc(t, s), "TS"), "auth-key") != key {
-		t.Fatal("additive retained node hid ordinary edit")
-	}
-}
-func TestSubscriptionTailscaleSourceNodeEditAndDetach(t *testing.T) {
-	ctx := context.Background()
-	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
-	original := []byte("proxies: [{name: TS, type: tailscale, exit-node: '100.64.0.1', auth-key: original-key}, {name: A, type: socks5}]\n")
-	if err := s.Write(ctx, "work", original); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err != nil {
-		t.Fatal(err)
-	}
-	key := "edited-key"
-	if err := s.MutateTailscale(ctx, "work", "edit", "TS", "", "", TailscaleOptions{AuthKey: &key}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.ApplySubscription(ctx, "work", original); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "unbind", ""); err != nil {
-		t.Fatal(err)
-	}
-	if tsString(tsFind(effectiveDoc(t, s), "TS"), "auth-key") != key {
-		t.Fatal("source-defined exit edited key lost")
-	}
-}
-func TestSubscriptionTailscaleApplyRejectsConflictWithoutReload(t *testing.T) {
-	ctx := context.Background()
-	s := durableStore(t)
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err != nil {
-		t.Fatal(err)
-	}
-	before, _ := s.Show("work")
-	if err := s.ApplySubscription(ctx, "work", []byte("proxies: [{name: A,type: socks5,dialer-proxy: OTHER}]")); err == nil {
-		t.Fatal("conflicting apply succeeded without reload callback")
+	if tsString(tsFind(cfg, "B"), "dialer-proxy") != "A" || tsString(tsFind(cfg, "C"), "dialer-proxy") != "" {
+		t.Fatal("clear changed a shared hop")
 	}
 	after, _ := s.Show("work")
 	if string(before) != string(after) {
-		t.Fatal("conflicting source persisted")
+		t.Fatal("source changed")
 	}
 }
-
-func TestSubscriptionTailscaleSwitchAndCycle(t *testing.T) {
-	ctx := context.Background()
+func TestChainValidationConflictsAndSharedUse(t *testing.T) {
 	s := durableStore(t)
-	key, exit := "second-key", "100.64.0.2"
-	if err := s.MutateTailscale(ctx, "work", "add", "TS2", "", "", TailscaleOptions{AuthKey: &key, ExitNode: &exit}); err != nil {
+	ctx := context.Background()
+	if _, err := s.MutateProxyChain(ctx, "work", "node", []string{"Other"}, []string{"A"}, false); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"TS", "TS2", "TS"} {
-		if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", name); err != nil {
-			t.Fatal(err)
-		}
-		cfg := effectiveDoc(t, s)
-		if tsFind(cfg, "TS") == nil || tsFind(cfg, "TS2") == nil || tsString(tsFind(cfg, "A"), "dialer-proxy") != name {
-			t.Fatalf("switch lost definitions: %#v", cfg)
+	p, err := s.PlanProxyChain("work", "node", []string{"C"}, []string{"A", "B"}, false)
+	if err != nil || len(p.SharedUse) == 0 {
+		t.Fatalf("shared uses %#v %v", p, err)
+	}
+	for _, via := range [][]string{{"A", "A"}, {"C"}, {"missing"}} {
+		if _, err = s.PlanProxyChain("work", "node", []string{"C"}, via, false); err == nil {
+			t.Fatal("invalid path accepted")
 		}
 	}
-	cycle := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
-	if err := cycle.Write(ctx, "work", []byte("proxies: [{name: A,type: socks5}, {name: TS,type: tailscale,dialer-proxy: A,auth-key: test-key,exit-node: '100.64.0.1'}]")); err != nil {
+	cfg := effectiveDoc(t, s)
+	providers := cfg["proxy-providers"].(map[string]any)
+	provider := providers["feed"].(map[string]any)
+	provider["override"] = map[string]any{"dialer-proxy": "Other"}
+	overlay := map[string]any{"proxy-providers": providers}
+	data, _ := yaml.Marshal(overlay)
+	if err = s.SetOverride(ctx, "work", data); err != nil {
 		t.Fatal(err)
 	}
-	if err := cycle.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "TS"); err == nil {
-		t.Fatal("proxy dependency cycle accepted")
+	p, err = s.PlanProxyChain("work", "provider", []string{"feed"}, []string{"A"}, false)
+	if err != nil || len(p.Conflicts) == 0 {
+		t.Fatalf("conflict %#v %v", p, err)
 	}
-	policy, _ := cycle.SubscriptionTailscale("work")
-	if policy != nil {
-		t.Fatal("cyclic policy persisted")
+	if _, err = s.MutateProxyChain(ctx, "work", "provider", []string{"feed"}, []string{"A"}, false); err == nil {
+		t.Fatal("external binding replaced")
 	}
 }
-
-func TestSubscriptionTailscaleSnapshotWithSourceTailscaleNodes(t *testing.T) {
+func TestSubscriptionChainReplayDetachAndSensitiveStorage(t *testing.T) {
+	s := durableStore(t)
 	ctx := context.Background()
-	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
-	source := []byte("proxies: [{name: Source TS 1,type: tailscale,auth-key: source-key-1,exit-node: '100.64.0.1'}, {name: Source TS 2,type: tailscale,auth-key: source-key-2,exit-node: '100.64.0.2'}, {name: A,type: socks5}]\n")
-	if err := s.Write(ctx, "work", source); err != nil {
+	if _, err := s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, []string{"A", "B"}, false); err != nil {
 		t.Fatal(err)
 	}
-	key, exit := "local-key", "100.64.0.3"
-	if err := s.MutateTailscale(ctx, "work", "add", "Local TS", "", "", TailscaleOptions{AuthKey: &key, ExitNode: &exit}); err != nil {
-		t.Fatal(err)
+	path, _ := s.subscriptionChainPath("work")
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatalf("private policy %v %v", info, err)
 	}
-	if err := s.MutateSubscriptionTailscale(ctx, "work", "work", "bind", "Local TS"); err != nil {
+	next := []byte("proxies: [{name: Fresh, type: socks5, server: fresh.example, password: PRIVATE_VALUE}]\nproxy-providers: {new: {type: inline, payload: []}}\n")
+	if err = s.ApplySubscription(ctx, "work", next); err != nil {
 		t.Fatal(err)
 	}
 	cfg := effectiveDoc(t, s)
-	if tsString(tsFind(cfg, "A"), "dialer-proxy") != "Local TS" || tsFind(cfg, "Source TS 1") == nil || tsFind(cfg, "Source TS 2") == nil {
-		t.Fatalf("source nodes changed: %#v", cfg)
+	if tsString(tsFind(cfg, "Fresh"), "dialer-proxy") != "B" || tsString(tsFind(cfg, "B"), "dialer-proxy") != "A" {
+		t.Fatal("policy not replayed")
+	}
+	p, err := s.PlanProxyChain("work", "node", []string{"Fresh"}, nil, true)
+	if err != nil || len(p.Conflicts) == 0 {
+		t.Fatalf("policy edge not protected %#v %v", p, err)
+	}
+	encoded, _ := json.Marshal(p)
+	if strings.Contains(string(encoded), "PRIVATE_VALUE") {
+		t.Fatal("secret in plan")
+	}
+	if _, err = s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	cfg = effectiveDoc(t, s)
+	if tsString(tsFind(cfg, "Fresh"), "dialer-proxy") != "" || tsString(tsFind(cfg, "B"), "dialer-proxy") != "A" {
+		t.Fatal("detach did not preserve local chain")
+	}
+	if err = s.ApplySubscription(ctx, "work", []byte("proxies: [{name: Later, type: socks5}]\n")); err != nil {
+		t.Fatal(err)
+	}
+	if tsFind(effectiveDoc(t, s), "B") == nil {
+		t.Fatal("detached node lost on apply")
+	}
+}
+func TestSubscriptionChainLegacyAndCollision(t *testing.T) {
+	s := durableStore(t)
+	legacy, _ := s.subscriptionTailscalePath("work")
+	if err := os.MkdirAll(filepath.Dir(legacy), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("subscription: work\nnode: {name: TS, type: tailscale}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Effective("work"); err == nil || !strings.Contains(err.Error(), "unsupported") {
+		t.Fatalf("legacy policy ignored %v", err)
+	}
+	if err := os.Remove(legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MutateProxyChain(context.Background(), "work", "subscription", []string{"work"}, []string{"A"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplySubscription(context.Background(), "work", []byte("proxies: [{name: A, type: socks5, server: collision.example}]\n")); err == nil {
+		t.Fatal("source collision accepted")
+	}
+}
+func TestChainGraphAutomaticIncludes(t *testing.T) {
+	cfg := map[string]any{}
+	if err := yaml.Unmarshal([]byte("proxies: [{name: A, type: socks5, dialer-proxy: G}]\nproxy-groups: [{name: G, type: select, include-all-proxies: true}]\n"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := chainValidateGraph(cfg); err == nil {
+		t.Fatal("automatic group cycle accepted")
+	}
+	groups := cfg["proxy-groups"].([]any)
+	g := groups[0].(map[string]any)
+	g["exclude-filter"] = "^A$"
+	if err := chainValidateGraph(cfg); err != nil {
+		t.Fatalf("excluded node falsely cycles: %v", err)
+	}
+	delete(g, "exclude-filter")
+	g["exclude-type"] = "SOCKS5"
+	if err := chainValidateGraph(cfg); err != nil {
+		t.Fatal(err)
+	}
+}
+func TestSubscriptionChainValidationRollback(t *testing.T) {
+	s := durableStore(t)
+	s.Validate = func([]byte) error { return errors.New("candidate invalid") }
+	if _, err := s.MutateProxyChain(context.Background(), "work", "subscription", []string{"work"}, []string{"A"}, false); err == nil {
+		t.Fatal("invalid candidate saved")
+	}
+	p, err := s.SubscriptionChain("work")
+	if err != nil || p != nil {
+		t.Fatalf("policy not rolled back %#v %v", p, err)
 	}
 }
