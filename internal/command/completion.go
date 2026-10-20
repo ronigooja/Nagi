@@ -274,6 +274,7 @@ _nagi() {
     if [[ ${semantic[-1]} == --group ]]; then compadd -- ${(f)"$(nagi completion candidates node-groups 2>/dev/null)"}; return; fi
     if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == add ]]; then compadd -- tailscale; return; fi
     if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == show || ${semantic[3]} == edit || ${semantic[3]} == remove ]] || (( ${#semantic} == 4 )) && [[ ${semantic[3]} == groups ]]; then compadd -- ${(f)"$(nagi completion candidates proxy-nodes 2>/dev/null)"}; return; fi
+    if (( ${#semantic} >= 5 )) && [[ ${semantic[3]} == groups && ${semantic[4]} == set ]]; then compadd -- ${(f)"$(nagi completion candidates node-groups 2>/dev/null)"}; return; fi
     if [[ ${words[CURRENT]} == --* && ( ${semantic[3]} == add || ${semantic[3]} == edit ) ]]; then compadd -- --hostname --control-url --auth-key --auth-key-stdin --auth-key-file; [[ ${semantic[3]} == edit ]] && compadd -- --exit-node || compadd -- --group; return; fi
   fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == chain ]]; then
@@ -409,6 +410,8 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and t
 	b.WriteString("complete -c nagi -f -l json -l help -s h\n")
 	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = node; and test "$s[3]" = add' -a 'tailscale'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = node; and contains -- $s[3] show edit remove' -a '(nagi completion candidates proxy-nodes 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = node; and test "$s[3]" = groups; and contains -- $s[4] show set clear' -a '(nagi completion candidates proxy-nodes 2>/dev/null)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -ge 5; and test "$s[1]" = proxy; and test "$s[2]" = node; and test "$s[3]" = groups; and test "$s[4]" = set' -a '(nagi completion candidates node-groups 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = chain' -a 'node provider subscription'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -ge 4; and test "$s[1]" = proxy; and test "$s[2]" = chain' -a '(set -l s (__nagi_semantic); nagi completion candidates chain-targets "$s[4]" 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test "$s[1]" = proxy; and test "$s[2]" = chain; and test "$s[-1]" = --via' -a '(nagi completion candidates proxy-nodes 2>/dev/null)'
