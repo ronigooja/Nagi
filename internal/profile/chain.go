@@ -437,7 +437,9 @@ func prepareChain(cfg map[string]any, kind string, targets, via []string, clear 
 				return p, i18n.Errorf("backend.profile.chain_provider_target_not_found", "provider target not found")
 			}
 			before = chainProviderDialer(m)
-			if kind != "node" && !clear && before == "" {
+			configuredOverride, _ := m["override"].(map[string]any)
+			_, hasOverride := configuredOverride["dialer-proxy"]
+			if kind != "node" && !clear && before == "" && !hasOverride {
 				payload, _ := m["payload"].([]any)
 				for _, value := range payload {
 					node, _ := value.(map[string]any)

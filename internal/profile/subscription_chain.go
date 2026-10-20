@@ -576,7 +576,17 @@ func (s *Store) subscriptionReplacementEdges(name string, old *SubscriptionChain
 	if err != nil {
 		return nil, err
 	}
-	out := append([]ProxyChainReference{}, old.ReplacedEdges...)
+	out := []ProxyChainReference{}
+	existing := map[ProxyChainReference]bool{}
+	appendEdge := func(e ProxyChainReference) {
+		if !existing[e] {
+			existing[e] = true
+			out = append(out, e)
+		}
+	}
+	for _, edge := range old.ReplacedEdges {
+		appendEdge(edge)
+	}
 	managed := map[string]bool{}
 	for _, n := range old.Via {
 		managed[n] = true
@@ -585,7 +595,7 @@ func (s *Store) subscriptionReplacementEdges(name string, old *SubscriptionChain
 	for _, t := range chainTargets(cfg) {
 		if (t.Kind == "node" && chainSupported(t.Type) && !managed[t.Name]) || t.Kind == "provider" {
 			if len(t.Via) > 0 && t.Via[len(t.Via)-1] == last {
-				out = append(out, ProxyChainReference{t.Kind, t.Name, last})
+				appendEdge(ProxyChainReference{t.Kind, t.Name, last})
 			}
 		}
 	}
