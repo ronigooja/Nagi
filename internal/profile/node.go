@@ -43,34 +43,9 @@ func (s *Store) ProxyNodes(profileName string) ([]ProxyNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	source, err := s.Show(profileName)
+	subscriptionName, ranks, err := s.subscriptionNodeOrder(profileName)
 	if err != nil {
 		return nil, err
-	}
-	entries, err := subscription.NewStore(s.Dir, "", nil).List()
-	if err != nil {
-		return nil, err
-	}
-	subscriptionName := ""
-	for _, entry := range entries {
-		if entry.Profile == profileName && entry.SourceHash == subscription.Hash(source) {
-			subscriptionName = entry.Name
-			break
-		}
-	}
-	var original struct {
-		Proxies []struct {
-			Name string `yaml:"name"`
-		} `yaml:"proxies"`
-	}
-	if err := yaml.Unmarshal(source, &original); err != nil {
-		return nil, err
-	}
-	ranks := map[string]int{}
-	if subscriptionName != "" {
-		for i, node := range original.Proxies {
-			ranks[node.Name] = i
-		}
 	}
 	result := []ProxyNode{}
 	for _, v := range tsProxies(cfg) {
@@ -99,6 +74,53 @@ func (s *Store) ProxyNodes(profileName string) ([]ProxyNode, error) {
 		return result[i].Name < result[j].Name
 	})
 	return result, nil
+}
+
+// subscriptionNodeOrder uses the applied source, rather than a reordered local snapshot.
+func (s *Store) subscriptionNodeOrder(profileName string) (string, map[string]int, error) {
+	source, err := s.Show(profileName)
+	if err != nil {
+		return "", nil, err
+	}
+	entries, err := subscription.NewStore(s.Dir, "", nil).List()
+	if err != nil {
+		return "", nil, err
+	}
+	subscriptionName := ""
+	for _, entry := range entries {
+		if entry.Profile == profileName && entry.SourceHash == subscription.Hash(source) {
+			subscriptionName = entry.Name
+			break
+		}
+	}
+	var original struct {
+		Proxies []struct {
+			Name string `yaml:"name"`
+		} `yaml:"proxies"`
+	}
+	if err := yaml.Unmarshal(source, &original); err != nil {
+		return "", nil, err
+	}
+	ranks := map[string]int{}
+	if subscriptionName != "" {
+		for i, node := range original.Proxies {
+			ranks[node.Name] = i
+		}
+	}
+	return subscriptionName, ranks, nil
+}
+
+// sourceNodeLess puts source nodes first and retains name ordering for other nodes.
+func sourceNodeLess(left, right string, ranks map[string]int) bool {
+	leftRank, leftSource := ranks[left]
+	rightRank, rightSource := ranks[right]
+	if leftSource != rightSource {
+		return leftSource
+	}
+	if leftSource {
+		return leftRank < rightRank
+	}
+	return left < right
 }
 
 // ProxyNodeProviderCandidates preserves declaration order from the source and

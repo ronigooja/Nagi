@@ -107,7 +107,17 @@ func (s *Store) ProxyChains(name string) ([]ProxyChainTarget, error) {
 	if err != nil {
 		return nil, err
 	}
+	_, ranks, err := s.subscriptionNodeOrder(name)
+	if err != nil {
+		return nil, err
+	}
 	out := chainTargets(cfg)
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Kind == "node" && out[j].Kind == "node" {
+			return sourceNodeLess(out[i].Name, out[j].Name, ranks)
+		}
+		return out[i].Kind < out[j].Kind
+	})
 	p, err := s.SubscriptionChain(name)
 	if err != nil {
 		return nil, err
@@ -134,6 +144,10 @@ func (s *Store) ProxyChainCandidates(profileName, kind string, targets []string)
 	if err != nil {
 		return nil, err
 	}
+	_, ranks, err := s.subscriptionNodeOrder(profileName)
+	if err != nil {
+		return nil, err
+	}
 	out := []ProxyNode{}
 	for _, v := range tsProxies(cfg) {
 		m, _ := v.(map[string]any)
@@ -150,7 +164,7 @@ func (s *Store) ProxyChainCandidates(profileName, kind string, targets []string)
 			out = append(out, ProxyNode{Name: tsString(m, "name"), Type: tsString(m, "type")})
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	sort.Slice(out, func(i, j int) bool { return sourceNodeLess(out[i].Name, out[j].Name, ranks) })
 	return out, nil
 }
 
