@@ -54,7 +54,7 @@ func TestProviderSessionRefreshesAfterUpdateAndDispatchesActions(t *testing.T) {
 func TestProviderEntryAndHealthcheckKeysDispatchThroughSession(t *testing.T) {
 	r := &changingProviderRunner{}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(r, strings.NewReader("2\n1\n3\n"), &out), ProxyPage())
+	RunPage(context.Background(), NewSession(r, strings.NewReader("4\n1\n3\n"), &out), ProxyPage())
 	if !hasProxyCall(r.calls, []string{"proxy", "providers"}) ||
 		!hasProxyCall(r.calls, []string{"proxy", "provider", "show", "work"}) ||
 		!hasProxyCall(r.calls, []string{"proxy", "provider", "healthcheck", "work"}) {

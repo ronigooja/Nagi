@@ -15,200 +15,12 @@ import (
 
 const tailscaleControlURL = "https://controlplane.tailscale.com"
 
-const tailscaleEffects = "Subscription apply retains local settings and nodes; entire-subscription bindings persist. Reloads mihomo if running."
-
 type menuTailscaleNode struct {
 	Name              string `json:"name"`
 	ExitNode          string `json:"exit_node"`
 	Hostname          string `json:"hostname"`
 	ControlURL        string `json:"control_url"`
 	AuthKeyConfigured bool   `json:"auth_key_configured"`
-}
-
-type menuTailscaleTarget struct {
-	Kind        string `json:"kind"`
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	DialerProxy string `json:"dialer_proxy"`
-}
-
-func localizedtailscaleListPage(language i18n.Context) *Page {
-	return &Page{ID: "tailscale.tailscaleListPage.page1", Title: menuText(language, "menu.tailscale.tailscale_list_page.tailscale", "Tailscale"), Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Empty: menuText(language, "menu.tailscale.tailscale_list_page.no_tailscale_nodes_configured_choose_add_tailsca", "No Tailscale nodes configured. Choose Add Tailscale node."), Actions: []Item{
-			{ID: "tailscale.tailscaleListPage.item2", Label: menuText(language, "menu.tailscale.tailscale_list_page.add_tailscale_node", "Add Tailscale node"), Impact: menuText(language, "menu.tailscale.tailscale_list_page.subscription_apply_retains_local_settings_and_no", "Subscription apply retains local settings and nodes; entire-subscription bindings persist. Reloads mihomo if running."), Action: addTailscale},
-		}}
-		var data struct {
-			Profile string              `json:"profile"`
-			Nodes   []menuTailscaleNode `json:"nodes"`
-		}
-		if err := localizeddecodeMenuResult(language, s.Fetch(ctx, "proxy", "tailscale", "list"), &data); err != nil {
-			return view, err
-		}
-		view.Context = menuText(language, "menu.tailscale.tailscale_list_page.profile", "Profile: ") + data.Profile
-		for _, node := range data.Nodes {
-			node := node
-			view.Items = append(view.Items, Item{ID: "tailscale.tailscaleListPage.item3", Name: node.Name, Label: node.Name + " → " + node.ExitNode, Next: func() *Page { return localizedtailscaleDetailPage(language, node.Name) }})
-		}
-		return view, nil
-	}}
-}
-
-func localizedtailscaleDetailPage(language i18n.Context, name string) *Page {
-	return &Page{ID: "tailscale.tailscaleDetailPage.page1", Title: menuText(language, "menu.tailscale.tailscale_detail_page.tailscale", "Tailscale: ") + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: menuText(language, "menu.tailscale.tailscale_detail_page.tailscale_configuration_unknown", "Tailscale configuration: unknown"), Empty: menuText(language, "menu.tailscale.tailscale_detail_page.no_targets_bound_to_this_tailscale_node", "No targets bound to this Tailscale node.")}
-		var data struct {
-			Profile  string                `json:"profile"`
-			Node     menuTailscaleNode     `json:"node"`
-			Bindings []menuTailscaleTarget `json:"bindings"`
-		}
-		if err := localizeddecodeMenuResult(language, s.Fetch(ctx, "proxy", "tailscale", "show", name), &data); err != nil {
-			return view, err
-		}
-		key := menuText(language, "menu.tailscale.tailscale_detail_page.not_configured", "not configured")
-		if data.Node.AuthKeyConfigured {
-			key = "configured"
-		}
-		control := menuText(language, "menu.tailscale.tailscale_detail_page.official_tailscale", "official Tailscale")
-		if data.Node.ControlURL != "" && data.Node.ControlURL != tailscaleControlURL {
-			control = menuText(language, "menu.tailscale.tailscale_detail_page.custom_https_headscale_server", "custom HTTPS Headscale server")
-		}
-		hostname := data.Node.Hostname
-		if hostname == "" {
-			hostname = "default"
-		}
-		view.Context = menuFormat(language, "menu.tailscale.tailscale_detail_page.profile_s_exit_node_s_hostname_s_control_server", "Profile: %s\nExit node: %s; hostname: %s; control server: %s\nAuth key: %s", data.Profile, data.Node.ExitNode, hostname, control, key)
-		managed := false
-		for _, binding := range data.Bindings {
-			if binding.Kind == "subscription" {
-				managed = true
-			}
-		}
-		if managed {
-			view.Context += menuText(language, "menu.tailscale.tailscale_detail_page.entire_subscription_policy_manages_inherited_nod", "\nEntire-subscription policy manages inherited node/provider bindings. Unbind the subscription before changing individual bindings or deleting the exit.")
-		}
-		for _, binding := range data.Bindings {
-			if managed && binding.Kind != "subscription" {
-				continue
-			}
-			binding := binding
-			impact := menuText(language, "menu.tailscale.tailscale_detail_page.unbinds_this_target", "Unbinds this target")
-			if binding.Kind == "provider" {
-				impact += menuText(language, "menu.tailscale.tailscale_detail_page.affects_all_current_and_future_nodes", "; affects all current and future nodes")
-			} else if binding.Kind == "subscription" {
-				impact += menuText(language, "menu.tailscale.tailscale_detail_page.removes_persistent_policy_and_retains_tailscale", "; removes persistent policy and retains Tailscale node")
-			}
-			view.Items = append(view.Items, Item{ID: "tailscale.tailscaleDetailPage.item2", Name: binding.Name, Label: localizedtailscaleTargetLabel(language, binding), Impact: impact, Action: func(ctx context.Context, s *Session) error {
-				_, err := s.Form(ctx, nil, nil, func(map[string]string) Result {
-					return runTailscale(ctx, s, "unbind", binding.Kind, binding.Name)
-				})
-				return err
-			}})
-		}
-		view.Actions = []Item{
-			{ID: "tailscale.tailscaleDetailPage.item3", Label: menuText(language, "menu.tailscale.tailscale_detail_page.edit_tailscale_node", "Edit Tailscale node"), Impact: menuText(language, "menu.tailscale.tailscale_detail_page.subscription_apply_retains_local_settings_and_no", "Subscription apply retains local settings and nodes; entire-subscription bindings persist. Reloads mihomo if running."), Action: func(ctx context.Context, s *Session) error { return editTailscale(ctx, s, data.Node) }},
-			{ID: "tailscale.tailscaleDetailPage.item4", Label: menuText(language, "menu.tailscale.tailscale_detail_page.bind_target", "Bind target"), Impact: menuText(language, "menu.tailscale.tailscale_detail_page.changes_the_target_s_tailscale_exit", "Changes the target's Tailscale exit"), Action: func(ctx context.Context, s *Session) error { return bindTailscale(ctx, s, name) }},
-			{ID: "tailscale.tailscaleDetailPage.item5", Label: menuText(language, "menu.tailscale.tailscale_detail_page.unbind_target", "Unbind target"), Impact: menuText(language, "menu.tailscale.tailscale_detail_page.removes_the_target_s_tailscale_exit", "Removes the target's Tailscale exit"), Action: func(ctx context.Context, s *Session) error {
-				return tailscaleTargetForm(ctx, s, name, data.Bindings, true)
-			}},
-			{ID: "tailscale.tailscaleDetailPage.item6", Label: menuText(language, "menu.tailscale.tailscale_detail_page.delete_tailscale_node", "Delete Tailscale node"), Impact: menuText(language, "menu.tailscale.tailscale_detail_page.unbind_references_first", "Unbind references first"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
-				result := runTailscale(ctx, s, "remove", name)
-				return Navigation{Back: result.Code == 0 && result.Error == nil}, nil
-			}},
-			{ID: "tailscale.tailscaleDetailPage.item7", Label: menuText(language, "menu.tailscale.tailscale_detail_page.bind_multiple_targets", "Bind multiple targets"), Impact: menuText(language, "menu.tailscale.tailscale_detail_page.subscription_apply_retains_local_settings_and_no", "Subscription apply retains local settings and nodes; entire-subscription bindings persist. Reloads mihomo if running."), Next: func() *Page { return localizedtailscaleBatchKindPage(language, name, false) }},
-			{ID: "tailscale.tailscaleDetailPage.item8", Label: menuText(language, "menu.tailscale.tailscale_detail_page.unbind_multiple_targets", "Unbind multiple targets"), Impact: menuText(language, "menu.tailscale.tailscale_detail_page.subscription_apply_retains_local_settings_and_no", "Subscription apply retains local settings and nodes; entire-subscription bindings persist. Reloads mihomo if running."), Next: func() *Page { return localizedtailscaleBatchKindPage(language, name, true) }},
-		}
-		return view, nil
-	}}
-}
-
-func localizedtailscaleBatchKindPage(language i18n.Context, name string, unbind bool) *Page {
-	effect := menuText(language, "menu.tailscale.tailscale_batch_kind_page.persistent_binding_current_and_future_nodes_afte", "Persistent binding; current and future nodes after apply or scheduled refresh")
-	if unbind {
-		effect = menuText(language, "menu.tailscale.tailscale_batch_kind_page.removes_persistent_binding_retains_tailscale_nod", "Removes persistent binding; retains Tailscale node")
-	}
-	return localizedactionPage(language, menuText(language, "menu.tailscale.tailscale_batch_kind_page.choose_binding_scope", "Choose binding scope"), Item{ID: "tailscale.tailscaleBatchKindPage.item1", Label: menuText(language, "menu.tailscale.tailscale_batch_kind_page.specified_nodes", "Specified nodes"), Next: func() *Page { return localizedtailscaleBatchPage(language, name, "node", unbind) }},
-		Item{ID: "tailscale.tailscaleBatchKindPage.item2", Label: menuText(language, "menu.tailscale.tailscale_batch_kind_page.entire_providers", "Entire providers"), Impact: menuText(language, "menu.tailscale.tailscale_batch_kind_page.affects_all_current_and_future_nodes", "Affects all current and future nodes"), Next: func() *Page { return localizedtailscaleBatchPage(language, name, "provider", unbind) }},
-		Item{ID: "tailscale.tailscaleBatchKindPage.item3", Label: menuText(language, "menu.tailscale.tailscale_batch_kind_page.entire_subscriptions", "Entire subscriptions"), Impact: effect, Next: func() *Page { return localizedtailscaleBatchPage(language, name, "subscription", unbind) }},
-	)
-}
-
-func localizedtailscaleBatchPage(language i18n.Context, name, kind string, unbind bool) *Page {
-	action, title := "bind", menuText(language, "menu.tailscale.tailscale_batch_page.bind_multiple_targets", "Bind multiple targets")
-	if unbind {
-		action, title = "unbind", menuText(language, "menu.tailscale.tailscale_batch_page.unbind_multiple_targets", "Unbind multiple targets")
-	}
-	selected := map[string]bool{}
-	return &Page{ID: "tailscale.tailscaleBatchPage.page1", Title: title, Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Empty: menuText(language, "menu.tailscale.tailscale_batch_page.no_eligible_targets_available", "No eligible targets available.")}
-		var data struct {
-			Targets []menuTailscaleTarget `json:"targets"`
-		}
-		if err := localizeddecodeMenuResult(language, s.Fetch(ctx, "proxy", "tailscale", "targets"), &data); err != nil {
-			return view, err
-		}
-		if kind != "subscription" && localizedhasSubscriptionPolicy(language, data.Targets) {
-			view.Empty = menuText(language, "menu.tailscale.tailscale_batch_page.an_entire_subscription_policy_manages_these_targ", "An entire-subscription policy manages these targets. Unbind the subscription first.")
-			return view, nil
-		}
-		targets := []menuTailscaleTarget{}
-		available := map[string]bool{}
-		for _, target := range data.Targets {
-			target := target
-			if target.Kind != kind || unbind && target.DialerProxy != name {
-				continue
-			}
-			targets = append(targets, target)
-			available[target.Name] = true
-			view.Items = append(view.Items, Item{ID: "tailscale.tailscaleBatchPage.item2", Name: target.Name, Label: localizedtailscaleTargetLabel(language, target), Selected: selected[target.Name], Action: func(context.Context, *Session) error {
-				selected[target.Name] = !selected[target.Name]
-				return nil
-			}})
-		}
-		count := 0
-		for target, checked := range selected {
-			if !available[target] {
-				delete(selected, target)
-			} else if checked {
-				count++
-			}
-		}
-		view.Context = menuFormat(language, "menu.tailscale.tailscale_batch_page.tailscale_s_selected_d_choose_numbers_to_toggle", "Tailscale: %s; selected: %d\nChoose numbers to toggle targets, then Submit. Existing bindings appear after →.\n%s", name, count, menuText(language, "menu.tailscale.tailscale_batch_page.subscription_apply_retains_local_settings_and_no", "Subscription apply retains local settings and nodes; entire-subscription bindings persist. Reloads mihomo if running."))
-		if kind == "subscription" {
-			if unbind {
-				view.Context += menuText(language, "menu.tailscale.tailscale_batch_page.entire_subscriptions_removes_the_persistent_poli", "\nEntire subscriptions: removes the persistent policy, restores source bindings, and retains the Tailscale node.")
-			} else {
-				view.Context += menuText(language, "menu.tailscale.tailscale_batch_page.entire_subscriptions_already_applied_to_this_pro", "\nEntire subscriptions: already applied to this profile; binding survives apply and scheduled refresh. New nodes inherit the exit.")
-			}
-		}
-		if kind == "provider" {
-			view.Context += menuText(language, "menu.tailscale.tailscale_batch_page.providers_affects_all_current_and_future_nodes_i", "\nProviders: affects all current and future nodes, including refresh additions.")
-		}
-		if len(targets) > 0 {
-			view.Actions = []Item{{ID: "tailscale.tailscaleBatchPage.item3", Label: menuText(language, "menu.tailscale.tailscale_batch_page.submit_selected_targets", "Submit selected targets"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
-				args := []string{action}
-				if !unbind {
-					args = append(args, name)
-				}
-				args = append(args, kind)
-				for _, target := range targets {
-					if selected[target.Name] {
-						args = append(args, target.Name)
-					}
-				}
-				if count == 0 {
-					s.feedback(feedbackWarning, menuText(language, "menu.tailscale.tailscale_batch_page.select_at_least_one_target_before_submitting", "Select at least one target before submitting."))
-					return Navigation{}, nil
-				}
-				result := runTailscale(ctx, s, args...)
-				if result.Code != 0 || result.Error != nil {
-					s.feedback(feedbackWarning, menuText(language, "menu.tailscale.tailscale_batch_page.selections_are_retained_choose_submit_to_retry_o", "Selections are retained. Choose Submit to retry or 0 to cancel."))
-					return Navigation{}, nil
-				}
-				return Navigation{Back: true}, nil
-			}}}
-		}
-		return view, nil
-	}}
 }
 
 func localizedtailscaleName(language i18n.Context, value string) error {
@@ -259,11 +71,18 @@ func localizedtailscaleFields(language i18n.Context, edit bool) []Field {
 }
 
 func addTailscale(ctx context.Context, s *Session) error {
-	_, err := s.Form(ctx, localizedtailscaleFields(s.language,
+	groups, err := selectNodeGroups(ctx, s, nil)
+	if err != nil {
+		return err
+	}
+	_, err = s.Form(ctx, localizedtailscaleFields(s.language,
 		false), map[string]string{"control": tailscaleControlURL}, func(v map[string]string) Result {
-		args := []string{"add", v["name"], v["exit"], "--auth-key-stdin", "--control-url", v["control"]}
+		args := []string{"add", "tailscale", v["name"], v["exit"], "--auth-key-stdin", "--control-url", v["control"]}
 		if v["hostname"] != "" {
 			args = append(args, "--hostname", v["hostname"])
+		}
+		for _, group := range groups {
+			args = append(args, "--group", group)
 		}
 		return runTailscaleInput(ctx, s, strings.NewReader(v["authkey"]), args...)
 	})
@@ -290,69 +109,12 @@ func editTailscale(ctx context.Context, s *Session, node menuTailscaleNode) erro
 	return err
 }
 
-func localizedtailscaleTargetLabel(language i18n.Context, target menuTailscaleTarget) string {
-	label := target.Kind + ": " + target.Name
-	if target.Type != "" {
-		label += " (" + target.Type + ")"
-	}
-	if target.DialerProxy != "" {
-		label += " → " + target.DialerProxy
-	}
-	return label
-}
-
-func bindTailscale(ctx context.Context, s *Session, name string) error {
-	var data struct {
-		Targets []menuTailscaleTarget `json:"targets"`
-	}
-	if err := localizeddecodeMenuResult(s.language,
-		s.Fetch(ctx, "proxy", "tailscale", "targets"), &data); err != nil {
-		return err
-	}
-	return tailscaleTargetForm(ctx, s, name, data.Targets, false)
-}
-
-func tailscaleTargetForm(ctx context.Context, s *Session, name string, targets []menuTailscaleTarget, unbind bool) error {
-	if localizedhasSubscriptionPolicy(s.language, targets) {
-		retained := []menuTailscaleTarget{}
-		for _, target := range targets {
-			if target.Kind == "subscription" {
-				retained = append(retained, target)
-			}
-		}
-		targets = retained
-	}
-	if len(targets) == 0 {
-		s.feedback(feedbackWarning, menuText(s.language, "menu.tailscale.tailscale_target_form.no_eligible_targets_available", "No eligible targets available."))
-		return nil
-	}
-	s.WriteLine(menuText(s.language, "menu.tailscale.tailscale_target_form.subscription_apply_retains_local_settings_and_no", "Subscription apply retains local settings and nodes; entire-subscription bindings persist. Reloads mihomo if running."))
-	s.WriteLine(menuText(s.language, "menu.tailscale.tailscale_target_form.providers_affects_all_nodes_including_future_add", "Providers: affects all nodes, including future additions."))
-	s.WriteLine(menuText(s.language, "menu.tailscale.tailscale_target_form.entire_subscriptions_persistent_binding_includes", "Entire subscriptions: persistent binding includes new nodes after apply and scheduled refresh; only already-applied records are eligible."))
-	choices := []string{}
-	byLabel := map[string]menuTailscaleTarget{}
-	for _, target := range targets {
-		label := localizedtailscaleTargetLabel(s.language,
-			target)
-		choices = append(choices, label)
-		byLabel[label] = target
-	}
-	_, err := s.Form(ctx, []Field{{Key: "target", Label: menuText(s.language, "menu.tailscale.tailscale_target_form.choose_target_0_cancels", "Choose target (0 cancels)"), Required: true, Choices: choices}}, nil, func(v map[string]string) Result {
-		target := byLabel[v["target"]]
-		if unbind {
-			return runTailscale(ctx, s, "unbind", target.Kind, target.Name)
-		}
-		return runTailscale(ctx, s, "bind", name, target.Kind, target.Name)
-	})
-	return err
-}
-
 func runTailscale(ctx context.Context, s *Session, args ...string) Result {
 	return runTailscaleInput(ctx, s, nil, args...)
 }
 
 func runTailscaleInput(ctx context.Context, s *Session, input io.Reader, args ...string) Result {
-	command := append([]string{"proxy", "tailscale"}, args...)
+	command := append([]string{"proxy", "node"}, args...)
 	var result Result
 	if input == nil {
 		result = s.Fetch(ctx, command...)
@@ -387,38 +149,4 @@ func runTailscaleInput(ctx context.Context, s *Session, input io.Reader, args ..
 	}
 	s.feedback(feedbackSuccess, message)
 	return result
-}
-
-func localizedhasSubscriptionPolicy(language i18n.Context, targets []menuTailscaleTarget) bool {
-	for _, target := range targets {
-		if target.Kind == "subscription" && target.DialerProxy != "" {
-			return true
-		}
-	}
-	return false
-}
-func tailscaleListPage() *Page {
-	return localizedtailscaleListPage(i18n.New(i18n.English))
-}
-func tailscaleDetailPage(name string) *Page {
-	return localizedtailscaleDetailPage(i18n.New(i18n.English), name)
-}
-func tailscaleBatchKindPage(name string, unbind bool) *Page {
-	return localizedtailscaleBatchKindPage(i18n.New(i18n.English), name, unbind)
-}
-func tailscaleBatchPage(name, kind string, unbind bool) *Page {
-	return localizedtailscaleBatchPage(i18n.New(i18n.English), name, kind, unbind)
-}
-func tailscaleName(value string) error {
-	return localizedtailscaleName(i18n.New(i18n.English), value)
-}
-func tailscaleFields(
-	edit bool) []Field {
-	return localizedtailscaleFields(i18n.New(i18n.English), edit)
-}
-func tailscaleTargetLabel(target menuTailscaleTarget) string {
-	return localizedtailscaleTargetLabel(i18n.New(i18n.English), target)
-}
-func hasSubscriptionPolicy(targets []menuTailscaleTarget) bool {
-	return localizedhasSubscriptionPolicy(i18n.New(i18n.English), targets)
 }

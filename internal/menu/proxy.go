@@ -42,16 +42,12 @@ func localizeddecodeMenuResult(language i18n.Context, result Result, target any)
 
 // ProxyPage groups proxy selection and profile-local proxy sources.
 func localizedProxyPage(language i18n.Context) *Page {
-	return localizedactionPage(language, menuText(language, "menu.proxy.proxy_page.proxies", "Proxies"), Item{ID: "proxy.ProxyPage.item1", Label: menuText(language, "menu.proxy.proxy_page.proxy_groups", "Proxy Groups"), Next: func() *Page {
-		return localizedproxyGroupsPage(language)
-	},
-	}, Item{ID: "proxy.ProxyPage.item2", Label: menuText(language, "menu.proxy.proxy_page.proxy_providers", "Proxy Providers"), Next: func() *Page {
-		return localizedproviderListPage(language)
-	},
-	}, Item{ID: "proxy.ProxyPage.item3", Label: menuText(language, "menu.proxy.proxy_page.tailscale", "Tailscale"), Next: func() *Page {
-		return localizedtailscaleListPage(language)
-	},
-	})
+	return localizedactionPage(language, menuText(language, "menu.proxy.proxy_page.proxies", "Proxies"),
+		Item{ID: "proxy.groups", Label: menuText(language, "menu.proxy.proxy_page.proxy_groups", "Proxy Groups"), Next: func() *Page { return localizedproxyGroupsPage(language) }},
+		Item{ID: "proxy.nodes", Label: menuText(language, "menu.node.title", "Node Management"), Next: func() *Page { return localizednodeListPage(language) }},
+		Item{ID: "proxy.chains", Label: menuText(language, "menu.chain.title", "Node Chains"), Next: func() *Page { return localizedchainScopePage(language) }},
+		Item{ID: "proxy.providers", Label: menuText(language, "menu.proxy.proxy_page.proxy_providers", "Proxy Providers"), Next: func() *Page { return localizedproviderListPage(language) }},
+	)
 }
 
 func localizedproxyGroupsPage(language i18n.Context) *Page {

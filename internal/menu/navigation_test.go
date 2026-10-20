@@ -168,7 +168,7 @@ func TestCategoryInventoryAndReadOnlyEntry(t *testing.T) {
 		page *Page
 		want []string
 	}{
-		{ProxyPage(), []string{"Proxy Groups", "Proxy Providers", "Tailscale"}},
+		{ProxyPage(), []string{"Proxy Groups", "Node Management", "Node Chains", "Proxy Providers"}},
 		{RoutingPage(), []string{"Proxy Mode", "Routing Rules", "DNS"}},
 		{ProfilesAndSubscriptionsPage(), []string{"Profiles", "Subscriptions", "Current Configuration"}},
 		{RewriteAndCapturePage(), []string{"Request Rewrite", "Request Capture", "Certificate Authority"}},
