@@ -67,7 +67,8 @@ func writeProxyChainPlan(w io.Writer, p profile.ProxyChainPlan, dry bool) error 
 			return err
 		}
 	}
-	for _, conflict := range p.Conflicts {
+	for index, conflict := range p.Conflicts {
+		conflict = RenderMessageField(p, fmt.Sprintf("/conflicts/%d", index), conflict, writerLanguage(w))
 		if err := line(w, renderText(w, "cli.output.proxy_chain.conflict", map[string]any{"conflict": conflict}, "Conflict: "+conflict)); err != nil {
 			return err
 		}

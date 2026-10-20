@@ -34,3 +34,22 @@ func TestProxyNodeChainHumanAndJSON(t *testing.T) {
 		t.Fatalf("%v %s", err, &out)
 	}
 }
+
+func TestProxyChainConflictMetadataLocalizesOnlyHumanOutput(t *testing.T) {
+	message := i18n.Errorf("backend.profile.chain_target_external", "%s %q has an external front proxy", "node", "Target")
+	plan := profile.ProxyChainPlan{Kind: "node", Targets: []string{"Target"}, Conflicts: []string{message.Error()}, Messages: map[string]i18n.Descriptor{"/conflicts/0": message.Descriptor()}}
+	data := map[string]any{"plan": plan, "dry_run": true}
+	var human, english, chinese bytes.Buffer
+	if err := WriteLocalized(&human, false, i18n.New(i18n.SimplifiedChinese), data); err != nil || !strings.Contains(human.String(), "存在外部前置代理") || strings.Contains(human.String(), "has an external") {
+		t.Fatalf("%v %s", err, &human)
+	}
+	if err := WriteLocalized(&english, true, i18n.New(i18n.English), data); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteLocalized(&chinese, true, i18n.New(i18n.SimplifiedChinese), data); err != nil {
+		t.Fatal(err)
+	}
+	if english.String() != chinese.String() || !strings.Contains(english.String(), `/data/plan/conflicts/0`) || !strings.Contains(english.String(), "has an external front proxy") {
+		t.Fatal(english.String(), chinese.String())
+	}
+}
