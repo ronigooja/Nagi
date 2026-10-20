@@ -20,7 +20,11 @@ func configureProviderChainNodes(ctx context.Context, store *profile.Store, path
 		return
 	}
 	b := helperBackend{paths: paths}
-	store.ProviderNodes = func(name, provider string, source map[string]any) ([]map[string]any, error) {
+	store.ProviderNodes = providerChainNodeResolver(ctx, b, client)
+}
+
+func providerChainNodeResolver(ctx context.Context, b helperBackend, client *control.Client) func(string, string, map[string]any) ([]map[string]any, error) {
+	return func(name, provider string, source map[string]any) ([]map[string]any, error) {
 		status, err := b.Status(ctx)
 		if err != nil {
 			return nil, err
