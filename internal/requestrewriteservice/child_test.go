@@ -21,18 +21,33 @@ func TestMain(m *testing.M) {
 }
 
 func TestRootChildRefused(t *testing.T) {
-	// RunChild owns fd 3/4. Invoke it in a subprocess so absent startup pipes
-	// cannot cause it to close descriptors owned by the test process runtime.
+	// RunChild owns fd 3/4. Reserve them with real inherited pipes: without
+	// those pipes the child runtime may allocate its own poller at fd 3.
+	// EOF instead of a startup frame must be rejected even for ordinary UIDs.
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	output, err := exec.CommandContext(ctx, executable, InternalArgument).CombinedOutput()
+	input, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	writer.Close()
+	reader, outputPipe, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer outputPipe.Close()
+	cmd := exec.CommandContext(ctx, executable, InternalArgument)
+	cmd.ExtraFiles = []*os.File{input, outputPipe}
+	output, err := cmd.CombinedOutput()
 	exit, ok := err.(*exec.ExitError)
 	if !ok || exit.ExitCode() != 1 || ctx.Err() != nil {
-		t.Fatalf("child must reject absent inherited pipes or root: %v; context: %v; output: %s", err, ctx.Err(), output)
+		t.Fatalf("child must reject missing startup frame or root: %v; context: %v; output: %s", err, ctx.Err(), output)
 	}
 }
 
