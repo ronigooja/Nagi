@@ -87,34 +87,34 @@ The October 2026 Linux check passed `go test ./...` and a CLI build with the sim
 
 An isolated Linux CLI run against the commit in `engine.lock` passed running-engine switches between a subscription profile and a node-less `default`, independent rule activation, invalid-target rollback, subscription application retaining a rule's manual-node target, and deletion of only the removed profile's rules. The fixture disabled TUN, DNS, and proxy listeners and used a local HTTP subscription server. Changed documentation links, command help, and examples were reviewed. Native macOS interactive acceptance was not run on the Linux host.
 
-## Tailscale acceptance
+## Node and chain acceptance
 
-Use private configuration, state, and runtime directories for Tailscale checks. Unit fixtures use placeholder keys and must not authenticate to a real tailnet. Run the relevant profile, command, menu, helper policy, helper runtime, and runtime path tests; run race checks for configuration activation and engine Tailscale Start/Close. Engine tests require `-tags with_gvisor` to exercise the real adapter.
+Use private home/XDG configuration, data, state, and runtime directories and the exact engine commit in `engine.lock`. Never reuse an installed profile, identity, subscription, or service. Unit fixtures use placeholders and must not authenticate to a real tailnet. The [node and chain guide](../guides/proxy-nodes-and-chains.md) and [CLI reference](../reference/cli.md#proxy-nodes-and-chains) define the implemented workflow.
 
-With the matching new engine, import an isolated profile containing a TCP proxy (for example SS), a proxy that connects to its server over UDP (for example Hysteria2), and an inline provider. Add a Tailscale exit, bind both nodes and the provider, and validate while stopped. Confirm stopped state is retained, then start, edit the exit, reload, refresh the provider, unbind, remove, and stop. Check key/path redaction, retained provider overrides, activation IDs, and persistent identity directories. These configuration checks do not verify traffic through the exit. To opt into the real root helper/engine lifecycle harness without TUN or tailnet login, run `NAGI_TS_TEST_ENGINE=/absolute/path/to/mihomo go test ./internal/privileged/server -run TestTailscaleRealRestrictedEngineLifecycle` as root in an isolated checkout. The test creates private temporary state under the test account's home and verifies reload, stop cleanup, and restart retain it; ordinary tests skip the harness.
+Run `make test`, focused race tests for profile/command/output/menu/subscription/helper/runtime packages, and CLI cross-builds for Linux and Darwin AMD64/ARM64. Verify stopped JSON queries and previews, invalid arguments and removed commands, full transaction rollback, chain order, first-hop clearing, shared dependencies, provider payload conflicts, subscription explicit/automatic replay, policy switching/clearing, and owner-only sensitive state. Menu tests must use the production `data.plan` wrapper rather than an unwrapped plan fixture and must block conflicting submissions.
 
-For authenticated transit acceptance, supply a dedicated test tailnet, approved exit, and TCP and UDP-transport proxy servers. Request a known destination through each selected proxy and verify the proxy server observes the expected exit path. Recheck after provider refresh, reload, and engine restart. Exercise rejected login and exit preference initialization without allowing fallback forwarding. Protect test keys and do not commit captured identities or credentials.
+For isolated runtime acceptance, run a local HTTP subscription/target service and local SOCKS fixtures. Validate both Tailscale directions and WireGuard combinations while stopped; separately exercise real local multi-hop SOCKS forwarding, running provider changes, nonrecursive clear, downloaded-cache separation, and new subscription nodes inheriting a policy. In a real PTY, enter node details and construct a chain preview through the final CLI binary, verify the reported order and replacements, cancel before Submit, and exit while the engine remains running. Successful configuration validation is not evidence of authenticated Tailscale or WireGuard traffic.
 
-Native macOS acceptance must run the helper with its root-private UID state, start and stop TUN, verify network-service DNS restoration, and repeat restart/reload and backend switching. Darwin cross compilation confirms build compatibility only. Record authenticated transit and native acceptance as unverified when those hosts or credentials are unavailable; do not infer network success from configuration activation.
+For authenticated transit acceptance, supply a dedicated tailnet, approved exit, and controlled TCP and UDP proxy servers. Check actual observed egress after provider refresh, reload, and restart, including rejected authentication without fallback forwarding. Keep credentials and captured identities private. Native macOS acceptance additionally needs the root helper, TUN/system DNS restoration, restart/reload, and backend switching. The root helper's opt-in non-TUN lifecycle fixture remains `NAGI_TS_TEST_ENGINE=/absolute/path/to/mihomo go test ./internal/privileged/server -run TestTailscaleRealRestrictedEngineLifecycle`; it does not establish authenticated transit.
 
-### Implementation verification (2026-10-12)
+### Verification (2026-10-20)
 
-The Tailscale implementation was checked against engine commit `e8555db99bb891112f880c9e06f2c6edc4bd5cc3`. This commit was published to the declared repository's `main` ref and verified from a fresh fetch before advancing `engine.lock`.
+The integration used a freshly built `with_gvisor` engine from clean source commit `a5df21a6a339a651bb50dca73b30f7679dbd0436`, matching `engine.lock`. Tests used private directories, local HTTP/SOCKS services, disabled TUN and DNS, and a private loopback listener. No installed engine or host proxy configuration was changed.
 
 | Check | Result |
 | --- | --- |
 | `make test`, including installer integration | Passed |
-| Tailscale profile, CLI, menu, state-path, policy, helper and activation race checks | Passed |
-| Engine policy, provider, configuration, DNS, outbound and executor tests with `with_gvisor`; lifecycle race checks | Passed |
-| Isolated real-engine CLI validation and activation with SS, Hysteria2, inline and HTTP providers | Passed; refreshed HTTP provider nodes inherited the binding and unbind cleared it; no authenticated transit |
-| Linux root helper harness with real restricted engine, reload, restart and state retention | Passed; TUN disabled, no tailnet login |
-| CLI and engine Darwin AMD64/ARM64 builds | Passed |
-| Visible Auth Key paste in Linux CLI/menu PTY, blank edit preservation, Ctrl-C/EOF cancellation, and stdin result redaction | Passed against the real engine in isolated directories; terminal echo and settings unchanged |
-| Bash and Bash 3.2 completion execution | Passed |
-| Zsh/Fish generated completion content | Checked; executable shell checks unavailable because those shells are not installed |
-| Documentation relative paths and changed command/field examples | Reviewed |
-| Authenticated TCP and UDP-transport exit/proxy transit | Unverified; dedicated tailnet, approved exit and test proxy credentials unavailable |
-| Native macOS helper, TUN and system DNS restoration | Unverified; no macOS runtime host used |
+| Profile, command, output, menu, subscription, helper and runtime race checks | Passed |
+| Independent profile tests for ordering, cycles, provider conflicts, group references, adopted-source switching and exact clear plans | Passed |
+| Linux/Darwin AMD64/ARM64 CLI builds | Passed |
+| Stopped node/group/chain JSON reads and previews, no file writes, usage envelopes and old command rejection | Passed |
+| Tailscale first/later hop and mixed WireGuard configuration validation | Passed while stopped; no authenticated transit |
+| Real local SOCKS first → middle → target → HTTP forwarding | Passed |
+| Running provider changes, nonrecursive clear, subscription cache separation/new-node replay and private policy permissions | Passed |
+| Linux PTY node details and real chain preview with order/replacements, cancellation and exit retaining the engine | Passed |
+| Generated localization registry and native descriptor resources | Regenerated with the existing tool and checked for consistency; no native UI change |
+| Authenticated Tailscale or WireGuard forwarding, live UDP multi-hop behavior | Unverified; dedicated credentials and endpoints unavailable |
+| Native macOS App/helper/TUN and system DNS acceptance | Unverified; Linux host only |
 
 ## Latency management verification
 

@@ -1,6 +1,8 @@
 # Persistent subscription Tailscale bindings
 
-Status: accepted
+Status: superseded
+
+Superseded by [decision 0013](0013-general-subscription-chains.md). This record describes the former single-exit policy; its command and storage interfaces are no longer supported. No automatic migration is provided.
 
 ## Context
 
@@ -22,4 +24,4 @@ Preserve the source and cache as subscription data so scheduler source hashes re
 
 Explicit apply can replace the feed and clear ordinary local customizations while retaining the chosen exit and binding intent. New eligible nodes inherit the policy. The retained definition is sensitive configuration because it includes the Auth Key. Individual binding changes require leaving subscription scope, and a conflicting later feed can remain pending until corrected. Unbind retains the exit as an ordinary local addition; persistent identity storage continues to follow [decision 0006](0006-privileged-tailscale-state.md).
 
-The exact implemented composition, failure, and cleanup behavior is maintained in the [runtime design](../design/runtime.md#tailscale-configuration-and-identity); commands and eligibility belong to the [CLI reference](../reference/cli.md#tailscale-management).
+The exact implemented composition, failure, and cleanup behavior is maintained in the [runtime design](../design/runtime.md#proxy-nodes-chains-and-tailscale-identity); commands and eligibility belong to the [CLI reference](../reference/cli.md#proxy-nodes-and-chains).

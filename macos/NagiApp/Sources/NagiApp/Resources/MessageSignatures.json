@@ -156,6 +156,52 @@
     "arg0": "string",
     "arg1": "string"
   },
+  "backend.profile.chain_chain_contains_a_repeated_hop": {},
+  "backend.profile.chain_chain_contains_repeated_targets": {},
+  "backend.profile.chain_chain_hops_must_be_compatible_static_top_level_nodes": {},
+  "backend.profile.chain_chain_kind_must_be_node_provider_or_subscription": {},
+  "backend.profile.chain_chain_requires_a_target": {},
+  "backend.profile.chain_chain_requires_ordered_via_nodes_or_clear_without_via": {},
+  "backend.profile.chain_chain_target_cannot_be_its_own_hop": {},
+  "backend.profile.chain_chain_target_not_found": {},
+  "backend.profile.chain_clear_requires_no_via_nodes": {},
+  "backend.profile.chain_duplicate_or_invalid_proxy_name": {},
+  "backend.profile.chain_invalid_chain_hop": {},
+  "backend.profile.chain_invalid_effective_profile": {},
+  "backend.profile.chain_invalid_subscription_chain_definitions": {},
+  "backend.profile.chain_invalid_subscription_name": {},
+  "backend.profile.chain_invalid_subscription_source": {},
+  "backend.profile.chain_legacy_subscription_tailscale_policy_is_unsupported_remove_the_legacy_policy_explicitly_before_configuring_a_chain": {},
+  "backend.profile.chain_local_override_must_be_a_yaml_mapping": {},
+  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": {},
+  "backend.profile.chain_managed_chain_node_not_found": {},
+  "backend.profile.chain_node_belongs_to_a_subscription_chain_clear_the_subscription_chain_first": {},
+  "backend.profile.chain_policy_owns_edge": {},
+  "backend.profile.chain_profile_must_be_a_yaml_mapping": {},
+  "backend.profile.chain_provider_payload_external": {},
+  "backend.profile.chain_provider_target_not_found": {},
+  "backend.profile.chain_proxies_must_be_a_list": {},
+  "backend.profile.chain_proxy_chain_creates_a_dependency_cycle": {},
+  "backend.profile.chain_proxy_dependency_references_a_missing_node_or_group": {},
+  "backend.profile.chain_proxy_group_references_a_missing_provider": {},
+  "backend.profile.chain_subscription_chain_conflicts_with_an_external_front_proxy": {},
+  "backend.profile.chain_subscription_chain_policy_must_be_a_regular_file": {},
+  "backend.profile.chain_subscription_chain_requires_one_subscription_name": {},
+  "backend.profile.chain_subscription_group_conflicts_with_a_managed_chain_node": {},
+  "backend.profile.chain_subscription_has_no_persistent_chain": {},
+  "backend.profile.chain_subscription_node_conflicts_with_a_managed_chain_definition": {},
+  "backend.profile.chain_subscription_policy_owns_this_node_edge_clear_the_subscription_chain_first": {},
+  "backend.profile.chain_subscription_profile_must_be_a_yaml_mapping": {},
+  "backend.profile.chain_subscription_provider_conflicts_with_a_managed_chain_node": {},
+  "backend.profile.chain_subscription_source_conflicts_with_a_managed_chain_definition": {},
+  "backend.profile.chain_subscription_source_group_conflicts_with_a_managed_chain_node": {},
+  "backend.profile.chain_subscription_source_provider_conflicts_with_a_managed_chain_node": {},
+  "backend.profile.chain_target_external": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "backend.profile.chain_unsupported_or_invalid_subscription_chain_policy": {},
+  "backend.profile.chain_unsupported_or_missing_chain_target": {},
   "backend.profile.choose_a_dns_proxy_group_for_a_profile_with_proxy_nodes_or_providers": {},
   "backend.profile.choose_one_auth_key_input_method": {},
   "backend.profile.control_url_must_be_an_absolute_https_url_without_credentials_query_or_fragment": {},
@@ -252,6 +298,21 @@
   "backend.profile.name_must_contain_1_128_bytes_without_surrounding_whitespace_and_must_not_be_compatible": {},
   "backend.profile.name_must_contain_1_128_printable_bytes_without_surrounding_whitespace": {},
   "backend.profile.name_must_contain_printable_characters": {},
+  "backend.profile.node_add_requires_exit_node_and_an_auth_key": {},
+  "backend.profile.node_could_not_prepare_proxy_node_override": {},
+  "backend.profile.node_duplicate_proxy_group": {},
+  "backend.profile.node_editing_this_proxy_type_is_not_supported": {},
+  "backend.profile.node_local_override_must_be_a_yaml_mapping": {},
+  "backend.profile.node_name_conflicts_with_an_existing_group": {},
+  "backend.profile.node_name_conflicts_with_an_existing_provider": {},
+  "backend.profile.node_proxy_group_contains_an_invalid_filter": {},
+  "backend.profile.node_proxy_group_filter_could_not_be_evaluated": {},
+  "backend.profile.node_proxy_group_membership_would_create_a_dependency_cycle": {},
+  "backend.profile.node_proxy_group_not_found": {},
+  "backend.profile.node_proxy_name_already_exists": {},
+  "backend.profile.node_proxy_node_is_still_referenced_remove_its_group_chain_rule_dns_or_provider_references_first": {},
+  "backend.profile.node_proxy_node_not_found": {},
+  "backend.profile.node_removing_this_proxy_type_is_not_supported": {},
   "backend.profile.override_is_invalid_yaml": {},
   "backend.profile.override_is_not_a_regular_file": {},
   "backend.profile.override_must_be_a_yaml_mapping": {},
@@ -315,10 +376,8 @@
   "backend.profile.tailscale_node_is_still_referenced_by_a_provider": {},
   "backend.profile.tailscale_node_is_still_referenced_by_a_provider_node": {},
   "backend.profile.tailscale_node_is_still_referenced_by_dns_configuration_edit_its_configuration_explicitly": {},
-  "backend.profile.tailscale_node_not_found_run_nagi_proxy_tailscale_list": {},
   "backend.profile.target_has_an_existing_non_tailscale_dialer_proxy_edit_its_configuration_explicitly": {},
   "backend.profile.target_is_not_a_regular_file": {},
-  "backend.profile.target_not_found_or_unsupported_run_nagi_proxy_tailscale_targets": {},
   "backend.profile.target_profile_must_be_a_yaml_mapping": {},
   "backend.profile.unsupported_group_type": {},
   "backend.profile.unsupported_tailscale_action": {},
@@ -1693,6 +1752,186 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.proxy_chain.dry_run_is_only_valid_for_set_or_clear": {},
+  "cli.error.proxy_chain.dry_run_is_only_valid_for_set_or_clear.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.duplicate_dry_run": {},
+  "cli.error.proxy_chain.duplicate_dry_run.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.duplicate_target": {},
+  "cli.error.proxy_chain.duplicate_target.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.kind_and_target_are_required": {},
+  "cli.error.proxy_chain.kind_and_target_are_required.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription": {},
+  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.missing_chain_action": {},
+  "cli.error.proxy_chain.missing_chain_action.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.select_exactly_one_subscription_associated_with_the_selected_profile": {},
+  "cli.error.proxy_chain.select_exactly_one_subscription_associated_with_the_selected_profile.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.set_requires_at_least_one_via_node_in_traffic_order": {},
+  "cli.error.proxy_chain.set_requires_at_least_one_via_node_in_traffic_order.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.show_requires_exactly_one_target": {},
+  "cli.error.proxy_chain.show_requires_exactly_one_target.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.subscription_not_associated": {},
+  "cli.error.proxy_chain.subscription_not_associated.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.subscription_remove_blocked": {},
+  "cli.error.proxy_chain.subscription_remove_blocked.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.subscription_source_changed": {},
+  "cli.error.proxy_chain.subscription_source_changed.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.target_is_required": {},
+  "cli.error.proxy_chain.target_is_required.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.target_must_precede_options_unknown_chain_option": {},
+  "cli.error.proxy_chain.target_must_precede_options_unknown_chain_option.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.via_is_only_valid_for_set": {},
+  "cli.error.proxy_chain.via_is_only_valid_for_set.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_chain.via_requires_a_node_name": {},
+  "cli.error.proxy_chain.via_requires_a_node_name.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.add_requires_tailscale_name_exit_node": {},
+  "cli.error.proxy_node.add_requires_tailscale_name_exit_node.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.auth_key_input_unavailable": {},
+  "cli.error.proxy_node.auth_key_input_unavailable.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.choose_one_auth_key_input_method": {},
+  "cli.error.proxy_node.choose_one_auth_key_input_method.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.duplicate_group": {},
+  "cli.error.proxy_node.duplicate_group.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.duplicate_node_option": {},
+  "cli.error.proxy_node.duplicate_node_option.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.edit_requires_at_least_one_option": {},
+  "cli.error.proxy_node.edit_requires_at_least_one_option.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.exit_node_is_only_valid_for_edit": {},
+  "cli.error.proxy_node.exit_node_is_only_valid_for_edit.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.groups_requires_show_set_or_clear_and_name": {},
+  "cli.error.proxy_node.groups_requires_show_set_or_clear_and_name.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.missing_node_action": {},
+  "cli.error.proxy_node.missing_node_action.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.name_is_required": {},
+  "cli.error.proxy_node.name_is_required.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.option_requires_a_value": {},
+  "cli.error.proxy_node.option_requires_a_value.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.unknown_groups_action": {},
+  "cli.error.proxy_node.unknown_groups_action.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.unknown_node_option": {},
+  "cli.error.proxy_node.unknown_node_option.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.proxy_node.use_node_groups_set_to_change_groups": {},
+  "cli.error.proxy_node.use_node_groups_set_to_change_groups.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
   "cli.error.request_capture.capture_input_unavailable": {},
   "cli.error.request_capture.capture_input_unavailable.usage": {
     "hint": "string",
@@ -2593,6 +2832,57 @@
   "cli.output.printsystemdns.system_dns_needs_attention.message": {
     "detail": "string"
   },
+  "cli.output.proxy_chain.change": {
+    "after": "string",
+    "before": "string",
+    "kind": "string",
+    "name": "string"
+  },
+  "cli.output.proxy_chain.conflict": {
+    "conflict": "string"
+  },
+  "cli.output.proxy_chain.empty": {},
+  "cli.output.proxy_chain.preview": {},
+  "cli.output.proxy_chain.shared": {
+    "kind": "string",
+    "name": "string",
+    "via": "string"
+  },
+  "cli.output.proxy_chain.target": {
+    "kind": "string",
+    "name": "string",
+    "path": "string"
+  },
+  "cli.output.proxy_node.empty": {},
+  "cli.output.proxy_node.groups.automatic": {
+    "groups": "string"
+  },
+  "cli.output.proxy_node.groups.available": {
+    "groups": "string"
+  },
+  "cli.output.proxy_node.groups.excluded": {
+    "groups": "string"
+  },
+  "cli.output.proxy_node.groups.explicit": {
+    "groups": "string"
+  },
+  "cli.output.proxy_node.none": {},
+  "cli.output.proxy_node.saved": {
+    "action": "string",
+    "profile": "string",
+    "resource": "string"
+  },
+  "cli.output.proxy_node.summary": {
+    "managed": "boolean",
+    "name": "string",
+    "type": "string"
+  },
+  "cli.output.proxy_node.tailscale": {
+    "auth_key_configured": "boolean",
+    "control_url": "string",
+    "exit": "string",
+    "hostname": "string"
+  },
   "cli.output.write.automatic_selection_resumed_saved_choice_removed": {},
   "cli.output.write.conflict_rule_d_shadows_rule_d_s": {
     "earlier": "number",
@@ -3264,6 +3554,24 @@
   "help.command.proxy.auto.detail": {},
   "help.command.proxy.auto.hint": {},
   "help.command.proxy.auto.summary": {},
+  "help.command.proxy.chain.candidates.detail": {},
+  "help.command.proxy.chain.candidates.hint": {},
+  "help.command.proxy.chain.candidates.summary": {},
+  "help.command.proxy.chain.clear.detail": {},
+  "help.command.proxy.chain.clear.hint": {},
+  "help.command.proxy.chain.clear.summary": {},
+  "help.command.proxy.chain.detail": {},
+  "help.command.proxy.chain.hint": {},
+  "help.command.proxy.chain.list.detail": {},
+  "help.command.proxy.chain.list.hint": {},
+  "help.command.proxy.chain.list.summary": {},
+  "help.command.proxy.chain.set.detail": {},
+  "help.command.proxy.chain.set.hint": {},
+  "help.command.proxy.chain.set.summary": {},
+  "help.command.proxy.chain.show.detail": {},
+  "help.command.proxy.chain.show.hint": {},
+  "help.command.proxy.chain.show.summary": {},
+  "help.command.proxy.chain.summary": {},
   "help.command.proxy.delay.detail": {},
   "help.command.proxy.delay.hint": {},
   "help.command.proxy.delay.summary": {},
@@ -3287,6 +3595,36 @@
   "help.command.proxy.healthcheck.url.set.detail": {},
   "help.command.proxy.healthcheck.url.set.summary": {},
   "help.command.proxy.healthcheck.url.summary": {},
+  "help.command.proxy.node.add.detail": {},
+  "help.command.proxy.node.add.hint": {},
+  "help.command.proxy.node.add.summary": {},
+  "help.command.proxy.node.detail": {},
+  "help.command.proxy.node.edit.detail": {},
+  "help.command.proxy.node.edit.hint": {},
+  "help.command.proxy.node.edit.summary": {},
+  "help.command.proxy.node.groups.clear.detail": {},
+  "help.command.proxy.node.groups.clear.hint": {},
+  "help.command.proxy.node.groups.clear.summary": {},
+  "help.command.proxy.node.groups.detail": {},
+  "help.command.proxy.node.groups.hint": {},
+  "help.command.proxy.node.groups.set.detail": {},
+  "help.command.proxy.node.groups.set.hint": {},
+  "help.command.proxy.node.groups.set.summary": {},
+  "help.command.proxy.node.groups.show.detail": {},
+  "help.command.proxy.node.groups.show.hint": {},
+  "help.command.proxy.node.groups.show.summary": {},
+  "help.command.proxy.node.groups.summary": {},
+  "help.command.proxy.node.hint": {},
+  "help.command.proxy.node.list.detail": {},
+  "help.command.proxy.node.list.hint": {},
+  "help.command.proxy.node.list.summary": {},
+  "help.command.proxy.node.remove.detail": {},
+  "help.command.proxy.node.remove.hint": {},
+  "help.command.proxy.node.remove.summary": {},
+  "help.command.proxy.node.show.detail": {},
+  "help.command.proxy.node.show.hint": {},
+  "help.command.proxy.node.show.summary": {},
+  "help.command.proxy.node.summary": {},
   "help.command.proxy.provider.add.detail": {},
   "help.command.proxy.provider.add.hint": {},
   "help.command.proxy.provider.add.summary": {},
@@ -3324,33 +3662,6 @@
   "help.command.proxy.show.hint": {},
   "help.command.proxy.show.summary": {},
   "help.command.proxy.summary": {},
-  "help.command.proxy.tailscale.add.detail": {},
-  "help.command.proxy.tailscale.add.hint": {},
-  "help.command.proxy.tailscale.add.summary": {},
-  "help.command.proxy.tailscale.bind.detail": {},
-  "help.command.proxy.tailscale.bind.hint": {},
-  "help.command.proxy.tailscale.bind.summary": {},
-  "help.command.proxy.tailscale.detail": {},
-  "help.command.proxy.tailscale.edit.detail": {},
-  "help.command.proxy.tailscale.edit.hint": {},
-  "help.command.proxy.tailscale.edit.summary": {},
-  "help.command.proxy.tailscale.hint": {},
-  "help.command.proxy.tailscale.list.detail": {},
-  "help.command.proxy.tailscale.list.hint": {},
-  "help.command.proxy.tailscale.list.summary": {},
-  "help.command.proxy.tailscale.remove.detail": {},
-  "help.command.proxy.tailscale.remove.hint": {},
-  "help.command.proxy.tailscale.remove.summary": {},
-  "help.command.proxy.tailscale.show.detail": {},
-  "help.command.proxy.tailscale.show.hint": {},
-  "help.command.proxy.tailscale.show.summary": {},
-  "help.command.proxy.tailscale.summary": {},
-  "help.command.proxy.tailscale.targets.detail": {},
-  "help.command.proxy.tailscale.targets.hint": {},
-  "help.command.proxy.tailscale.targets.summary": {},
-  "help.command.proxy.tailscale.unbind.detail": {},
-  "help.command.proxy.tailscale.unbind.hint": {},
-  "help.command.proxy.tailscale.unbind.summary": {},
   "help.command.proxy.test.detail": {},
   "help.command.proxy.test.group.detail": {},
   "help.command.proxy.test.group.hint": {},
@@ -3837,10 +4148,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.activation.mihomo_configuration_activation_is_unconfirmed.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.activation.mihomo_configuration_activation_is_unconfirmed.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -3942,10 +4249,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.activation.mihomo_configuration_put_may_still_apply.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.activation.mihomo_configuration_put_may_still_apply.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -4076,12 +4379,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.activation.w_current_marker_s.proxy.select": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.activation.w_current_marker_s.proxy.tailscale.add": {
     "arg0": "string",
     "arg1": "string",
     "path": "string",
@@ -4257,13 +4554,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.activation.w_w_after_put_error_v.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "arg2": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.activation.w_w_after_put_error_v.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -4418,11 +4708,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.automatic_selection_resumed_in_running_engine_but_saved_choice_could.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.automatic_selection_resumed_in_running_engine_but_saved_choice_could.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -4549,11 +4834,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.cannot_read_selected_profile_run_nagi_profile_list_then_nagi_profile.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.cannot_read_selected_profile_run_nagi_profile_list_then_nagi_profile.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -4688,11 +4968,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.cannot_read_selected_profile_to_save_choice_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.cannot_read_selected_profile_to_save_choice_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -4823,11 +5098,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.cannot_start_exit_recovery_watcher_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.cannot_start_exit_recovery_watcher_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -4941,10 +5211,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.command_required_start_stop_quit_restart_status_doctor_logs_config_p.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.command_required_start_stop_quit_restart_status_doctor_logs_config_p.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -5062,11 +5328,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.configuration_validated_but_reload_failed_runtime_state_may_still_us.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.configuration_validated_but_reload_failed_runtime_state_may_still_us.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -5201,11 +5462,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.configuration_validation_failed_run_nagi_config_show_to_inspect_the_.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.configuration_validation_failed_run_nagi_config_show_to_inspect_the_.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -5319,10 +5575,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.disable_lan_access_before_enabling_the_system_proxy_or_configure_a_l.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.disable_lan_access_before_enabling_the_system_proxy_or_configure_a_l.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -5444,11 +5696,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.dns_tun_setting_conflicts_with_saved_tun_preference_with_mihomo_runn.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.dns_tun_setting_conflicts_with_saved_tun_preference_with_mihomo_runn.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -5562,10 +5809,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.existing_profile_cannot_be_parsed_for_preview_inspect_or_remove_it.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.existing_profile_cannot_be_parsed_for_preview_inspect_or_remove_it.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -5683,11 +5926,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.group_latency_test_failed_after_mihomo_resumed_automatic_selection_s.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.group_latency_test_failed_after_mihomo_resumed_automatic_selection_s.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -5836,12 +6074,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.group_latency_test_failed_and_automatic_reset_is_unknown_saved_choic.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.group_latency_test_failed_and_automatic_reset_is_unknown_saved_choic.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -5984,11 +6216,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.group_latency_test_resumed_automatic_selection_in_running_engine_but.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.group_latency_test_resumed_automatic_selection_in_running_engine_but.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -6115,11 +6342,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.group_latency_test_was_not_started_because_selected_profile_could_no.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.group_latency_test_was_not_started_because_selected_profile_could_no.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -6254,11 +6476,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.helper_service_is_active_but_its_authenticated_socket_is_unavailable.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.helper_service_is_active_but_its_authenticated_socket_is_unavailable.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -6375,10 +6592,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.install_and_start_the_privileged_helper_before_enabling_it.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.install_and_start_the_privileged_helper_before_enabling_it.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -6483,10 +6696,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.mihomo_is_not_running_start_it_before_following_logs.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.mihomo_is_not_running_start_it_before_following_logs.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -6588,10 +6797,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.mihomo_is_not_running_start_it_before_reloading_configuration.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.mihomo_is_not_running_start_it_before_reloading_configuration.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -6709,11 +6914,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.mihomo_must_be_running_run_nagi_start_or_inspect_nagi_status_w.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.mihomo_must_be_running_run_nagi_start_or_inspect_nagi_status_w.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -6848,11 +7048,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.mihomo_restarted_but_saved_proxy_selections_were_not_fully_restored_.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.mihomo_restarted_but_saved_proxy_selections_were_not_fully_restored_.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -6983,11 +7178,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.mihomo_started_but_saved_proxy_selections_were_not_fully_restored_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.mihomo_started_but_saved_proxy_selections_were_not_fully_restored_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -7101,10 +7291,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.no_http_or_mixed_listener_is_configured_inspect_nagi_ports_status.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.no_http_or_mixed_listener_is_configured_inspect_nagi_ports_status.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -7226,11 +7412,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.persistent_mode_was_not_saved_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.persistent_mode_was_not_saved_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -7344,10 +7525,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.profile_exceeds_8_mib.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.profile_exceeds_8_mib.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -7465,11 +7642,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.provider_addition_failed_inspect_nagi_profile_list_and_the_selected_.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.provider_addition_failed_inspect_nagi_profile_list_and_the_selected_.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -7604,11 +7776,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.provider_removal_failed_inspect_the_selected_profile_and_override_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.provider_removal_failed_inspect_the_selected_profile_and_override_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -7739,11 +7906,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.selected_node_in_running_engine_but_could_not_save_choice_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.selected_node_in_running_engine_but_could_not_save_choice_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -7857,10 +8019,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.start_mihomo_before_enabling_the_system_proxy.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.start_mihomo_before_enabling_the_system_proxy.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -7982,11 +8140,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.start_mihomo_first_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.start_mihomo_first_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -8103,10 +8256,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.stop_the_privileged_mihomo_process_before_disabling_the_backend.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.stop_the_privileged_mihomo_process_before_disabling_the_backend.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -8208,10 +8357,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.stop_the_user_mihomo_process_before_enabling_the_privileged_backend.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.stop_the_user_mihomo_process_before_enabling_the_privileged_backend.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -8333,11 +8478,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.subscription_applied_but_saved_proxy_choices_could_not_be_cleared_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.subscription_applied_but_saved_proxy_choices_could_not_be_cleared_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -8451,10 +8591,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.subscription_has_a_persistent_tailscale_binding_unbind_the_subscript.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.subscription_has_a_persistent_tailscale_binding_unbind_the_subscript.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -8572,11 +8708,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -8711,11 +8842,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop_12.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop_12.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -8829,10 +8955,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.system_proxy_is_unsupported_on_linux_configure_applications_to_use_t.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.system_proxy_is_unsupported_on_linux_configure_applications_to_use_t.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -8950,11 +9072,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.command.tun_state_changed_but_could_not_save_startup_preference_w.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.command.tun_state_changed_but_could_not_save_startup_preference_w.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -9089,11 +9206,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.configuration_changed_but_current_listener_could_not_be_read_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.configuration_changed_but_current_listener_could_not_be_read_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -9220,11 +9332,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.config_transaction.configuration_changed_but_managed_system_proxy_could_not_be_synchron.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.config_transaction.configuration_changed_but_managed_system_proxy_could_not_be_synchron.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -9359,11 +9466,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.configuration_path_is_not_a_regular_file_s.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.configuration_path_is_not_a_regular_file_s.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -9494,11 +9596,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.configuration_restored_but_prior_temporary_tun_settings_could_not_be.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.configuration_restored_but_prior_temporary_tun_settings_could_not_be.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -9615,10 +9712,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.prior_effective_configuration_is_invalid_yaml.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.prior_effective_configuration_is_invalid_yaml.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -9720,10 +9813,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.config_transaction.prior_running_configuration_restored_with_a_confirmed_activation_id.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.config_transaction.prior_running_configuration_restored_with_a_confirmed_activation_id.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -9845,11 +9934,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.prior_runtime_unchanged_but_dns_restoration_failed_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.prior_runtime_unchanged_but_dns_restoration_failed_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -9963,10 +10047,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.config_transaction.request_rewrite_ca_path_is_not_a_directory.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.config_transaction.request_rewrite_ca_path_is_not_a_directory.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -10084,11 +10164,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.config_transaction.runtime_recovery_incomplete_observed_activation_id_q_matches_the_pri.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.config_transaction.runtime_recovery_incomplete_observed_activation_id_q_matches_the_pri.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -10223,11 +10298,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_managed_s.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_managed_s.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -10354,11 +10424,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_the_origi.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_the_origi.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -10493,11 +10558,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_latest_observ.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_latest_observ.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -10628,11 +10688,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.runtime_restoration_failed_current_state_is_uncertain_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.runtime_restoration_failed_current_state_is_uncertain_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -10759,11 +10814,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.config_transaction.runtime_restoration_failed_w.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.config_transaction.runtime_restoration_failed_w.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -10912,12 +10962,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_did_no.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_did_no.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -11060,11 +11104,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_is_emp.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_is_emp.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -11191,11 +11230,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.config_transaction.runtime_restoration_unconfirmed_w.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.config_transaction.runtime_restoration_unconfirmed_w.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -11330,11 +11364,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.runtime_restored_but_system_dns_restoration_failed_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.runtime_restored_but_system_dns_restoration_failed_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -11465,11 +11494,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -11586,10 +11610,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -11691,10 +11711,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.dns.configure_encrypted_dns_with_nagi_dns_set_before_enabling_tun_interc.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.dns.configure_encrypted_dns_with_nagi_dns_set_before_enabling_tun_interc.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -11802,10 +11818,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.dns_proxy_group_currently_selects_a_direct_or_rejecting_adapter_sele.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.dns_proxy_group_currently_selects_a_direct_or_rejecting_adapter_sele.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -11907,10 +11919,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.dns.dns_proxy_group_has_no_current_proxy_selection_run_nagi_proxy_groups.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.dns.dns_proxy_group_has_no_current_proxy_selection_run_nagi_proxy_groups.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -12018,10 +12026,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.dns_proxy_group_has_no_usable_live_selection_run_nagi_proxy_groups_a.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.dns_proxy_group_has_no_usable_live_selection_run_nagi_proxy_groups_a.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -12123,10 +12127,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.dns.dns_proxy_target_is_missing_or_no_longer_usable_update_nagi_dns_set_.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.dns.dns_proxy_target_is_missing_or_no_longer_usable_update_nagi_dns_set_.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -12234,10 +12234,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.dns_server_must_be_a_url_without_credentials_query_or_fragment.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.dns_server_must_be_a_url_without_credentials_query_or_fragment.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -12339,10 +12335,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.dns.dns_server_must_be_an_https_doh_url_explicit_exceptions_may_use_udp_.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.dns.dns_server_must_be_an_https_doh_url_explicit_exceptions_may_use_udp_.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -12450,10 +12442,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.effective_profile_is_not_valid_yaml.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.effective_profile_is_not_valid_yaml.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -12555,10 +12543,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.dns.exception_domain_must_be_a_dns_suffix_such_as_lan_or_corp_example.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.dns.exception_domain_must_be_a_dns_suffix_such_as_lan_or_corp_example.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -12666,10 +12650,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.invalid_dns_upstream_url.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.invalid_dns_upstream_url.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -12771,10 +12751,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.dns.local_override_is_not_valid_yaml.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.dns.local_override_is_not_valid_yaml.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -12882,10 +12858,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.proxy_node_name_is_required.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.proxy_node_name_is_required.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -12987,10 +12959,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.dns.proxy_target_not_found_in_selected_profile_choose_a_non_direct_node_.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.dns.proxy_target_not_found_in_selected_profile_choose_a_non_direct_node_.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -13098,10 +13066,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.reserved_mihomo_proxy_name_cannot_be_used_for_pinned_dns.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.reserved_mihomo_proxy_name_cannot_be_used_for_pinned_dns.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -13206,10 +13170,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.dns.run_nagi_dns_set_direct_url_or_nagi_dns_set_proxy_node_url_first.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.dns.run_nagi_dns_set_direct_url_or_nagi_dns_set_proxy_node_url_first.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -13311,10 +13271,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.dns.selected_profile_is_not_valid_yaml.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.dns.selected_profile_is_not_valid_yaml.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -13436,11 +13392,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.engine_backend.invalid_engine_backend_in_s.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.engine_backend.invalid_engine_backend_in_s.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -13554,10 +13505,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.engine_backend.unknown_engine_backend.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.engine_backend.unknown_engine_backend.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -13675,11 +13622,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -13814,11 +13756,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -13945,11 +13882,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.lifecycle.invalid_engine_intent_at_s.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.lifecycle.invalid_engine_intent_at_s.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -14084,11 +14016,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.lifecycle.mihomo_is_running_but_login_monitor_could_not_resume_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.lifecycle.mihomo_is_running_but_login_monitor_could_not_resume_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -14205,10 +14132,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -14310,10 +14233,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes_or_run_nagi_quit_a.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes_or_run_nagi_quit_a.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -14431,11 +14350,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.lifecycle.quit_could_not_pause_the_login_monitor_run_nagi_startup_status_and_r.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.lifecycle.quit_could_not_pause_the_login_monitor_run_nagi_startup_status_and_r.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -14584,12 +14498,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.lifecycle.w_could_not_clear_pending_quit_state_v_repair_nagi_s_state_directory.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.lifecycle.w_could_not_clear_pending_quit_state_v_repair_nagi_s_state_directory.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -14732,11 +14640,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.privileged_backend.decode_helper_logs_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.privileged_backend.decode_helper_logs_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -14863,11 +14766,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.privileged_backend.decode_helper_logs_w_95.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.privileged_backend.decode_helper_logs_w_95.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -15002,11 +14900,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.privileged_backend.decode_mihomo_response_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.privileged_backend.decode_mihomo_response_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -15123,10 +15016,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.privileged_backend.mihomo_traffic_sample_contains_missing_or_negative_counters.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.privileged_backend.mihomo_traffic_sample_contains_missing_or_negative_counters.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -15228,10 +15117,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.privileged_backend.privileged_helper_did_not_report_a_running_mihomo_process.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.privileged_backend.privileged_helper_did_not_report_a_running_mihomo_process.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -15362,12 +15247,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.privileged_backend.privileged_helper_rejected_s_s.proxy.select": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.privileged_backend.privileged_helper_rejected_s_s.proxy.tailscale.add": {
     "arg0": "string",
     "arg1": "string",
     "path": "string",
@@ -15515,11 +15394,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.privileged_backend.privileged_helper_unavailable_run_nagi_privileged_helper_status_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.privileged_backend.privileged_helper_unavailable_run_nagi_privileged_helper_status_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -15650,11 +15524,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.privileged_backend.read_privileged_helper_response_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.privileged_backend.read_privileged_helper_response_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -15771,10 +15640,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.profile.could_not_run_mihomo_validation_check_nagi_mihomo_bin_and_executable.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.profile.could_not_run_mihomo_validation_check_nagi_mihomo_bin_and_executable.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -15876,10 +15741,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.profile.empty_profile.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.profile.empty_profile.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -15997,11 +15858,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.profile.mihomo_executable_unavailable_set_nagi_mihomo_bin_to_a_mihomo_execut.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.profile.mihomo_executable_unavailable_set_nagi_mihomo_bin_to_a_mihomo_execut.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -16132,11 +15988,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.profile.mihomo_reloaded_but_saved_proxy_selections_were_not_fully_restored_w.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.profile.mihomo_reloaded_but_saved_proxy_selections_were_not_fully_restored_w.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -16299,13 +16150,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "arg2": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -16446,10 +16290,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.profile.profile_validation_failed_tailscale_diagnostics_are_private_validate.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.profile.profile_validation_failed_tailscale_diagnostics_are_private_validate.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -16551,10 +16391,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -16672,11 +16508,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -16811,11 +16642,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.profile_diff.current_profile_is_not_valid_yaml_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.profile_diff.current_profile_is_not_valid_yaml_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -16946,11 +16772,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.profile_diff.structural_yaml_values_cannot_be_represented_in_json_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.profile_diff.structural_yaml_values_cannot_be_represented_in_json_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -17067,10 +16888,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.provider_settings.expected_seconds_off_test_url_url.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.provider_settings.expected_seconds_off_test_url_url.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -17172,10 +16989,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.provider_settings.seconds_must_be_off_or_an_integer_from_1_to_31536000.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.provider_settings.seconds_must_be_off_or_an_integer_from_1_to_31536000.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -17283,10 +17096,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_capture.capture_input_unavailable.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_capture.capture_input_unavailable.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -17388,10 +17197,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_capture.capture_private_file_required.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_capture.capture_private_file_required.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -17499,10 +17304,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_capture.capture_uses_the_selected_profile_profile_is_not_accepted.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_capture.capture_uses_the_selected_profile_profile_is_not_accepted.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -17604,10 +17405,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_capture.format_must_be_native_or_har.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_capture.format_must_be_native_or_har.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -17715,10 +17512,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_capture.invalid_argument.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_capture.invalid_argument.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -17823,10 +17616,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_capture.limit_must_be_1_262144.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_capture.limit_must_be_1_262144.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -17928,10 +17717,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_capture.offset_must_be_a_nonnegative_byte_offset.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_capture.offset_must_be_a_nonnegative_byte_offset.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -18053,11 +17838,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_capture.s_run_nagi_rewrite_capture_status.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_capture.s_run_nagi_rewrite_capture_status.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -18174,10 +17954,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_capture.unknown_fixture_stage.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_capture.unknown_fixture_stage.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -18279,10 +18055,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_capture.unknown_snapshot.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_capture.unknown_snapshot.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -18390,10 +18162,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_rewrite.file_must_be_a_local_private_file_or_for_stdin.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_rewrite.file_must_be_a_local_private_file_or_for_stdin.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -18495,10 +18263,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_rewrite.id_must_contain_1_128_ascii_letters_digits_or.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_rewrite.id_must_contain_1_128_ascii_letters_digits_or.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -18606,10 +18370,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_rewrite.missing_argument.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_rewrite.missing_argument.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -18711,10 +18471,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_rewrite.missing_subcommand.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_rewrite.missing_subcommand.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -18822,10 +18578,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_rewrite.profile_is_only_valid_for_scripts_rules_import_export_validate_and_p.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_rewrite.profile_is_only_valid_for_scripts_rules_import_export_validate_and_p.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -18927,10 +18679,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_rewrite.profile_requires_one_valid_profile_name.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_rewrite.profile_requires_one_valid_profile_name.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -19038,10 +18786,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_rewrite.too_many_arguments.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_rewrite.too_many_arguments.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -19146,10 +18890,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_rewrite.unknown_option.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_rewrite.unknown_option.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -19251,10 +18991,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_rewrite.unknown_subcommand.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_rewrite.unknown_subcommand.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -19390,12 +19126,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_rewrite_runtime.s_s.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_rewrite_runtime.s_s.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -19524,10 +19254,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_rewrite_trust.certificate_store_limit.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_rewrite_trust.certificate_store_limit.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -19632,10 +19358,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.request_rewrite_trust.certificate_store_unavailable.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.request_rewrite_trust.certificate_store_unavailable.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -19737,10 +19459,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -19862,11 +19580,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -19980,10 +19693,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -20101,11 +19810,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -20240,11 +19944,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.rules.rule_test_failed_ensure_mihomo_is_running_with_the_matching_engine_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.rules.rule_test_failed_ensure_mihomo_is_running_with_the_matching_engine_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -20358,10 +20057,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.rules.running_mihomo_does_not_support_rule_testing_install_the_matching_en.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.rules.running_mihomo_does_not_support_rule_testing_install_the_matching_en.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -20479,11 +20174,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.rules.select_a_valid_profile_first_w.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.rules.select_a_valid_profile_first_w.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -20618,11 +20308,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.rules.select_a_valid_profile_first_w_142.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.rules.select_a_valid_profile_first_w_142.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -20739,10 +20424,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.rules.source_is_required.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.rules.source_is_required.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -20844,10 +20525,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.rules.source_url_must_be_absolute_http_s_without_userinfo.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.rules.source_url_must_be_absolute_http_s_without_userinfo.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -20955,10 +20632,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.rules.unsupported_rules_command.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.rules.unsupported_rules_command.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -21060,10 +20733,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.rules_test_input.port_must_be_an_integer_from_1_to_65535.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.rules_test_input.port_must_be_an_integer_from_1_to_65535.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -21185,11 +20854,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.rules_test_input.s_requires_one_value_and_cannot_be_repeated.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.rules_test_input.s_requires_one_value_and_cannot_be_repeated.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -21303,10 +20967,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.rules_test_input.target_is_required.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.rules_test_input.target_is_required.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -21428,11 +21088,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.rules_test_input.unknown_option_s.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.rules_test_input.unknown_option_s.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -21549,10 +21204,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.scheduler.subscription_scheduler_is_already_running.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.scheduler.subscription_scheduler_is_already_running.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -21657,10 +21308,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.startup_watch.mihomo_is_running_but_its_control_api_is_unavailable_inspect_nagi_lo.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.startup_watch.mihomo_is_running_but_its_control_api_is_unavailable_inspect_nagi_lo.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -21762,10 +21409,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.startup_watch.startup_check_returned_an_unexpected_result.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.startup_watch.startup_check_returned_an_unexpected_result.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -21883,11 +21526,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.startup_watch.system_dns_recheck_failed_s_inspect_nagi_startup_check.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.startup_watch.system_dns_recheck_failed_s_inspect_nagi_startup_check.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -22022,11 +21660,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.startup_watch.system_proxy_needs_attention_s_inspect_nagi_startup_check.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.startup_watch.system_proxy_needs_attention_s_inspect_nagi_startup_check.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -22157,11 +21790,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.startup_watch.system_proxy_recheck_failed_s_inspect_nagi_startup_check.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.startup_watch.system_proxy_recheck_failed_s_inspect_nagi_startup_check.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -22278,10 +21906,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_apply.cache_version_changed_during_automatic_apply.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_apply.cache_version_changed_during_automatic_apply.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -22383,10 +22007,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_apply.effective_profile_is_invalid.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_apply.effective_profile_is_invalid.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -22494,10 +22114,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_apply.enabled_custom_rule_target_is_unavailable_in_the_updated_subscriptio.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_apply.enabled_custom_rule_target_is_unavailable_in_the_updated_subscriptio.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -22599,10 +22215,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_apply.local_dns_proxy_target_is_unavailable_in_the_updated_subscription_up.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_apply.local_dns_proxy_target_is_unavailable_in_the_updated_subscription_up.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -22710,10 +22322,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_apply.profile_store_is_required.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_apply.profile_store_is_required.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -22815,10 +22423,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_apply.saved_proxy_selections_could_not_be_reconciled_with_the_updated_subs.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_apply.saved_proxy_selections_could_not_be_reconciled_with_the_updated_subs.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -22926,10 +22530,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_apply.source_profile_cannot_be_read_inspect_the_profile_and_reapply_the_su.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_apply.source_profile_cannot_be_read_inspect_the_profile_and_reapply_the_su.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -23031,10 +22631,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_apply.source_profile_changed_run_nagi_subscription_apply_name_to_resume_au.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_apply.source_profile_changed_run_nagi_subscription_apply_name_to_resume_au.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -23152,11 +22748,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_apply.w_effective_profile_is_invalid.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_apply.w_effective_profile_is_invalid.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -23300,12 +22891,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_apply.w_effective_profile_unavailable_v.proxy.select": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_apply.w_effective_profile_unavailable_v.proxy.tailscale.add": {
     "arg0": "string",
     "arg1": "string",
     "path": "string",
@@ -23467,12 +23052,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_apply.w_rule_s_targets_a_missing_choice_inspect_nagi_rules_custom_and_upda.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_apply.w_rule_s_targets_a_missing_choice_inspect_nagi_rules_custom_and_upda.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -23611,11 +23190,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_apply.w_rules_file_unreadable.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_apply.w_rules_file_unreadable.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -23759,12 +23333,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_apply.w_v.proxy.select": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_apply.w_v.proxy.tailscale.add": {
     "arg0": "string",
     "arg1": "string",
     "path": "string",
@@ -23926,12 +23494,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_apply.w_v_166.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_apply.w_v_166.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -24088,12 +23650,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_apply.w_v_167.proxy.tailscale.add": {
-    "arg0": "string",
-    "arg1": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_apply.w_v_167.proxy.test": {
     "arg0": "string",
     "arg1": "string",
@@ -24222,10 +23778,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_input.expected_optional_schedule_seconds_off_and_test_url_url_each_once.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_input.expected_optional_schedule_seconds_off_and_test_url_url_each_once.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -24327,10 +23879,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_input.name_and_url_are_required.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_input.name_and_url_are_required.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -24438,10 +23986,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_input.schedule_interval_must_be_1_31536000_seconds_or_off.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_input.schedule_interval_must_be_1_31536000_seconds_or_off.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -24543,10 +24087,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_input.test_url_must_be_absolute_http_s_without_user_information_or_fragmen.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_input.test_url_must_be_absolute_http_s_without_user_information_or_fragmen.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -24654,10 +24194,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_tailscale.select_exactly_one_subscription_associated_with_the_selected_profile.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_tailscale.select_exactly_one_subscription_associated_with_the_selected_profile.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -24759,10 +24295,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.subscription_tailscale.subscription_is_not_associated_with_the_selected_profile_run_nagi_su.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.subscription_tailscale.subscription_is_not_associated_with_the_selected_profile_run_nagi_su.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -24870,10 +24402,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.subscription_tailscale.subscription_source_profile_changed_run_nagi_subscription_apply_name.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.subscription_tailscale.subscription_source_profile_changed_run_nagi_subscription_apply_name.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -24975,10 +24503,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.add_requires_name_exit_node.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.add_requires_name_exit_node.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -25086,10 +24610,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.auth_key_file_is_only_valid_for_edit.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.auth_key_file_is_only_valid_for_edit.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -25191,10 +24711,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.auth_key_input_cancelled_no_changes_saved.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.auth_key_input_cancelled_no_changes_saved.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -25302,10 +24818,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.auth_key_input_unavailable.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.auth_key_input_unavailable.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -25407,10 +24919,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.auth_key_paste_requires_terminal_input_without_json_use_key_file_aut.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.auth_key_paste_requires_terminal_input_without_json_use_key_file_aut.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -25518,10 +25026,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.choose_one_auth_key_input_method.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.choose_one_auth_key_input_method.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -25623,10 +25127,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.could_not_read_auth_key_from_stdin.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.could_not_read_auth_key_from_stdin.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -25734,10 +25234,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.duplicate_tailscale_option.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.duplicate_tailscale_option.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -25839,10 +25335,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.duplicate_target_list_each_target_once.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.duplicate_target_list_each_target_once.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -25950,10 +25442,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.edit_requires_at_least_one_option.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.edit_requires_at_least_one_option.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -26055,10 +25543,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.exit_node_is_only_valid_for_edit.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.exit_node_is_only_valid_for_edit.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -26166,10 +25650,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.kind_must_be_node_provider_or_subscription.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.kind_must_be_node_provider_or_subscription.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -26271,10 +25751,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.missing_tailscale_action.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.missing_tailscale_action.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -26382,10 +25858,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.name_is_required.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.name_is_required.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -26487,10 +25959,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.option_requires_a_value.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.option_requires_a_value.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -26598,10 +26066,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.subscription_target_must_contain_1_128_ascii_letters_digits_or.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.subscription_target_must_contain_1_128_ascii_letters_digits_or.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -26703,10 +26167,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.tailscale_configuration_validation_failed_inspect_a_local_copy_with_.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.tailscale_configuration_validation_failed_inspect_a_local_copy_with_.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -26814,10 +26274,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.target_is_required.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.target_is_required.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -26919,10 +26375,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tailscale.target_must_contain_1_128_printable_bytes_and_must_not_be_reserved.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tailscale.target_must_contain_1_128_printable_bytes_and_must_not_be_reserved.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -27030,10 +26482,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tailscale.unknown_tailscale_option.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tailscale.unknown_tailscale_option.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -27135,10 +26583,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tun_dns.cannot_identify_running_mihomo_for_dns_exit_recovery_inspect_nagi_st.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tun_dns.cannot_identify_running_mihomo_for_dns_exit_recovery_inspect_nagi_st.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -27260,11 +26704,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_dns.cannot_start_dns_exit_recovery_watcher_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_dns.cannot_start_dns_exit_recovery_watcher_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -27381,10 +26820,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_dns.mihomo_did_not_confirm_the_prior_temporary_tun_settings.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_dns.mihomo_did_not_confirm_the_prior_temporary_tun_settings.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -27486,10 +26921,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tun_dns.mihomo_did_not_report_the_requested_tun_state_inspect_nagi_logs_and_.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tun_dns.mihomo_did_not_report_the_requested_tun_state_inspect_nagi_logs_and_.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -27611,11 +27042,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_dns.system_dns_takeover_failed_use_nagi_privileged_helper_install_and_na.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_dns.system_dns_takeover_failed_use_nagi_privileged_helper_install_and_na.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -27729,10 +27155,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tun_dns.tun_adapter_is_not_up_inspect_nagi_tun_status_and_nagi_logs_and_gran.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tun_dns.tun_adapter_is_not_up_inspect_nagi_tun_status_and_nagi_logs_and_gran.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -27850,11 +27272,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tun_dns.tun_change_failed_prior_tun_and_dns_state_restored_w.proxy.select": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tun_dns.tun_change_failed_prior_tun_and_dns_state_restored_w.proxy.tailscale.add": {
     "arg0": "string",
     "path": "string",
     "syntax": "string"
@@ -27989,11 +27406,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_dns.tun_dns_rollback_failed_inspect_nagi_tun_status_and_retry_nagi_tun_d.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_dns.tun_dns_rollback_failed_inspect_nagi_tun_status_and_retry_nagi_tun_d.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -28124,11 +27536,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_dns.tun_dns_startup_failed_mihomo_shutdown_attempted_w.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_dns.tun_dns_startup_failed_mihomo_shutdown_attempted_w.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -28245,10 +27652,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_dns.tun_dns_takeover_requires_auto_route_run_nagi_dns_tun_on.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_dns.tun_dns_takeover_requires_auto_route_run_nagi_dns_tun_on.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -28350,10 +27753,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tun_dns.tun_dns_takeover_requires_mihomo_dns_enabled_run_nagi_dns_set_direct.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tun_dns.tun_dns_takeover_requires_mihomo_dns_enabled_run_nagi_dns_set_direct.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -28461,10 +27860,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_dns.tun_dns_takeover_requires_port_53_interception_run_nagi_dns_tun_on.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_dns.tun_dns_takeover_requires_port_53_interception_run_nagi_dns_tun_on.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -28566,10 +27961,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tun_intent.invalid_saved_tun_intent.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tun_intent.invalid_saved_tun_intent.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -28691,11 +28082,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_intent.mihomo_did_not_activate_saved_tun_preference_enabled_t_inspect_nagi_.proxy.tailscale.add": {
-    "arg0": "string",
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_intent.mihomo_did_not_activate_saved_tun_preference_enabled_t_inspect_nagi_.proxy.test": {
     "arg0": "string",
     "path": "string",
@@ -28812,10 +28198,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.tun_intent.profile_yaml_cannot_be_merged_with_saved_tun_preference.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.tun_intent.profile_yaml_cannot_be_merged_with_saved_tun_preference.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -28917,10 +28299,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.tun_intent.saved_tun_preference_requires_a_tun_mapping.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.tun_intent.saved_tun_preference_requires_a_tun_mapping.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -29028,10 +28406,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.address_must_be_an_ipv4_or_ipv6_address.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.address_must_be_an_ipv4_or_ipv6_address.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -29133,10 +28507,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.choose_group_or_provider.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.choose_group_or_provider.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -29244,10 +28614,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.connection_id_required.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.connection_id_required.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -29349,10 +28715,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.expected_dns_proxy_group.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.expected_dns_proxy_group.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -29460,10 +28822,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.expected_full_url.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.expected_full_url.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -29568,10 +28926,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.expected_purge_data.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.expected_purge_data.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -29673,10 +29027,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.export_requires_an_absolute_output_path.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.export_requires_an_absolute_output_path.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -29798,11 +29148,6 @@
     "problem": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.external.proxy.tailscale.add": {
-    "path": "string",
-    "problem": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.external.proxy.test": {
     "path": "string",
     "problem": "string",
@@ -29919,10 +29264,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.healthcheck_targets_requires_group_provider_or_subscription.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.healthcheck_targets_requires_group_provider_or_subscription.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -30024,10 +29365,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.invalid_profile.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.invalid_profile.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -30135,10 +29472,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.kind_must_be_group_provider_or_subscription.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.kind_must_be_group_provider_or_subscription.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -30240,10 +29573,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.kind_must_be_node_provider_or_subscription.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.kind_must_be_node_provider_or_subscription.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -30351,10 +29680,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.lines_must_be_an_integer_from_1_to_10000.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.lines_must_be_an_integer_from_1_to_10000.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -30456,10 +29781,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.missing_argument.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.missing_argument.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -30567,10 +29888,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.missing_subcommand.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.missing_subcommand.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -30672,10 +29989,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.mode_must_be_rule_global_or_direct.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.mode_must_be_rule_global_or_direct.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -30783,10 +30096,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.mode_save_requires_rule_global_or_direct.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.mode_save_requires_rule_global_or_direct.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -30888,10 +30197,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.name_is_required.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.name_is_required.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -30999,10 +30304,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.name_type_and_target_are_required.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.name_type_and_target_are_required.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -31104,10 +30405,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.owner_and_node_required.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.owner_and_node_required.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -31215,10 +30512,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.profile_groups_requires_name.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.profile_groups_requires_name.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -31320,10 +30613,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.provider_nodes_requires_provider.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.provider_nodes_requires_provider.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -31431,10 +30720,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.proxy_node_or_group_required.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.proxy_node_or_group_required.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -31536,10 +30821,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.resource_must_be_profile_subscription_rules_rewrite_scripts_rewrite_rules_p.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.resource_must_be_profile_subscription_rules_rewrite_scripts_rewrite_rules_p.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -31647,10 +30928,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.second_argument_is_only_valid_for_rewrite_scripts_rewrite_rules_nodes_provi.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.second_argument_is_only_valid_for_rewrite_scripts_rewrite_rules_nodes_provi.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -31752,10 +31029,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.seconds_must_be_1_31536000_or_off.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.seconds_must_be_1_31536000_or_off.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -31863,10 +31136,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.seconds_must_be_an_integer_from_1_to_31536000.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.seconds_must_be_an_integer_from_1_to_31536000.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -31968,10 +31237,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.tag_must_be_vx_y_z_an_optional_release_suffix_is_allowed.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.tag_must_be_vx_y_z_an_optional_release_suffix_is_allowed.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -32079,10 +31344,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -32184,10 +31445,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.too_many_arguments.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.too_many_arguments.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
@@ -32295,10 +31552,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "help.usage.cli.error.validation.unknown_subcommand.proxy.tailscale.add": {
-    "path": "string",
-    "syntax": "string"
-  },
   "help.usage.cli.error.validation.unknown_subcommand.proxy.test": {
     "path": "string",
     "syntax": "string"
@@ -32400,10 +31653,6 @@
     "syntax": "string"
   },
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.proxy.select": {
-    "path": "string",
-    "syntax": "string"
-  },
-  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.proxy.tailscale.add": {
     "path": "string",
     "syntax": "string"
   },
