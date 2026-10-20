@@ -3,6 +3,9 @@ import Foundation
 /// A current connection from the CLI. All display fields are derived while
 /// decoding on the CLI worker queue; counters are cumulative byte counts.
 struct Connection: Decodable, Equatable, Sendable {
+    var ended = false
+    var observationInterrupted = false
+    var encodedBytes = 0
     let id: String
     let destination: String
     let destinationIP: String
@@ -35,6 +38,7 @@ struct Connection: Decodable, Equatable, Sendable {
         }
     }
     init(from decoder: Decoder) throws {
+        encodedBytes = try connectionEncodedBytes(from: decoder)
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         let metadata = try c.decodeIfPresent(Metadata.self, forKey: .metadata)
@@ -72,7 +76,7 @@ struct Connection: Decodable, Equatable, Sendable {
 struct ConnectionList: Decodable { let connections: [Connection] }
 
 enum ConnectionSortColumn: String, Sendable {
-    case destination, process, network, chains, upload, download
+    case status, destination, process, network, chains, upload, download
 }
 
 /// This function runs in detached tasks, including every search and sort.
@@ -90,6 +94,7 @@ func connectionRows(_ connections: [Connection], query: String, column: Connecti
         default:
             let strings: (String, String)
             switch column {
+            case .status: strings = (lhs.ended ? "ended" : "active", rhs.ended ? "ended" : "active")
             case .destination: strings = (lhs.destination, rhs.destination)
             case .process: strings = (lhs.process, rhs.process)
             case .network: strings = (lhs.network, rhs.network)

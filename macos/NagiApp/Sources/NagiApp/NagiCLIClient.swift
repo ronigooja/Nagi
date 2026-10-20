@@ -133,6 +133,12 @@ struct NagiCLIClient {
         return try TrafficStream(executable: executable, sample: sample)
     }
 
+    func watchConnections(_ sample: @escaping ([Connection]) async -> Void) async throws {
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw CLIError.missingCLI(executable.path) }
+        let stream = try ConnectionsStream(executable: executable, sample: sample)
+        try await stream.wait()
+    }
+
     func subscriptionWatch() throws -> SubscriptionWatch {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw CLIError.missingCLI(executable.path) }
         return try SubscriptionWatch(executable: executable)
@@ -487,6 +493,109 @@ final class TrafficStream: @unchecked Sendable {
                        let error = envelope.error {
                         continuation.resume(throwing: envelope.commandError(fallbackCode: error.code, fallbackMessage: error.message))
                     } else { continuation.resume(throwing: CLIError.invalidJSON(L10n.text("app.ui.traffic_stream_exited_unexpectedly"))) }
+                }
+            }
+        } onCancel: { stop() }
+    }
+}
+
+final class ConnectionsStream: @unchecked Sendable {
+    private let process = Process()
+    private let done = DispatchSemaphore(value: 0)
+    private let stderrDone = DispatchSemaphore(value: 0)
+    private let exited = DispatchGroup()
+    private let output = BoundedOutput()
+    private let lock = NSLock()
+    private var stopped = false
+    private var failure: Error?
+    init(executable: URL, sample: @escaping ([Connection]) async -> Void) throws {
+        process.executableURL = executable
+        process.arguments = ["--json", "connections", "watch"]
+        let stdout = Pipe(), stderr = Pipe()
+        process.standardOutput = stdout; process.standardError = stderr
+        // A group retains a fast exit notification and supports repeated waits.
+        exited.enter()
+        process.terminationHandler = { [exited] _ in exited.leave() }
+        do { try process.run() }
+        catch { exited.leave(); throw CLIError.launch(error.localizedDescription) }
+        stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
+        DispatchQueue.global(qos: .utility).async { [self] in
+            output.setStderr(Self.readStderr(stderr.fileHandleForReading))
+            stderrDone.signal()
+        }
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            var pending = Data()
+            var invalid = false
+            // Long lines can arrive in many pipe chunks. Never rescan their
+            // already checked prefix, which would make framing quadratic.
+            var searched = 0
+            let delimiter = Data([10])
+            while true {
+                let chunk = stdout.fileHandleForReading.availableData
+                if chunk.isEmpty { break }
+                pending.append(chunk)
+                while let newline = pending.range(of: delimiter, in: searched..<pending.endIndex)?.lowerBound {
+                    if newline > 8_388_608 {
+                        setFailure(CLIError.outputTooLarge(8_388_608)); invalid = true; stop(); break
+                    }
+                    let line = Data(pending.prefix(upTo: newline))
+                    pending.removeSubrange(...newline)
+                    searched = 0
+                    guard !line.isEmpty else { continue }
+                    guard let envelope = try? JSONDecoder().decode(CLIEnvelope<ConnectionList>.self, from: line),
+                          envelope.ok, let data = envelope.data else {
+                        setFailure(CLIError.invalidJSON(L10n.text("app.connections.invalid_sample")))
+                        invalid = true; stop(); break
+                    }
+                    let consumed = DispatchSemaphore(value: 0)
+                    Task { await sample(data.connections); consumed.signal() }
+                    consumed.wait()
+                }
+                searched = pending.count
+                if invalid { break }
+                if pending.count > 8_388_608 {
+                    setFailure(CLIError.outputTooLarge(8_388_608))
+                    invalid = true; stop(); break
+                }
+            }
+            if !invalid && !pending.isEmpty { setFailure(CLIError.invalidJSON(L10n.text("app.connections.invalid_sample"))); stop() }
+            exited.wait()
+            stderrDone.wait()
+            done.signal()
+        }
+    }
+    private static func readStderr(_ handle: FileHandle) -> (Data, Bool) {
+        var data = Data(), overflow = false
+        while let chunk = try? handle.read(upToCount: 4096), !chunk.isEmpty {
+            if data.count + chunk.count <= 1_048_576 { data.append(chunk) } else { overflow = true }
+        }
+        return (data, overflow)
+    }
+    private func setFailure(_ error: Error) { lock.lock(); failure = error; lock.unlock() }
+    func stop() {
+        lock.lock(); stopped = true; lock.unlock()
+        if process.isRunning {
+            process.terminate()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 1) { [process] in
+                if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+            }
+        }
+    }
+    func wait() async throws {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                DispatchQueue.global(qos: .utility).async { [self] in
+                    done.wait()
+                    lock.lock(); let localFailure = failure, wasStopped = stopped; lock.unlock()
+                    if let localFailure { continuation.resume(throwing: localFailure); return }
+                    if wasStopped { continuation.resume(throwing: CancellationError()); return }
+
+                    let (_, stderr, overflow) = output.snapshot()
+                    if overflow { continuation.resume(throwing: CLIError.invalidJSON(L10n.text("app.ui.cli_stderr_exceeded_1_mib"))); return }
+                    if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: stderr),
+                       let error = envelope.error {
+                        continuation.resume(throwing: envelope.commandError(fallbackCode: error.code, fallbackMessage: error.message))
+                    } else { continuation.resume(throwing: CLIError.invalidJSON(L10n.text("app.connections.stream_ended"))) }
                 }
             }
         } onCancel: { stop() }

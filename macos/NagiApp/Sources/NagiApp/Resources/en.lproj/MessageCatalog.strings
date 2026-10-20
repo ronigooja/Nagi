@@ -715,6 +715,7 @@
 "cli.error.config_transaction.runtime_restored_but_system_dns_restoration_failed_w.usage" = "runtime restored but system DNS restoration failed: %1$@\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
 "cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w" = "runtime restored but system proxy restoration failed: %1$@";
 "cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w.usage" = "runtime restored but system proxy restoration failed: %1$@\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
+"cli.error.connections.interval" = "expected --interval MILLISECONDS (250–60000; default 250)";
 "cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c" = "bootstrap DoH URL must use an IP address to avoid a DNS resolution cycle";
 "cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c.usage" = "bootstrap DoH URL must use an IP address to avoid a DNS resolution cycle\nUsage: nagi %3$@%1$@\nRun `nagi help %2$@` for details";
 "cli.error.dns.configure_encrypted_dns_with_nagi_dns_set_before_enabling_tun_interc" = "configure encrypted DNS with `nagi dns set` before enabling TUN interception";
@@ -1403,6 +1404,7 @@
 "cli.state.user" = "user";
 "cli.state.warning" = "warning";
 "cli.state.yes" = "yes";
+"cli.stream.connections.sample" = "Sampled: %1$@";
 "cli.stream.subscription.started" = "Subscription scheduler running; interrupt to stop.";
 "cli.stream.traffic.sample" = "Upload: %1$@ B/s (total %2$@ B)  Download: %3$@ B/s (total %4$@ B)  Sampled: %5$@";
 "cli.subscription.healthcheck.inherited" = "Follows the subscription configuration and mihomo defaults. Provider and group local intervals take precedence in their native schedulers; provider enablement and separate local settings are retained.";
@@ -1449,6 +1451,8 @@
 "help.command.connections.show.hint" = "Run `nagi connections list` to find IDs.";
 "help.command.connections.show.summary" = "Inspect one connection";
 "help.command.connections.summary" = "Inspect connections";
+"help.command.connections.watch.detail" = "Streams complete snapshots immediately and every 250 ms by default; --interval accepts 250–60000 ms. Shorter connections may be missed. Ctrl-C stops watching.";
+"help.command.connections.watch.summary" = "Watch connection snapshots";
 "help.command.diagnostics.detail" = "Checks executable, profile, listeners, DNS, proxy control API, permissions, and controller exposure. Output is redacted.";
 "help.command.diagnostics.summary" = "Run security diagnostics";
 "help.command.dns.check.detail" = "Inspects the selected effective DNS configuration and queries the running mihomo resolver.";

@@ -1037,15 +1037,15 @@
     "cli.display.websocket_server": {},
     "cli.error.activation.mihomo_configuration_activation_is_unconfirmed": {},
     "cli.error.activation.mihomo_configuration_activation_is_unconfirmed.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.activation.mihomo_configuration_put_may_still_apply": {},
     "cli.error.activation.mihomo_configuration_put_may_still_apply.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.activation.w_current_marker_s": {
       "arg0": "string",
@@ -1054,9 +1054,9 @@
     "cli.error.activation.w_current_marker_s.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.activation.w_w_after_put_error_v": {
       "arg0": "string",
@@ -1067,99 +1067,99 @@
       "arg0": "string",
       "arg1": "string",
       "arg2": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.automatic_selection_resumed_in_running_engine_but_saved_choice_could": {
       "arg0": "string"
     },
     "cli.error.command.automatic_selection_resumed_in_running_engine_but_saved_choice_could.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.cannot_read_selected_profile_run_nagi_profile_list_then_nagi_profile": {
       "arg0": "string"
     },
     "cli.error.command.cannot_read_selected_profile_run_nagi_profile_list_then_nagi_profile.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.cannot_read_selected_profile_to_save_choice_w": {
       "arg0": "string"
     },
     "cli.error.command.cannot_read_selected_profile_to_save_choice_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.cannot_start_exit_recovery_watcher_w": {
       "arg0": "string"
     },
     "cli.error.command.cannot_start_exit_recovery_watcher_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.command_required_start_stop_quit_restart_status_doctor_logs_config_p": {},
     "cli.error.command.command_required_start_stop_quit_restart_status_doctor_logs_config_p.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.configuration_validated_but_reload_failed_runtime_state_may_still_us": {
       "arg0": "string"
     },
     "cli.error.command.configuration_validated_but_reload_failed_runtime_state_may_still_us.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.configuration_validation_failed_run_nagi_config_show_to_inspect_the_": {
       "arg0": "string"
     },
     "cli.error.command.configuration_validation_failed_run_nagi_config_show_to_inspect_the_.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.disable_lan_access_before_enabling_the_system_proxy_or_configure_a_l": {},
     "cli.error.command.disable_lan_access_before_enabling_the_system_proxy_or_configure_a_l.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.dns_tun_setting_conflicts_with_saved_tun_preference_with_mihomo_runn": {
       "arg0": "string"
     },
     "cli.error.command.dns_tun_setting_conflicts_with_saved_tun_preference_with_mihomo_runn.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.existing_profile_cannot_be_parsed_for_preview_inspect_or_remove_it": {},
     "cli.error.command.existing_profile_cannot_be_parsed_for_preview_inspect_or_remove_it.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.group_latency_test_failed_after_mihomo_resumed_automatic_selection_s": {
       "arg0": "string"
     },
     "cli.error.command.group_latency_test_failed_after_mihomo_resumed_automatic_selection_s.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.group_latency_test_failed_and_automatic_reset_is_unknown_saved_choic": {
       "arg0": "string",
@@ -1168,321 +1168,321 @@
     "cli.error.command.group_latency_test_failed_and_automatic_reset_is_unknown_saved_choic.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.group_latency_test_resumed_automatic_selection_in_running_engine_but": {
       "arg0": "string"
     },
     "cli.error.command.group_latency_test_resumed_automatic_selection_in_running_engine_but.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.group_latency_test_was_not_started_because_selected_profile_could_no": {
       "arg0": "string"
     },
     "cli.error.command.group_latency_test_was_not_started_because_selected_profile_could_no.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.helper_service_is_active_but_its_authenticated_socket_is_unavailable": {
       "arg0": "string"
     },
     "cli.error.command.helper_service_is_active_but_its_authenticated_socket_is_unavailable.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.install_and_start_the_privileged_helper_before_enabling_it": {},
     "cli.error.command.install_and_start_the_privileged_helper_before_enabling_it.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.mihomo_is_not_running_start_it_before_following_logs": {},
     "cli.error.command.mihomo_is_not_running_start_it_before_following_logs.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.mihomo_is_not_running_start_it_before_reloading_configuration": {},
     "cli.error.command.mihomo_is_not_running_start_it_before_reloading_configuration.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.mihomo_must_be_running_run_nagi_start_or_inspect_nagi_status_w": {
       "arg0": "string"
     },
     "cli.error.command.mihomo_must_be_running_run_nagi_start_or_inspect_nagi_status_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.mihomo_restarted_but_saved_proxy_selections_were_not_fully_restored_": {
       "arg0": "string"
     },
     "cli.error.command.mihomo_restarted_but_saved_proxy_selections_were_not_fully_restored_.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.mihomo_started_but_saved_proxy_selections_were_not_fully_restored_w": {
       "arg0": "string"
     },
     "cli.error.command.mihomo_started_but_saved_proxy_selections_were_not_fully_restored_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.no_http_or_mixed_listener_is_configured_inspect_nagi_ports_status": {},
     "cli.error.command.no_http_or_mixed_listener_is_configured_inspect_nagi_ports_status.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.persistent_mode_was_not_saved_w": {
       "arg0": "string"
     },
     "cli.error.command.persistent_mode_was_not_saved_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.profile_exceeds_8_mib": {},
     "cli.error.command.profile_exceeds_8_mib.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.provider_addition_failed_inspect_nagi_profile_list_and_the_selected_": {
       "arg0": "string"
     },
     "cli.error.command.provider_addition_failed_inspect_nagi_profile_list_and_the_selected_.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.provider_removal_failed_inspect_the_selected_profile_and_override_w": {
       "arg0": "string"
     },
     "cli.error.command.provider_removal_failed_inspect_the_selected_profile_and_override_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.selected_node_in_running_engine_but_could_not_save_choice_w": {
       "arg0": "string"
     },
     "cli.error.command.selected_node_in_running_engine_but_could_not_save_choice_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.start_mihomo_before_enabling_the_system_proxy": {},
     "cli.error.command.start_mihomo_before_enabling_the_system_proxy.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.start_mihomo_first_w": {
       "arg0": "string"
     },
     "cli.error.command.start_mihomo_first_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.stop_the_privileged_mihomo_process_before_disabling_the_backend": {},
     "cli.error.command.stop_the_privileged_mihomo_process_before_disabling_the_backend.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.stop_the_user_mihomo_process_before_enabling_the_privileged_backend": {},
     "cli.error.command.stop_the_user_mihomo_process_before_enabling_the_privileged_backend.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.subscription_applied_but_saved_proxy_choices_could_not_be_cleared_w": {
       "arg0": "string"
     },
     "cli.error.command.subscription_applied_but_saved_proxy_choices_could_not_be_cleared_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.subscription_has_a_persistent_tailscale_binding_unbind_the_subscript": {},
     "cli.error.command.subscription_has_a_persistent_tailscale_binding_unbind_the_subscript.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop": {
       "arg0": "string"
     },
     "cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop_12": {
       "arg0": "string"
     },
     "cli.error.command.system_dns_restoration_failed_engine_remains_running_retry_nagi_stop_12.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.system_proxy_is_unsupported_on_linux_configure_applications_to_use_t": {},
     "cli.error.command.system_proxy_is_unsupported_on_linux_configure_applications_to_use_t.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.command.tun_state_changed_but_could_not_save_startup_preference_w": {
       "arg0": "string"
     },
     "cli.error.command.tun_state_changed_but_could_not_save_startup_preference_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.configuration_changed_but_current_listener_could_not_be_read_w": {
       "arg0": "string"
     },
     "cli.error.config_transaction.configuration_changed_but_current_listener_could_not_be_read_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.configuration_changed_but_managed_system_proxy_could_not_be_synchron": {
       "arg0": "string"
     },
     "cli.error.config_transaction.configuration_changed_but_managed_system_proxy_could_not_be_synchron.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.configuration_path_is_not_a_regular_file_s": {
       "arg0": "string"
     },
     "cli.error.config_transaction.configuration_path_is_not_a_regular_file_s.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.configuration_restored_but_prior_temporary_tun_settings_could_not_be": {
       "arg0": "string"
     },
     "cli.error.config_transaction.configuration_restored_but_prior_temporary_tun_settings_could_not_be.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.prior_effective_configuration_is_invalid_yaml": {},
     "cli.error.config_transaction.prior_effective_configuration_is_invalid_yaml.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.prior_running_configuration_restored_with_a_confirmed_activation_id": {},
     "cli.error.config_transaction.prior_running_configuration_restored_with_a_confirmed_activation_id.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.prior_runtime_unchanged_but_dns_restoration_failed_w": {
       "arg0": "string"
     },
     "cli.error.config_transaction.prior_runtime_unchanged_but_dns_restoration_failed_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.request_rewrite_ca_path_is_not_a_directory": {},
     "cli.error.config_transaction.request_rewrite_ca_path_is_not_a_directory.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_recovery_incomplete_observed_activation_id_q_matches_the_pri": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_recovery_incomplete_observed_activation_id_q_matches_the_pri.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_managed_s": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_managed_s.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_the_origi": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_but_the_origi.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_latest_observ": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_recovery_incomplete_rollback_put_was_confirmed_latest_observ.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_restoration_failed_current_state_is_uncertain_w": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_restoration_failed_current_state_is_uncertain_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_restoration_failed_w": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_restoration_failed_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_did_no": {
       "arg0": "string",
@@ -1491,162 +1491,163 @@
     "cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_did_no.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_is_emp": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_restoration_unavailable_prior_effective_configuration_is_emp.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_restoration_unconfirmed_w": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_restoration_unconfirmed_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_restored_but_system_dns_restoration_failed_w": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_restored_but_system_dns_restoration_failed_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w": {
       "arg0": "string"
     },
     "cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
+    "cli.error.connections.interval": {},
     "cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c": {},
     "cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.configure_encrypted_dns_with_nagi_dns_set_before_enabling_tun_interc": {},
     "cli.error.dns.configure_encrypted_dns_with_nagi_dns_set_before_enabling_tun_interc.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.dns_proxy_group_currently_selects_a_direct_or_rejecting_adapter_sele": {},
     "cli.error.dns.dns_proxy_group_currently_selects_a_direct_or_rejecting_adapter_sele.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.dns_proxy_group_has_no_current_proxy_selection_run_nagi_proxy_groups": {},
     "cli.error.dns.dns_proxy_group_has_no_current_proxy_selection_run_nagi_proxy_groups.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.dns_proxy_group_has_no_usable_live_selection_run_nagi_proxy_groups_a": {},
     "cli.error.dns.dns_proxy_group_has_no_usable_live_selection_run_nagi_proxy_groups_a.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.dns_proxy_target_is_missing_or_no_longer_usable_update_nagi_dns_set_": {},
     "cli.error.dns.dns_proxy_target_is_missing_or_no_longer_usable_update_nagi_dns_set_.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.dns_server_must_be_a_url_without_credentials_query_or_fragment": {},
     "cli.error.dns.dns_server_must_be_a_url_without_credentials_query_or_fragment.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.dns_server_must_be_an_https_doh_url_explicit_exceptions_may_use_udp_": {},
     "cli.error.dns.dns_server_must_be_an_https_doh_url_explicit_exceptions_may_use_udp_.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.effective_profile_is_not_valid_yaml": {},
     "cli.error.dns.effective_profile_is_not_valid_yaml.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.exception_domain_must_be_a_dns_suffix_such_as_lan_or_corp_example": {},
     "cli.error.dns.exception_domain_must_be_a_dns_suffix_such_as_lan_or_corp_example.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.invalid_dns_upstream_url": {},
     "cli.error.dns.invalid_dns_upstream_url.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.local_override_is_not_valid_yaml": {},
     "cli.error.dns.local_override_is_not_valid_yaml.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.proxy_node_name_is_required": {},
     "cli.error.dns.proxy_node_name_is_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.proxy_target_not_found_in_selected_profile_choose_a_non_direct_node_": {},
     "cli.error.dns.proxy_target_not_found_in_selected_profile_choose_a_non_direct_node_.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.reserved_mihomo_proxy_name_cannot_be_used_for_pinned_dns": {},
     "cli.error.dns.reserved_mihomo_proxy_name_cannot_be_used_for_pinned_dns.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.run_nagi_dns_set_direct_url_or_nagi_dns_set_proxy_node_url_first": {},
     "cli.error.dns.run_nagi_dns_set_direct_url_or_nagi_dns_set_proxy_node_url_first.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.dns.selected_profile_is_not_valid_yaml": {},
     "cli.error.dns.selected_profile_is_not_valid_yaml.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.engine_backend.invalid_engine_backend_in_s": {
       "arg0": "string"
     },
     "cli.error.engine_backend.invalid_engine_backend_in_s.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.engine_backend.unknown_engine_backend": {},
     "cli.error.engine_backend.unknown_engine_backend.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.export.json_unsupported": {},
     "cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel": {
@@ -1654,57 +1655,57 @@
     },
     "cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w": {
       "arg0": "string"
     },
     "cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.lifecycle.invalid_engine_intent_at_s": {
       "arg0": "string"
     },
     "cli.error.lifecycle.invalid_engine_intent_at_s.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.lifecycle.mihomo_is_running_but_login_monitor_could_not_resume_w": {
       "arg0": "string"
     },
     "cli.error.lifecycle.mihomo_is_running_but_login_monitor_could_not_resume_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes": {},
     "cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes_or_run_nagi_quit_a": {},
     "cli.error.lifecycle.nagi_quit_is_in_progress_retry_after_it_completes_or_run_nagi_quit_a.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.lifecycle.quit_could_not_pause_the_login_monitor_run_nagi_startup_status_and_r": {
       "arg0": "string"
     },
     "cli.error.lifecycle.quit_could_not_pause_the_login_monitor_run_nagi_startup_status_and_r.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.lifecycle.w_could_not_clear_pending_quit_state_v_repair_nagi_s_state_directory": {
       "arg0": "string",
@@ -1713,9 +1714,9 @@
     "cli.error.lifecycle.w_could_not_clear_pending_quit_state_v_repair_nagi_s_state_directory.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.menu.terminal_required": {},
     "cli.error.privileged_backend.decode_helper_logs_w": {
@@ -1723,39 +1724,39 @@
     },
     "cli.error.privileged_backend.decode_helper_logs_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.privileged_backend.decode_helper_logs_w_95": {
       "arg0": "string"
     },
     "cli.error.privileged_backend.decode_helper_logs_w_95.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.privileged_backend.decode_mihomo_response_w": {
       "arg0": "string"
     },
     "cli.error.privileged_backend.decode_mihomo_response_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.privileged_backend.mihomo_traffic_sample_contains_missing_or_negative_counters": {},
     "cli.error.privileged_backend.mihomo_traffic_sample_contains_missing_or_negative_counters.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.privileged_backend.privileged_helper_did_not_report_a_running_mihomo_process": {},
     "cli.error.privileged_backend.privileged_helper_did_not_report_a_running_mihomo_process.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.privileged_backend.privileged_helper_rejected_s_s": {
       "arg0": "string",
@@ -1764,57 +1765,57 @@
     "cli.error.privileged_backend.privileged_helper_rejected_s_s.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.privileged_backend.privileged_helper_unavailable_run_nagi_privileged_helper_status_w": {
       "arg0": "string"
     },
     "cli.error.privileged_backend.privileged_helper_unavailable_run_nagi_privileged_helper_status_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.privileged_backend.read_privileged_helper_response_w": {
       "arg0": "string"
     },
     "cli.error.privileged_backend.read_privileged_helper_response_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile.could_not_run_mihomo_validation_check_nagi_mihomo_bin_and_executable": {},
     "cli.error.profile.could_not_run_mihomo_validation_check_nagi_mihomo_bin_and_executable.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile.empty_profile": {},
     "cli.error.profile.empty_profile.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile.mihomo_executable_unavailable_set_nagi_mihomo_bin_to_a_mihomo_execut": {
       "arg0": "string"
     },
     "cli.error.profile.mihomo_executable_unavailable_set_nagi_mihomo_bin_to_a_mihomo_execut.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile.mihomo_reloaded_but_saved_proxy_selections_were_not_fully_restored_w": {
       "arg0": "string"
     },
     "cli.error.profile.mihomo_reloaded_but_saved_proxy_selections_were_not_fully_restored_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l": {
       "arg0": "string",
@@ -1825,357 +1826,357 @@
       "arg0": "string",
       "arg1": "string",
       "arg2": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile.profile_validation_failed_tailscale_diagnostics_are_private_validate": {},
     "cli.error.profile.profile_validation_failed_tailscale_diagnostics_are_private_validate.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_": {},
     "cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w": {
       "arg0": "string"
     },
     "cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile_diff.current_profile_is_not_valid_yaml_w": {
       "arg0": "string"
     },
     "cli.error.profile_diff.current_profile_is_not_valid_yaml_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.profile_diff.structural_yaml_values_cannot_be_represented_in_json_w": {
       "arg0": "string"
     },
     "cli.error.profile_diff.structural_yaml_values_cannot_be_represented_in_json_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.provider_settings.expected_seconds_off_test_url_url": {},
     "cli.error.provider_settings.expected_seconds_off_test_url_url.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.provider_settings.seconds_must_be_off_or_an_integer_from_1_to_31536000": {},
     "cli.error.provider_settings.seconds_must_be_off_or_an_integer_from_1_to_31536000.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.proxy_chain.dry_run_is_only_valid_for_set_or_clear": {},
     "cli.error.proxy_chain.dry_run_is_only_valid_for_set_or_clear.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.duplicate_dry_run": {},
     "cli.error.proxy_chain.duplicate_dry_run.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.duplicate_target": {},
     "cli.error.proxy_chain.duplicate_target.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.kind_and_target_are_required": {},
     "cli.error.proxy_chain.kind_and_target_are_required.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription": {},
     "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.missing_chain_action": {},
     "cli.error.proxy_chain.missing_chain_action.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.select_exactly_one_subscription_associated_with_the_selected_profile": {},
     "cli.error.proxy_chain.select_exactly_one_subscription_associated_with_the_selected_profile.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.set_requires_at_least_one_via_node_in_traffic_order": {},
     "cli.error.proxy_chain.set_requires_at_least_one_via_node_in_traffic_order.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.show_requires_exactly_one_target": {},
     "cli.error.proxy_chain.show_requires_exactly_one_target.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.subscription_not_associated": {},
     "cli.error.proxy_chain.subscription_not_associated.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.subscription_remove_blocked": {},
     "cli.error.proxy_chain.subscription_remove_blocked.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.subscription_source_changed": {},
     "cli.error.proxy_chain.subscription_source_changed.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.target_is_required": {},
     "cli.error.proxy_chain.target_is_required.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.target_must_precede_options_unknown_chain_option": {},
     "cli.error.proxy_chain.target_must_precede_options_unknown_chain_option.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.via_is_only_valid_for_set": {},
     "cli.error.proxy_chain.via_is_only_valid_for_set.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_chain.via_requires_a_node_name": {},
     "cli.error.proxy_chain.via_requires_a_node_name.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.add_requires_tailscale_name_exit_node": {},
     "cli.error.proxy_node.add_requires_tailscale_name_exit_node.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.auth_key_input_unavailable": {},
     "cli.error.proxy_node.auth_key_input_unavailable.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.choose_one_auth_key_input_method": {},
     "cli.error.proxy_node.choose_one_auth_key_input_method.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.duplicate_group": {},
     "cli.error.proxy_node.duplicate_group.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.duplicate_node_option": {},
     "cli.error.proxy_node.duplicate_node_option.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.edit_requires_at_least_one_option": {},
     "cli.error.proxy_node.edit_requires_at_least_one_option.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.exit_node_is_only_valid_for_edit": {},
     "cli.error.proxy_node.exit_node_is_only_valid_for_edit.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.groups_requires_show_set_or_clear_and_name": {},
     "cli.error.proxy_node.groups_requires_show_set_or_clear_and_name.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.missing_node_action": {},
     "cli.error.proxy_node.missing_node_action.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.name_is_required": {},
     "cli.error.proxy_node.name_is_required.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.option_requires_a_value": {},
     "cli.error.proxy_node.option_requires_a_value.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.unknown_groups_action": {},
     "cli.error.proxy_node.unknown_groups_action.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.unknown_node_option": {},
     "cli.error.proxy_node.unknown_node_option.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.proxy_node.use_node_groups_set_to_change_groups": {},
     "cli.error.proxy_node.use_node_groups_set_to_change_groups.usage": {
-      "syntax": "string",
+      "hint": "string",
       "path": "string",
-      "hint": "string"
+      "syntax": "string"
     },
     "cli.error.request_capture.capture_input_unavailable": {},
     "cli.error.request_capture.capture_input_unavailable.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.capture_private_file_required": {},
     "cli.error.request_capture.capture_private_file_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.capture_uses_the_selected_profile_profile_is_not_accepted": {},
     "cli.error.request_capture.capture_uses_the_selected_profile_profile_is_not_accepted.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.format_must_be_native_or_har": {},
     "cli.error.request_capture.format_must_be_native_or_har.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.invalid_argument": {},
     "cli.error.request_capture.invalid_argument.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.limit_must_be_1_262144": {},
     "cli.error.request_capture.limit_must_be_1_262144.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.offset_must_be_a_nonnegative_byte_offset": {},
     "cli.error.request_capture.offset_must_be_a_nonnegative_byte_offset.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.s_run_nagi_rewrite_capture_status": {
       "arg0": "string"
     },
     "cli.error.request_capture.s_run_nagi_rewrite_capture_status.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.unknown_fixture_stage": {},
     "cli.error.request_capture.unknown_fixture_stage.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_capture.unknown_snapshot": {},
     "cli.error.request_capture.unknown_snapshot.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.file_must_be_a_local_private_file_or_for_stdin": {},
     "cli.error.request_rewrite.file_must_be_a_local_private_file_or_for_stdin.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.id_must_contain_1_128_ascii_letters_digits_or": {},
     "cli.error.request_rewrite.id_must_contain_1_128_ascii_letters_digits_or.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.missing_argument": {},
     "cli.error.request_rewrite.missing_argument.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.missing_subcommand": {},
     "cli.error.request_rewrite.missing_subcommand.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.profile_is_only_valid_for_scripts_rules_import_export_validate_and_p": {},
     "cli.error.request_rewrite.profile_is_only_valid_for_scripts_rules_import_export_validate_and_p.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.profile_requires_one_valid_profile_name": {},
     "cli.error.request_rewrite.profile_requires_one_valid_profile_name.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.too_many_arguments": {},
     "cli.error.request_rewrite.too_many_arguments.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.unknown_option": {},
     "cli.error.request_rewrite.unknown_option.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite.unknown_subcommand": {},
     "cli.error.request_rewrite.unknown_subcommand.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite_runtime.s_s": {
       "arg0": "string",
@@ -2184,234 +2185,234 @@
     "cli.error.request_rewrite_runtime.s_s.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite_trust.certificate_store_limit": {},
     "cli.error.request_rewrite_trust.certificate_store_limit.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite_trust.certificate_store_unavailable": {},
     "cli.error.request_rewrite_trust.certificate_store_unavailable.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request": {},
     "cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list": {
       "arg0": "string"
     },
     "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or": {},
     "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back": {
       "arg0": "string"
     },
     "cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.rule_test_failed_ensure_mihomo_is_running_with_the_matching_engine_w": {
       "arg0": "string"
     },
     "cli.error.rules.rule_test_failed_ensure_mihomo_is_running_with_the_matching_engine_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.running_mihomo_does_not_support_rule_testing_install_the_matching_en": {},
     "cli.error.rules.running_mihomo_does_not_support_rule_testing_install_the_matching_en.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.select_a_valid_profile_first_w": {
       "arg0": "string"
     },
     "cli.error.rules.select_a_valid_profile_first_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.select_a_valid_profile_first_w_142": {
       "arg0": "string"
     },
     "cli.error.rules.select_a_valid_profile_first_w_142.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.source_is_required": {},
     "cli.error.rules.source_is_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.source_url_must_be_absolute_http_s_without_userinfo": {},
     "cli.error.rules.source_url_must_be_absolute_http_s_without_userinfo.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules.unsupported_rules_command": {},
     "cli.error.rules.unsupported_rules_command.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules_test_input.port_must_be_an_integer_from_1_to_65535": {},
     "cli.error.rules_test_input.port_must_be_an_integer_from_1_to_65535.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules_test_input.s_requires_one_value_and_cannot_be_repeated": {
       "arg0": "string"
     },
     "cli.error.rules_test_input.s_requires_one_value_and_cannot_be_repeated.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules_test_input.target_is_required": {},
     "cli.error.rules_test_input.target_is_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.rules_test_input.unknown_option_s": {
       "arg0": "string"
     },
     "cli.error.rules_test_input.unknown_option_s.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.scheduler.subscription_scheduler_is_already_running": {},
     "cli.error.scheduler.subscription_scheduler_is_already_running.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.startup_watch.mihomo_is_running_but_its_control_api_is_unavailable_inspect_nagi_lo": {},
     "cli.error.startup_watch.mihomo_is_running_but_its_control_api_is_unavailable_inspect_nagi_lo.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.startup_watch.startup_check_returned_an_unexpected_result": {},
     "cli.error.startup_watch.startup_check_returned_an_unexpected_result.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.startup_watch.system_dns_recheck_failed_s_inspect_nagi_startup_check": {
       "arg0": "string"
     },
     "cli.error.startup_watch.system_dns_recheck_failed_s_inspect_nagi_startup_check.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.startup_watch.system_proxy_needs_attention_s_inspect_nagi_startup_check": {
       "arg0": "string"
     },
     "cli.error.startup_watch.system_proxy_needs_attention_s_inspect_nagi_startup_check.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.startup_watch.system_proxy_recheck_failed_s_inspect_nagi_startup_check": {
       "arg0": "string"
     },
     "cli.error.startup_watch.system_proxy_recheck_failed_s_inspect_nagi_startup_check.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.cache_version_changed_during_automatic_apply": {},
     "cli.error.subscription_apply.cache_version_changed_during_automatic_apply.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.effective_profile_is_invalid": {},
     "cli.error.subscription_apply.effective_profile_is_invalid.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.enabled_custom_rule_target_is_unavailable_in_the_updated_subscriptio": {},
     "cli.error.subscription_apply.enabled_custom_rule_target_is_unavailable_in_the_updated_subscriptio.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.local_dns_proxy_target_is_unavailable_in_the_updated_subscription_up": {},
     "cli.error.subscription_apply.local_dns_proxy_target_is_unavailable_in_the_updated_subscription_up.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.profile_store_is_required": {},
     "cli.error.subscription_apply.profile_store_is_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.saved_proxy_selections_could_not_be_reconciled_with_the_updated_subs": {},
     "cli.error.subscription_apply.saved_proxy_selections_could_not_be_reconciled_with_the_updated_subs.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.source_profile_cannot_be_read_inspect_the_profile_and_reapply_the_su": {},
     "cli.error.subscription_apply.source_profile_cannot_be_read_inspect_the_profile_and_reapply_the_su.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.source_profile_changed_run_nagi_subscription_apply_name_to_resume_au": {},
     "cli.error.subscription_apply.source_profile_changed_run_nagi_subscription_apply_name_to_resume_au.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.w_effective_profile_is_invalid": {
       "arg0": "string"
     },
     "cli.error.subscription_apply.w_effective_profile_is_invalid.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.w_effective_profile_unavailable_v": {
       "arg0": "string",
@@ -2420,9 +2421,9 @@
     "cli.error.subscription_apply.w_effective_profile_unavailable_v.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.w_rule_s_targets_a_missing_choice_inspect_nagi_rules_custom_and_upda": {
       "arg0": "string",
@@ -2431,18 +2432,18 @@
     "cli.error.subscription_apply.w_rule_s_targets_a_missing_choice_inspect_nagi_rules_custom_and_upda.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.w_rules_file_unreadable": {
       "arg0": "string"
     },
     "cli.error.subscription_apply.w_rules_file_unreadable.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.w_v": {
       "arg0": "string",
@@ -2451,9 +2452,9 @@
     "cli.error.subscription_apply.w_v.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.w_v_166": {
       "arg0": "string",
@@ -2462,9 +2463,9 @@
     "cli.error.subscription_apply.w_v_166.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_apply.w_v_167": {
       "arg0": "string",
@@ -2473,480 +2474,480 @@
     "cli.error.subscription_apply.w_v_167.usage": {
       "arg0": "string",
       "arg1": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_input.expected_optional_schedule_seconds_off_and_test_url_url_each_once": {},
     "cli.error.subscription_input.expected_optional_schedule_seconds_off_and_test_url_url_each_once.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_input.name_and_url_are_required": {},
     "cli.error.subscription_input.name_and_url_are_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_input.schedule_interval_must_be_1_31536000_seconds_or_off": {},
     "cli.error.subscription_input.schedule_interval_must_be_1_31536000_seconds_or_off.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_input.test_url_must_be_absolute_http_s_without_user_information_or_fragmen": {},
     "cli.error.subscription_input.test_url_must_be_absolute_http_s_without_user_information_or_fragmen.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_tailscale.select_exactly_one_subscription_associated_with_the_selected_profile": {},
     "cli.error.subscription_tailscale.select_exactly_one_subscription_associated_with_the_selected_profile.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_tailscale.subscription_is_not_associated_with_the_selected_profile_run_nagi_su": {},
     "cli.error.subscription_tailscale.subscription_is_not_associated_with_the_selected_profile_run_nagi_su.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.subscription_tailscale.subscription_source_profile_changed_run_nagi_subscription_apply_name": {},
     "cli.error.subscription_tailscale.subscription_source_profile_changed_run_nagi_subscription_apply_name.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.add_requires_name_exit_node": {},
     "cli.error.tailscale.add_requires_name_exit_node.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.auth_key_file_is_only_valid_for_edit": {},
     "cli.error.tailscale.auth_key_file_is_only_valid_for_edit.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.auth_key_input_cancelled_no_changes_saved": {},
     "cli.error.tailscale.auth_key_input_cancelled_no_changes_saved.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.auth_key_input_unavailable": {},
     "cli.error.tailscale.auth_key_input_unavailable.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.auth_key_paste_requires_terminal_input_without_json_use_key_file_aut": {},
     "cli.error.tailscale.auth_key_paste_requires_terminal_input_without_json_use_key_file_aut.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.choose_one_auth_key_input_method": {},
     "cli.error.tailscale.choose_one_auth_key_input_method.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.could_not_read_auth_key_from_stdin": {},
     "cli.error.tailscale.could_not_read_auth_key_from_stdin.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.duplicate_tailscale_option": {},
     "cli.error.tailscale.duplicate_tailscale_option.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.duplicate_target_list_each_target_once": {},
     "cli.error.tailscale.duplicate_target_list_each_target_once.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.edit_requires_at_least_one_option": {},
     "cli.error.tailscale.edit_requires_at_least_one_option.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.exit_node_is_only_valid_for_edit": {},
     "cli.error.tailscale.exit_node_is_only_valid_for_edit.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.kind_must_be_node_provider_or_subscription": {},
     "cli.error.tailscale.kind_must_be_node_provider_or_subscription.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.missing_tailscale_action": {},
     "cli.error.tailscale.missing_tailscale_action.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.name_is_required": {},
     "cli.error.tailscale.name_is_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.option_requires_a_value": {},
     "cli.error.tailscale.option_requires_a_value.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.subscription_target_must_contain_1_128_ascii_letters_digits_or": {},
     "cli.error.tailscale.subscription_target_must_contain_1_128_ascii_letters_digits_or.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.tailscale_configuration_validation_failed_inspect_a_local_copy_with_": {},
     "cli.error.tailscale.tailscale_configuration_validation_failed_inspect_a_local_copy_with_.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.target_is_required": {},
     "cli.error.tailscale.target_is_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.target_must_contain_1_128_printable_bytes_and_must_not_be_reserved": {},
     "cli.error.tailscale.target_must_contain_1_128_printable_bytes_and_must_not_be_reserved.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tailscale.unknown_tailscale_option": {},
     "cli.error.tailscale.unknown_tailscale_option.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.cannot_identify_running_mihomo_for_dns_exit_recovery_inspect_nagi_st": {},
     "cli.error.tun_dns.cannot_identify_running_mihomo_for_dns_exit_recovery_inspect_nagi_st.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.cannot_start_dns_exit_recovery_watcher_w": {
       "arg0": "string"
     },
     "cli.error.tun_dns.cannot_start_dns_exit_recovery_watcher_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.mihomo_did_not_confirm_the_prior_temporary_tun_settings": {},
     "cli.error.tun_dns.mihomo_did_not_confirm_the_prior_temporary_tun_settings.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.mihomo_did_not_report_the_requested_tun_state_inspect_nagi_logs_and_": {},
     "cli.error.tun_dns.mihomo_did_not_report_the_requested_tun_state_inspect_nagi_logs_and_.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.system_dns_takeover_failed_use_nagi_privileged_helper_install_and_na": {
       "arg0": "string"
     },
     "cli.error.tun_dns.system_dns_takeover_failed_use_nagi_privileged_helper_install_and_na.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.tun_adapter_is_not_up_inspect_nagi_tun_status_and_nagi_logs_and_gran": {},
     "cli.error.tun_dns.tun_adapter_is_not_up_inspect_nagi_tun_status_and_nagi_logs_and_gran.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.tun_change_failed_prior_tun_and_dns_state_restored_w": {
       "arg0": "string"
     },
     "cli.error.tun_dns.tun_change_failed_prior_tun_and_dns_state_restored_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.tun_dns_rollback_failed_inspect_nagi_tun_status_and_retry_nagi_tun_d": {
       "arg0": "string"
     },
     "cli.error.tun_dns.tun_dns_rollback_failed_inspect_nagi_tun_status_and_retry_nagi_tun_d.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.tun_dns_startup_failed_mihomo_shutdown_attempted_w": {
       "arg0": "string"
     },
     "cli.error.tun_dns.tun_dns_startup_failed_mihomo_shutdown_attempted_w.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.tun_dns_takeover_requires_auto_route_run_nagi_dns_tun_on": {},
     "cli.error.tun_dns.tun_dns_takeover_requires_auto_route_run_nagi_dns_tun_on.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.tun_dns_takeover_requires_mihomo_dns_enabled_run_nagi_dns_set_direct": {},
     "cli.error.tun_dns.tun_dns_takeover_requires_mihomo_dns_enabled_run_nagi_dns_set_direct.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_dns.tun_dns_takeover_requires_port_53_interception_run_nagi_dns_tun_on": {},
     "cli.error.tun_dns.tun_dns_takeover_requires_port_53_interception_run_nagi_dns_tun_on.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_intent.invalid_saved_tun_intent": {},
     "cli.error.tun_intent.invalid_saved_tun_intent.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_intent.mihomo_did_not_activate_saved_tun_preference_enabled_t_inspect_nagi_": {
       "arg0": "string"
     },
     "cli.error.tun_intent.mihomo_did_not_activate_saved_tun_preference_enabled_t_inspect_nagi_.usage": {
       "arg0": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_intent.profile_yaml_cannot_be_merged_with_saved_tun_preference": {},
     "cli.error.tun_intent.profile_yaml_cannot_be_merged_with_saved_tun_preference.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.tun_intent.saved_tun_preference_requires_a_tun_mapping": {},
     "cli.error.tun_intent.saved_tun_preference_requires_a_tun_mapping.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.address_must_be_an_ipv4_or_ipv6_address": {},
     "cli.error.validation.address_must_be_an_ipv4_or_ipv6_address.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.choose_group_or_provider": {},
     "cli.error.validation.choose_group_or_provider.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.connection_id_required": {},
     "cli.error.validation.connection_id_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.expected_dns_proxy_group": {},
     "cli.error.validation.expected_dns_proxy_group.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.expected_full_url": {},
     "cli.error.validation.expected_full_url.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.expected_purge_data": {},
     "cli.error.validation.expected_purge_data.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.export_requires_an_absolute_output_path": {},
     "cli.error.validation.export_requires_an_absolute_output_path.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.external": {
       "problem": "string"
     },
     "cli.error.validation.external.usage": {
-      "problem": "string",
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "problem": "string",
+      "syntax": "string"
     },
     "cli.error.validation.healthcheck_targets_requires_group_provider_or_subscription": {},
     "cli.error.validation.healthcheck_targets_requires_group_provider_or_subscription.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.invalid_profile": {},
     "cli.error.validation.invalid_profile.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.kind_must_be_group_provider_or_subscription": {},
     "cli.error.validation.kind_must_be_group_provider_or_subscription.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.kind_must_be_node_provider_or_subscription": {},
     "cli.error.validation.kind_must_be_node_provider_or_subscription.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.lines_must_be_an_integer_from_1_to_10000": {},
     "cli.error.validation.lines_must_be_an_integer_from_1_to_10000.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.missing_argument": {},
     "cli.error.validation.missing_argument.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.missing_subcommand": {},
     "cli.error.validation.missing_subcommand.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.mode_must_be_rule_global_or_direct": {},
     "cli.error.validation.mode_must_be_rule_global_or_direct.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.mode_save_requires_rule_global_or_direct": {},
     "cli.error.validation.mode_save_requires_rule_global_or_direct.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.name_is_required": {},
     "cli.error.validation.name_is_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.name_type_and_target_are_required": {},
     "cli.error.validation.name_type_and_target_are_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.owner_and_node_required": {},
     "cli.error.validation.owner_and_node_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.profile_groups_requires_name": {},
     "cli.error.validation.profile_groups_requires_name.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.provider_nodes_requires_provider": {},
     "cli.error.validation.provider_nodes_requires_provider.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.proxy_node_or_group_required": {},
     "cli.error.validation.proxy_node_or_group_required.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.resource_must_be_profile_subscription_rules_rewrite_scripts_rewrite_rules_p": {},
     "cli.error.validation.resource_must_be_profile_subscription_rules_rewrite_scripts_rewrite_rules_p.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.second_argument_is_only_valid_for_rewrite_scripts_rewrite_rules_nodes_provi": {},
     "cli.error.validation.second_argument_is_only_valid_for_rewrite_scripts_rewrite_rules_nodes_provi.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.seconds_must_be_1_31536000_or_off": {},
     "cli.error.validation.seconds_must_be_1_31536000_or_off.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.seconds_must_be_an_integer_from_1_to_31536000": {},
     "cli.error.validation.seconds_must_be_an_integer_from_1_to_31536000.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.tag_must_be_vx_y_z_an_optional_release_suffix_is_allowed": {},
     "cli.error.validation.tag_must_be_vx_y_z_an_optional_release_suffix_is_allowed.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds": {},
     "cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.too_many_arguments": {},
     "cli.error.validation.too_many_arguments.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.unknown_subcommand": {},
     "cli.error.validation.unknown_subcommand.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo": {},
     "cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.usage": {
-      "syntax": "string",
       "hint": "string",
-      "path": "string"
+      "path": "string",
+      "syntax": "string"
     },
     "cli.language.duplicate": {},
     "cli.language.invalid": {
@@ -3025,8 +3026,8 @@
       "state": "string"
     },
     "cli.output.write.downloaded_subscription_s_d_bytes": {
-      "name": "string",
-      "bytes": "number"
+      "bytes": "number",
+      "name": "string"
     },
     "cli.output.write.latency_unavailable": {},
     "cli.output.write.nagi_doctor": {},
@@ -3038,24 +3039,24 @@
     "cli.output.write.no_rules_configured": {},
     "cli.output.write.no_saved_proxy_selections_for_this_profile": {},
     "cli.output.write.or.message": {
-      "unavailable": "string",
       "removed": "string",
-      "selection": "string"
+      "selection": "string",
+      "unavailable": "string"
     },
     "cli.output.write.provider_s_download_interval_d_seconds_s_enabled_t": {
-      "name": "string",
+      "enabled": "string",
       "interval": "number",
-      "source": "string",
-      "enabled": "string"
+      "name": "string",
+      "source": "string"
     },
     "cli.output.write.proxy_group.message": {
       "group": "string"
     },
     "cli.output.write.proxy_s_delay_s_url_s_timeout_d_ms": {
-      "proxy": "string",
       "latency": "string",
-      "url": "string",
-      "timeout": "number"
+      "proxy": "string",
+      "timeout": "number",
+      "url": "string"
     },
     "cli.output.write.restored.message": {
       "selection": "string"
@@ -3064,31 +3065,31 @@
       "name": "string"
     },
     "cli.output.write.s_s_interval_d_seconds_s_enabled_s_lazy_t": {
-      "kind": "string",
-      "name": "string",
-      "interval": "number",
-      "source": "string",
       "enabled": "string",
-      "lazy": "string"
+      "interval": "number",
+      "kind": "string",
+      "lazy": "string",
+      "name": "string",
+      "source": "string"
     },
     "cli.output.write.subscription_s_follows_subscription_configuration_and_mihomo_def": {
       "name": "string"
     },
     "cli.output.write.system_proxy.message": {
-      "state": "string",
-      "backend": "string"
+      "backend": "string",
+      "state": "string"
     },
     "cli.output.write.test_url.message": {
-      "url": "string",
-      "source": "string"
+      "source": "string",
+      "url": "string"
     },
     "cli.output.writeconnection.connection_s": {
       "id": "string"
     },
     "cli.output.writeconnection.proxy_chain": {},
     "cli.output.writeconnection.upload_d_b_download_d_b": {
-      "upload": "number",
-      "download": "number"
+      "download": "number",
+      "upload": "number"
     },
     "cli.output.writeerror.run_nagi_help_for_usage": {},
     "cli.output.writegroup.no_nodes_available_in_this_group": {},
@@ -3124,22 +3125,22 @@
     },
     "cli.output.writehumanmap.connection_s_matched_s_v": {
       "id": "string",
-      "rule": "string",
-      "payload": "string"
+      "payload": "string",
+      "rule": "string"
     },
     "cli.output.writehumanmap.destination_unavailable": {},
     "cli.output.writehumanmap.dns_profile_v_enabled_s_ipv6_s_doh_policy_s_tun_s": {
-      "profile": "string",
       "enabled": "string",
       "ipv6": "string",
       "policy": "string",
+      "profile": "string",
       "tun": "string"
     },
     "cli.output.writehumanmap.entire_subscription_policy_survives_apply_and_scheduled_refresh_": {},
     "cli.output.writehumanmap.expires": {},
     "cli.output.writehumanmap.exported_profile_s_to_v": {
-      "name": "string",
-      "file": "string"
+      "file": "string",
+      "name": "string"
     },
     "cli.output.writehumanmap.for_this_login_session_login_startup_preference_is_unchanged.message": {
       "state": "string"
@@ -3170,8 +3171,8 @@
     },
     "cli.output.writehumanmap.mihomo_dns_response_for_s_v_v": {
       "domain": "string",
-      "type": "string",
-      "response": "string"
+      "response": "string",
+      "type": "string"
     },
     "cli.output.writehumanmap.mihomo_mode": {},
     "cli.output.writehumanmap.mihomo_version": {},
@@ -3221,8 +3222,8 @@
       "profile": "string"
     },
     "cli.output.writehumanmap.removed_proxy_provider.message": {
-      "provider": "string",
-      "profile": "string"
+      "profile": "string",
+      "provider": "string"
     },
     "cli.output.writehumanmap.removed_subscription.message": {
       "name": "string"
@@ -3234,32 +3235,32 @@
       "profile": "string"
     },
     "cli.output.writehumanmap.rule_s_v_effective_configuration_was_validated_running_mihomo_wa": {
-      "name": "string",
-      "action": "string"
+      "action": "string",
+      "name": "string"
     },
     "cli.output.writehumanmap.s_exit_node_s_hostname_s_control_url_s_auth_key_configured_t": {
-      "name": "string",
+      "auth_key_configured": "boolean",
+      "control_url": "string",
       "exit": "string",
       "hostname": "string",
-      "control_url": "string",
-      "auth_key_configured": "boolean"
+      "name": "string"
     },
     "cli.output.writehumanmap.s_id_s_upload_d_b_download_d_b": {
       "destination": "string",
+      "download": "number",
       "id": "string",
-      "upload": "number",
-      "download": "number"
+      "upload": "number"
     },
     "cli.output.writehumanmap.s_s_d_imported_rules": {
+      "count": "number",
       "name": "string",
-      "state": "string",
-      "count": "number"
+      "state": "string"
     },
     "cli.output.writehumanmap.s_s_s_dialer_proxy_s": {
+      "dialer": "string",
       "kind": "string",
       "name": "string",
-      "type": "string",
-      "dialer": "string"
+      "type": "string"
     },
     "cli.output.writehumanmap.saved.message": {
       "mode": "string"
@@ -3279,10 +3280,10 @@
       "mode": "string"
     },
     "cli.output.writehumanmap.saved_proxy_provider_s_to_group_s_in_profile_s_update_interval_v": {
-      "provider": "string",
       "group": "string",
+      "interval": "string",
       "profile": "string",
-      "interval": "string"
+      "provider": "string"
     },
     "cli.output.writehumanmap.saved_subscription_s_run_nagi_subscription_update_s_to_download_": {
       "name": "string"
@@ -3302,8 +3303,8 @@
       "profile": "string"
     },
     "cli.output.writehumanmap.selected_s_in_proxy_group_s": {
-      "node": "string",
-      "group": "string"
+      "group": "string",
+      "node": "string"
     },
     "cli.output.writehumanmap.selection_resumed_for.message": {
       "automatic": "string",
@@ -3321,8 +3322,8 @@
       "name": "string"
     },
     "cli.output.writehumanmap.subscription_s_will_refresh_every_d_seconds_while_the_scheduler_": {
-      "name": "string",
-      "interval": "number"
+      "interval": "number",
+      "name": "string"
     },
     "cli.output.writehumanmap.tailscale_s_d_s_targets_in_profile_s_s": {
       "action": "string",
@@ -3332,11 +3333,11 @@
       "state": "string"
     },
     "cli.output.writehumanmap.tailscale_s_exit_node_s_hostname_s_control_url_s_auth_key_config": {
-      "name": "string",
+      "auth_key_configured": "boolean",
+      "control_url": "string",
       "exit": "string",
       "hostname": "string",
-      "control_url": "string",
-      "auth_key_configured": "boolean"
+      "name": "string"
     },
     "cli.output.writehumanmap.tailscale_s_in_profile_s_s": {
       "action": "string",
@@ -3345,8 +3346,8 @@
     },
     "cli.output.writehumanmap.the_previous_mihomo_process_exited_unexpectedly_inspect_logs_wit": {},
     "cli.output.writehumanmap.traffic_d_d_bytes": {
-      "used": "number",
-      "total": "number"
+      "total": "number",
+      "used": "number"
     },
     "cli.output.writehumanmap.update_opened_in_terminal_quit_nagi_app_to_continue_it_will_reop": {},
     "cli.output.writehumanmap.update_scheduled_nagi_will_reopen_after_the_background_update_co": {},
@@ -3381,14 +3382,14 @@
     "cli.output.writepreview.remote_provider_nodes_were_not_compared": {},
     "cli.output.writepreview.removed": {},
     "cli.output.writepreview.subscription.message": {
-      "name": "string",
-      "format": "string"
+      "format": "string",
+      "name": "string"
     },
     "cli.output.writeprovider.s_s_s_d_nodes": {
+      "count": "number",
       "name": "string",
       "type": "string",
-      "vehicle": "string",
-      "count": "number"
+      "vehicle": "string"
     },
     "cli.output.writerewrite.active_rule_version": {},
     "cli.output.writerewrite.backend": {},
@@ -3415,34 +3416,34 @@
     "cli.output.writerewrite.tun_running": {},
     "cli.output.writerewrite.valid": {},
     "cli.output.writerewriterule.s_v_enabled_v_stage_v_range_v_match_v_operations_v_on_error_v": {
-      "prefix": "string",
-      "id": "string",
       "enabled": "string",
-      "stage": "string",
-      "range": "string",
+      "id": "string",
       "match": "string",
+      "on_error": "string",
       "operations": "string",
-      "on_error": "string"
+      "prefix": "string",
+      "range": "string",
+      "stage": "string"
     },
     "cli.output.writerewritescript.v_body_access_v_source_bytes_v_rule_ids_v": {
-      "id": "string",
       "body_access": "string",
-      "source_bytes": "string",
-      "rule_ids": "string"
+      "id": "string",
+      "rule_ids": "string",
+      "source_bytes": "string"
     },
     "cli.output.writeruletest.current_mode": {},
     "cli.output.writeruletest.destination_ip.message": {
       "ip": "string"
     },
     "cli.output.writeruletest.destination_s_s_port_d": {
-      "target": "string",
       "network": "string",
-      "port": "number"
+      "port": "number",
+      "target": "string"
     },
     "cli.output.writeruletest.matched_s_s_s": {
-      "rule": "string",
+      "outbound": "string",
       "payload": "string",
-      "outbound": "string"
+      "rule": "string"
     },
     "cli.output.writeruletest.no_rule_matched_fallback.message": {
       "outbound": "string"
@@ -3531,6 +3532,9 @@
     "cli.state.user": {},
     "cli.state.warning": {},
     "cli.state.yes": {},
+    "cli.stream.connections.sample": {
+      "arg0": "string"
+    },
     "cli.stream.subscription.started": {},
     "cli.stream.traffic.sample": {
       "arg0": "string",
@@ -3583,6 +3587,8 @@
     "help.command.connections.show.hint": {},
     "help.command.connections.show.summary": {},
     "help.command.connections.summary": {},
+    "help.command.connections.watch.detail": {},
+    "help.command.connections.watch.summary": {},
     "help.command.diagnostics.detail": {},
     "help.command.diagnostics.summary": {},
     "help.command.dns.check.detail": {},

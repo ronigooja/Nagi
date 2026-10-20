@@ -715,6 +715,7 @@
 "cli.error.config_transaction.runtime_restored_but_system_dns_restoration_failed_w.usage" = "运行时已恢复，但系统 DNS 恢复失败：%1$@\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
 "cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w" = "运行时已恢复，但系统代理恢复失败：%1$@";
 "cli.error.config_transaction.runtime_restored_but_system_proxy_restoration_failed_w.usage" = "运行时已恢复，但系统代理恢复失败：%1$@\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
+"cli.error.connections.interval" = "应使用 --interval MILLISECONDS（250–60000；默认 250）";
 "cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c" = "引导 DoH URL 必须使用 IP 地址，以避免 DNS 解析循环";
 "cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c.usage" = "引导 DoH URL 必须使用 IP 地址，以避免 DNS 解析循环\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
 "cli.error.dns.configure_encrypted_dns_with_nagi_dns_set_before_enabling_tun_interc" = "启用 TUN 拦截前请先运行 `nagi dns set` 配置加密 DNS";
@@ -1403,6 +1404,7 @@
 "cli.state.user" = "用户";
 "cli.state.warning" = "警告";
 "cli.state.yes" = "是";
+"cli.stream.connections.sample" = "采样：%1$@";
 "cli.stream.subscription.started" = "订阅调度器运行中；中断以停止。";
 "cli.stream.traffic.sample" = "上传：%1$@ B/s（总计 %2$@ B）  下载：%3$@ B/s（总计 %4$@ B）  采样：%5$@";
 "cli.subscription.healthcheck.inherited" = "遵循订阅配置和 mihomo 默认设置。提供方和代理组的本地间隔在各自的原生调度器中优先生效；保留提供方启用状态和独立的本地设置。";
@@ -1449,6 +1451,8 @@
 "help.command.connections.show.hint" = "运行 `nagi connections list` 查找 ID。";
 "help.command.connections.show.summary" = "检查单个连接";
 "help.command.connections.summary" = "检查连接";
+"help.command.connections.watch.detail" = "立即输出完整快照，默认每 250 毫秒采样；--interval 允许 250–60000 毫秒。更短的连接可能遗漏。Ctrl-C 停止查看。";
+"help.command.connections.watch.summary" = "持续查看连接快照";
 "help.command.diagnostics.detail" = "检查可执行文件、配置方案、监听器、DNS、代理控制 API、权限和控制器暴露情况。输出经过脱敏。";
 "help.command.diagnostics.summary" = "运行安全诊断";
 "help.command.dns.check.detail" = "检查当前有效的 DNS 配置，并查询运行中的 mihomo 解析器。";
