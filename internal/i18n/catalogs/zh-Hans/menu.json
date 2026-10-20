@@ -23,6 +23,7 @@
   "menu.chain.reloaded": "配置已重新加载。",
   "menu.chain.reset": "重置选择",
   "menu.chain.saved": "已保存串联。",
+  "menu.chain.selected_unavailable": "已选节点暂不可用，草稿已保留。",
   "menu.chain.select_nodes": "请至少选择两个节点。",
   "menu.chain.title": "节点串联",
   "menu.chain.unavailable": "所选节点已不可用，请返回并重新打开节点串联。",

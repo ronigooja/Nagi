@@ -162,7 +162,7 @@ func TestChainMissingSelectedNodeBlocksActionsInsteadOfShorteningPath(t *testing
 	chooseChainItem(t, loadChainPage(t, p, s), "A", s)
 	r.nodes = r.nodes[1:]
 	v, err := p.Load(context.Background(), s)
-	if err == nil || len(v.Items) != 0 || len(v.Actions) != 0 {
+	if err != nil || len(v.Items) != 1 || len(v.Actions) != 1 || v.Actions[0].ID != "chain.reset" {
 		t.Fatalf("%+v %v", v, err)
 	}
 	assertNoChainMutation(t, r.calls)

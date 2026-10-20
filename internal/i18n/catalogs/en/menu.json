@@ -23,6 +23,7 @@
   "menu.chain.reloaded": "Configuration reloaded.",
   "menu.chain.reset": "Reset selection",
   "menu.chain.saved": "Chain saved.",
+  "menu.chain.selected_unavailable": "A selected node is unavailable. The draft is retained.",
   "menu.chain.select_nodes": "Select at least two nodes.",
   "menu.chain.title": "Node Chains",
   "menu.chain.unavailable": "A selected node is no longer available. Return and reopen Node Chains.",

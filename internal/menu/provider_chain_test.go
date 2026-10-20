@@ -88,7 +88,7 @@ func TestProviderDraftUnavailableReadRetainsIdentityWithoutSubmitting(t *testing
 	p := localizedchainDraftPage(s.language)
 	chooseChainItem(t, loadChainPage(t, p, s), "Same", s)
 	r.chains = nil
-	if v, err := p.Load(context.Background(), s); err == nil || len(v.Items) > 0 || len(v.Actions) > 0 {
+	if v, err := p.Load(context.Background(), s); err != nil || len(v.Items) > 0 || len(v.Actions) != 1 {
 		t.Fatalf("%+v %v", v, err)
 	}
 	r.chains = []menuChainTarget{{Kind: "provider-node", Name: "Same", Provider: "Feed", Type: "ss"}}
@@ -96,4 +96,46 @@ func TestProviderDraftUnavailableReadRetainsIdentityWithoutSubmitting(t *testing
 		t.Fatal("draft lost")
 	}
 	assertNoChainMutation(t, r.calls)
+}
+
+func TestIndependentProviderOutletIsRetainedAlongsideLongerPath(t *testing.T) {
+	outlet := menuChainTarget{Kind: "provider-node", Provider: "Feed", Name: "Transit", Outlet: "Transit chain", PathRefs: []menuChainRef{{Kind: "node", Name: "Entry"}, {Kind: "provider-node", Provider: "Feed", Name: "Transit"}}}
+	longer := menuChainTarget{Kind: "node", Name: "Exit", PathRefs: append(append([]menuChainRef{}, outlet.PathRefs...), menuChainRef{Kind: "node", Name: "Exit"})}
+	if got := terminalNodeChains([]menuChainTarget{outlet, longer}); len(got) != 2 {
+		t.Fatal(got)
+	}
+	outlet.Outlet = ""
+	if got := terminalNodeChains([]menuChainTarget{outlet, longer}); len(got) != 1 || got[0].Name != "Exit" {
+		t.Fatal(got)
+	}
+}
+
+type transientProviderMenuRunner struct {
+	providerMenuRunner
+	reads int
+}
+
+func (r *transientProviderMenuRunner) Run(ctx context.Context, args []string) Result {
+	result := r.providerMenuRunner.Run(ctx, args)
+	if strings.Join(args, " ") == "proxy chain list" {
+		r.reads++
+		// After choosing provider A, the next read loses only that source.
+		if r.reads == 2 {
+			result.Data = map[string]any{"chains": r.chains[1:], "unavailable_providers": []string{"Feed A"}}
+		}
+	}
+	return result
+}
+func TestProviderTransientLossRetainsDraftThroughRealNumericJourney(t *testing.T) {
+	r := &transientProviderMenuRunner{providerMenuRunner: providerMenuRunner{nodeChainRunner: nodeChainRunner{chains: []menuChainTarget{
+		{Kind: "provider-node", Name: "A", Provider: "Feed A", Type: "ss"},
+		{Kind: "node", Name: "B", Type: "socks5"},
+	}}}}
+	var out bytes.Buffer
+	s := NewSession(r, strings.NewReader("1\n1\n3\n0\n"), &out)
+	RunPage(context.Background(), s, localizedchainDraftPage(s.language))
+	want := []string{"proxy", "chain", "set", "node", "B", "--via-provider", "Feed A", "A"}
+	if countMenuCall(r.calls, want) != 1 || !strings.Contains(out.String(), "A selected node is unavailable. The draft is retained.") || !strings.Contains(out.String(), "A [Feed A] → B → Destination") {
+		t.Fatalf("%v\n%s", r.calls, out.String())
+	}
 }

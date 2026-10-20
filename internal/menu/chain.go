@@ -128,7 +128,7 @@ func terminalNodeChains(chains []menuChainTarget) []menuChainTarget {
 	}
 	result := []menuChainTarget{}
 	for _, t := range chains {
-		if (t.Kind == "node" || t.Kind == "provider-node") && len(t.refs()) > 1 && !used[t.ref()] {
+		if (t.Kind == "node" || t.Kind == "provider-node") && len(t.refs()) > 1 && (t.Outlet != "" || !used[t.ref()]) {
 			result = append(result, t)
 		}
 	}
@@ -262,6 +262,9 @@ func localizedchainDraftPage(l i18n.Context) *Page {
 	members := []menuChainRef{}
 	return &Page{ID: "chain.draft", Title: chainText(l, "title", "Node Chains"), Load: func(ctx context.Context, s *Session) (PageView, error) {
 		v := PageView{Empty: chainText(l, "no_nodes", "No nodes available.")}
+		reset := Item{ID: "chain.reset", Label: chainText(l, "reset", "Reset selection"), Action: func(context.Context, *Session) error { members = nil; return nil }}
+		v.Context = chainRefsText(l, members)
+		v.Actions = []Item{reset}
 		chains, unavailable, err := readMenuChainInventory(ctx, s)
 		if err != nil {
 			return v, err
@@ -272,9 +275,10 @@ func localizedchainDraftPage(l i18n.Context) *Page {
 				available[t.ref()] = t
 			}
 		}
-		for _, name := range members {
-			if _, ok := available[name]; !ok {
-				return v, messageChainTargetUnavailable(l)
+		missing := false
+		for _, ref := range members {
+			if _, ok := available[ref]; !ok {
+				missing = true
 			}
 		}
 		for _, n := range chains {
@@ -305,11 +309,14 @@ func localizedchainDraftPage(l i18n.Context) *Page {
 			}})
 		}
 		v.Context = chainRefsText(l, members)
+		if missing {
+			v.Context += "\n" + chainText(l, "selected_unavailable", "A selected node is unavailable. The draft is retained.")
+		}
 		for _, provider := range unavailable {
 			v.Context += "\n" + chainText(l, "provider_unavailable", "Provider nodes unavailable: ") + provider
 		}
 		var args []string
-		if len(members) >= 2 {
+		if len(members) >= 2 && !missing {
 			args = chainRefArgs(members[len(members)-1], members[:len(members)-1], false)
 		}
 		effects := []string{}
@@ -324,17 +331,20 @@ func localizedchainDraftPage(l i18n.Context) *Page {
 				effects = chainPathEffects(l, chains, plan)
 			}
 		}
-		v.Actions = []Item{{ID: "chain.apply", Label: chainText(l, "apply", "Apply"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
-			if len(args) == 0 {
-				message := chainText(l, "select_nodes", "Select at least two nodes.")
-				s.feedback(feedbackWarning, message)
-				return Navigation{}, nil
-			}
-			if !applyMenuChain(ctx, s, args) {
-				return Navigation{}, nil
-			}
-			return Navigation{ReturnTo: "chain.list"}, nil
-		}}, {ID: "chain.reset", Label: chainText(l, "reset", "Reset selection"), Action: func(context.Context, *Session) error { members = nil; return nil }}}
+		v.Actions = []Item{reset}
+		if !missing {
+			v.Actions = []Item{{ID: "chain.apply", Label: chainText(l, "apply", "Apply"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
+				if len(args) == 0 {
+					message := chainText(l, "select_nodes", "Select at least two nodes.")
+					s.feedback(feedbackWarning, message)
+					return Navigation{}, nil
+				}
+				if !applyMenuChain(ctx, s, args) {
+					return Navigation{}, nil
+				}
+				return Navigation{ReturnTo: "chain.list"}, nil
+			}}, reset}
+		}
 		appendChainEffects(l, &v, effects)
 		return v, nil
 	}}

@@ -23,6 +23,7 @@
   "menu.chain.reloaded": {},
   "menu.chain.reset": {},
   "menu.chain.saved": {},
+  "menu.chain.selected_unavailable": {},
   "menu.chain.select_nodes": {},
   "menu.chain.title": {},
   "menu.chain.unavailable": {},
