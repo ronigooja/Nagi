@@ -74,7 +74,7 @@ Removal fails while effective nodes, groups, providers, DNS settings, or an acti
 
 ## Use the terminal menu
 
-Open **Proxies → Proxy Nodes** to inspect nodes, add or edit Tailscale, and replace explicit group memberships. Open **Proxies → Proxy Chains** to select node, provider, or subscription targets, then append hops in traffic order. You can remove the last pending hop before submission. The preview shows replacements and shared-node effects. Submit commits the entire batch once; no second confirmation follows.
+Open **Proxies → Node Management** to inspect nodes, add or edit Tailscale, and replace explicit group memberships. Open **Proxies → Node Chains** to select node, provider, or subscription targets, then append hops in traffic order. You can remove the last pending hop before submission. The preview shows replacements and shared-node effects. Submit commits the entire batch once; no second confirmation follows.
 
 All choices are numeric and long lists are paginated. `0` or Ctrl-C cancels before submission; EOF exits. Failed operations retain entered values and selections for explicit retry. The menu dispatches CLI operations and does not implement configuration or forwarding itself.
 
