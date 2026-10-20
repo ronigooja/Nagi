@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 	"gopkg.in/yaml.v3"
 )
 
