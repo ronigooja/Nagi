@@ -72,6 +72,9 @@ type Request struct {
 }
 
 type Response struct {
+	// NotForwarded proves a failed configuration reload was rejected before
+	// sending it to mihomo. Omission (including older helpers) is inconclusive.
+	NotForwarded bool `json:"not_forwarded,omitempty"`
 	// Messages contains optional presentation metadata; business fields stay English.
 	Messages map[string]i18n.Descriptor `json:"messages,omitempty"`
 	Version  int                        `json:"version"`
@@ -189,6 +192,9 @@ func (r Request) Validate(p Policy) error {
 func (r Response) Validate() error {
 	if r.Version != ProtocolVersion {
 		return i18n.Errorf("system.privileged.unsupported.protocol.version", "unsupported protocol version %d", r.Version)
+	}
+	if r.NotForwarded && (r.OK || r.Status != 0 || r.Error == "") {
+		return i18n.Errorf("system.privileged.invalid.control.response", "invalid control response")
 	}
 	if r.OK && r.Error != "" {
 		return i18n.Errorf("system.privileged.successful.response.cannot.contain.error", "successful response cannot contain error")

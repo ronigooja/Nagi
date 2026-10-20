@@ -27,6 +27,10 @@ func activateConfig(ctx context.Context, client *control.Client, path string) er
 	}
 	id := hex.EncodeToString(nonce[:])
 	err := client.Put(ctx, "/configs?force=true", map[string]any{"path": path, "activation_id": id}, nil)
+	var notForwarded *helperControlNotForwardedError
+	if errors.As(err, &notForwarded) {
+		return err
+	}
 	var apiErr *control.APIError
 	if errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 500 {
 		return err

@@ -154,3 +154,59 @@ func TestHelperBackendMapsAlreadyRunning(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestHelperReloadPreForwardRejectionSkipsActivationPolling(t *testing.T) {
+	for _, marked := range []bool{false, true} {
+		t.Run(fmt.Sprint(marked), func(t *testing.T) {
+			socket := filepath.Join(t.TempDir(), "helper.sock")
+			listener, err := net.Listen("unix", socket)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			done := make(chan struct{})
+			reads := 0
+			go func() {
+				defer close(done)
+				id := ""
+				for {
+					conn, err := listener.Accept()
+					if err != nil {
+						return
+					}
+					request, err := privileged.ReadRequest(conn)
+					if err != nil {
+						conn.Close()
+						return
+					}
+					var response privileged.Response
+					if request.Method == "PUT" {
+						var body struct {
+							ActivationID string `json:"activation_id"`
+						}
+						_ = json.Unmarshal(request.Body, &body)
+						id = body.ActivationID
+						response = privileged.Response{Version: privileged.ProtocolVersion, Error: "restricted validation rejected at proxies[0].dialer-proxy", NotForwarded: marked}
+					} else {
+						reads++
+						body, _ := json.Marshal(map[string]string{"activation_id": id})
+						response = privileged.Response{Version: privileged.ProtocolVersion, OK: true, Status: 200, Body: body}
+					}
+					_ = privileged.WriteResponse(conn, response)
+					conn.Close()
+				}
+			}()
+			err = activateConfig(context.Background(), (helperBackend{socketPath: socket}).controlClient(), "/fixture.yaml")
+			listener.Close()
+			<-done
+			var notForwarded *helperControlNotForwardedError
+			if marked {
+				if !errors.As(err, &notForwarded) || errors.Is(err, errActivationMayStillApply) || reads != 0 || !strings.Contains(err.Error(), "proxies[0].dialer-proxy") {
+					t.Fatalf("reads=%d error=%v", reads, err)
+				}
+			} else if err != nil || reads == 0 {
+				t.Fatalf("unmarked error must still observe the activation ID: reads=%d error=%v", reads, err)
+			}
+		})
+	}
+}

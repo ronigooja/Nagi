@@ -117,15 +117,7 @@ func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 	}
 	resp, err := s.Handler.Handle(ctx, uid, req)
 	if err != nil {
-		resp = privileged.Response{Version: privileged.ProtocolVersion, Error: err.Error()}
-		var message *i18n.Message
-		if errors.As(err, &message) && message.Error() == err.Error() {
-			resp.Messages = map[string]i18n.Descriptor{"/error": message.Descriptor()}
-		}
-		if errors.Is(err, control.ErrResponseTooLarge) {
-			resp.Messages = nil
-			resp.Error = "response_too_large"
-		}
+		resp = helperFailureResponse(req, resp, err)
 	}
 	resp.Version = privileged.ProtocolVersion
 	if err := resp.Validate(); err != nil {
@@ -135,6 +127,22 @@ func (s Server) ServeConn(ctx context.Context, conn *net.UnixConn) error {
 		return err
 	}
 	return privileged.WriteResponse(conn, resp)
+}
+
+// helperFailureResponse preserves only evidence supplied by the reload handler.
+func helperFailureResponse(req privileged.Request, resp privileged.Response, err error) privileged.Response {
+	// Preserve pre-forward evidence only for the fixed configuration reload.
+	notForwarded := resp.NotForwarded && req.Operation == privileged.Control && req.Method == "PUT" && req.Path == "/configs?force=true"
+	resp = privileged.Response{Version: privileged.ProtocolVersion, Error: err.Error(), NotForwarded: notForwarded}
+	var message *i18n.Message
+	if errors.As(err, &message) && message.Error() == err.Error() {
+		resp.Messages = map[string]i18n.Descriptor{"/error": message.Descriptor()}
+	}
+	if errors.Is(err, control.ErrResponseTooLarge) {
+		resp.Messages = nil
+		resp.Error = "response_too_large"
+	}
+	return resp
 }
 
 // VerifySessionSocket confirms that an already-bound listener has not been

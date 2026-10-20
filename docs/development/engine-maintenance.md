@@ -95,7 +95,7 @@ commit; after an engine change, substitute the reviewed integrated commit:
 engine_verify_dir=$(mktemp -d)
 git -C "$engine_verify_dir" init -q
 git -C "$engine_verify_dir" fetch https://github.com/ronigooja/mihomo.git refs/heads/main
-engine_commit=a5df21a6a339a651bb50dca73b30f7679dbd0436
+engine_commit=734a23ff65e9c4cad4482cf67258c6444b61e131
 git -C "$engine_verify_dir" merge-base --is-ancestor "$engine_commit" FETCH_HEAD
 rm -rf -- "$engine_verify_dir"
 ```

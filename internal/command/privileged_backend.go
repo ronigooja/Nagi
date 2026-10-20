@@ -18,6 +18,12 @@ import (
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
 )
 
+// Only an explicit pre-forward response proves that the requested reload
+// cannot apply later. Other helper errors retain uncertain activation semantics.
+type helperControlNotForwardedError struct{ error }
+
+func (e *helperControlNotForwardedError) Unwrap() error { return e.error }
+
 type helperBackend struct {
 	profile, binary, configPath string
 	paths                       nagiruntime.Paths
@@ -84,7 +90,11 @@ func (b helperBackend) call(ctx context.Context, req privileged.Request) (privil
 		if descriptor, ok := resp.Messages["/error"]; ok && i18n.ValidDescriptor(descriptor) {
 			cause = i18n.MessageFromDescriptor(descriptor, resp.Error, cause)
 		}
-		return resp, messageError("cli.error.privileged_backend.privileged_helper_rejected_s_s", "privileged helper rejected %s: %s", req.Operation, cause)
+		rejected := messageError("cli.error.privileged_backend.privileged_helper_rejected_s_s", "privileged helper rejected %s: %s", req.Operation, cause)
+		if resp.NotForwarded && req.Operation == privileged.Control && req.Method == "PUT" && req.Path == "/configs?force=true" {
+			return resp, &helperControlNotForwardedError{rejected}
+		}
+		return resp, rejected
 	}
 	return resp, nil
 }

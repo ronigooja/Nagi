@@ -699,3 +699,53 @@ func TestPreservingSubscriptionApplyKeepsOverrideSelectionsAndRules(t *testing.T
 		t.Fatalf("rules: %+v %v", doc, e)
 	}
 }
+
+func TestPreForwardRejectionRestoresFilesWithoutPendingActivation(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "config")
+	run, err := os.MkdirTemp("", "ng-r-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(run) })
+	if err := os.MkdirAll(filepath.Join(config, "profiles"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(config, "profiles", "default.yaml")
+	original := []byte("mixed-port: 0\nmode: direct\n")
+	if err := os.WriteFile(source, original, 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\nexit 0\n"))
+	socket := filepath.Join(run, "mihomo.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var puts atomic.Int32
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PUT" {
+			puts.Add(1)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"activation_id": "prior", "mixed-port": 0})
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	paths := nagiruntime.Paths{ConfigDir: config, RuntimeDir: run, StateDir: filepath.Join(dir, "state"), SocketPath: socket}
+	rejection := &helperControlNotForwardedError{errors.New("restricted validation rejected")}
+	_, err = applyTransaction(context.Background(), paths, []string{"profile", "import"}, func() (any, error) {
+		if err := os.WriteFile(source, []byte("mode: global\n"), 0600); err != nil {
+			return nil, err
+		}
+		return nil, rejection
+	})
+	if !errors.Is(err, rejection) || strings.Contains(err.Error(), "runtime recovery incomplete") || errors.Is(err, errActivationMayStillApply) || puts.Load() != 0 {
+		t.Fatalf("puts=%d error=%v", puts.Load(), err)
+	}
+	restored, readErr := os.ReadFile(source)
+	if readErr != nil || string(restored) != string(original) {
+		t.Fatalf("restored %q %v", restored, readErr)
+	}
+}

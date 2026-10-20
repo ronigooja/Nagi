@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -79,5 +80,33 @@ func TestSocketRequiresRootControlledAncestors(t *testing.T) {
 	}
 	if err := VerifyControllerSocket(path + ".link"); err == nil {
 		t.Fatal("symlink accepted")
+	}
+}
+
+func TestHelperFailureResponsePreservesOnlyExplicitPreForwardReloadEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		req          privileged.Request
+		marked, want bool
+	}{
+		{privileged.Request{Operation: privileged.Control, Method: "PUT", Path: "/configs?force=true"}, true, true},
+		{privileged.Request{Operation: privileged.Control, Method: "PUT", Path: "/configs?force=true"}, false, false},
+		{privileged.Request{Operation: privileged.Control, Method: "GET", Path: "/configs"}, true, false},
+		{privileged.Request{Operation: privileged.Control, Method: "PUT", Path: "/proxies/example"}, true, false},
+		{privileged.Request{Operation: privileged.Start}, true, false},
+	} {
+		response := helperFailureResponse(tc.req, privileged.Response{NotForwarded: tc.marked}, errors.New("fixture failure"))
+		if response.NotForwarded != tc.want || response.OK || response.Error != "fixture failure" {
+			t.Fatalf("%+v: %+v", tc, response)
+		}
+		if err := response.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestReloadParsingFailureIsDefinitelyNotForwarded(t *testing.T) {
+	response, err := (&RuntimeHandler{}).reload(context.Background(), privileged.Request{Body: []byte(`{}`)})
+	if err == nil || !response.NotForwarded {
+		t.Fatalf("%+v %v", response, err)
 	}
 }

@@ -275,9 +275,12 @@ func TestNativePrivilegedStartAndReload(t *testing.T) {
 	if err := os.Chmod(h.controllerPath(), 0); err != nil {
 		t.Fatal(err)
 	}
-	_, failed := h.reload(ctx, privileged.Request{Method: "PUT", Path: "/configs?force=true", Body: body})
+	failure, failed := h.reload(ctx, privileged.Request{Method: "PUT", Path: "/configs?force=true", Body: body})
 	if failed == nil {
 		t.Fatal("unsafe controller socket accepted")
+	}
+	if failure.NotForwarded {
+		t.Fatal("forwarding attempt incorrectly marked as a pre-forward rejection")
 	}
 	if err := os.Chmod(h.controllerPath(), 0600); err != nil {
 		t.Fatal(err)

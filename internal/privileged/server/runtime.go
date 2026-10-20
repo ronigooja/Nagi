@@ -406,7 +406,13 @@ func controllerLive(path string) bool {
 	return true
 }
 
-func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (privileged.Response, error) {
+func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (response privileged.Response, err error) {
+	forwarded := false
+	defer func() {
+		if err != nil && !forwarded {
+			response.NotForwarded = true
+		}
+	}()
 	var body struct {
 		Path         string `json:"path"`
 		ActivationID string `json:"activation_id"`
@@ -433,7 +439,8 @@ func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (pr
 	req.Body = encoded
 	// The only reload URL is built here; clients cannot supply an arbitrary
 	// controller path or a root-readable configuration filename.
-	response, err := controlRequestReload(ctx, h.controllerPath(), req)
+	forwarded = true
+	response, err = controlRequestReload(ctx, h.controllerPath(), req)
 	// A timed-out controller request can still apply later. Keep every snapshot
 	// and referenced resource until the child has exited.
 	h.resources = append(h.resources, h.snapshot)

@@ -113,3 +113,31 @@ func TestDNSOperationsAreParameterFree(t *testing.T) {
 		}
 	}
 }
+
+func TestPreForwardFailureResponseContract(t *testing.T) {
+	response := Response{Version: ProtocolVersion, Error: "restricted validation rejected", NotForwarded: true}
+	if err := response.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	var wire bytes.Buffer
+	if err := WriteResponse(&wire, response); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := ReadResponse(&wire)
+	if err != nil || !reflect.DeepEqual(response, decoded) {
+		t.Fatalf("%+v %v", decoded, err)
+	}
+	for _, bad := range []Response{
+		{Version: ProtocolVersion, OK: true, NotForwarded: true},
+		{Version: ProtocolVersion, Error: "rejected", Status: 400, NotForwarded: true},
+		{Version: ProtocolVersion, NotForwarded: true},
+	} {
+		if err := bad.Validate(); err == nil {
+			t.Fatalf("contradictory response accepted: %+v", bad)
+		}
+	}
+	legacy, err := ReadResponse(strings.NewReader("{\"version\":1,\"ok\":false,\"error\":\"unclassified\"}\n"))
+	if err != nil || legacy.NotForwarded {
+		t.Fatalf("legacy response claims pre-forward rejection: %+v %v", legacy, err)
+	}
+}
