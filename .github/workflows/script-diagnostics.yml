@@ -1,0 +1,85 @@
+name: diagnose script throughput
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: macos-14
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [isolated, parallel, serial]
+    env:
+      TMPDIR: /private/tmp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache: true
+      - name: Record environment
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          {
+            git rev-parse HEAD
+            go version
+            go env GOOS GOARCH GOMAXPROCS
+            sysctl hw.model hw.ncpu hw.memsize
+            sw_vers
+          } > diagnostics/environment.txt
+      - name: Run comparison
+        shell: bash
+        env:
+          DIAGNOSTIC_MODE: ${{ matrix.mode }}
+        run: |
+          set +e
+          case "$DIAGNOSTIC_MODE" in
+            isolated)
+              /usr/bin/time -l go test -v -count=5 -run '^TestLargestBinarySample$' \
+                ./internal/rewritescript > diagnostics/tests.log 2>&1
+              ;;
+            parallel)
+              /usr/bin/time -l go test -v -count=1 ./... > diagnostics/tests.log 2>&1
+              ;;
+            serial)
+              /usr/bin/time -l go test -v -count=1 -p 1 ./... > diagnostics/tests.log 2>&1
+              ;;
+          esac
+          result=$?
+          printf '%s\n' "$result" > diagnostics/exit-status.txt
+          cat diagnostics/tests.log
+          exit "$result"
+      - name: Profile isolated sample
+        if: always() && matrix.mode == 'isolated'
+        shell: bash
+        run: |
+          set +e
+          go test -v -count=5 -run '^TestLargestBinarySample$' \
+            -cpuprofile="$PWD/diagnostics/cpu.pprof" \
+            -trace="$PWD/diagnostics/execution.trace" \
+            ./internal/rewritescript > diagnostics/profile-tests.log 2>&1
+          result=$?
+          cat diagnostics/profile-tests.log
+          exit "$result"
+      - name: Summarize profile
+        if: always() && matrix.mode == 'isolated'
+        shell: bash
+        run: |
+          if test -f diagnostics/cpu.pprof; then
+            go tool pprof -top -nodecount=50 diagnostics/cpu.pprof > diagnostics/cpu-top.txt
+            go tool pprof -top -cum -nodecount=50 diagnostics/cpu.pprof > diagnostics/cpu-cumulative.txt
+            cat diagnostics/cpu-top.txt diagnostics/cpu-cumulative.txt
+          fi
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: script-throughput-${{ matrix.mode }}
+          path: diagnostics/
+          retention-days: 7
