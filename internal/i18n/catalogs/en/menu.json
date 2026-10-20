@@ -17,7 +17,7 @@
   "menu.chain.local": "This device",
   "menu.chain.new": "New chain",
   "menu.chain.no_nodes": "No nodes available.",
-  "menu.chain.other_paths": "Other configured paths changed: ",
+  "menu.chain.other_paths": "Other configured paths that will change: ",
   "menu.chain.reloaded": "Configuration reloaded.",
   "menu.chain.reset": "Reset selection",
   "menu.chain.saved": "Chain saved.",

@@ -277,7 +277,7 @@ func appendChainEffects(l i18n.Context, v *PageView, effects []string) {
 	if len(effects) == 0 {
 		return
 	}
-	v.Context += "\n" + chainText(l, "other_paths", "Other configured paths changed: ") + strconv.Itoa(len(effects))
+	v.Context += "\n" + chainText(l, "other_paths", "Other configured paths that will change: ") + strconv.Itoa(len(effects))
 	v.Actions = append(v.Actions, Item{ID: "chain.effects", Label: chainText(l, "effects", "View changed paths"), Next: func() *Page {
 		return &Page{ID: "chain.effects", Title: chainText(l, "effects", "View changed paths"), Load: func(context.Context, *Session) (PageView, error) {
 			details := PageView{}
