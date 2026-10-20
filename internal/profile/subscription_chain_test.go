@@ -275,3 +275,52 @@ func TestChainGraphProviderNamesAndSharedGroups(t *testing.T) {
 		t.Fatalf("provider namespace collision: %v", err)
 	}
 }
+
+func TestSubscriptionChainSwitchReplacesAdoptedSourceEdge(t *testing.T) {
+	s := durableStore(t)
+	ctx := context.Background()
+	source, _ := s.Show("work")
+	var cfg map[string]any
+	if err := yaml.Unmarshal(source, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	tsFind(cfg, "C")["dialer-proxy"] = "A"
+	data, _ := yaml.Marshal(cfg)
+	if err := s.Write(ctx, "work", data); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, []string{"A"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, []string{"B"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if tsString(tsFind(effectiveDoc(t, s), "C"), "dialer-proxy") != "B" {
+		t.Fatal("adopted source edge not replaced")
+	}
+	if err := s.ApplySubscription(ctx, "work", data); err != nil {
+		t.Fatal(err)
+	}
+	if tsString(tsFind(effectiveDoc(t, s), "C"), "dialer-proxy") != "B" {
+		t.Fatal("adopted edge not replayed")
+	}
+	plan, err := s.PlanProxyChain("work", "subscription", []string{"work"}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.MutateProxyChain(ctx, "work", "subscription", []string{"work"}, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if tsString(tsFind(effectiveDoc(t, s), "C"), "dialer-proxy") != "A" {
+		t.Fatal("clear did not restore source edge")
+	}
+	found := false
+	for _, c := range plan.Changes {
+		if c.Kind == "node" && c.Name == "C" && c.After == "A" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("clear plan omitted restored source edge")
+	}
+}

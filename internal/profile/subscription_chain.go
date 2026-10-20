@@ -16,11 +16,12 @@ const subscriptionChainVersion = 1
 
 // SubscriptionChainPolicy contains sensitive full outbound definitions. Never serialize it in ordinary results.
 type SubscriptionChainPolicy struct {
-	Version      int              `yaml:"version"`
-	Subscription string           `yaml:"subscription"`
-	Via          []string         `yaml:"via"`
-	Nodes        []map[string]any `yaml:"nodes"`
-	SourceNodes  []map[string]any `yaml:"source-nodes,omitempty"`
+	ReplacedEdges []ProxyChainReference `yaml:"replaced-edges,omitempty"`
+	Version       int                   `yaml:"version"`
+	Subscription  string                `yaml:"subscription"`
+	Via           []string              `yaml:"via"`
+	Nodes         []map[string]any      `yaml:"nodes"`
+	SourceNodes   []map[string]any      `yaml:"source-nodes,omitempty"`
 }
 
 func (s *Store) subscriptionChainPath(name string) (string, error) {
@@ -119,6 +120,7 @@ func policyOwnsEdge(p *SubscriptionChainPolicy, kind, name string) bool {
 	return true
 }
 func applyChainPolicy(cfg map[string]any, p *SubscriptionChainPolicy) error {
+	releasePolicyEdges(cfg, p.ReplacedEdges)
 	for _, node := range p.Nodes {
 		n := tsString(node, "name")
 		providers, _ := cfg["proxy-providers"].(map[string]any)
@@ -201,7 +203,11 @@ func (s *Store) mutateSubscriptionChain(ctx context.Context, name, subscription 
 		if err != nil {
 			return err
 		}
-		next = &SubscriptionChainPolicy{Version: subscriptionChainVersion, Subscription: subscription, Via: append([]string{}, via...), Nodes: []map[string]any{}}
+		replacements, err := s.subscriptionReplacementEdges(name, old)
+		if err != nil {
+			return err
+		}
+		next = &SubscriptionChainPolicy{ReplacedEdges: replacements, Version: subscriptionChainVersion, Subscription: subscription, Via: append([]string{}, via...), Nodes: []map[string]any{}}
 		source, err := s.Show(name)
 		if err != nil {
 			return err
@@ -511,6 +517,13 @@ func (s *Store) subscriptionChainCandidate(name string, targets, via []string, c
 	if err != nil {
 		return nil, p, err
 	}
+	replacements, err := s.subscriptionReplacementEdges(name, old)
+	if err != nil {
+		return nil, p, err
+	}
+	if !clear {
+		releasePolicyEdges(cfg, replacements)
+	}
 	if old != nil {
 		for _, node := range old.Nodes {
 			retained := map[string]any{}
@@ -551,4 +564,51 @@ func (s *Store) validateManagedCandidate(name string, source []byte) error {
 		return err
 	}
 	return s.validate(name, effective)
+}
+
+// Retain only exact previously authorized target edges; a different incoming
+// front proxy still conflicts with the current policy.
+func (s *Store) subscriptionReplacementEdges(name string, old *SubscriptionChainPolicy) ([]ProxyChainReference, error) {
+	if old == nil {
+		return nil, nil
+	}
+	cfg, err := s.unmanagedChainConfig(name)
+	if err != nil {
+		return nil, err
+	}
+	out := append([]ProxyChainReference{}, old.ReplacedEdges...)
+	managed := map[string]bool{}
+	for _, n := range old.Via {
+		managed[n] = true
+	}
+	last := old.Via[len(old.Via)-1]
+	for _, t := range chainTargets(cfg) {
+		if (t.Kind == "node" && chainSupported(t.Type) && !managed[t.Name]) || t.Kind == "provider" {
+			if len(t.Via) > 0 && t.Via[len(t.Via)-1] == last {
+				out = append(out, ProxyChainReference{t.Kind, t.Name, last})
+			}
+		}
+	}
+	return out, nil
+}
+func releasePolicyEdges(cfg map[string]any, edges []ProxyChainReference) {
+	for _, edge := range edges {
+		if edge.Kind == "node" {
+			m := tsFind(cfg, edge.Name)
+			if m != nil && tsString(m, "dialer-proxy") == edge.Via {
+				m["dialer-proxy"] = ""
+			}
+		} else if edge.Kind == "provider" {
+			providers, _ := cfg["proxy-providers"].(map[string]any)
+			m, _ := providers[edge.Name].(map[string]any)
+			if m != nil && chainProviderDialer(m) == edge.Via {
+				o, _ := m["override"].(map[string]any)
+				if o == nil {
+					o = map[string]any{}
+					m["override"] = o
+				}
+				o["dialer-proxy"] = ""
+			}
+		}
+	}
 }
