@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"context"
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
@@ -36,5 +37,24 @@ func TestPrivateProviderCachePrepareCleanupAndSymlink(t *testing.T) {
 	content, _ := os.ReadFile(outside)
 	if string(content) != "keep" {
 		t.Fatal("modified target")
+	}
+}
+
+func TestClearOverrideRemovesGeneratedProviderCache(t *testing.T) {
+	s := providerScopedFixture(t)
+	_, err := s.MutateScopedProxyChain(context.Background(), "default", "provider-node", []string{"Shared"}, "P", []ChainNodeRef{{Kind: "node", Name: "Entry"}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	members, _ := s.savedProviderMembers("default")
+	dir := filepath.Join(s.Dir, "profiles", ".chain-cache", "default")
+	os.MkdirAll(dir, 0700)
+	path := filepath.Join(dir, members[0].providerID()+".yaml")
+	os.WriteFile(path, []byte("private fixture payload"), 0600)
+	if err := s.ClearOverride(context.Background(), "default"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("orphaned cache survived", err)
 	}
 }

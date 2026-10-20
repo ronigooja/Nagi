@@ -249,9 +249,6 @@ func (s *Store) MutateScopedProxyChain(ctx context.Context, name, kind string, t
 		return p, err
 	}
 	err = s.SetOverride(ctx, name, data)
-	if err == nil {
-		err = s.CleanupProviderChainCaches(name)
-	}
 	return p, err
 }
 func stripProviderResources(cfg map[string]any, members []ProviderChainMember) {

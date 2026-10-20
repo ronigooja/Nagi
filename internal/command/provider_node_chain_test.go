@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ronigooja/Nagi/internal/profile"
 	"gopkg.in/yaml.v3"
 )
 
@@ -76,4 +77,61 @@ func TestProviderNodeChainPinnedNativeValidation(t *testing.T) {
 	t.Setenv("NAGI_MIHOMO_BIN", binary)
 	runNodeChainJSON(t, "proxy", "chain", "set", "node", "Target A", "--via-provider", "P", "Shared", "--via", "First")
 	runNodeChainJSON(t, "proxy", "chain", "set", "provider-node", "Q", "Shared", "--via", "First")
+}
+
+func TestThreeProviderChainClearActualCLI(t *testing.T) {
+	dir := providerChainCommandFixture(t)
+	path := filepath.Join(dir, "profiles", "default.yaml")
+	data, _ := os.ReadFile(path)
+	var cfg map[string]any
+	yaml.Unmarshal(data, &cfg)
+	providers := cfg["proxy-providers"].(map[string]any)
+	providers["R"] = providers["Q"]
+	data, _ = yaml.Marshal(cfg)
+	os.WriteFile(path, data, 0600)
+	runNodeChainJSON(t, "proxy", "chain", "set", "provider-node", "R", "Shared", "--via-provider", "P", "Shared", "--via-provider", "Q", "Shared")
+	runNodeChainJSON(t, "proxy", "chain", "clear", "provider-node", "R", "Shared")
+	list := runNodeChainJSON(t, "proxy", "chain", "list")["chains"].([]any)
+	for _, v := range list {
+		entry := v.(map[string]any)
+		if entry["kind"] == "provider-node" {
+			if len(entry["via"].([]any)) != 0 || entry["outlet"] != nil {
+				t.Fatal(entry)
+			}
+		}
+	}
+	store := profile.NewStore(dir, func([]byte) error { return nil }, nil)
+	effective, err := store.Effective("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(effective, []byte("nagi-chain-")) {
+		t.Fatal("unreferenced resources retained", string(effective))
+	}
+}
+
+func TestProviderChainCachesParticipateInConfigRollback(t *testing.T) {
+	dir := t.TempDir()
+	cache := filepath.Join(dir, "profiles", ".chain-cache", "default")
+	os.MkdirAll(cache, 0700)
+	old := filepath.Join(cache, "old.yaml")
+	os.WriteFile(old, []byte("last-good fixture"), 0600)
+	images, err := snapshotConfig(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	added := filepath.Join(cache, "new.yaml")
+	os.WriteFile(added, []byte("candidate fixture"), 0600)
+	os.WriteFile(old, []byte("changed fixture"), 0600)
+	if err = restoreConfig(dir, images); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(added); !os.IsNotExist(err) {
+		t.Fatal("candidate cache survived rollback", err)
+	}
+	data, _ := os.ReadFile(old)
+	info, _ := os.Stat(old)
+	if string(data) != "last-good fixture" || info.Mode().Perm() != 0600 {
+		t.Fatal("last-good cache not restored privately", string(data), info.Mode())
+	}
 }

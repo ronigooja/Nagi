@@ -194,7 +194,7 @@ func (s *Store) Remove(name string) error {
 			return err
 		}
 	}
-	return nil
+	return s.CleanupProviderChainCaches(name)
 }
 
 func (s *Store) Use(ctx context.Context, name string) error {

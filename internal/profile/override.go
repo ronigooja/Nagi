@@ -468,7 +468,7 @@ func (s *Store) SetOverride(ctx context.Context, name string, data []byte) error
 			return rollback(err)
 		}
 	}
-	return nil
+	return s.CleanupProviderChainCaches(name)
 }
 
 func (s *Store) ClearOverride(ctx context.Context, name string) error {
@@ -503,5 +503,5 @@ func (s *Store) ClearOverride(ctx context.Context, name string) error {
 			return rollback(err)
 		}
 	}
-	return nil
+	return s.CleanupProviderChainCaches(name)
 }

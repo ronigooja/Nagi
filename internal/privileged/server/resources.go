@@ -2,7 +2,7 @@ package server
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"crypto/rand"
 	"fmt"
 	"github.com/ronigooja/Nagi/internal/profile"
 	nagiruntime "github.com/ronigooja/Nagi/internal/runtime"
@@ -116,14 +116,18 @@ func (h *RuntimeHandler) prepareConfig(data []byte, source string) (string, []st
 			}
 		}
 	}
-	// Allocate a private, stable cache independent of the user path. The
-	// URL participates in identity so a different source never inherits old data.
+	// Cache files belong to the private configuration generation and follow
+	// its existing resource lifetime, including uncertain native reloads.
 	for _, g := range generated {
-		digest := sha256.Sum256([]byte(profileName + "\x00" + g.name + "\x00" + field(g.provider, "url")))
-		path := filepath.Join(h.PrivateDir, ".chain-cache", fmt.Sprintf("%x.yaml", digest[:16]))
+		var digest [16]byte
+		if _, err := rand.Read(digest[:]); err != nil {
+			return fail()
+		}
+		path := filepath.Join(h.PrivateDir, ".chain-cache", fmt.Sprintf("%x.yaml", digest[:]))
 		if _, err := profile.PreparePrivateChainCache(h.PrivateDir, path); err != nil {
 			return fail()
 		}
+		resources = append(resources, path)
 		g.provider.Content = append(g.provider.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "path"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: path})
 	}
 	var out bytes.Buffer

@@ -39,8 +39,15 @@ func TestProviderChainHTTPRootCacheRewrite(t *testing.T) {
 	p := doc["proxy-providers"].(map[string]any)[id].(map[string]any)
 	path := p["path"].(string)
 	info, _ := os.Stat(path)
+	if len(resources) != 1 || resources[0] != path {
+		t.Fatal("cache not registered for snapshot cleanup", resources, path)
+	}
 	if info.Mode().Perm() != 0600 {
 		t.Fatal(info.Mode())
+	}
+	removeSnapshots(snapshot, resources)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("cache survived generation cleanup", err)
 	}
 	cfg["proxy-providers"].(map[string]any)[id].(map[string]any)["path"] = "/tmp/arbitrary.yaml"
 	data, _ = yaml.Marshal(cfg)

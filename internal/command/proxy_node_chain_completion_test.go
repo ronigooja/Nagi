@@ -58,7 +58,7 @@ COMP_WORDS=(nagi proxy chain set node 'Target A' --via My); COMP_CWORD=7; _nagi_
 		if err != nil {
 			t.Fatalf("%s %v %s", shell, err, out)
 		}
-		for _, want := range []string{"NODE_ACTIONS:", "TYPE:tailscale", "SHOW:1:My Tail", "GROUP:1:My Group", "KIND:node provider subscription", "TARGET:1:Target A", "VIA:1:My Tail"} {
+		for _, want := range []string{"NODE_ACTIONS:", "TYPE:tailscale", "SHOW:1:My Tail", "GROUP:1:My Group", "KIND:node provider-node provider subscription", "TARGET:1:Target A", "VIA:1:My Tail"} {
 			if !strings.Contains(string(out), want) {
 				t.Fatalf("%s omitted %s in %s", shell, want, out)
 			}
