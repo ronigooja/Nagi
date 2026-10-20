@@ -14,7 +14,7 @@ nagi proxy node groups show 'TS Exit'
 
 Replace the example names and `EXIT_NODE` with your own configuration values. Tailscale requires a dedicated tailnet, an approved exit, and a valid Auth Key. The terminal form accepts visible key paste; do not paste credentials into shell arguments. For automation, use `--auth-key-file FILE` or `--auth-key-stdin`. Keep key files private. Headscale uses `--control-url https://headscale.example.com` with the service's key. Ordinary summaries show key presence, never key content. Raw configuration, override output, and explicitly viewed or exported logs can contain secrets.
 
-`node list` includes all top-level nodes, including WireGuard and SOCKS5. Provider payload nodes are managed through their provider. Adding and editing protocol settings currently supports Tailscale; ordinary nodes have details and group membership controls. Configure chains through **Node Chains** or `proxy chain`. Repeated `--group` options add a new node to several groups in the same transaction.
+`node list` includes all top-level nodes, including WireGuard and SOCKS5. Provider payload node inventory remains separate from this list; individual supported provider nodes can participate in chains. Adding and editing protocol settings currently supports Tailscale; ordinary nodes have details and group membership controls. Configure chains through **Node Chains** or `proxy chain`. Repeated `--group` options add a new node to several groups in the same transaction.
 
 ```sh
 nagi proxy node groups set 'TS Exit' 'Proxy' 'Manual'
@@ -50,6 +50,24 @@ nagi proxy chain clear node 'Node A' 'Node B'
 
 A batch contains distinct targets of one kind and shares one ordered hop list. A provider chain affects all current and future payload nodes through `override.dialer-proxy`; its download proxy is retained. Clearing a target clears its final incoming dialer only. It does not recursively dismantle upstream segments or other chains.
 
+## Use a single provider node in a chain
+
+Identify a provider member by both its source name and its effective node name. It can be the first, middle, or final hop:
+
+```sh
+nagi proxy chain set node 'Node A' --via-provider work-feed 'Entry Node'
+nagi proxy chain set node 'Node A' --via 'SOCKS Entry' --via-provider work-feed 'Transit Node' --dry-run
+nagi proxy chain set provider-node work-feed 'Exit Node' --via 'SOCKS Entry'
+nagi proxy chain show provider-node work-feed 'Exit Node'
+nagi proxy chain clear provider-node work-feed 'Exit Node'
+```
+
+Repeated `--via` and `--via-provider` options preserve their mixed traffic order. Nagi isolates the selected member through mihomo's exact provider filtering and native dialer settings; the original provider and its source nodes remain available. A provider member used as the exit creates an independent, readable chain outlet. Saving appends that outlet to related existing manual selection groups without switching their selection; choose the reported outlet in one of those groups or GLOBAL to use it. Disconnecting removes this outlet while retaining source nodes and upstream segments.
+
+Inspection uses local provider payloads or caches and does not download missing data. An unavailable cache is reported explicitly, including while stopped. Provider Tailscale members cannot be derived safely because of their persistent identity and are unsupported; top-level Tailscale nodes retain their existing chain support. Provider members cannot be retained as hops in a subscription policy; use node or provider scope.
+
+When an explicit native provider refresh loses the selected node, it reports failure and can retain that same last-good member. It does not choose another node or fall back to DIRECT. For file and HTTP providers, missing initial content leaves the bridge using REJECT; an inline provider whose selected content is missing refuses activation. Review refresh errors and recreate a chain explicitly after source name mappings change. Raw effective configuration and explicitly viewed logs can contain provider credentials.
+
 ## Keep a subscription chain across updates
 
 ```sh
@@ -76,9 +94,9 @@ Removal fails while effective nodes, groups, providers, DNS settings, or an acti
 
 Open **Proxies → Node Management** to inspect nodes, add or edit Tailscale, and replace explicit group memberships. Applied subscription nodes appear first in source order, followed by provider entries, then other nodes grouped by type and sorted by name. Open a provider entry to see its nodes in source order; provider details require the running engine. See the [node list reference](../reference/cli.md#proxy-nodes-and-chains) for source classification and ordering rules.
 
-Open **Proxies → Node Chains** to see existing full paths and choose **New chain**. An intermediate prefix is shown only when it is no longer part of another node path. New drafts start empty. Select nodes in traffic order using their numbers; choices preserve the [CLI source order](../reference/cli.md#order-scope-and-plans), selected nodes use the existing green style, and the header updates the complete path. The last selected node is the exit. Select a node again to remove it; reselect it to append it. Choose **Reset selection** to clear only the draft, or **Apply** after selecting at least two nodes.
+Open **Proxies → Node Chains** to see existing full paths and choose **New chain**. An intermediate prefix is shown only when it is no longer part of another node path; an independent provider-node outlet remains visible even when another path uses it. New drafts start empty. Select nodes in traffic order using their numbers; choices preserve the [CLI source order](../reference/cli.md#order-scope-and-plans), provider choices append their source name, selected nodes use the existing green style, and the header updates the complete path with `Node [Source]` for provider members. Unsupported provider members show their reason and cannot be selected; sources without local payloads or caches are marked unavailable. The last selected node is the exit. Select a node again to remove it; reselect it to append it. Choose **Reset selection** to clear only the draft, or **Apply** after selecting at least two nodes.
 
-Select an existing path to view it, then choose **Disconnect chain** or Back. To change a path in the menu, disconnect it and choose **New chain**; use ordinary CLI `proxy chain set` for direct changes. Disconnect removes only the exit's incoming edge; upstream segments and all nodes remain. Apply and disconnect return to the refreshed list after success. Failures retain the draft or detail for explicit retry. Plans block conflicts; when other configured paths actually change, **View changed paths** shows their before/after paths. Group references are not listed as changed paths. Use ordinary CLI commands to configure provider or subscription scopes.
+Select an existing path to view it, then choose **Disconnect chain** or Back. To change a path in the menu, disconnect it and choose **New chain**; use ordinary CLI `proxy chain set` for direct changes. Disconnect removes only a top-level exit's incoming edge or the independent provider-node outlet; upstream segments and source nodes remain. Apply and disconnect return to the refreshed list after success. Failures retain the draft or detail for explicit retry. If a selected member becomes unavailable, the complete draft remains visible and Apply is hidden; current available choices and Reset selection remain usable. Plans block conflicts; when other configured paths actually change, **View changed paths** shows their before/after paths. Group references are not listed as changed paths. When a provider member is the exit, successful saving reports its selectable outlet and where to choose it; the menu does not switch the group automatically. Use ordinary CLI commands to configure whole-provider or subscription scopes.
 
 All choices are numeric and long lists are paginated. `0` or Ctrl-C cancels before submission; EOF exits. Failed operations retain entered values and selections for explicit retry. The menu dispatches CLI operations and does not implement configuration or forwarding itself.
 
