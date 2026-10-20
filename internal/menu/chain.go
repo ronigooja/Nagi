@@ -157,12 +157,14 @@ func localizedchainDraftPage(l i18n.Context, kind string, targets []string) *Pag
 					args = append(args, "--via", hop)
 				}
 				result := s.Fetch(ctx, append(append([]string{}, args...), "--dry-run")...)
-				var plan menuChainPlan
-				if err := localizeddecodeMenuResult(l, result, &plan); err != nil {
+				var data struct {
+					Plan menuChainPlan `json:"plan"`
+				}
+				if err := localizeddecodeMenuResult(l, result, &data); err != nil {
 					s.ShowResult(args, result)
 					return Navigation{}, nil
 				}
-				return Navigation{Next: localizedchainPreviewPage(l, args, plan)}, nil
+				return Navigation{Next: localizedchainPreviewPage(l, args, data.Plan)}, nil
 			}}}
 		return v, nil
 	}}

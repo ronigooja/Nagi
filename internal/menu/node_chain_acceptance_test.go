@@ -14,7 +14,7 @@ type acceptanceChainEnvelopeRunner struct{ nodeChainRunner }
 func (r *acceptanceChainEnvelopeRunner) Run(ctx context.Context, args []string) Result {
 	result := r.nodeChainRunner.Run(ctx, args)
 	if len(args) > 0 && args[len(args)-1] == "--dry-run" {
-		result.Data = map[string]any{"profile": "work", "action": "clear", "plan": result.Data, "dry_run": true, "saved": false, "reloaded": false, "resource": "chain"}
+		result.Data = map[string]any{"profile": "work", "action": "clear", "plan": map[string]any{"kind": "node", "targets": []string{"Target Node"}, "via": []string{"First Hop", "Last Hop"}, "changes": []any{map[string]any{"name": "First Hop", "before": "Old Hop", "after": ""}}, "shared_use": []any{map[string]any{"kind": "node", "name": "Shared Node", "via": "First Hop"}}, "conflicts": []string{"cycle detected"}}, "dry_run": true, "saved": false, "reloaded": false, "resource": "chain"}
 	}
 	return result
 }

@@ -44,7 +44,7 @@ func (r *nodeChainRunner) Run(_ context.Context, args []string) Result {
 		if r.conflict {
 			conflicts = append(conflicts, "cycle detected")
 		}
-		return Result{Data: map[string]any{"kind": "node", "targets": []string{"Target Node"}, "via": []string{"First Hop", "Last Hop"}, "changes": []any{map[string]any{"name": "First Hop", "before": "Old Hop", "after": ""}}, "shared_use": []any{map[string]any{"kind": "node", "name": "Shared Node", "via": "First Hop"}}, "conflicts": conflicts}}
+		return Result{Data: map[string]any{"plan": map[string]any{"kind": "node", "targets": []string{"Target Node"}, "via": []string{"First Hop", "Last Hop"}, "changes": []any{map[string]any{"name": "First Hop", "before": "Old Hop", "after": ""}}, "shared_use": []any{map[string]any{"kind": "node", "name": "Shared Node", "via": "First Hop"}}, "conflicts": conflicts}}}
 	}
 	if r.fail > 0 {
 		r.fail--

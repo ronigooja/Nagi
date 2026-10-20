@@ -279,6 +279,3 @@ func tsDNSReferences(value any, name string) bool {
 	}
 	return false
 }
-
-// MutateTailscaleBindings prepares every target before saving one override. The
-// caller holds config.lock and owns runtime recovery through the CLI transaction.
