@@ -10,6 +10,55 @@ import (
 	"github.com/ronigooja/Nagi/internal/subscription"
 )
 
+func TestProxyNodeGroupsFollowEffectiveProfileOrder(t *testing.T) {
+	const groups = `proxy-groups:
+ - {name: Z-explicit, type: select, proxies: [Alpha]}
+ - {name: A-explicit, type: select, proxies: [Alpha]}
+ - {name: Z-auto, type: select, include-all-proxies: true}
+ - {name: A-auto, type: select, include-all-proxies: true}
+ - {name: Z-excluded, type: select, include-all-proxies: true, exclude-filter: '^Alpha$'}
+ - {name: A-excluded, type: select, include-all-proxies: true, exclude-filter: '^Alpha$'}
+`
+	want := ProxyNodeGroups{
+		Name:      "Alpha",
+		Explicit:  []string{"Z-explicit", "A-explicit"},
+		Automatic: []string{"Z-auto", "A-auto"},
+		Excluded:  []string{"Z-excluded", "A-excluded"},
+		Available: []string{"Z-explicit", "A-explicit", "Z-auto", "A-auto", "Z-excluded", "A-excluded"},
+	}
+	for _, override := range []bool{false, true} {
+		name := "source"
+		if override {
+			name = "override"
+		}
+		t.Run(name, func(t *testing.T) {
+			source := "proxies: [{name: Alpha, type: socks5}]\n"
+			if !override {
+				source += groups
+			} else {
+				source += "proxy-groups: [{name: Source-only, type: select, proxies: [Alpha]}]\n"
+			}
+			s := tailscaleFixture(t, source)
+			if override {
+				if err := os.MkdirAll(filepath.Join(s.Dir, "overrides"), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(s.Dir, "overrides", "work.yaml"), []byte(groups), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			candidates, err := s.ProxyNodeGroupCandidates("work")
+			if err != nil || !reflect.DeepEqual(candidates, want.Available) {
+				t.Fatalf("candidates=%v err=%v", candidates, err)
+			}
+			got, err := s.ProxyNodeGroups("work", "Alpha")
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("groups=%+v want=%+v err=%v", got, want, err)
+			}
+		})
+	}
+}
+
 func TestProxyNodesFollowAppliedSubscriptionThenTypeAndName(t *testing.T) {
 	source := []byte(`proxies:
  - {name: Z-source, type: vmess}

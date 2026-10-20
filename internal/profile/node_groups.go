@@ -3,7 +3,6 @@ package profile
 import (
 	"context"
 	"github.com/ronigooja/Nagi/internal/i18n"
-	"sort"
 	"strings"
 	"time"
 
@@ -60,9 +59,6 @@ func nodeGroups(cfg map[string]any, node map[string]any) (ProxyNodeGroups, error
 		} else if excluded {
 			result.Excluded = append(result.Excluded, group)
 		}
-	}
-	for _, list := range [][]string{result.Explicit, result.Automatic, result.Excluded, result.Available} {
-		sort.Strings(list)
 	}
 	return result, nil
 }

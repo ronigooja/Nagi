@@ -198,7 +198,6 @@ func (s *Store) ProxyNodeGroupCandidates(profileName string) ([]string, error) {
 		g, _ := v.(map[string]any)
 		result = append(result, tsString(g, "name"))
 	}
-	sort.Strings(result)
 	return result, nil
 }
 func (s *Store) saveProxyNodeConfig(ctx context.Context, name string, cfg map[string]any, nodes, groups bool) error {
