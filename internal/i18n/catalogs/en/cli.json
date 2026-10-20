@@ -225,7 +225,7 @@
   "cli.error.proxy_chain.kind_and_target_are_required": "KIND and TARGET are required",
   "cli.error.proxy_chain.kind_and_target_are_required.usage": "KIND and TARGET are required\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription": "KIND must be node, provider-node, provider, or subscription",
-  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription.usage": "KIND must be node, provider, or subscription\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
+  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription.usage": "KIND must be node, provider-node, provider, or subscription\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "cli.error.proxy_chain.missing_chain_action": "missing chain action",
   "cli.error.proxy_chain.missing_chain_action.usage": "missing chain action\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "cli.error.proxy_chain.select_exactly_one_subscription_associated_with_the_selected_profile": "select exactly one subscription associated with the selected profile",

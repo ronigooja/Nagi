@@ -306,7 +306,10 @@
     "backend.profile.chain_node_belongs_to_a_subscription_chain_clear_the_subscription_chain_first": {},
     "backend.profile.chain_policy_owns_edge": {},
     "backend.profile.chain_profile_must_be_a_yaml_mapping": {},
+    "backend.profile.chain_provider_node_unavailable": {},
     "backend.profile.chain_provider_payload_external": {},
+    "backend.profile.chain_provider_policy_incompatible": {},
+    "backend.profile.chain_provider_protocol_unsupported": {},
     "backend.profile.chain_provider_target_not_found": {},
     "backend.profile.chain_proxies_must_be_a_list": {},
     "backend.profile.chain_proxy_chain_creates_a_dependency_cycle": {},
@@ -564,6 +567,7 @@
     "backend.proxy.node_ownership_unavailable_or_ambiguous": {},
     "backend.proxy.node_unavailable_or_ownership_ambiguous_inspect_the_group_or_provider_before_tes": {},
     "backend.proxy.profile_group_and_node_required": {},
+    "backend.proxy.provider_chain_refresh_failed": {},
     "backend.proxy.provider_missing_from_effective_profile": {},
     "backend.proxy.proxy_control_client_unavailable": {},
     "backend.proxy.proxy_group_and_node_required": {},
@@ -2883,6 +2887,7 @@
       "path": "string",
       "syntax": "string"
     },
+    "cli.error.validation.provider_chain_completion": {},
     "cli.error.validation.provider_nodes_requires_provider": {},
     "cli.error.validation.provider_nodes_requires_provider.usage": {
       "hint": "string",

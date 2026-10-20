@@ -225,7 +225,7 @@
   "cli.error.proxy_chain.kind_and_target_are_required": "需要 KIND 和 TARGET",
   "cli.error.proxy_chain.kind_and_target_are_required.usage": "需要 KIND 和 TARGET\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription": "KIND 必须为 node、provider-node、provider 或 subscription",
-  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription.usage": "KIND 必须为 node、provider 或 subscription\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
+  "cli.error.proxy_chain.kind_must_be_node_provider_or_subscription.usage": "KIND 必须为 node、provider-node、provider 或 subscription\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.proxy_chain.missing_chain_action": "缺少链式代理操作",
   "cli.error.proxy_chain.missing_chain_action.usage": "缺少链式代理操作\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.proxy_chain.select_exactly_one_subscription_associated_with_the_selected_profile": "请选择一个与当前配置方案关联的订阅",
