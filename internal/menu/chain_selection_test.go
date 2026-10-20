@@ -58,7 +58,7 @@ func invokeChainAction(t *testing.T, v PageView, id string, s *Session) {
 func TestChainSelectionCancellationAndReselectionChangeTrafficOrder(t *testing.T) {
 	r := &nodeChainRunner{nodes: []menuProxyNode{{Name: "A", Type: "ss"}, {Name: "B", Type: "socks5"}, {Name: "C", Type: "ss"}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
-	p := localizedchainDraftPage(s.language, "")
+	p := localizedchainDraftPage(s.language)
 	for _, name := range []string{"A", "B", "A", "C", "A"} {
 		chooseChainItem(t, loadChainPage(t, p, s), name, s)
 	}
@@ -73,13 +73,16 @@ func TestChainSelectionCancellationAndReselectionChangeTrafficOrder(t *testing.T
 	}
 }
 
-func TestChainEditKeepsExitAndRetainsDraftWithGreenSelection(t *testing.T) {
+func TestChainNewDraftRetainsOrderedGreenSelectionAndReset(t *testing.T) {
 	r := &nodeChainRunner{chains: []menuChainTarget{{Kind: "node", Name: "A", Type: "ss"}, {Kind: "node", Name: "B", Type: "ss", Via: []string{"A"}}, {Kind: "node", Name: "C", Type: "ss", Via: []string{"A", "B"}}}}
 	var out bytes.Buffer
 	s := NewSession(r, strings.NewReader(""), &out)
-	p := localizedchainDraftPage(s.language, "C")
+	p := localizedchainDraftPage(s.language)
+	for _, name := range []string{"A", "B", "C"} {
+		chooseChainItem(t, loadChainPage(t, p, s), name, s)
+	}
 	v := loadChainPage(t, p, s)
-	if len(v.Items) != 2 || !v.Items[0].Selected || !v.Items[1].Selected || !strings.HasPrefix(v.Context, "This device → A → B → C → Destination") {
+	if len(v.Items) != 3 || !v.Items[0].Selected || !v.Items[1].Selected || !v.Items[2].Selected || !strings.HasPrefix(v.Context, "This device → A → B → C → Destination") {
 		t.Fatal(v)
 	}
 	s.styles = true
@@ -90,12 +93,12 @@ func TestChainEditKeepsExitAndRetainsDraftWithGreenSelection(t *testing.T) {
 	chooseChainItem(t, v, "A", s)
 	chooseChainItem(t, loadChainPage(t, p, s), "A", s)
 	v = loadChainPage(t, p, s)
-	if !strings.HasPrefix(v.Context, "This device → B → A → C → Destination") {
+	if !strings.HasPrefix(v.Context, "This device → B → C → A → Destination") {
 		t.Fatal(v)
 	}
 	invokeChainAction(t, v, "chain.reset", s)
 	v = loadChainPage(t, p, s)
-	if !strings.HasPrefix(v.Context, "This device → C → Destination") {
+	if !strings.HasPrefix(v.Context, "This device → Destination") {
 		t.Fatal(v)
 	}
 	invokeChainAction(t, v, "chain.apply", s)
@@ -105,7 +108,7 @@ func TestChainEditKeepsExitAndRetainsDraftWithGreenSelection(t *testing.T) {
 func TestChainNewDraftNeverLoadsExistingPaths(t *testing.T) {
 	r := &nodeChainRunner{chains: []menuChainTarget{{Kind: "node", Name: "A"}, {Kind: "node", Name: "B", Via: []string{"A"}}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
-	p := localizedchainDraftPage(s.language, "")
+	p := localizedchainDraftPage(s.language)
 	v := loadChainPage(t, p, s)
 	if v.Context != "This device → Destination" {
 		t.Fatal(v)
@@ -125,7 +128,7 @@ func TestChainNewDraftNeverLoadsExistingPaths(t *testing.T) {
 func TestChainEmptySingleAndEOFNeverMutate(t *testing.T) {
 	for _, input := range []string{"", "3\n0\n", "1\n3\n0\n", "1\n2\n0\n", "1\n2\n1\n2\n3\n0\n"} {
 		r := &nodeChainRunner{nodes: []menuProxyNode{{Name: "A", Type: "ss"}, {Name: "B", Type: "ss"}}}
-		RunPage(context.Background(), NewSession(r, strings.NewReader(input), io.Discard), localizedchainDraftPage(i18n.New(i18n.English), ""))
+		RunPage(context.Background(), NewSession(r, strings.NewReader(input), io.Discard), localizedchainDraftPage(i18n.New(i18n.English)))
 		assertNoChainMutation(t, r.calls)
 	}
 }
@@ -134,7 +137,11 @@ func TestChainDisconnectUsesDetailExitAndRetainsOnFailure(t *testing.T) {
 	r := &nodeChainRunner{fail: 1, chains: []menuChainTarget{{Kind: "node", Name: "A"}, {Kind: "node", Name: "B", Via: []string{"A"}}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
 	p := localizedchainDetailPage(s.language, "B")
-	invokeChainAction(t, loadChainPage(t, p, s), "chain.clear", s)
+	v := loadChainPage(t, p, s)
+	if len(v.Actions) != 1 || v.Actions[0].ID != "chain.clear" {
+		t.Fatal(v.Actions)
+	}
+	invokeChainAction(t, v, "chain.clear", s)
 	if !strings.HasPrefix(loadChainPage(t, p, s).Context, "This device → A → B → Destination") {
 		t.Fatal("failed clear changed detail")
 	}
@@ -142,7 +149,7 @@ func TestChainDisconnectUsesDetailExitAndRetainsOnFailure(t *testing.T) {
 	if countMenuCall(r.calls, []string{"proxy", "chain", "clear", "node", "B"}) != 2 {
 		t.Fatal(r.calls)
 	}
-	v := loadChainPage(t, p, s)
+	v = loadChainPage(t, p, s)
 	if len(v.Actions) != 0 || !strings.Contains(v.Context, "This device → B → Destination") || !strings.Contains(v.Context, "Upstream segments") {
 		t.Fatal(v)
 	}
@@ -151,7 +158,7 @@ func TestChainDisconnectUsesDetailExitAndRetainsOnFailure(t *testing.T) {
 func TestChainMissingSelectedNodeBlocksActionsInsteadOfShorteningPath(t *testing.T) {
 	r := &nodeChainRunner{nodes: []menuProxyNode{{Name: "A", Type: "ss"}, {Name: "B", Type: "ss"}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
-	p := localizedchainDraftPage(s.language, "")
+	p := localizedchainDraftPage(s.language)
 	chooseChainItem(t, loadChainPage(t, p, s), "A", s)
 	r.nodes = r.nodes[1:]
 	v, err := p.Load(context.Background(), s)
@@ -168,7 +175,7 @@ func TestChainNumericPaginationPreservesSelectionOrder(t *testing.T) {
 	}
 	var out bytes.Buffer
 	s := NewSession(r, strings.NewReader("13\n2\n5\n1\n11\n0\n"), &out)
-	RunPage(context.Background(), s, localizedchainDraftPage(s.language, ""))
+	RunPage(context.Background(), s, localizedchainDraftPage(s.language))
 	want := []string{"proxy", "chain", "set", "node", "Node00", "--via", "Node11"}
 	if countMenuCall(r.calls, want) != 1 || !strings.Contains(out.String(), "Node11 → Node00 → Destination") {
 		t.Fatalf("%v\n%s", r.calls, out.String())
@@ -258,7 +265,7 @@ func TestChainConflictDescriptorsRemainLocalized(t *testing.T) {
 func TestChainReselectingAfterEmptyDraftDoesNotRestoreCancelledMembers(t *testing.T) {
 	r := &nodeChainRunner{chains: []menuChainTarget{{Kind: "node", Name: "A", Type: "ss"}, {Kind: "node", Name: "B", Type: "ss", Via: []string{"A"}}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
-	p := localizedchainDraftPage(s.language, "")
+	p := localizedchainDraftPage(s.language)
 	for _, name := range []string{"A", "B", "A", "B", "B"} {
 		chooseChainItem(t, loadChainPage(t, p, s), name, s)
 	}

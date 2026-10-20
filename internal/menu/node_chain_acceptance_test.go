@@ -23,7 +23,7 @@ func TestAcceptanceMenuUsesWrappedCLIPlanAndBlocksConflictSubmission(t *testing.
 	r := &acceptanceChainEnvelopeRunner{nodeChainRunner: nodeChainRunner{conflict: true, nodes: []menuProxyNode{{Name: "First Hop", Type: "socks5"}, {Name: "Target Node", Type: "ss"}}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
 	ctx := context.Background()
-	draft := localizedchainDraftPage(s.language, "")
+	draft := localizedchainDraftPage(s.language)
 	v, err := draft.Load(ctx, s)
 	if err != nil {
 		t.Fatal(err)

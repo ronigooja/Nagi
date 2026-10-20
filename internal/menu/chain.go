@@ -95,7 +95,7 @@ func localizedchainScopePage(l i18n.Context) *Page {
 			t := t
 			v.Items = append(v.Items, Item{ID: "chain.target", Name: t.Name, Label: chainPathText(l, append(append([]string{}, t.Via...), t.Name)), Next: func() *Page { return localizedchainDetailPage(l, t.Name) }})
 		}
-		v.Actions = []Item{{ID: "chain.new", Label: chainText(l, "new", "New chain"), Next: func() *Page { return localizedchainDraftPage(l, "") }}}
+		v.Actions = []Item{{ID: "chain.new", Label: chainText(l, "new", "New chain"), Next: func() *Page { return localizedchainDraftPage(l) }}}
 		return v, nil
 	}}
 }
@@ -127,7 +127,6 @@ func localizedchainDetailPage(l i18n.Context, name string) *Page {
 				effects = chainPathEffects(l, chains, plan)
 			}
 			v.Actions = []Item{
-				{ID: "chain.edit", Label: chainText(l, "edit", "Edit path"), Next: func() *Page { return localizedchainDraftPage(l, name) }},
 				{ID: "chain.clear", Label: chainText(l, "clear", "Disconnect chain"), Impact: chainText(l, "disconnect_effect", "Disconnects only the exit's incoming edge; upstream segments and nodes remain."), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
 					if applyMenuChain(ctx, s, chainArgs("node", []string{name}, nil, true)) {
 						return Navigation{ReturnTo: "chain.list"}, nil
@@ -185,11 +184,10 @@ func chainPlanContext(l i18n.Context, plan menuChainPlan) string {
 	return strings.Join(lines, "\n")
 }
 
-// A new draft starts empty. Editing retains a fixed exit and toggles only predecessors.
+// A new draft starts empty; selection order determines the exit and predecessors.
 // The CLI remains the sole owner of validation, persistence and activation.
-func localizedchainDraftPage(l i18n.Context, exit string) *Page {
+func localizedchainDraftPage(l i18n.Context) *Page {
 	members := []string{}
-	initialized := false
 	return &Page{ID: "chain.draft", Title: chainText(l, "title", "Node Chains"), Load: func(ctx context.Context, s *Session) (PageView, error) {
 		v := PageView{Empty: chainText(l, "no_nodes", "No nodes available.")}
 		chains, err := readMenuChains(ctx, s)
@@ -202,23 +200,13 @@ func localizedchainDraftPage(l i18n.Context, exit string) *Page {
 				available[t.Name] = t
 			}
 		}
-		if exit != "" {
-			current, ok := available[exit]
-			if !ok {
-				return v, messageChainTargetUnavailable(l)
-			}
-			if !initialized {
-				members = append([]string{}, current.Via...)
-			}
-		}
-		initialized = true
 		for _, name := range members {
 			if _, ok := available[name]; !ok {
 				return v, messageChainTargetUnavailable(l)
 			}
 		}
 		for _, n := range chains {
-			if n.Kind != "node" || n.Name == exit {
+			if n.Kind != "node" {
 				continue
 			}
 			n := n
@@ -231,15 +219,9 @@ func localizedchainDraftPage(l i18n.Context, exit string) *Page {
 				return nil
 			}})
 		}
-		path := append([]string{}, members...)
-		if exit != "" {
-			path = append(path, exit)
-		}
-		v.Context = chainPathText(l, path)
+		v.Context = chainPathText(l, members)
 		var args []string
-		if exit != "" && len(members) > 0 {
-			args = chainArgs("node", []string{exit}, members, false)
-		} else if exit == "" && len(members) >= 2 {
+		if len(members) >= 2 {
 			args = chainArgs("node", members[len(members)-1:], members[:len(members)-1], false)
 		}
 		effects := []string{}
@@ -257,9 +239,6 @@ func localizedchainDraftPage(l i18n.Context, exit string) *Page {
 		v.Actions = []Item{{ID: "chain.apply", Label: chainText(l, "apply", "Apply"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
 			if len(args) == 0 {
 				message := chainText(l, "select_nodes", "Select at least two nodes.")
-				if exit != "" {
-					message = chainText(l, "select_hops", "Select at least one preceding node.")
-				}
 				s.feedback(feedbackWarning, message)
 				return Navigation{}, nil
 			}

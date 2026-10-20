@@ -98,9 +98,7 @@ func TestChainApplyAndDisconnectReturnToRefreshedList(t *testing.T) {
 		commits           int
 	}{
 		{"new", "2\n1\n2\n3\n0\n", "This device → A → B → Destination", 1},
-		{"edit", "1\n1\n1\n3\n0\n", "This device → B → Destination", 0}, // removing only predecessor cannot submit
-		{"edit-success", "1\n1\n2\n3\n0\n", "This device → A → C → B → Destination", 1},
-		{"disconnect", "1\n2\n0\n", "Chain disconnected.", 1},
+		{"disconnect", "1\n1\n0\n", "Chain disconnected.", 1},
 	} {
 		t.Run(journey.name, func(t *testing.T) {
 			r := &pathJourneyRunner{nodeChainRunner: nodeChainRunner{chains: []menuChainTarget{{Kind: "node", Name: "A", Type: "ss"}, {Kind: "node", Name: "B", Type: "ss", Via: []string{"A"}}, {Kind: "node", Name: "C", Type: "ss"}}}}
@@ -140,7 +138,7 @@ func TestChainApplyAndDisconnectReturnToRefreshedList(t *testing.T) {
 func TestChainFreshPlanConflictsBlockPreviouslyValidDraft(t *testing.T) {
 	r := &nodeChainRunner{nodes: []menuProxyNode{{Name: "A", Type: "ss"}, {Name: "B", Type: "ss"}}}
 	s := NewSession(r, strings.NewReader(""), io.Discard)
-	p := localizedchainDraftPage(s.language, "")
+	p := localizedchainDraftPage(s.language)
 	chooseChainItem(t, loadChainPage(t, p, s), "A", s)
 	chooseChainItem(t, loadChainPage(t, p, s), "B", s)
 	v := loadChainPage(t, p, s)

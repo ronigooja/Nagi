@@ -104,7 +104,7 @@ func TestChainOrderedSelectionApplyAndExplicitRetry(t *testing.T) {
 		r := &nodeChainRunner{fail: 1, nodes: []menuProxyNode{{Name: "First Hop", Type: "tailscale"}, {Name: "Last Hop", Type: "socks5"}, {Name: "Target Node", Type: "ss"}}}
 		var out bytes.Buffer
 		s := NewSessionWithLanguage(r, strings.NewReader("1\n2\n3\n4\n4\n0\n"), &out, i18n.New(language))
-		RunPage(context.Background(), s, localizedchainDraftPage(s.language, ""))
+		RunPage(context.Background(), s, localizedchainDraftPage(s.language))
 		want := []string{"proxy", "chain", "set", "node", "Target Node", "--via", "First Hop", "--via", "Last Hop"}
 		if countMenuCall(r.calls, want) != 2 {
 			t.Fatalf("calls=%v output=%s", r.calls, out.String())
@@ -123,7 +123,7 @@ func TestChainOrderedSelectionApplyAndExplicitRetry(t *testing.T) {
 func TestChainConflictsNeverCommitAndCancel(t *testing.T) {
 	r := &nodeChainRunner{conflict: true, nodes: []menuProxyNode{{Name: "First Hop", Type: "tailscale"}, {Name: "Target Node", Type: "ss"}}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n0\n"), &out), localizedchainDraftPage(i18n.New(i18n.English), ""))
+	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n2\n3\n0\n"), &out), localizedchainDraftPage(i18n.New(i18n.English)))
 	if !strings.Contains(out.String(), "cycle detected") {
 		t.Fatal(out.String())
 	}
