@@ -73,6 +73,8 @@ import AppKit
     private let detail = NSTextView()
     private let refreshButton = NSButton(title: L10n.text("app.ui.refresh"), target: nil, action: nil)
     private let closeButton = NSButton(title: L10n.text("app.ui.close_connection"), target: nil, action: nil)
+    private let freezeButton = NSButton(title: L10n.text("app.connections.freeze"), target: nil, action: nil)
+    private let filterControl = NSPopUpButton(frame: .zero, pullsDown: false)
     private let closeAllButton = NSButton(title: L10n.text("app.ui.close_all_connections"), target: nil, action: nil)
     private var rows: [Connection] = []
     private var renderedRowsRevision: UInt64?
@@ -122,7 +124,10 @@ import AppKit
     private func buildContent() {
         guard let content = window?.contentView else { return }
         NativeControlStyle.configure(search)
-        for button in [refreshButton, closeButton, closeAllButton] { NativeControlStyle.configure(button) }
+        for button in [refreshButton, freezeButton, closeButton, closeAllButton] { NativeControlStyle.configure(button) }
+        filterControl.addItems(withTitles: [L10n.text("app.connections.all"), L10n.text("app.connections.active"), L10n.text("app.connections.ended")])
+        filterControl.target = self; filterControl.action = #selector(changeFilter)
+        freezeButton.target = self; freezeButton.action = #selector(freeze)
         search.placeholderString = L10n.text("app.ui.search_domain_ip_process_proxy_chain_or")
         search.delegate = self
         search.sendsSearchStringImmediately = true
@@ -134,7 +139,7 @@ import AppKit
         updatedLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         updatedLabel.textColor = .secondaryLabelColor
 
-        let toolbar = NSStackView(views: [search, refreshButton, countLabel])
+        let toolbar = NSStackView(views: [search, filterControl, refreshButton, freezeButton])
         toolbar.orientation = .horizontal; toolbar.spacing = 12
         toolbar.alignment = .firstBaseline
         search.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -149,7 +154,7 @@ import AppKit
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
         table.setAccessibilityLabel(L10n.text("app.ui.active_connections"))
         let columns: [(ConnectionSortColumn, String, CGFloat)] = [
-            (.destination, L10n.text("app.ui.destination_2"), 250), (.process, L10n.text("app.ui.process"), 150), (.network, L10n.text("app.ui.protocol"), 75),
+            (.status, L10n.text("app.connections.status"), 100), (.destination, L10n.text("app.ui.destination_2"), 250), (.process, L10n.text("app.ui.process"), 150), (.network, L10n.text("app.ui.protocol"), 75),
             (.chains, L10n.text("app.ui.proxy_chain"), 235), (.upload, L10n.text("app.ui.uploaded_cumulative"), 140),
             (.download, L10n.text("app.ui.downloaded_cumulative"), 150)
         ]
@@ -188,15 +193,18 @@ import AppKit
         detailScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 60).isActive = true
         let detailsTitle = NSTextField(labelWithString: L10n.text("app.ui.connection_details_2"))
         detailsTitle.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
-        let actions = NSStackView(views: [closeButton, closeAllButton, NSView(), updatedLabel])
+        let summary = NSStackView(views: [countLabel, NSView(), updatedLabel])
+        summary.orientation = .horizontal; summary.spacing = 12; summary.alignment = .firstBaseline
+        let actions = NSStackView(views: [closeButton, closeAllButton, NSView()])
         actions.orientation = .horizontal; actions.spacing = 12
         actions.alignment = .firstBaseline
         statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusLabel.maximumNumberOfLines = 3
         let sampling = NSTextField(labelWithString: L10n.text("app.ui.snapshots_refresh_once_a_second_connections_shorter"))
+        sampling.maximumNumberOfLines = 2
         sampling.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         sampling.textColor = .secondaryLabelColor
-        let stack = NSStackView(views: [toolbar, scroll, detailsTitle, detailScroll, actions, statusLabel, sampling])
+        let stack = NSStackView(views: [toolbar, summary, scroll, detailsTitle, detailScroll, actions, statusLabel, sampling])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
@@ -210,7 +218,7 @@ import AppKit
         let preferredTableHeight = scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 140)
         preferredTableHeight.priority = .defaultLow
         preferredTableHeight.isActive = true
-        for view in [toolbar, scroll, detailScroll, actions, statusLabel] {
+        for view in [toolbar, summary, scroll, detailScroll, actions, statusLabel, sampling] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
     }
@@ -268,11 +276,14 @@ import AppKit
             }
         }
         updatingTable = false
-        countLabel.stringValue = L10n.format("app.connections.count", Int64(rows.count), Int64(model.connections.count))
+        countLabel.stringValue = L10n.format("app.connections.record_count", Int64(rows.count), Int64(model.activeCount), Int64(model.endedCount))
+        freezeButton.title = L10n.text(model.frozen ? "app.connections.resume" : "app.connections.freeze")
+        filterControl.selectItem(at: model.filter.rawValue)
         updatedLabel.stringValue = model.lastUpdated.map { L10n.format("app.ui.updated", String(describing: Self.timeFormatter.string(from: $0))) } ?? L10n.text("app.ui.not_updated_yet")
-        refreshButton.isEnabled = !model.isRefreshing && !model.operationInProgress
-        closeButton.isEnabled = model.canClose && model.selectedConnection != nil
-        closeAllButton.isEnabled = model.canClose && !model.connections.isEmpty
+        refreshButton.isEnabled = !model.frozen && !model.operationInProgress
+        freezeButton.isEnabled = model.state == .fresh || model.frozen
+        closeButton.isEnabled = model.canClose && model.selectedConnection?.ended == false
+        closeAllButton.isEnabled = model.canClose && model.activeCount > 0
         renderDetails()
         let stateMessage: String
         switch model.state {
@@ -284,7 +295,7 @@ import AppKit
         case .unavailable: stateMessage = L10n.text("app.ui.engine_status_unavailable_waiting_for_status_to")
         case .tooLarge: stateMessage = L10n.text("app.ui.connection_list_too_large_to_load_automatic")
         }
-        statusLabel.stringValue = [stateMessage, model.errorMessage, model.operationMessage]
+        statusLabel.stringValue = [model.frozen ? L10n.text("app.connections.frozen") : nil, stateMessage, model.errorMessage, model.operationMessage]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
         statusLabel.textColor = (model.state == .stale || model.state == .tooLarge || model.errorMessage != nil)
             ? .systemRed : .secondaryLabelColor
@@ -313,7 +324,12 @@ import AppKit
             String(describing: Self.bytes(connection.upload)),
             String(describing: Self.bytes(connection.download)),
             String(describing: connection.id))
+        if connection.ended { detail.string += "\n\n" + L10n.text("app.connections.ended_detail") }
+        if connection.observationInterrupted { detail.string += "\n\n" + L10n.text("app.connections.interrupted") }
     }
+
+    @objc private func freeze() { model.toggleFreeze() }
+    @objc private func changeFilter() { model.setFilter(ConnectionFilter(rawValue: filterControl.indexOfSelectedItem) ?? .all) }
 
     private static func bytes(_ value: Int64?) -> String {
         guard let value else { return "unknown" }
@@ -340,6 +356,7 @@ import AppKit
         let connection = rows[row]
         let text: String
         switch key {
+        case .status: text = L10n.text(connection.ended ? "app.connections.ended" : "app.connections.active")
         case .destination: text = connection.destination
         case .process: text = connection.process
         case .network: text = connection.network

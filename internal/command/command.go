@@ -181,6 +181,9 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 	if len(filtered) == 2 && filtered[0] == "subscription" && filtered[1] == "watch" {
 		return runForegroundSubscriptionWatch(ctx, stdout, stderr, jsonMode, version, commit)
 	}
+	if len(filtered) >= 2 && filtered[0] == "connections" && filtered[1] == "watch" {
+		return runConnectionsWatch(ctx, filtered, stdout, stderr, jsonMode)
+	}
 	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
 		return runTrafficWatch(ctx, stdout, stderr, jsonMode)
 	}

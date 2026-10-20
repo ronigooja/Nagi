@@ -562,7 +562,7 @@
 "app.ui.settings_could_not_be_loaded" = "无法加载设置：%1$@";
 "app.ui.show_http_handshake" = "显示 HTTP 握手";
 "app.ui.snapshot" = "快照";
-"app.ui.snapshots_refresh_once_a_second_connections_shorter" = "快照每秒刷新一次。持续不足一秒的连接可能不会显示。";
+"app.ui.snapshots_refresh_once_a_second_connections_shorter" = "每 250 毫秒采样；更短的连接可能遗漏。最近记录仅保留在内存中，最多 5 分钟、1000 条。";
 "app.ui.source" = "来源";
 "app.ui.start" = "开始";
 "app.ui.start_failed" = "启动失败：%1$@";
@@ -811,3 +811,16 @@
 "app.ui.http_handshake" = "HTTP 握手";
 "app.ui.json_pointer_example" = "JSON 指针，例如 /data/name";
 "app.ui.tun_running" = "TUN 运行状态";
+
+"app.connections.freeze" = "冻结显示";
+"app.connections.resume" = "恢复实时";
+"app.connections.all" = "全部";
+"app.connections.active" = "活动";
+"app.connections.ended" = "最近结束";
+"app.connections.status" = "状态";
+"app.connections.record_count" = "显示 %lld 条 · 活动 %lld 条 · 已结束 %lld 条";
+"app.connections.frozen" = "显示已冻结；后台继续采集。";
+"app.connections.ended_detail" = "已结束（根据快照推断）。流量为最后观测值，无法提供精确结束时间和最终流量。";
+"app.connections.interrupted" = "观测曾中断；无法补回中断期间的活动。";
+"app.connections.invalid_sample" = "连接快照无效。";
+"app.connections.stream_ended" = "连接采集意外结束。";

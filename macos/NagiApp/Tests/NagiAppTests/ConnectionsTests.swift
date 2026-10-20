@@ -153,7 +153,7 @@ final class ConnectionsTests: XCTestCase {
 
 @MainActor extension ConnectionsTests {
     private func waitUntil(_ condition: @escaping () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
-        for _ in 0..<200 {
+        for _ in 0..<600 {
             if condition() { return }
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
@@ -208,9 +208,9 @@ final class ConnectionsTests: XCTestCase {
         model.refresh()
         await waitUntil { requests.readCount == 2 }
         requests.finishRead(2, try snapshot(["a"]))
-        await waitUntil { model.selectedID == nil && !model.isRefreshing }
-        XCTAssertNotNil(model.selectionDisappearMessage)
-        XCTAssertNil(model.selectedConnection)
+        await waitUntil { model.selectedConnection?.ended == true && !model.isRefreshing }
+        XCTAssertEqual(model.selectedConnection?.id, "z")
+        XCTAssertNil(model.selectionDisappearMessage)
         model.setVisible(false)
     }
 
@@ -354,7 +354,8 @@ final class ConnectionsTests: XCTestCase {
         requests.finishRead(3, try snapshot(["old"]))
         await waitUntil { quitResult == false && requests.readCount == 4 }
         XCTAssertTrue(app.quitErrorMessage?.contains("cleanup failed") == true)
-        XCTAssertEqual(connections.connections.map(\.id), ["b"])
+        XCTAssertEqual(connections.connections.filter { !$0.ended }.map(\.id), ["b"])
+        XCTAssertTrue(connections.connections.contains { $0.id == "a" && $0.ended })
         requests.finishRead(4, try snapshot(["c"]))
         await waitUntil { connections.state == .fresh && !connections.isRefreshing }
         try FileManager.default.removeItem(at: failure)
@@ -411,5 +412,162 @@ final class ConnectionsTests: XCTestCase {
         }
         XCTAssertEqual(events().count, 8)
         model.setVisible(false)
+    }
+}
+
+@MainActor extension ConnectionsTests {
+    func testSingleSnapshotHistoryRevivalExpiryAndBudgets() throws {
+        let date = Date(timeIntervalSince1970: 1000)
+        let brief = try snapshot(["brief"])
+        var records = ConnectionRecords()
+        records.merge(brief, at: date)
+        records.merge([], at: date.addingTimeInterval(0.25))
+        XCTAssertEqual(records.ended["brief"]?.connection.ended, true)
+        records.interrupt()
+        records.merge(brief, at: date.addingTimeInterval(1))
+        XCTAssertTrue(records.ended.isEmpty)
+        XCTAssertTrue(records.active["brief"]?.observationInterrupted == true)
+        records.merge([], at: date.addingTimeInterval(2))
+        records.prune(at: date.addingTimeInterval(301))
+        XCTAssertEqual(records.ended.count, 1)
+        records.prune(at: date.addingTimeInterval(302))
+        XCTAssertTrue(records.ended.isEmpty)
+        records.maximumCount = 1
+        records.merge(try snapshot(["older"]), at: date)
+        records.merge(try snapshot(["newer"]), at: date.addingTimeInterval(1))
+        records.merge([], at: date.addingTimeInterval(2))
+        XCTAssertEqual(Set(records.ended.keys), ["newer"])
+        records.byteBudget = 1
+        records.prune(at: date.addingTimeInterval(3))
+        XCTAssertTrue(records.ended.isEmpty)
+        records.merge(brief, at: date)
+        XCTAssertEqual(records.active.count, 1, "history budgets must not truncate active snapshots")
+    }
+
+    func testFreezeCollectsBriefConnectionAndRetainsEvictedSelection() async throws {
+        let requests = ConnectionRequests()
+        var date = Date(timeIntervalSince1970: 1000)
+        let model = ConnectionsModel(fetch: { try await requests.read() }, execute: { try await requests.execute($0) },
+                                     interval: 60_000_000_000, now: { date })
+        activate(model)
+        await settle(model, requests: requests, records: try snapshot(["selected"]))
+        model.select(id: "selected")
+        model.refresh()
+        await waitUntil { requests.readCount == 2 }
+        model.toggleFreeze()
+        requests.finishRead(2, try snapshot(["brief"]))
+        await waitUntil { !model.isRefreshing }
+        XCTAssertEqual(model.connections.map(\.id), ["selected"])
+        XCTAssertFalse(model.canClose)
+        model.refresh(); model.closeAll(); model.close(id: "selected")
+        XCTAssertEqual(requests.readCount, 2)
+        XCTAssertTrue(requests.commands.isEmpty)
+        // Automatic sampling continues while frozen; use the injected stream
+        // below to verify successive samples without manual refresh.
+        model.toggleFreeze()
+        await waitUntil { model.connections.contains { $0.id == "brief" } }
+        XCTAssertTrue(model.selectedConnection?.ended == true)
+        date = date.addingTimeInterval(301)
+        model.refresh()
+        await waitUntil { requests.readCount == 3 }
+        requests.finishRead(3, [])
+        await waitUntil { !model.isRefreshing && !model.connections.contains { $0.id == "selected" } }
+        XCTAssertEqual(model.selectedConnection?.id, "selected")
+        XCTAssertTrue(model.selectedConnection?.ended == true)
+        model.select(id: nil)
+        XCTAssertNil(model.selectedConnection)
+        model.setVisible(false)
+    }
+
+    func testStreamingFreezeMergesEveryIntermediateSample() async throws {
+        let frames = try [snapshot(["initial"]), snapshot(["brief"]), snapshot([])]
+        var emit: (([Connection]) async -> Void)?
+        let model = ConnectionsModel(fetch: { [] }, execute: { _ in }, watch: { receive in
+            emit = receive
+            while !Task.isCancelled { try await Task.sleep(nanoseconds: 10_000_000) }
+        })
+        activate(model)
+        await waitUntil { emit != nil }
+        await emit?(frames[0])
+        await waitUntil { model.connections.count == 1 }
+        model.toggleFreeze()
+        await emit?(frames[1])
+        await emit?(frames[2])
+        XCTAssertEqual(model.connections.map(\.id), ["initial"])
+        model.toggleFreeze()
+        await waitUntil { model.rows.count == 2 }
+        XCTAssertTrue(model.connections.allSatisfy(\.ended))
+        model.setFilter(.active)
+        await waitUntil { model.rows.isEmpty }
+        model.setFilter(.ended)
+        await waitUntil { model.rows.count == 2 }
+        model.setVisible(false)
+        await model.waitForCancelledRead()
+    }
+}
+
+@MainActor extension ConnectionsTests {
+    func testConnectionStreamUsesPerLineLimitAndDeliversEverySample() async throws {
+        let executable = try fixture("""
+        import json,signal,sys,time
+        signal.signal(signal.SIGTERM,lambda *_: sys.exit(0))
+        for index in range(6):
+            print(json.dumps({"ok":True,"data":{"connections":[{"id":str(index),"metadata":{"processPath":"x"*1500000}}]}}),flush=True)
+        time.sleep(30)
+        """)
+        defer { try? FileManager.default.removeItem(at: executable) }
+        var observed: [String] = []
+        let task = Task {
+            try await NagiCLIClient(executable: executable).watchConnections { snapshot in
+                await MainActor.run { observed.append(contentsOf: snapshot.map(\.id)) }
+            }
+        }
+        await waitUntil { observed.count == 6 }
+        task.cancel()
+        do { try await task.value; XCTFail("stream cancellation must be reported") }
+        catch is CancellationError { }
+        XCTAssertEqual(observed, ["0", "1", "2", "3", "4", "5"])
+    }
+
+    func testConnectionStreamOverflowPreservesSpecificError() async throws {
+        let executable = try fixture("""
+        import sys,time
+        sys.stdout.write('x'*8388609)
+        sys.stdout.flush()
+        time.sleep(30)
+        """)
+        defer { try? FileManager.default.removeItem(at: executable) }
+        do {
+            try await NagiCLIClient(executable: executable).watchConnections { _ in }
+            XCTFail("oversized sample accepted")
+        } catch CLIError.outputTooLarge(let limit) { XCTAssertEqual(limit, 8_388_608) }
+    }
+
+    func testReconnectBackoffAndSuccessfulSampleReset() async throws {
+        let requests = ConnectionRequests()
+        var date = Date(timeIntervalSince1970: 1000)
+        let model = ConnectionsModel(fetch: { try await requests.read() }, execute: { _ in },
+                                     interval: 10_000_000, now: { date })
+        activate(model)
+        for (index, delay) in [1.0, 2, 4, 8, 10].enumerated() {
+            await waitUntil { requests.readCount == index + 1 }
+            requests.failRead(index + 1, CLIError.command("mihomo_api_error", "unavailable"))
+            await waitUntil { !model.isRefreshing }
+            date = date.addingTimeInterval(delay - 0.1)
+            try await Task.sleep(nanoseconds: 30_000_000)
+            XCTAssertEqual(requests.readCount, index + 1)
+            date = date.addingTimeInterval(0.1)
+        }
+        await waitUntil { requests.readCount == 6 }
+        requests.finishRead(6, try snapshot(["active"]))
+        await waitUntil { requests.readCount == 7 }
+        requests.failRead(7, CLIError.command("mihomo_api_error", "unavailable"))
+        await waitUntil { !model.isRefreshing }
+        XCTAssertFalse(model.connections.first?.ended ?? true)
+        date = date.addingTimeInterval(1)
+        await waitUntil { requests.readCount == 8 }
+        model.setVisible(false)
+        requests.finishRead(8, [])
+        await model.waitForCancelledRead()
     }
 }

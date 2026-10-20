@@ -70,6 +70,9 @@ func bashCompletion(roots []string, children map[string][]string) string {
     for option in en zh-Hans; do [[ "$option" == "$language_prefix"* ]] && COMPREPLY+=("--lang=$option"); done
     return 0
   fi
+  if [[ ${#semantic[@]} -eq 2 && ${semantic[0]} == connections && ${semantic[1]} == watch ]]; then
+    COMPREPLY=( $(compgen -W '--interval' -- "$cur") ); return 0
+  fi
   if [[ ${semantic[0]} == profile && ${semantic[1]} == override && ${semantic[2]} == apply-default ]]; then
     if [[ ${#semantic[@]} -eq 3 ]]; then
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates profile 2>/dev/null); return 0
@@ -229,6 +232,9 @@ _nagi() {
   if (( ${#semantic} == 0 )) && [[ ${words[CURRENT]} == --lang=* ]]; then
     compset -P '--lang='; compadd -- en zh-Hans; return
   fi
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == connections && ${semantic[2]} == watch ]]; then
+    compadd -- --interval; return
+  fi
   if [[ ${semantic[1]} == profile && ${semantic[2]} == override && ${semantic[3]} == apply-default ]]; then
     if (( ${#semantic} == 3 )); then compadd -- ${(f)"$(nagi completion candidates profile 2>/dev/null)"}; return; fi
     if (( ${#semantic} == 4 )); then compadd -- --dns-proxy; return; fi
@@ -349,7 +355,8 @@ function __nagi_semantic
   end
 end
 `)
-	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = test' -a 'group provider'
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = connections; and test "$s[2]" = watch' -l interval -r -d 'Snapshot interval in milliseconds (250–60000)'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = test' -a 'group provider'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]" = group' -a '(nagi completion candidates groups 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]" = provider' -a '(nagi completion candidates providers 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]" = group' -a '(set -l s (__nagi_semantic); nagi completion candidates nodes "$s[4]" 2>/dev/null)'

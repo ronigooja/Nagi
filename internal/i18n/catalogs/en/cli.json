@@ -728,5 +728,7 @@
   "cli.output.writeruletest.destination_ip.message": "Destination IP: {ip}",
   "cli.output.writeruletest.rule_providers.message": "Rule providers: {providers}",
   "cli.output.writeruletest.process.message": "Process: {process}",
-  "cli.output.writeruletest.note.message": "Note: {detail}"
+  "cli.output.writeruletest.note.message": "Note: {detail}",
+  "cli.error.connections.interval": "expected --interval MILLISECONDS (250–60000; default 250)",
+  "cli.stream.connections.sample": "Sampled: {arg0}"
 }

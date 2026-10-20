@@ -136,8 +136,9 @@ var commandSpecs = []commandSpec{
 	{"rules import", "rules import NAME SOURCE", "Import routing rules", "SOURCE is a local file or an absolute HTTP(S) URL without userinfo (maximum 8 MiB). Imports native YAML rules with their own targets into the selected profile. NAME uses 1..128 ASCII letters, digits, _ or -. Imported rules apply before profile rules; validation or reload failure restores saved rules.", "nagi rules import work ./rules.yaml", "", 2, 2},
 	{"proxy delays", "proxy delays GROUP [URL] [TIMEOUT_MS]", "Measure group node delays", "Measures all nodes in a group and sorts successful results by ascending latency. Omitted URL and timeout use the effective group settings (fallback: https://www.gstatic.com/generate_204, 5000 ms). Explicit arguments override them; URLTest uses its native configured URL.", "nagi proxy delays 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 3},
 	{"proxy restore", "proxy restore", "Restore saved proxy choices", "Restores available saved choices for the selected profile and reports missing groups or nodes.", "nagi proxy restore", "Run `nagi proxy groups` to see live selections.", 0, 0},
-	{"connections", "connections <list|show ID|close ID|close-all>", "Inspect connections", "Reads or closes active connections from a running engine.", "nagi connections list", "", 0, -1},
+	{"connections", "connections <list|watch|show ID|close ID|close-all>", "Inspect connections", "Reads or closes active connections from a running engine.", "nagi connections list", "", 0, -1},
 	{"connections list", "connections list", "List active connections", "Shows a snapshot of active connections.", "nagi connections list", "", 0, 0},
+	{"connections watch", "connections watch [--interval MILLISECONDS]", "Watch connection snapshots", "Streams complete snapshots immediately and every 250 ms by default; --interval accepts 250–60000 ms. Shorter connections may be missed. Ctrl-C stops watching.", "nagi --json connections watch --interval 250", "", 0, 2},
 	{"connections show", "connections show ID", "Inspect one connection", "Shows one active connection, metadata, counters, and proxy chain.", "nagi connections show 42", "Run `nagi connections list` to find IDs.", 1, 1},
 	{"connections close", "connections close ID", "Close a connection", "Closes one connection by its mihomo ID.", "nagi connections close 42", "Run `nagi connections list` to find IDs.", 1, 1},
 	{"connections close-all", "connections close-all", "Close all connections", "Closes all active connections.", "nagi connections close-all", "", 0, 0},
@@ -306,6 +307,11 @@ func validateInvocation(args []string) error {
 	}
 	if spec.maxArgs >= 0 && n > spec.maxArgs {
 		return syntaxError(messageError("cli.error.validation.too_many_arguments", "too many arguments"), spec)
+	}
+	if spec.path == "connections watch" {
+		if _, err := connectionsInterval(args); err != nil {
+			return syntaxError(err, spec)
+		}
 	}
 	if spec.path == "uninstall" && n == 1 && args[consumed] != "--purge-data" {
 		return syntaxError(messageError("cli.error.validation.expected_purge_data", "expected --purge-data"), spec)

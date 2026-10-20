@@ -29331,5 +29331,7 @@
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": {
     "path": "string",
     "syntax": "string"
-  }
+  },
+  "help.command.connections.watch.summary": {},
+  "help.command.connections.watch.detail": {}
 }

@@ -728,5 +728,7 @@
   "cli.output.writeruletest.destination_ip.message": "目标 IP：{ip}",
   "cli.output.writeruletest.rule_providers.message": "规则提供方：{providers}",
   "cli.output.writeruletest.process.message": "进程：{process}",
-  "cli.output.writeruletest.note.message": "提示：{detail}"
+  "cli.output.writeruletest.note.message": "提示：{detail}",
+  "cli.error.connections.interval": "应使用 --interval MILLISECONDS（250–60000；默认 250）",
+  "cli.stream.connections.sample": "采样：{arg0}"
 }

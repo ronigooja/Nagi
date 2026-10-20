@@ -7137,5 +7137,7 @@
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.apply": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nRun `nagi subscription preview NAME` to inspect node changes.\nRun `nagi help {path}` for details",
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.key": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nRun `nagi subscription list` to find a subscription name.\nRun `nagi help {path}` for details",
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.watch": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nRun `nagi subscription list` to inspect due times and failures.\nRun `nagi help {path}` for details",
-  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nStart mihomo before watching traffic.\nRun `nagi help {path}` for details"
+  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nStart mihomo before watching traffic.\nRun `nagi help {path}` for details",
+  "help.command.connections.watch.summary": "Watch connection snapshots",
+  "help.command.connections.watch.detail": "Streams complete snapshots immediately and every 250 ms by default; --interval accepts 250–60000 ms. Shorter connections may be missed. Ctrl-C stops watching."
 }

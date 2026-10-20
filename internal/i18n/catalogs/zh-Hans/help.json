@@ -7137,5 +7137,7 @@
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.apply": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n运行 `nagi subscription preview NAME` 查看节点变更。\n运行 `nagi help {path}` 查看详情",
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.key": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n运行 `nagi subscription list` 查找订阅名称。\n运行 `nagi help {path}` 查看详情",
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.watch": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n运行 `nagi subscription list` 检查到期时间和失败情况。\n运行 `nagi help {path}` 查看详情",
-  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n查看实时流量前请先启动 mihomo。\n运行 `nagi help {path}` 查看详情"
+  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n查看实时流量前请先启动 mihomo。\n运行 `nagi help {path}` 查看详情",
+  "help.command.connections.watch.summary": "持续查看连接快照",
+  "help.command.connections.watch.detail": "立即输出完整快照，默认每 250 毫秒采样；--interval 允许 250–60000 毫秒。更短的连接可能遗漏。Ctrl-C 停止查看。"
 }

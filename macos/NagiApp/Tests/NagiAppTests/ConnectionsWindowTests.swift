@@ -61,9 +61,9 @@ final class ConnectionsWindowTests: XCTestCase {
         XCTAssertTrue(controller.window === window)
         let content = try XCTUnwrap(window.contentView)
         let table = try XCTUnwrap(descendants(content, of: NSTableView.self).first)
-        XCTAssertEqual(table.tableColumns.count, 6)
-        XCTAssertTrue(table.tableColumns[4].title.contains("cumulative"))
+        XCTAssertEqual(table.tableColumns.count, 7)
         XCTAssertTrue(table.tableColumns[5].title.contains("cumulative"))
+        XCTAssertTrue(table.tableColumns[6].title.contains("cumulative"))
         XCTAssertEqual(descendants(content, of: NSSearchField.self).count, 1)
         let details = try XCTUnwrap(descendants(content, of: NSTextView.self).first { $0.identifier?.rawValue == "connection-details" })
         XCTAssertFalse(details.isEditable)
@@ -248,4 +248,58 @@ private actor WindowReadProbe {
 
 private struct WindowLifecycleTimeout: Error {
     let stage: String
+}
+
+@MainActor extension ConnectionsWindowTests {
+    func testFreezeFilterAndActionsFitMinimumWindowInBothAppearances() async throws {
+        _ = NSApplication.shared
+        var snapshot = try JSONDecoder().decode(ConnectionList.self, from: Data(
+            #"{"connections":[{"id":"brief","metadata":{"host":"fictitious.example.invalid"},"upload":12}]}"#.utf8)).connections
+        var samples = 0
+        let model = ConnectionsModel(fetch: { samples += 1; return snapshot },
+                                     execute: { _ in XCTFail("Fixture must not close connections") }, interval: 20_000_000)
+        model.setEngineState(.running)
+        let controller = ConnectionsWindowController(model: model)
+        controller.present()
+        defer { controller.window?.close() }
+        let window = try XCTUnwrap(controller.window)
+        let root = try XCTUnwrap(window.contentView)
+        for _ in 0..<200 where model.rows.count != 1 { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(model.rows.count, 1)
+        let freeze = try XCTUnwrap(descendants(root, of: NSButton.self).first { $0.title == "Freeze Display" })
+        freeze.performClick(nil)
+        XCTAssertTrue(model.frozen)
+        let before = samples
+        snapshot = []
+        for _ in 0..<200 where samples < before + 3 { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertGreaterThanOrEqual(samples, before + 3)
+        XCTAssertFalse(try XCTUnwrap(model.rows.first).ended)
+        let disabled = ["Refresh", "Close Connection", "Close All Connections…"]
+        for button in descendants(root, of: NSButton.self) where disabled.contains(button.title) {
+            XCTAssertFalse(button.isEnabled, button.title)
+        }
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            window.appearance = NSAppearance(named: appearance)
+            window.setFrame(NSRect(origin: window.frame.origin, size: window.minSize), display: true)
+            for _ in 0..<5 { root.layoutSubtreeIfNeeded(); try await Task.sleep(nanoseconds: 20_000_000) }
+            for button in descendants(root, of: NSButton.self) where disabled.contains(button.title) || button === freeze {
+                XCTAssertGreaterThan(button.bounds.width, 0)
+                XCTAssertTrue(root.bounds.insetBy(dx: -1, dy: -1).contains(button.convert(button.bounds, to: root)), button.title)
+            }
+            try NativeAccessibilityFixture.snapshot(root, name: "connections-frozen-minimum-\(appearance.rawValue)")
+        }
+        freeze.performClick(nil)
+        XCTAssertFalse(model.frozen)
+        for _ in 0..<200 where model.rows.first?.ended != true { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertTrue(try XCTUnwrap(model.rows.first).ended)
+        let filter = try XCTUnwrap(descendants(root, of: NSPopUpButton.self).first)
+        filter.selectItem(at: ConnectionFilter.active.rawValue)
+        filter.sendAction(filter.action, to: filter.target)
+        for _ in 0..<200 where !model.rows.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertTrue(model.rows.isEmpty)
+        filter.selectItem(at: ConnectionFilter.ended.rawValue)
+        filter.sendAction(filter.action, to: filter.target)
+        for _ in 0..<200 where model.rows.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(model.rows.first?.id, "brief")
+    }
 }

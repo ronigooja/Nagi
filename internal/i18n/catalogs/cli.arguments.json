@@ -2260,5 +2260,7 @@
   },
   "cli.output.writeruletest.note.message": {
     "detail": "string"
-  }
+  },
+  "cli.error.connections.interval": {},
+  "cli.stream.connections.sample": {"arg0": "string"}
 }

@@ -1344,6 +1344,7 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.connections.interval": {},
   "cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c": {},
   "cli.error.dns.bootstrap_doh_url_must_use_an_ip_address_to_avoid_a_dns_resolution_c.usage": {
     "hint": "string",
@@ -3113,6 +3114,9 @@
   "cli.state.user": {},
   "cli.state.warning": {},
   "cli.state.yes": {},
+  "cli.stream.connections.sample": {
+    "arg0": "string"
+  },
   "cli.stream.subscription.started": {},
   "cli.stream.traffic.sample": {
     "arg0": "string",
@@ -3165,6 +3169,8 @@
   "help.command.connections.show.hint": {},
   "help.command.connections.show.summary": {},
   "help.command.connections.summary": {},
+  "help.command.connections.watch.detail": {},
+  "help.command.connections.watch.summary": {},
   "help.command.diagnostics.detail": {},
   "help.command.diagnostics.summary": {},
   "help.command.dns.check.detail": {},

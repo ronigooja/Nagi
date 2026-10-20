@@ -562,7 +562,7 @@
 "app.ui.settings_could_not_be_loaded" = "Settings could not be loaded: %1$@";
 "app.ui.show_http_handshake" = "Show HTTP Handshake";
 "app.ui.snapshot" = "Snapshot";
-"app.ui.snapshots_refresh_once_a_second_connections_shorter" = "Snapshots refresh once a second. Connections shorter than one second may not appear.";
+"app.ui.snapshots_refresh_once_a_second_connections_shorter" = "Snapshots sampled every 250 ms; shorter connections may be missed. Recent records stay in memory for up to 5 minutes (1000 records).";
 "app.ui.source" = "Source";
 "app.ui.start" = "Start";
 "app.ui.start_failed" = "Start failed: %1$@";
@@ -811,3 +811,16 @@
 "app.ui.http_handshake" = "HTTP handshake";
 "app.ui.json_pointer_example" = "JSON pointer, e.g. /data/name";
 "app.ui.tun_running" = "TUN running";
+
+"app.connections.freeze" = "Freeze Display";
+"app.connections.resume" = "Resume Live";
+"app.connections.all" = "All";
+"app.connections.active" = "Active";
+"app.connections.ended" = "Recently Ended";
+"app.connections.status" = "Status";
+"app.connections.record_count" = "%lld shown · %lld active · %lld ended";
+"app.connections.frozen" = "Display frozen; collection continues.";
+"app.connections.ended_detail" = "Ended, inferred from snapshots. Counters are the last observed values; exact end time and final traffic are unavailable.";
+"app.connections.interrupted" = "Observation was interrupted; activity during the gap is unavailable.";
+"app.connections.invalid_sample" = "Invalid connection snapshot.";
+"app.connections.stream_ended" = "Connection collection ended unexpectedly.";
