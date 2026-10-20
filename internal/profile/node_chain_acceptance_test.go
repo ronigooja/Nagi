@@ -160,3 +160,33 @@ proxy-providers:
 		t.Fatalf("valid node/provider names confused by dependency graph: %v", err)
 	}
 }
+
+func TestAcceptanceSubscriptionClearPlanMatchesRestoredSourceEdge(t *testing.T) {
+	s := tailscaleFixture(t, `proxies:
+ - {name: Socks, type: socks5}
+ - {name: Target, type: vmess, dialer-proxy: Socks}
+`)
+	ctx := context.Background()
+	if _, err := s.MutateProxyChain(ctx, "work", "subscription", []string{"feed"}, []string{"Socks"}, false); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := s.PlanProxyChain("work", "subscription", []string{"feed"}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range plan.Changes {
+		if change.Kind == "node" && change.Name == "Target" {
+			t.Fatalf("clear plan claims changing a source edge which is preserved: %+v", change)
+		}
+	}
+	if _, err = s.MutateProxyChain(ctx, "work", "subscription", []string{"feed"}, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.chainConfig("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tsString(tsFind(cfg, "Target"), "dialer-proxy") != "Socks" {
+		t.Fatal("clear lost original source edge")
+	}
+}
