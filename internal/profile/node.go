@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -228,7 +229,7 @@ func nodeReferenced(cfg map[string]any, name string) bool {
 				return true
 			}
 		}
-		if tsString(g, "empty-fallback") == name {
+		if tsString(g, "empty-fallback") == name || tsString(g, "dialer-proxy") == name {
 			return true
 		}
 	}
@@ -260,7 +261,7 @@ func nodeReferenced(cfg map[string]any, name string) bool {
 			return true
 		}
 	}
-	if tsDNSReferences(cfg["dns"], name) {
+	if nodeDNSReferences(cfg["dns"], name) {
 		return true
 	}
 	var rulesReference func(any) bool
@@ -279,16 +280,78 @@ func nodeReferenced(cfg map[string]any, name string) bool {
 				}
 			}
 		case string:
-			parts := strings.Split(v, ",")
-			for i := len(parts) - 1; i >= 0; i-- {
-				part := strings.TrimSpace(parts[i])
-				if part == "no-resolve" {
-					continue
-				}
-				return part == name
-			}
+			return nodeRuleTarget(v) == name
 		}
 		return false
 	}
+
+	ntp, _ := cfg["ntp"].(map[string]any)
+	if tsString(ntp, "dialer-proxy") == name {
+		return true
+	}
+	for _, key := range []string{"listeners", "tunnels"} {
+		items, _ := cfg[key].([]any)
+		for _, v := range items {
+			item, _ := v.(map[string]any)
+			if tsString(item, "proxy") == name {
+				return true
+			}
+		}
+	}
 	return rulesReference(cfg["rules"]) || rulesReference(cfg["sub-rules"])
+}
+
+// Extract only the reference position defined by mihomo ParseRulePayload;
+// this does not evaluate the rule or duplicate engine routing behavior.
+func nodeRuleTarget(rule string) string {
+	parts := strings.Split(rule, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	if len(parts) < 2 {
+		return ""
+	}
+	switch strings.ToUpper(parts[0]) {
+	case "SUB-RULE":
+		return "" // Its target names a sub-rule, not an outbound.
+	case "MATCH":
+		return parts[1]
+	case "NOT", "OR", "AND", "DOMAIN-REGEX", "PROCESS-NAME-REGEX", "PROCESS-PATH-REGEX":
+		return parts[len(parts)-1]
+	default:
+		if len(parts) > 2 {
+			return parts[2]
+		}
+	}
+	return ""
+}
+func nodeDNSReferences(value any, name string) bool {
+	if tsDNSReferences(value, name) {
+		return true
+	}
+	switch v := value.(type) {
+	case map[string]any:
+		for _, child := range v {
+			if nodeDNSReferences(child, name) {
+				return true
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if nodeDNSReferences(child, name) {
+				return true
+			}
+		}
+	case string:
+		u, err := url.Parse(v)
+		if err != nil {
+			return false
+		}
+		for _, part := range strings.Split(u.Fragment, "&") {
+			if part == name {
+				return true
+			}
+		}
+	}
+	return false
 }

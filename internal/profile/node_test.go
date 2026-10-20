@@ -173,3 +173,35 @@ func TestAddProxyNodeValidationFailureLeavesNoNodeOrMembership(t *testing.T) {
 		t.Fatal("failed candidate persisted membership")
 	}
 }
+
+func TestProxyNodeRemovalKnownInterfaceReferences(t *testing.T) {
+	for _, extra := range []string{
+		"proxy-groups: [{name: G, type: select, proxies: [DIRECT], dialer-proxy: Tail}]",
+		"rules: ['IP-CIDR,192.0.2.0/24,Tail,src,no-resolve']",
+		"rules: ['IP-CIDR,192.0.2.0/24,Tail,src']",
+		"rules: ['AND,((DOMAIN,example.invalid),(NETWORK,TCP)),Tail']",
+		"dns: {nameserver-policy: {'example.invalid': ['ts://Tail']}}",
+		"dns: {proxy-server-nameserver-policy: {'example.invalid': ['tailscale://Tail']}}",
+		"ntp: {enable: true, dialer-proxy: Tail}",
+		"listeners: [{name: inbound, type: mixed, port: 1080, proxy: Tail}]",
+		"tunnels: [{network: tcp, address: '127.0.0.1:1234', target: 'example.invalid:443', proxy: Tail}]",
+	} {
+		t.Run(extra, func(t *testing.T) {
+			s := tailscaleFixture(t, "proxies: [{name: Tail, type: tailscale, auth-key: FICTITIOUS, exit-node: exit}]\n"+extra+"\n")
+			if err := s.RemoveProxyNode(context.Background(), "work", "Tail"); err == nil {
+				t.Fatal("removed referenced node")
+			}
+		})
+	}
+	s := tailscaleFixture(t, "proxies: [{name: 'Tail Name', type: tailscale, auth-key: FICTITIOUS, exit-node: exit}]\ndns: {nameserver: ['https://example.invalid/dns-query#Tail%20Name']}\n")
+	if err := s.RemoveProxyNode(context.Background(), "work", "Tail Name"); err == nil {
+		t.Fatal("removed URL-escaped DNS reference")
+	}
+}
+func TestProxyNodeRuleReferencesUseNativeTargetPosition(t *testing.T) {
+	for _, rule := range []string{"DOMAIN,Tail,DIRECT", "DOMAIN,example.invalid,DIRECT,Tail", "SUB-RULE,(NETWORK,TCP),Tail"} {
+		if nodeRuleTarget(rule) == "Tail" {
+			t.Fatalf("false outbound reference in %s", rule)
+		}
+	}
+}
