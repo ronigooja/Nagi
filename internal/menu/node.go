@@ -14,16 +14,18 @@ type menuNodeGroups struct {
 	Available []string `json:"available"`
 }
 type menuProxyNode struct {
-	Name      string             `json:"name"`
-	Type      string             `json:"type"`
-	Managed   bool               `json:"managed"`
-	Groups    menuNodeGroups     `json:"groups"`
-	Tailscale *menuTailscaleNode `json:"tailscale,omitempty"`
+	Subscription string             `json:"subscription,omitempty"`
+	Name         string             `json:"name"`
+	Type         string             `json:"type"`
+	Managed      bool               `json:"managed"`
+	Groups       menuNodeGroups     `json:"groups"`
+	Tailscale    *menuTailscaleNode `json:"tailscale,omitempty"`
 }
 type menuNodeList struct {
-	Profile         string          `json:"profile"`
-	Nodes           []menuProxyNode `json:"nodes"`
-	GroupCandidates []string        `json:"group_candidates"`
+	Profile            string          `json:"profile"`
+	Nodes              []menuProxyNode `json:"nodes"`
+	GroupCandidates    []string        `json:"group_candidates"`
+	ProviderCandidates []string        `json:"provider_candidates"`
 }
 
 func nodeText(l i18n.Context, key, fallback string) string {
@@ -31,7 +33,7 @@ func nodeText(l i18n.Context, key, fallback string) string {
 }
 func localizednodeListPage(l i18n.Context) *Page {
 	return &Page{ID: "node.list", Title: nodeText(l, "title", "Node Management"), Load: func(ctx context.Context, s *Session) (PageView, error) {
-		v := PageView{Empty: nodeText(l, "empty", "No top-level nodes configured."), Actions: []Item{{ID: "node.add", Label: nodeText(l, "add", "Add node"), Action: func(ctx context.Context, s *Session) error {
+		v := PageView{Empty: nodeText(l, "empty", "No nodes or providers configured."), Actions: []Item{{ID: "node.add", Label: nodeText(l, "add", "Add node"), Action: func(ctx context.Context, s *Session) error {
 			_, err := s.Select(nodeText(l, "type", "Node type"), []string{"tailscale"})
 			if err != nil {
 				return err
@@ -43,9 +45,22 @@ func localizednodeListPage(l i18n.Context) *Page {
 			return v, err
 		}
 		v.Context = nodeText(l, "profile", "Profile: ") + data.Profile
-		for _, n := range data.Nodes {
-			n := n
+		appendNode := func(n menuProxyNode) {
 			v.Items = append(v.Items, Item{ID: "node.detail", Name: n.Name, Label: n.Name + " (" + n.Type + ")", Next: func() *Page { return localizednodeDetailPage(l, n.Name) }})
+		}
+		for _, n := range data.Nodes {
+			if n.Subscription != "" {
+				appendNode(n)
+			}
+		}
+		for _, name := range data.ProviderCandidates {
+			name := name
+			v.Items = append(v.Items, Item{ID: "node.provider", Name: name, Label: menuText(l, "menu.provider.provider_detail_page.provider", "Provider: ") + name, Next: func() *Page { return localizedproviderDetailPage(l, name) }})
+		}
+		for _, n := range data.Nodes {
+			if n.Subscription == "" {
+				appendNode(n)
+			}
 		}
 		return v, nil
 	}}

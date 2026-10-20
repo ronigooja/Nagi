@@ -27,7 +27,7 @@ proxy-groups: []
 			t.Fatalf("leaked %s: %s", secret, data)
 		}
 	}
-	if len(nodes) != 2 || nodes[0].Type != "vmess" || nodes[1].Tailscale == nil || !nodes[1].Tailscale.AuthKeyConfigured {
+	if len(nodes) != 2 || nodes[1].Type != "vmess" || nodes[0].Tailscale == nil || !nodes[0].Tailscale.AuthKeyConfigured {
 		t.Fatalf("nodes=%+v", nodes)
 	}
 }

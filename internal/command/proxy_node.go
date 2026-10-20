@@ -141,7 +141,11 @@ func nodeCommand(ctx context.Context, args []string, store *profile.Store, name 
 			return nil, err
 		}
 		groups, err := store.ProxyNodeGroupCandidates(name)
-		return map[string]any{"profile": name, "nodes": nodes, "group_candidates": groups}, err
+		if err != nil {
+			return nil, err
+		}
+		providers, err := store.ProxyNodeProviderCandidates(name)
+		return map[string]any{"profile": name, "nodes": nodes, "group_candidates": groups, "provider_candidates": providers}, err
 	case "show":
 		node, err := store.ProxyNode(name, args[3])
 		return map[string]any{"profile": name, "node": node}, err

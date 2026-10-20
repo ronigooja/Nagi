@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/ronigooja/Nagi/internal/i18n"
+	"github.com/ronigooja/Nagi/internal/subscription"
 	"io/fs"
 	"net/url"
 	"sort"
@@ -15,11 +16,12 @@ import (
 
 // ProxyNode deliberately contains no raw proxy configuration or credentials.
 type ProxyNode struct {
-	Name      string          `json:"name"`
-	Type      string          `json:"type"`
-	Tailscale *TailscaleNode  `json:"tailscale,omitempty"`
-	Managed   bool            `json:"managed"`
-	Groups    ProxyNodeGroups `json:"groups"`
+	Subscription string          `json:"subscription,omitempty"`
+	Name         string          `json:"name"`
+	Type         string          `json:"type"`
+	Tailscale    *TailscaleNode  `json:"tailscale,omitempty"`
+	Managed      bool            `json:"managed"`
+	Groups       ProxyNodeGroups `json:"groups"`
 }
 
 func (s *Store) proxyNode(profileName string, cfg, node map[string]any) (ProxyNode, error) {
@@ -41,6 +43,35 @@ func (s *Store) ProxyNodes(profileName string) ([]ProxyNode, error) {
 	if err != nil {
 		return nil, err
 	}
+	source, err := s.Show(profileName)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := subscription.NewStore(s.Dir, "", nil).List()
+	if err != nil {
+		return nil, err
+	}
+	subscriptionName := ""
+	for _, entry := range entries {
+		if entry.Profile == profileName && entry.SourceHash == subscription.Hash(source) {
+			subscriptionName = entry.Name
+			break
+		}
+	}
+	var original struct {
+		Proxies []struct {
+			Name string `yaml:"name"`
+		} `yaml:"proxies"`
+	}
+	if err := yaml.Unmarshal(source, &original); err != nil {
+		return nil, err
+	}
+	ranks := map[string]int{}
+	if subscriptionName != "" {
+		for i, node := range original.Proxies {
+			ranks[node.Name] = i
+		}
+	}
 	result := []ProxyNode{}
 	for _, v := range tsProxies(cfg) {
 		node, _ := v.(map[string]any)
@@ -48,10 +79,80 @@ func (s *Store) ProxyNodes(profileName string) ([]ProxyNode, error) {
 		if err != nil {
 			return nil, err
 		}
+		if _, ok := ranks[n.Name]; ok {
+			n.Subscription = subscriptionName
+		}
 		result = append(result, n)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	sort.Slice(result, func(i, j int) bool {
+		left, leftSource := ranks[result[i].Name]
+		right, rightSource := ranks[result[j].Name]
+		if leftSource != rightSource {
+			return leftSource
+		}
+		if leftSource {
+			return left < right
+		}
+		if result[i].Type != result[j].Type {
+			return result[i].Type < result[j].Type
+		}
+		return result[i].Name < result[j].Name
+	})
 	return result, nil
+}
+
+// ProxyNodeProviderCandidates preserves declaration order from the source and
+// then local overrides, omitting providers absent from effective configuration.
+func (s *Store) ProxyNodeProviderCandidates(profileName string) ([]string, error) {
+	cfg, err := s.tailscaleConfig(profileName)
+	if err != nil {
+		return nil, err
+	}
+	providers, _ := cfg["proxy-providers"].(map[string]any)
+	source, err := s.Show(profileName)
+	if err != nil {
+		return nil, err
+	}
+	patch, err := s.Override(profileName)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	result := []string{}
+	seen := map[string]bool{}
+	for _, data := range [][]byte{source, patch} {
+		var doc yaml.Node
+		if err := yaml.Unmarshal(data, &doc); err != nil {
+			return nil, err
+		}
+		if len(doc.Content) == 0 {
+			continue
+		}
+		root := doc.Content[0]
+		for i := 0; i+1 < len(root.Content); i += 2 {
+			if root.Content[i].Value != "proxy-providers" {
+				continue
+			}
+			mapping := root.Content[i+1]
+			if mapping.Kind != yaml.MappingNode {
+				continue
+			}
+			for j := 0; j+1 < len(mapping.Content); j += 2 {
+				name := mapping.Content[j].Value
+				if _, ok := providers[name]; ok && !seen[name] {
+					result = append(result, name)
+					seen[name] = true
+				}
+			}
+		}
+	}
+	remaining := []string{}
+	for name := range providers {
+		if !seen[name] {
+			remaining = append(remaining, name)
+		}
+	}
+	sort.Strings(remaining)
+	return append(result, remaining...), nil
 }
 func (s *Store) ProxyNode(profileName, name string) (ProxyNode, error) {
 	cfg, err := s.tailscaleConfig(profileName)

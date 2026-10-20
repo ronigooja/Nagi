@@ -351,7 +351,7 @@
   "menu.node.continue": "继续",
   "menu.node.control": "控制服务器：",
   "menu.node.edit": "编辑 Tailscale 节点",
-  "menu.node.empty": "尚未配置顶层节点。",
+  "menu.node.empty": "尚未配置节点或 provider。",
   "menu.node.excluded": "排除代理组：",
   "menu.node.exit": "出口节点：",
   "menu.node.explicit": "显式代理组：",

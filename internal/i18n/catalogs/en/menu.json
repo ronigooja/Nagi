@@ -351,7 +351,7 @@
   "menu.node.continue": "Continue",
   "menu.node.control": "Control URL: ",
   "menu.node.edit": "Edit Tailscale node",
-  "menu.node.empty": "No top-level nodes configured.",
+  "menu.node.empty": "No nodes or providers configured.",
   "menu.node.excluded": "Excluded groups: ",
   "menu.node.exit": "Exit node: ",
   "menu.node.explicit": "Explicit groups: ",
