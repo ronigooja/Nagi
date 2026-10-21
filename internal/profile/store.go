@@ -333,10 +333,11 @@ func restore(path string, old []byte, absent bool) error {
 // ValidationError carries the engine's redacted diagnostic. The store adds the
 // candidate profile name before persistence or selection changes.
 type ValidationError struct {
-	Profile string
-	Path    string
-	Code    string
-	Message string
+	Profile      string
+	Path         string
+	Code         string
+	Message      string
+	MissingProxy string // Optional Nagi evidence from the rejected candidate.
 }
 
 func (e *ValidationError) Error() string {
@@ -345,7 +346,9 @@ func (e *ValidationError) Error() string {
 		prefix = fmt.Sprintf("profile %q", e.Profile)
 	}
 	message := fmt.Sprintf("%s validation failed at %s (%s): %s", prefix, e.Path, e.Code, e.Message)
-	if strings.HasPrefix(e.Path, "rules[") && !strings.HasPrefix(e.Code, "geodata_") {
+	if e.MissingProxy != "" {
+		message += fmt.Sprintf("; candidate rule references missing proxy target %q; use an existing proxy target or add it to the candidate profile, then retry", i18n.SafeDiagnostic(e.MissingProxy))
+	} else if strings.HasPrefix(e.Path, "rules[") && !strings.HasPrefix(e.Code, "geodata_") {
 		if e.Message == "configuration validation failed" {
 			message += "; mihomo did not provide a specific cause"
 		}
@@ -356,7 +359,8 @@ func (e *ValidationError) Error() string {
 
 // Unwrap exposes presentation metadata while Error keeps the legacy English
 // diagnostic, including mihomo's original fallback and detailed local-copy hint.
-// Descriptor selection depends only on profile/path/code, never engine prose.
+// Descriptor selection uses profile/path/code and explicit candidate evidence,
+// never engine prose.
 func (e *ValidationError) Unwrap() error {
 	id := "backend.profile.validation"
 	args := map[string]any{"path": e.Path, "code": e.Code, "detail": e.Message}
@@ -364,7 +368,10 @@ func (e *ValidationError) Unwrap() error {
 		id += ".named"
 		args["profile"] = fmt.Sprintf("%q", e.Profile)
 	}
-	if strings.HasPrefix(e.Path, "rules[") && !strings.HasPrefix(e.Code, "geodata_") {
+	if e.MissingProxy != "" {
+		id += ".missing_proxy"
+		args["target"] = fmt.Sprintf("%q", e.MissingProxy)
+	} else if strings.HasPrefix(e.Path, "rules[") && !strings.HasPrefix(e.Code, "geodata_") {
 		id += ".rules"
 	}
 	// Use the shared constructor to sanitize external text before serialization.

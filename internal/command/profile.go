@@ -137,7 +137,9 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 				}
 				if json.Unmarshal(out, &result) == nil && len(result.Errors) > 0 {
 					first := result.Errors[0]
-					return &profile.ValidationError{Path: first.Path, Code: first.Code, Message: first.Message}
+					diagnostic := &profile.ValidationError{Path: first.Path, Code: first.Code, Message: first.Message}
+					annotateMissingRuleProxy(data, diagnostic)
+					return diagnostic
 				}
 				return messageError("cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_", "profile validation failed; validate a local copy with mihomo -t --check-json -f FILE -d DIRECTORY")
 			}

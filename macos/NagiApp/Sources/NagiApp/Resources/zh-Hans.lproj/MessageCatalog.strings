@@ -298,7 +298,9 @@
 "backend.profile.unsupported_tailscale_action" = "不支持的 Tailscale 操作";
 "backend.profile.url_must_be_an_absolute_http_s_url_without_userinfo_or_fragment" = "URL 必须为不含用户信息或片段的 HTTP(S) 绝对 URL";
 "backend.profile.validation" = "配置 在 %3$@ 验证失败（%1$@）：%2$@";
+"backend.profile.validation.missing_proxy" = "配置 在 %3$@ 验证失败（%1$@）：%2$@；候选规则引用了不存在的代理目标 %4$@；请使用已有的代理目标，或在候选配置中添加该目标后重试";
 "backend.profile.validation.named" = "配置 %4$@ 在 %3$@ 验证失败（%1$@）：%2$@";
+"backend.profile.validation.named.missing_proxy" = "配置 %4$@ 在 %3$@ 验证失败（%1$@）：%2$@；候选规则引用了不存在的代理目标 %5$@；请使用已有的代理目标，或在候选配置中添加该目标后重试";
 "backend.profile.validation.named.rules" = "配置 %4$@ 在 %3$@ 验证失败（%1$@）：%2$@；请检查候选配置中的规则语法、代理目标及引用的规则提供者或子规则；可使用 `mihomo -t -f FILE -d DIRECTORY` 验证本地副本以获取详细诊断（可能包含私有配置值）";
 "backend.profile.validation.rules" = "配置 在 %3$@ 验证失败（%1$@）：%2$@；请检查候选配置中的规则语法、代理目标及引用的规则提供者或子规则；可使用 `mihomo -t -f FILE -d DIRECTORY` 验证本地副本以获取详细诊断（可能包含私有配置值）";
 "backend.profile.w_use_nagi_profile_use_name_or_nagi_subscription_apply_name_to_repair_the_selection" = "%1$@；请运行 `nagi profile use NAME` 或 `nagi subscription apply NAME` 修复选择";
@@ -924,6 +926,7 @@
 "cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request.usage" = "rewrite_trust_manual：运行 `nagi request-rewrite ca export FILE` 导出公共证书，然后通过发行版或应用程序的证书信任设置操作；移除时必须使用同一存储；之后运行 `nagi request-rewrite ca status`\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
 "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list" = "连接 %1$@ 已不再活动；运行 `nagi connections list`";
 "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list.usage" = "连接 %1$@ 已不再活动；运行 `nagi connections list`\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
+"cli.error.rules.import_validation_rejected" = "导入 %1$@ 到配置 %2$@ 失败：%3$@；导入规则未保存，运行配置未变更";
 "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or" = "NAME 必须使用 1..128 个 ASCII 字母、数字、_ 或 -";
 "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.usage" = "NAME 必须使用 1..128 个 ASCII 字母、数字、_ 或 -\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
 "cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back" = "重新加载活动规则失败：%1$@；保存的规则已回滚";

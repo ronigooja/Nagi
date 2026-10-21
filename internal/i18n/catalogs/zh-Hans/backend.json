@@ -562,5 +562,7 @@
   "backend.profile.chain_provider_protocol_unsupported": "此 Provider 节点协议不支持独立串联",
   "backend.profile.chain_provider_node_unavailable": "已保存的 Provider 节点在当前来源中不可用",
   "backend.profile.chain_provider_policy_incompatible": "Provider 单节点串联不能与整个订阅串联策略并用；请先清除现有串联",
-  "backend.proxy.provider_chain_refresh_failed": "Provider 已更新，但所选串联节点刷新失败；mihomo 保留了上次可用节点，请检查 mihomo 日志"
+  "backend.proxy.provider_chain_refresh_failed": "Provider 已更新，但所选串联节点刷新失败；mihomo 保留了上次可用节点，请检查 mihomo 日志",
+  "backend.profile.validation.missing_proxy": "配置 在 {path} 验证失败（{code}）：{detail}；候选规则引用了不存在的代理目标 {target}；请使用已有的代理目标，或在候选配置中添加该目标后重试",
+  "backend.profile.validation.named.missing_proxy": "配置 {profile} 在 {path} 验证失败（{code}）：{detail}；候选规则引用了不存在的代理目标 {target}；请使用已有的代理目标，或在候选配置中添加该目标后重试"
 }

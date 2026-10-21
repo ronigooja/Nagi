@@ -124,12 +124,20 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 	}
 	var profileStore *profile.Store
 	profileStore = newProfileStore(paths, binary, client, lifecycle)
+	validationRejected := false
 	check := func(ctx context.Context) error {
 		effective, err := profileStore.Effective(name)
 		if err != nil {
 			return err
 		}
 		if err := profileStore.Validate(effective); err != nil {
+			validationRejected = true
+			var diagnostic *profile.ValidationError
+			if errors.As(err, &diagnostic) {
+				named := *diagnostic
+				named.Profile = name
+				return &named
+			}
 			return err
 		}
 		status, err := lifecycle.Status(ctx)
@@ -169,6 +177,10 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		return nil, messageError("cli.error.rules.unsupported_rules_command", "unsupported rules command")
 	}
 	if err != nil {
+		var rejected *rules.CheckError
+		if args[1] == "import" && validationRejected && errors.As(err, &rejected) && rejected.RollbackErr == nil {
+			err = messageError("cli.error.rules.import_validation_rejected", "import %q into profile %q failed: %w; imported rules were not saved; runtime configuration was not changed", args[2], name, err)
+		}
 		return nil, fail("rule_error", err)
 	}
 	return map[string]any{"profile": name, "name": args[2], "action": args[1], "saved": true}, nil

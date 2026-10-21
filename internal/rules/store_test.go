@@ -58,8 +58,36 @@ func TestRollbackOnValidationFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
+	var rejected *CheckError
+	if !errors.As(err, &rejected) || rejected.RollbackErr != nil {
+		t.Fatalf("missing confirmed restoration: %v", err)
+	}
 	if _, err := os.Stat(Path(dir, "work")); !os.IsNotExist(err) {
 		t.Fatalf("journal persisted: %v", err)
+	}
+}
+
+func TestCheckErrorDoesNotClaimSuccessfulRestoration(t *testing.T) {
+	dir := t.TempDir()
+	cause := errors.New("validation rejected")
+	s := New(dir, "work", nil)
+	s.Check = func(context.Context) error {
+		path := Path(dir, "work")
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(path, "block-removal"), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+		return cause
+	}
+	err := s.Add(context.Background(), Entry{Name: "bad", Enabled: true, Kind: "rule", Type: "DOMAIN", Payload: "example.com", Target: "DIRECT"})
+	var rejected *CheckError
+	if !errors.As(err, &rejected) || rejected.RollbackErr == nil || !errors.Is(err, cause) {
+		t.Fatalf("lost restoration failure: %v", err)
 	}
 }
 func TestPersistedSetAndConflicts(t *testing.T) {

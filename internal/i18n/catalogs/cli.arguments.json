@@ -2496,5 +2496,10 @@
     "arg3": "string",
     "arg4": "string"
   },
-  "cli.error.validation.provider_chain_completion": {}
+  "cli.error.validation.provider_chain_completion": {},
+  "cli.error.rules.import_validation_rejected": {
+    "arg0": "string",
+    "arg1": "string",
+    "arg2": "string"
+  }
 }

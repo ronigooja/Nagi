@@ -68,3 +68,20 @@ func TestHealthcheckExplanationHasSourceMetadata(t *testing.T) {
 		}
 	}
 }
+
+func TestMissingProxyEvidenceIsLocalizedAndRedacted(t *testing.T) {
+	diagnostic := &ValidationError{Profile: "work", Path: "rules[0]", Code: "invalid_config", Message: "configuration validation failed", MissingProxy: "https://private.example/?token=SECRET"}
+	var message *i18n.Message
+	if !errors.As(diagnostic, &message) || !i18n.ValidDescriptor(message.Descriptor()) {
+		t.Fatal("missing valid diagnostic descriptor")
+	}
+	for _, language := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		text := i18n.New(language).Render(message)
+		if strings.Contains(text, "SECRET") || !strings.Contains(text, "[redacted URL]") {
+			t.Fatal(text)
+		}
+	}
+	if strings.Contains(diagnostic.Error(), "SECRET") {
+		t.Fatal(diagnostic.Error())
+	}
+}

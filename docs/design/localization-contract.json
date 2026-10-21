@@ -518,11 +518,24 @@
       "code": "string",
       "detail": "string"
     },
+    "backend.profile.validation.missing_proxy": {
+      "path": "string",
+      "code": "string",
+      "detail": "string",
+      "target": "string"
+    },
     "backend.profile.validation.named": {
       "path": "string",
       "code": "string",
       "detail": "string",
       "profile": "string"
+    },
+    "backend.profile.validation.named.missing_proxy": {
+      "path": "string",
+      "code": "string",
+      "detail": "string",
+      "profile": "string",
+      "target": "string"
     },
     "backend.profile.validation.named.rules": {
       "path": "string",
@@ -2219,6 +2232,11 @@
       "hint": "string",
       "path": "string",
       "syntax": "string"
+    },
+    "cli.error.rules.import_validation_rejected": {
+      "arg0": "string",
+      "arg1": "string",
+      "arg2": "string"
     },
     "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or": {},
     "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.usage": {

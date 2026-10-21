@@ -39,6 +39,21 @@ type Store struct {
 	HTTP    *http.Client
 }
 
+// CheckError distinguishes rejection from failure to restore the staged file.
+// Callers may report an unchanged saved state only when RollbackErr is nil.
+type CheckError struct {
+	Err         error
+	RollbackErr error
+}
+
+func (e *CheckError) Error() string { return errors.Join(e.Err, e.RollbackErr).Error() }
+func (e *CheckError) Unwrap() []error {
+	if e.RollbackErr == nil {
+		return []error{e.Err}
+	}
+	return []error{e.Err, e.RollbackErr}
+}
+
 func New(dir, profile string, check func(context.Context) error) *Store {
 	return &Store{Dir: dir, Profile: profile, Check: check, HTTP: &http.Client{Timeout: 20 * time.Second}}
 }
@@ -111,9 +126,9 @@ func (s *Store) Save(ctx context.Context, doc Document) error {
 	if s.Check != nil {
 		if err = s.Check(ctx); err != nil {
 			if errors.Is(oldErr, os.ErrNotExist) {
-				return errors.Join(err, os.Remove(Path(s.Dir, s.Profile)))
+				return &CheckError{Err: err, RollbackErr: os.Remove(Path(s.Dir, s.Profile))}
 			}
-			return errors.Join(err, write(Path(s.Dir, s.Profile), old))
+			return &CheckError{Err: err, RollbackErr: write(Path(s.Dir, s.Profile), old)}
 		}
 	}
 	return nil

@@ -806,5 +806,6 @@
   "cli.stream.connections.sample": "采样：{arg0}",
   "cli.stream.subscription.started": "订阅调度器运行中；中断以停止。",
   "cli.stream.traffic.sample": "上传：{arg0} B/s（总计 {arg1} B）  下载：{arg2} B/s（总计 {arg3} B）  采样：{arg4}",
-  "cli.error.validation.provider_chain_completion": "PROVIDER 只能用于 chain-targets provider-node 之后"
+  "cli.error.validation.provider_chain_completion": "PROVIDER 只能用于 chain-targets provider-node 之后",
+  "cli.error.rules.import_validation_rejected": "导入 {arg0} 到配置 {arg1} 失败：{arg2}；导入规则未保存，运行配置未变更"
 }

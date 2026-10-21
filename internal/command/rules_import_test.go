@@ -14,6 +14,58 @@ import (
 	"github.com/ronigooja/Nagi/internal/rules"
 )
 
+func TestRuleImportValidationFailureShowsCauseAndState(t *testing.T) {
+	for _, invocation := range [][]string{nil, {"--json"}, {"--lang", "zh-Hans"}, {"--json", "--lang", "zh-Hans"}} {
+		t.Run(strings.Join(invocation, " "), func(t *testing.T) {
+			root := t.TempDir()
+			paths := isolatedTestPaths(t, root)
+			t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[0]\",\"code\":\"invalid_config\",\"message\":\"configuration validation failed\"}]}'\necho 'PRIVATE raw diagnostic' >&2\nexit 1\n"))
+			file := filepath.Join(root, "rules.yaml")
+			if err := os.WriteFile(file, []byte("rules: [\"IP-CIDR,192.0.2.1/32,missing-target,no-resolve\"]\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			var out, errs bytes.Buffer
+			args := append(append([]string{}, invocation...), "rules", "import", "Personal", file)
+			if code := Run(args, &out, &errs, "test", "commit"); code != 1 || out.Len() != 0 {
+				t.Fatalf("exit=%d out=%s err=%s", code, out.String(), errs.String())
+			}
+			for _, want := range []string{"Personal", "default", "rules[0]", "invalid_config", "missing-target"} {
+				if !strings.Contains(errs.String(), want) {
+					t.Errorf("missing %q: %s", want, errs.String())
+				}
+			}
+			for _, excluded := range []string{"PRIVATE", "192.0.2.1", root} {
+				if strings.Contains(errs.String(), excluded) {
+					t.Errorf("exposed %q: %s", excluded, errs.String())
+				}
+			}
+			jsonMode := strings.Contains(strings.Join(invocation, " "), "--json")
+			if strings.Contains(strings.Join(invocation, " "), "zh-Hans") && !jsonMode {
+				for _, want := range []string{"不存在的代理目标", "导入规则未保存", "运行配置未变更"} {
+					if !strings.Contains(errs.String(), want) {
+						t.Errorf("missing localized %q: %s", want, errs.String())
+					}
+				}
+			} else if !strings.Contains(errs.String(), "imported rules were not saved; runtime configuration was not changed") {
+				t.Errorf("missing failure state: %s", errs.String())
+			}
+			if jsonMode {
+				var envelope struct {
+					OK    bool
+					Error struct{ Code string }
+				}
+				if err := json.Unmarshal(errs.Bytes(), &envelope); err != nil || envelope.OK || envelope.Error.Code != "rule_error" {
+					t.Fatalf("error contract: %s (%v)", errs.String(), err)
+				}
+			}
+			doc, err := rules.New(paths.ConfigDir, "default", nil).List()
+			if err != nil || len(doc.Entries) != 0 {
+				t.Fatalf("failed import persisted: %+v (%v)", doc, err)
+			}
+		})
+	}
+}
+
 func TestRuleImportPreflight(t *testing.T) {
 	invalidTestConfigDir(t, t.TempDir())
 	for _, args := range [][]string{

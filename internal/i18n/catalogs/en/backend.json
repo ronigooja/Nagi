@@ -562,5 +562,7 @@
   "backend.profile.chain_provider_protocol_unsupported": "provider node protocol is unsupported for isolated chains",
   "backend.profile.chain_provider_node_unavailable": "saved provider node is unavailable in its current source",
   "backend.profile.chain_provider_policy_incompatible": "provider-node chains cannot be combined with a subscription chain policy; clear the existing chain first",
-  "backend.proxy.provider_chain_refresh_failed": "provider updated, but a selected chain node refresh failed; mihomo retained its last good node; inspect mihomo logs"
+  "backend.proxy.provider_chain_refresh_failed": "provider updated, but a selected chain node refresh failed; mihomo retained its last good node; inspect mihomo logs",
+  "backend.profile.validation.missing_proxy": "profile validation failed at {path} ({code}): {detail}; candidate rule references missing proxy target {target}; use an existing proxy target or add it to the candidate profile, then retry",
+  "backend.profile.validation.named.missing_proxy": "profile {profile} validation failed at {path} ({code}): {detail}; candidate rule references missing proxy target {target}; use an existing proxy target or add it to the candidate profile, then retry"
 }

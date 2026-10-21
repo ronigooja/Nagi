@@ -133,6 +133,34 @@ func TestProfileValidatorPreservesSpecificRuleDiagnostic(t *testing.T) {
 	}
 }
 
+func TestMissingRuleProxyEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		name, path, code, message, candidate, want string
+	}{
+		{"missing", "rules[0]", "invalid_config", "configuration validation failed", "rules: [\"IP-CIDR,192.0.2.1/32,missing-target,no-resolve\"]", "missing-target"},
+		{"domain", "rules[1]", "invalid_config", "configuration validation failed", "rules: [\"MATCH,DIRECT\", \"DOMAIN,example.com,Work\"]", "Work"},
+		{"node exists", "rules[0]", "invalid_config", "configuration validation failed", "proxies: [{name: Work}]\nrules: [\"MATCH,Work\"]", ""},
+		{"group exists", "rules[0]", "invalid_config", "configuration validation failed", "proxy-groups: [{name: Work}]\nrules: [\"MATCH,Work\"]", ""},
+		{"builtin", "rules[0]", "invalid_config", "configuration validation failed", "rules: [\"MATCH,PASS-RULE\"]", ""},
+		{"provider unknown", "rules[0]", "invalid_config", "configuration validation failed", "proxy-providers: {remote: {type: http}}\nrules: [\"MATCH,Work\"]", ""},
+		{"inline renaming", "rules[0]", "invalid_config", "configuration validation failed", "proxy-providers: {local: {type: inline, payload: [{name: Work}]}}\nrules: [\"MATCH,Work\"]", ""},
+		{"specific cause", "rules[0]", "geodata_download_failed", "download failed", "rules: [\"MATCH,Work\"]", ""},
+		{"specific message", "rules[0]", "invalid_config", "specific engine reason", "rules: [\"MATCH,Work\"]", ""},
+		{"bad index", "rules[10446]", "invalid_config", "configuration validation failed", "rules: [\"MATCH,Work\"]", ""},
+		{"nested path", "sub-rules[test][0]", "invalid_config", "configuration validation failed", "rules: [\"MATCH,Work\"]", ""},
+		{"complex rule", "rules[0]", "invalid_config", "configuration validation failed", "rules: [\"AND,((DOMAIN,example.com)),Work\"]", ""},
+		{"invalid yaml", "rules[0]", "invalid_config", "configuration validation failed", "rules: [", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			diagnostic := &profile.ValidationError{Path: tc.path, Code: tc.code, Message: tc.message}
+			annotateMissingRuleProxy([]byte(tc.candidate), diagnostic)
+			if diagnostic.MissingProxy != tc.want || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
+				t.Fatalf("unexpected diagnostic: %+v", diagnostic)
+			}
+		})
+	}
+}
+
 func TestProfileValidatorShowsGeoIPFailureWithoutRuleSyntaxAdvice(t *testing.T) {
 	binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[10446]\",\"code\":\"geodata_download_failed\",\"message\":\"GeoIP database (MMDB) download failed: connection refused\"}]}'\necho 'PRIVATE raw diagnostic' >&2\nexit 1\n")
 	store, _ := validationStore(t, binary)
