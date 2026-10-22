@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 func TestEngineLatencyDisplayedWithoutImplicitMeasurement(t *testing.T) {
@@ -101,16 +102,9 @@ func TestHealthcheckRetainedFormAndRestorationJourney(t *testing.T) {
 					t.Fatalf("dispatch %s=%d calls=%v", cmd, counts[cmd], r.calls)
 				}
 			}
-			wants := []string{"Values are retained", "Interval: 300 seconds (profile)", "Local healthcheck interval saved.", "Inherited healthcheck interval restored."}
-			if kind == "subscription" {
-				wants = append(wants, "Enabled/lazy: per checker")
-			} else {
-				wants = append(wants, "Enabled: true; lazy: true")
-			}
-			if kind == "group" {
-				wants = append(wants, "Provider nodes use their provider interval.")
-			} else if kind == "provider" {
-				wants = append(wants, "Groups can check provider nodes independently.")
+			wants := []string{"Values are retained", "Check interval: 300 seconds (profile settings)", "Local healthcheck interval saved.", "Inherited healthcheck interval restored."}
+			if kind != "subscription" {
+				wants = append(wants, "Checks: On; skip when unused: On")
 			}
 			for _, want := range wants {
 				if !strings.Contains(out.String(), want) {
@@ -128,7 +122,7 @@ func TestHealthcheckFailureKeepsSettingsActionsAndCancelDoesNotMutate(t *testing
 	r := &fakeRunner{results: map[string]Result{"proxy healthcheck show group Work": {Code: 1, Error: &CLIError{Message: "profile unavailable"}}}}
 	var out bytes.Buffer
 	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n"), &out), healthcheckPage("group", "Work"))
-	if len(r.calls) != 1 || !strings.Contains(out.String(), "unknown") || !strings.Contains(out.String(), "Reset interval") {
+	if len(r.calls) != 1 || !strings.Contains(out.String(), "unknown") || !strings.Contains(out.String(), "Restore inherited interval") {
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
 	}
 }
@@ -169,11 +163,11 @@ func TestUnavailableMeasurementsRemainUnknownInNodeListsAndDetails(t *testing.T)
 
 func TestHealthcheckSchedulingReasonDisplayedWithUnknownAndDisabledFields(t *testing.T) {
 	for _, tc := range []struct {
-		kind, note string
-		enabled    any
+		kind    string
+		enabled any
 	}{
-		{"group", "Provider nodes use their provider interval.", nil},
-		{"provider", "Groups can check provider nodes independently.", false},
+		{"group", nil},
+		{"provider", false},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			r := &fakeRunner{results: map[string]Result{"proxy healthcheck show " + tc.kind + " Work": {Data: map[string]any{
@@ -181,7 +175,7 @@ func TestHealthcheckSchedulingReasonDisplayedWithUnknownAndDisabledFields(t *tes
 			}}}}
 			var out bytes.Buffer
 			RunPage(context.Background(), NewSession(r, strings.NewReader("0\n"), &out), healthcheckPage(tc.kind, "Work"))
-			for _, want := range []string{"Interval: unknown (profile)", "lazy: unknown", tc.note} {
+			for _, want := range []string{"Check interval: unknown (profile settings)", "skip when unused: unknown", "Test URL: unknown"} {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("missing %q: %s", want, out.String())
 				}
@@ -200,13 +194,17 @@ func TestHealthcheckSchedulingReasonDisplayedWithUnknownAndDisabledFields(t *tes
 			"interval_seconds": 0, "interval_defaulted": true, "enabled": enabled, "lazy": false, "source": "profile",
 		}}}}
 		view, err := healthcheckPage("group", "Work").Load(context.Background(), NewSession(r, strings.NewReader(""), &bytes.Buffer{}))
-		if err != nil || !strings.Contains(view.Context, "Interval: default (profile)") {
+		if err != nil || !strings.Contains(view.Context, "Check interval: as configured (profile settings)") {
 			t.Fatalf("defaulted interval inferred an exact value: context=%q err=%v", view.Context, err)
 		}
 		if strings.Contains(view.Context, "all automatic checks") || strings.Contains(view.Context, "automatic checks are off") {
 			t.Fatalf("group state was generalized: %q", view.Context)
 		}
-		if !strings.Contains(view.Context, "Enabled: "+strconv.FormatBool(enabled)) {
+		state := "Off"
+		if enabled {
+			state = "On"
+		}
+		if !strings.Contains(view.Context, "Checks: "+state) {
 			t.Fatalf("enabled field lost: %q", view.Context)
 		}
 	}
@@ -287,10 +285,10 @@ func TestSubscriptionLatencyEntryIsExplicitAndUsesOriginalDefault(t *testing.T) 
 		t.Fatal("implicit settings read")
 	}
 	settings, _ := action.Next().Load(context.Background(), s)
-	if settings.Actions[0].Impact != "" || settings.Actions[0].Label != "Set interval" || !strings.Contains(settings.Context, "Profile: not applied") || !strings.Contains(settings.Context, "Enabled/lazy: per checker") || strings.Contains(settings.Context, "Enabled: false") {
+	if settings.Actions[0].Impact != "" || settings.Actions[0].Label != "Set check interval" || !strings.Contains(settings.Context, "Profile: not applied") || strings.Contains(settings.Context, "lazy") || strings.Contains(settings.Context, "Enabled: false") {
 		t.Fatalf("misleading subscription settings: %+v", settings)
 	}
-	if !strings.Contains(settings.Context, "Interval: default") || strings.Contains(settings.Context, "0 seconds") || settings.Actions[1].Label != "Reset interval" {
+	if !strings.Contains(settings.Context, "Check interval: as configured") || strings.Contains(settings.Context, "0 seconds") || settings.Actions[1].Label != "Use profile check intervals" {
 		t.Fatalf("%+v", settings)
 	}
 }
@@ -305,5 +303,43 @@ func TestExplicitProviderNodeIdentityOverridesReservedNameFallback(t *testing.T)
 	}
 	if nodeKind("DIRECT", nil) != "builtin" {
 		t.Fatal("missing reserved fallback")
+	}
+}
+
+func TestSubscriptionHealthcheckSummaryLanguagesAndURLPrivacy(t *testing.T) {
+	for _, tc := range []struct {
+		language                                   i18n.Language
+		inherited, custom, intervalReset, urlReset string
+	}{
+		{i18n.English, "Profile: work\nCheck interval: as configured (profile settings)\nTest URL: as configured (profile settings)", "Check interval: 120 seconds (custom setting)\nTest URL: check.example.invalid (https) (custom setting)", "Use profile check intervals", "Use profile test URLs"},
+		{i18n.SimplifiedChinese, "配置：work\n检测间隔：使用配置值（配置文件）\n测试 URL：使用配置值 (配置文件)", "检测间隔：120 秒（自定义设置）\n测试 URL：check.example.invalid (https) (自定义设置)", "使用配置文件中的检测间隔", "使用配置文件中的测试 URL"},
+	} {
+		t.Run(string(tc.language), func(t *testing.T) {
+			runner := &fakeRunner{results: map[string]Result{
+				"proxy healthcheck show subscription Work": {Data: map[string]any{"profile": "work", "interval_defaulted": true, "source": "profile", "url_source": "profile"}},
+			}}
+			var out bytes.Buffer
+			session := NewSessionWithLanguage(runner, strings.NewReader(""), &out, i18n.New(tc.language))
+			page := localizedhealthcheckPage(i18n.New(tc.language), "subscription", "Work")
+			view, err := page.Load(context.Background(), session)
+			if err != nil || view.Context != tc.inherited || view.Actions[1].Label != tc.intervalReset || view.Actions[3].Label != tc.urlReset {
+				t.Fatalf("inherited settings=%+v err=%v", view, err)
+			}
+			runner.results["proxy healthcheck show subscription Work"] = Result{Data: map[string]any{"profile": "work", "interval_seconds": 120, "source": "override", "url_source": "override", "test_url": "https://user:secret@check.example.invalid/private?token=secret"}}
+			view, err = page.Load(context.Background(), session)
+			if err != nil || !strings.Contains(view.Context, tc.custom) {
+				t.Fatalf("custom settings=%+v err=%v", view, err)
+			}
+			for _, unwanted := range []string{"secret", "private", "token", "user:", "Enabled/lazy", "per checker", "懒惰"} {
+				if strings.Contains(view.Context, unwanted) {
+					t.Fatalf("unexpected %q in %s", unwanted, view.Context)
+				}
+			}
+			for _, call := range runner.calls {
+				if !reflect.DeepEqual(call, []string{"proxy", "healthcheck", "show", "subscription", "Work"}) {
+					t.Fatalf("unexpected work: %v", call)
+				}
+			}
+		})
 	}
 }

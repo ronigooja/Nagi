@@ -85,13 +85,19 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 		view := PageView{Context: menuText(language, "menu.healthcheck.healthcheck_page.automatic_latency_check_settings_unknown", "Automatic latency check settings: unknown")}
 		var config menuHealthcheck
 		err := localizeddecodeMenuResult(language, s.Fetch(ctx, "proxy", "healthcheck", "show", kind, name), &config)
+		resetInterval := menuText(language, "menu.healthcheck.healthcheck_page.reset_interval", "Restore inherited interval")
+		resetURL := menuText(language, "menu.healthcheck.healthcheck_page.reset_test_url", "Restore inherited test URL")
+		if kind == "subscription" {
+			resetInterval = menuText(language, "menu.healthcheck.healthcheck_reset_label.use_original_configuration_interval", "Use profile check intervals")
+			resetURL = menuText(language, "menu.healthcheck.healthcheck_page.inherit_test_url", "Use profile test URLs")
+		}
 		view.Actions = []Item{
-			{ID: "healthcheck.healthcheckPage.item2", Label: menuText(language, "menu.healthcheck.healthcheck_page.set_interval", "Set interval"), Action: func(ctx context.Context, s *Session) error {
+			{ID: "healthcheck.healthcheckPage.item2", Label: menuText(language, "menu.healthcheck.healthcheck_page.set_interval", "Set check interval"), Action: func(ctx context.Context, s *Session) error {
 				values := map[string]string{}
 				if config.IntervalSeconds != nil && *config.IntervalSeconds > 0 {
 					values["seconds"] = strconv.Itoa(*config.IntervalSeconds)
 				}
-				_, err := s.Form(ctx, []Field{{Key: "seconds", Label: menuText(language, "menu.healthcheck.healthcheck_page.interval_seconds", "Interval (seconds)"), Required: true, Validate: func(raw string) error {
+				_, err := s.Form(ctx, []Field{{Key: "seconds", Label: menuText(language, "menu.healthcheck.healthcheck_page.interval_seconds", "Check interval (seconds)"), Required: true, Validate: func(raw string) error {
 					n, err := strconv.ParseInt(raw, 10, 64)
 					if err != nil || n < 1 || n > 31536000 {
 						return fmt.Errorf("%s", menuText(language, "menu.healthcheck.healthcheck_page.enter_an_integer_from_1_to_31536000_seconds", "enter an integer from 1 to 31536000 seconds"))
@@ -102,7 +108,7 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 				})
 				return err
 			}},
-			{ID: "healthcheck.healthcheckPage.item3", Label: menuText(language, "menu.healthcheck.healthcheck_page.reset_interval", "Reset interval"), Args: []string{"proxy", "healthcheck", "reset", kind, name}},
+			{ID: "healthcheck.healthcheckPage.item3", Label: resetInterval, Args: []string{"proxy", "healthcheck", "reset", kind, name}},
 		}
 		view.Actions = append(view.Actions,
 			Item{ID: "healthcheck.healthcheckPage.item4", Label: menuText(language, "menu.healthcheck.healthcheck_page.set_test_url", "Set test URL"), Action: func(ctx context.Context, s *Session) error {
@@ -111,7 +117,7 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 				})
 				return err
 			}},
-			Item{ID: "healthcheck.healthcheckPage.item5", Label: menuText(language, "menu.healthcheck.healthcheck_page.reset_test_url", "Reset test URL"), Args: []string{"proxy", "healthcheck", "url", "reset", kind, name}},
+			Item{ID: "healthcheck.healthcheckPage.item5", Label: resetURL, Args: []string{"proxy", "healthcheck", "url", "reset", kind, name}},
 		)
 		if err != nil {
 			return view, err
@@ -121,7 +127,7 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 		}
 		interval := "unknown"
 		if config.IntervalDefaulted {
-			interval = menuText(language, "menu.healthcheck.healthcheck_page.default_interval", "default")
+			interval = menuText(language, "menu.healthcheck.healthcheck_page.default_interval", "as configured")
 		} else if config.IntervalSeconds != nil {
 			interval = menuFormat(language, "menu.healthcheck.healthcheck_page.d_seconds", "%d seconds", *config.IntervalSeconds)
 		}
@@ -129,14 +135,22 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 			if v == nil {
 				return menuState(language, "unknown")
 			}
-			return menuState(language, strconv.FormatBool(*v))
+			if *v {
+				return menuState(language, "on")
+			}
+			return menuState(language, "off")
 		}
 		source := config.Source
 		if source == "" {
 			source = menuState(language, "unknown")
 		}
 		if source == "override" {
-			source = menuText(language, "menu.healthcheck.healthcheck_page.local_override", "local override")
+			source = menuText(language, "menu.healthcheck.healthcheck_page.local_override", "custom setting")
+		}
+		if source == "profile" {
+			source = menuText(language, "menu.healthcheck.healthcheck_page.original_configuration", "profile settings")
+		} else {
+			source = menuState(language, source)
 		}
 		profile := config.Profile
 		if profile == "" {
@@ -146,24 +160,31 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 				profile = "unknown"
 			}
 		}
-		view.Context = menuFormat(language, "menu.healthcheck.healthcheck_page.profile_s_interval_s_enabled_s_lazy_s_configurat", "Profile: %s\nInterval: %s (%s)\nEnabled: %s; lazy: %s", profile, interval, source, state(config.Enabled), state(config.Lazy))
+		view.Context = menuFormat(language, "menu.healthcheck.healthcheck_page.profile_s_interval_s_enabled_s_lazy_s_configurat", "Profile: %s\nCheck interval: %s (%s)\nChecks: %s; skip when unused: %s", profile, interval, source, state(config.Enabled), state(config.Lazy))
 		if kind == "subscription" {
-			view.Context = menuFormat(language, "menu.healthcheck.healthcheck_page.profile_s_interval_s_configuration_source_s_chec", "Profile: %s\nInterval: %s (%s)\nEnabled/lazy: per checker", profile, interval, source)
-		}
-		if kind == "group" {
-			view.Context += menuText(language, "menu.healthcheck.healthcheck_page.provider_nodes_use_provider_interval", "\nProvider nodes use their provider interval.")
-		} else if kind == "provider" {
-			view.Context += menuText(language, "menu.healthcheck.healthcheck_page.groups_can_check_provider_nodes_independently", "\nGroups can check provider nodes independently.")
-		}
-		if config.TestURL != "" {
-			view.Context += menuText(language, "menu.healthcheck.healthcheck_page.test_endpoint", "\nTest endpoint: ") + localizedmenuTestEndpoint(language, config.TestURL)
+			view.Context = menuFormat(language, "menu.healthcheck.healthcheck_page.profile_s_interval_s_configuration_source_s_chec", "Profile: %s\nCheck interval: %s (%s)", profile, interval, source)
 		}
 		urlSource := config.TestURLSource
 		if urlSource == "" {
 			urlSource = config.URLSource
 		}
+		endpoint := "unknown"
+		if config.TestURL != "" {
+			endpoint = localizedmenuTestEndpoint(language, config.TestURL)
+		} else if kind == "subscription" && urlSource == "profile" {
+			endpoint = menuText(language, "menu.healthcheck.healthcheck_page.default_interval", "as configured")
+		}
+		view.Context += menuText(language, "menu.healthcheck.healthcheck_page.test_endpoint", "\nTest URL: ") + endpoint
 		if urlSource != "" {
-			view.Context += menuText(language, "menu.healthcheck.healthcheck_page.test_url_source", "\nTest URL source: ") + menuState(language, urlSource)
+			switch urlSource {
+			case "profile":
+				urlSource = menuText(language, "menu.healthcheck.healthcheck_page.original_configuration", "profile settings")
+			case "override":
+				urlSource = menuText(language, "menu.healthcheck.healthcheck_page.local_override", "custom setting")
+			default:
+				urlSource = menuState(language, urlSource)
+			}
+			view.Context += " (" + urlSource + ")"
 		}
 		return view, nil
 	}}
