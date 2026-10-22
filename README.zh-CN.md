@@ -20,7 +20,7 @@ Nagi 是一款适用于 macOS 和 Linux 的代理客户端，提供原生 macOS 
 - **低延迟代理**：在 macOS 经局域网连接 Linux VLESS TCP+TLS 的实测中，Nagi 使用服务端默认 TCP ACK 设置，新建连接中位耗时 5.42 ms，复用请求中位耗时 0.32 ms。参考测试中的 Shadowrocket 分别为 53.36 ms 和 0.55 ms；两轮测试日期和网络环境不同，结果仅供参考。详见[性能测试说明](docs/development/benchmarks.md)。
 - **路由和 DNS**：自定义规则、导入规则集、规则／全局／直连模式、DNS-over-HTTPS（DoH）策略，以及针对特定域名的 DNS 例外设置。
 - **流量接入**：macOS 系统代理设置、macOS 和 Linux 上的 TUN 控制，以及代理监听端口和局域网访问设置。
-- **监控与恢复**：查看和关闭连接、实时日志、只读诊断，以及登录时启动的服务。
+- **监控与恢复**：在终端实时查看连接，支持搜索、筛选、详情和关闭；另有实时日志、只读诊断及登录启动服务。连接历史来自 mihomo 周期快照，短于采样间隔的连接可能无法捕获。
 
 CLI 支持 macOS 和 Linux 的 AMD64 与 ARM64 架构。可选的菜单栏应用要求 macOS 13 或更新版本。平台权限和路由行为详见[流量接入指南](docs/guides/traffic-access.md)。
 

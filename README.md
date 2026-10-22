@@ -22,7 +22,7 @@ Use the macOS menu bar app for daily controls, live traffic rates, and active co
 - **Original request capture:** explicit TUN HTTP/HTTPS and bidirectional WebSocket recording, original headers/cookies/bodies, scoped sessions, native/HAR archives and capture-derived versioned rewrite drafts through the CLI, terminal menu and native macOS source. See the [capture guide](docs/guides/request-capture.md) and [verification status](docs/development/request-rewrite-acceptance.md#capture-verification).
 - **Routing and DNS:** custom rules, imported rule sets, domain/IP rule tests, rule/global/direct modes, DNS-over-HTTPS (DoH) policy, and domain-specific DNS exceptions.
 - **Traffic access:** macOS system proxy settings, TUN controls on macOS and Linux, and proxy listener and LAN access settings.
-- **Monitoring and recovery:** connection inspection and closure, live logs, read-only diagnostics, and login startup services.
+- **Monitoring and recovery:** live terminal connection views with search, filters, details, and closure, live logs, read-only diagnostics, and login startup services. Connection history reflects mihomo snapshots and can miss connections shorter than the sampling interval.
 
 The CLI supports macOS and Linux on AMD64 and ARM64. The optional menu bar app requires macOS 13 or newer. See the [traffic access guide](docs/guides/traffic-access.md) for platform permissions and routing behavior.
 

@@ -83,6 +83,7 @@ func localizedConnectionsPage(language i18n.Context) *Page {
 			{ID: "traffic.ConnectionsPage.item3", Label: menuText(language, "menu.traffic.connections_page.show_a_connection", "Show a connection"), Action: localizedconnectionAction(language, "show")},
 			{ID: "traffic.ConnectionsPage.item4", Label: menuText(language, "menu.traffic.connections_page.close_a_connection", "Close a connection"), Action: localizedconnectionAction(language, "close")},
 			{ID: "traffic.ConnectionsPage.item5", Label: menuText(language, "menu.traffic.connections_page.close_all_connections", "Close all connections"), Args: []string{"connections", "close-all"}},
+			{ID: "traffic.ConnectionsPage.item6", Label: menuText(language, "menu.traffic.connections_page.live_connections", "Live connections"), Action: liveConnections},
 		}}, nil
 	}}
 }
