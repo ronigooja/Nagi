@@ -42,8 +42,9 @@ func (d menuNodeDelay) labelFor(language i18n.Context) string {
 }
 
 type menuNodeInfo struct {
-	Kind   string `json:"kind"`
-	Status string `json:"status"`
+	Kind          string         `json:"kind"`
+	Status        string         `json:"status"`
+	SelectedDelay *menuNodeDelay `json:"selected_delay"`
 }
 
 func localizednodeKind(language i18n.Context, name string, info map[string]menuNodeInfo) string {
@@ -61,6 +62,9 @@ func localizednodeLabel(language i18n.Context, name string, info map[string]menu
 	case "node":
 		return name + " — " + delays[name].labelFor(language)
 	case "group":
+		if delay := info[name].SelectedDelay; delay != nil {
+			return name + " — " + delay.labelFor(language)
+		}
 		if status := info[name].Status; status == "available" || status == "unavailable" {
 			return name + " — " + menuState(language, status)
 		}

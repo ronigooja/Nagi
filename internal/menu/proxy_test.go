@@ -155,6 +155,109 @@ func TestProxyMeasurementsPruneRemovedNodes(t *testing.T) {
 	}
 }
 
+func TestProxyNestedGroupLatencyStates(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		delay map[string]any
+		en    string
+		zh    string
+	}{
+		{"success", map[string]any{"status": "ok", "delay_ms": 120}, "120 ms", "120 ms"},
+		{"zero", map[string]any{"status": "ok", "delay_ms": 0}, "<1 ms", "<1 ms"},
+		{"failure", map[string]any{"status": "failed"}, "latency test failed", "延迟测试失败"},
+		{"untested", map[string]any{"status": "untested"}, "untested", "未测试"},
+		{"unknown", map[string]any{"status": "ok"}, "latency unknown", "延迟未知"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, lang := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+				runner := &featureRunner{results: map[string]Result{
+					"proxy\x00show\x00Main": {Data: map[string]any{
+						"all": []string{"Region"},
+						"node_info": map[string]any{"Region": map[string]any{
+							"kind": "group", "status": "available", "selected_delay": tc.delay,
+						}},
+					}},
+				}}
+				view, err := localizedproxyGroupPage(i18n.New(lang), "Main").Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := tc.en
+				if lang == i18n.SimplifiedChinese {
+					want = tc.zh
+				}
+				if len(view.Items) != 1 || view.Items[0].Label != "Region — "+want {
+					t.Fatalf("language=%s items=%+v", lang, view.Items)
+				}
+				if len(runner.calls) != 1 {
+					t.Fatalf("display triggered extra commands: %v", runner.calls)
+				}
+			}
+		})
+	}
+}
+
+func TestProxyNestedGroupLatencyAfterBatchAndSelection(t *testing.T) {
+	ctx := context.Background()
+	data := map[string]any{
+		"name": "Main", "all": []string{"DIRECT", "Region"}, "now": "Region",
+		"node_info": map[string]any{"Region": map[string]any{"kind": "group", "status": "available"}},
+	}
+	runner := &featureRunner{results: map[string]Result{
+		"proxy\x00show\x00Main": {Data: data},
+		"proxy\x00delays\x00Main": {Data: map[string]any{"results": []any{
+			map[string]any{"proxy": "Region", "delay_ms": 42},
+			map[string]any{"proxy": "DIRECT", "delay_ms": 1},
+		}}},
+		"proxy\x00select\x00Main\x00Region": {Data: map[string]any{"group": "Main", "node": "Region"}},
+	}}
+	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
+	page := proxyGroupPage("Main")
+	view, err := page.Load(ctx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := profileAction(t, view, "Test all nodes and select from results").Action(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		info map[string]any
+		want string
+	}{
+		{map[string]any{"kind": "group", "status": "available", "selected_delay": map[string]any{"status": "ok", "delay_ms": 42}}, "42 ms"},
+		{map[string]any{"kind": "group", "status": "unavailable", "selected_delay": map[string]any{"status": "failed"}}, "latency test failed"},
+		{map[string]any{"kind": "group", "selected_delay": map[string]any{"status": "untested"}}, "untested"},
+		{map[string]any{"kind": "group", "selected_builtin": "DIRECT"}, ""},
+	} {
+		data["node_info"] = map[string]any{"Region": tc.info}
+		view, err = page.Load(ctx, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "Region"
+		if tc.want != "" {
+			want += " — " + tc.want
+		}
+		want += " (selected)"
+		if len(view.Items) != 2 || view.Items[0].Label != want || !view.Items[0].Selected || view.Items[1].Label != "DIRECT" {
+			t.Fatalf("items=%+v want first=%q", view.Items, want)
+		}
+		if !reflect.DeepEqual(view.Items[0].Args, []string{"proxy", "select", "Main", "Region"}) {
+			t.Fatal(view.Items[0].Args)
+		}
+		if result := s.Fetch(ctx, view.Items[0].Args...); result.Code != 0 {
+			t.Fatal(result)
+		}
+	}
+	for _, call := range runner.calls {
+		if !reflect.DeepEqual(call, []string{"proxy", "show", "Main"}) &&
+			!reflect.DeepEqual(call, []string{"proxy", "delays", "Main"}) &&
+			!reflect.DeepEqual(call, []string{"proxy", "select", "Main", "Region"}) {
+			t.Fatalf("unexpected command: %v", call)
+		}
+	}
+}
+
 func TestProxyFailedReadsKeepRecoveryActionsAndUnknownState(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{}}
 	view, err := proxyGroupPage("Auto").Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
