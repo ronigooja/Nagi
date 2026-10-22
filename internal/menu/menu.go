@@ -285,6 +285,13 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 // The terminal is canonical: readiness means a complete line is available.
 // Polling in the same goroutine avoids abandoned readers after cancellation.
 func (s *Session) interruptibleRead() (string, error) {
+	if s.file != nil && IsTerminal(s.file) {
+		restore, err := terminal.UTF8(s.file)
+		if err != nil {
+			return "", err
+		}
+		defer restore()
+	}
 	select {
 	case <-s.interrupts:
 		fmt.Fprintln(s.out)
