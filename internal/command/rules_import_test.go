@@ -19,6 +19,16 @@ func TestRuleImportValidationFailureShowsCauseAndState(t *testing.T) {
 		t.Run(strings.Join(invocation, " "), func(t *testing.T) {
 			root := t.TempDir()
 			paths := isolatedTestPaths(t, root)
+			// An unrelated Tailscale node must not suppress the native rule
+			// diagnostic, including the concise menu-facing import failure.
+			profiles := filepath.Join(paths.ConfigDir, "profiles")
+			if err := os.MkdirAll(profiles, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(profiles, "default.yaml"), []byte("proxies: [{name: Tail, type: tailscale, auth-key: FICTITIOUS}]\nrules: ['MATCH,DIRECT']\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+
 			t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[0]\",\"code\":\"rule_proxy_not_found\",\"message\":\"outbound does not exist: missing-target\",\"target\":\"missing-target\"}]}'\necho 'PRIVATE raw diagnostic' >&2\nexit 1\n"))
 			file := filepath.Join(root, "rules.yaml")
 			if err := os.WriteFile(file, []byte("rules: [\"IP-CIDR,192.0.2.1/32,missing-target,no-resolve\"]\n"), 0600); err != nil {

@@ -214,6 +214,8 @@ Both standard input and standard output must be terminals. Redirected input/outp
 
 ## Diagnostics
 
+Profile validation consumes mihomo’s structured `--check-json` diagnostics for all profiles, including those containing Tailscale nodes. Errors retain the failing field path, code, and cause; an unrelated Tailscale node does not suppress rule errors. Without a structured diagnostic, the CLI gives a local validation command using `FILE` and `DIRECTORY` placeholders. Raw validation stdout/stderr and temporary configuration files are not included in ordinary errors.
+
 `doctor` inspects directory availability and owner read/search permission bits, the mihomo executable (including `NAGI_MIHOMO_BIN` resolved through `PATH`), selected-profile readability, PID liveness, and the Unix Socket `/version` endpoint. It does not create directories, change files, start the engine, validate YAML with mihomo, or test proxy connectivity. A live PID does not establish process identity. The API check has a two-second deadline.
 
 The result is `{"healthy":true,"checks":[{"name":"...","status":"ok","message":"..."}]}` inside the success envelope. `status` is `ok`, `warning`, or `error`; `healthy` is false if any check has status `error`. Check names are `config_directory`, `data_directory`, `state_directory`, `runtime_directory`, `mihomo_executable`, `selected_profile`, `process`, and `control_api`. Missing first-use directories, a missing default profile, and a stopped engine can be warnings. A missing executable, invalid selection, missing selected non-default profile, or stale PID is an error.

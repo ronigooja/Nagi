@@ -88,8 +88,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if e != nil {
 			current = "default"
 		}
-		var hasTailscale bool
-		data, hasTailscale, e = profile.RewriteTailscaleState(data, paths.ConfigDir, current, true)
+		data, _, e = profile.RewriteTailscaleState(data, paths.ConfigDir, current, true)
 		if e != nil {
 			return e
 		}
@@ -125,9 +124,6 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if err != nil {
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
-				if hasTailscale {
-					return messageError("cli.error.profile.profile_validation_failed_tailscale_diagnostics_are_private_validate", "profile validation failed; Tailscale diagnostics are private; validate a local copy with mihomo -t --check-json")
-				}
 				var result struct {
 					Errors []struct {
 						Path    string `json:"path"`

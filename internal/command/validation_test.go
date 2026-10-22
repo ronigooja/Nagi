@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -199,5 +200,56 @@ func TestProfileValidatorDistinguishesLaunchFailure(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), ".nagi-validate-") || strings.Contains(err.Error(), root) || strings.Contains(err.Error(), "source YAML") {
 		t.Fatalf("launch failure presented as config failure or exposed a temporary path: %v", err)
+	}
+}
+
+// Structured diagnostics belong to the failed field, regardless of unrelated
+// Tailscale configuration. Raw process output is never a substitute.
+func TestTailscaleProfileValidationPreservesStructuredCause(t *testing.T) {
+	for _, issue := range []struct{ path, code, message, target string }{
+		{"rules[0]", "rule_proxy_not_found", "outbound does not exist: missing-target", "missing-target"},
+		{"proxies[0]", "invalid_config", "configuration validation failed", ""},
+	} {
+		t.Run(issue.code, func(t *testing.T) {
+			result, err := json.Marshal(map[string]any{"valid": false, "errors": []map[string]string{{"path": issue.path, "code": issue.code, "message": issue.message, "target": issue.target}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\nprintf '%s\\n' '"+string(result)+"'\necho 'PRIVATE_RAW_STDERR' >&2\nexit 1\n")
+			store, root := validationStore(t, binary)
+			err = store.Write(context.Background(), "work", []byte("proxies: [{name: Tail, type: tailscale, auth-key: FICTITIOUS_AUTH_KEY}]\nrules: ['MATCH,DIRECT']\n"))
+			var diagnostic *profile.ValidationError
+			if !errors.As(err, &diagnostic) {
+				t.Fatalf("structured cause hidden: %v", err)
+			}
+			if diagnostic.Profile != "work" || diagnostic.Path != issue.path || diagnostic.Code != issue.code || diagnostic.Message != issue.message || diagnostic.MissingProxy != issue.target {
+				t.Fatalf("lost diagnostic: %+v", diagnostic)
+			}
+			for _, excluded := range []string{"FICTITIOUS_AUTH_KEY", "PRIVATE_RAW_STDERR", root, "Tailscale diagnostics are private"} {
+				if strings.Contains(err.Error(), excluded) {
+					t.Fatalf("unexpected %q: %v", excluded, err)
+				}
+			}
+			files, err := os.ReadDir(filepath.Join(root, "profiles"))
+			if err != nil || len(files) != 0 {
+				t.Fatalf("temporary validation file remains: %v %v", files, err)
+			}
+		})
+	}
+}
+
+func TestTailscaleProfileValidationWithoutStructuredCause(t *testing.T) {
+	for _, stdout := range []string{"PRIVATE_RAW_STDOUT", `{"valid":false,"errors":[]}`} {
+		binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\nprintf '%s\\n' '"+stdout+"'\necho 'PRIVATE_RAW_STDERR' >&2\nexit 1\n")
+		store, _ := validationStore(t, binary)
+		err := store.Write(context.Background(), "work", []byte("proxies: [{name: Tail, type: tailscale, auth-key: FICTITIOUS_AUTH_KEY}]\n"))
+		if err == nil || !strings.Contains(err.Error(), "mihomo -t --check-json -f FILE -d DIRECTORY") {
+			t.Fatalf("missing useful fallback: %v", err)
+		}
+		for _, excluded := range []string{"PRIVATE_RAW_STDOUT", "PRIVATE_RAW_STDERR", "FICTITIOUS_AUTH_KEY", "Tailscale diagnostics are private"} {
+			if strings.Contains(err.Error(), excluded) {
+				t.Fatalf("unexpected %q: %v", excluded, err)
+			}
+		}
 	}
 }
