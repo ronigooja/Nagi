@@ -372,6 +372,12 @@ func localizedmutationFeedback(language i18n.Context, args []string) string {
 		}[args[1]]
 	case "proxy":
 		if args[1] == "healthcheck" && len(args) > 2 {
+			if args[2] == "url" && len(args) > 3 {
+				return map[string]string{
+					"set":   menuText(language, "menu.render.mutation_feedback.healthcheck_test_url_saved", "Test URL saved."),
+					"reset": menuText(language, "menu.render.mutation_feedback.inherited_healthcheck_test_url_restored", "Test URL inherited."),
+				}[args[3]]
+			}
 			return map[string]string{"set": menuText(language, "menu.render.mutation_feedback.local_healthcheck_interval_saved", "Local healthcheck interval saved."), "reset": menuText(language, "menu.render.mutation_feedback.inherited_healthcheck_interval_restored", "Inherited healthcheck interval restored.")}[args[2]]
 		}
 		if args[1] == "provider" && len(args) > 2 {

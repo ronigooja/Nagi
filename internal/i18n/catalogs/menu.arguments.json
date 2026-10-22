@@ -1275,5 +1275,14 @@
   "menu.traffic.traffic_page_for_o_s.system_proxy": {},
   "menu.traffic.traffic_page_for_o_s.system_proxy2": {},
   "menu.traffic.traffic_page_for_o_s.system_proxy_details": {},
-  "menu.traffic.tun_details": {}
+  "menu.traffic.tun_details": {},
+  "menu.healthcheck.healthcheck_page.set_interval": {},
+  "menu.healthcheck.healthcheck_page.reset_interval": {},
+  "menu.healthcheck.healthcheck_page.interval_seconds": {},
+  "menu.healthcheck.healthcheck_page.provider_nodes_use_provider_interval": {},
+  "menu.healthcheck.healthcheck_page.groups_can_check_provider_nodes_independently": {},
+  "menu.healthcheck.healthcheck_page.reset_test_url": {},
+  "menu.render.mutation_feedback.healthcheck_test_url_saved": {},
+  "menu.render.mutation_feedback.inherited_healthcheck_test_url_restored": {},
+  "menu.healthcheck.healthcheck_page.default_interval": {}
 }

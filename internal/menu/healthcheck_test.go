@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -100,12 +101,23 @@ func TestHealthcheckRetainedFormAndRestorationJourney(t *testing.T) {
 					t.Fatalf("dispatch %s=%d calls=%v", cmd, counts[cmd], r.calls)
 				}
 			}
-			for _, want := range []string{"Values are retained", "Configuration source: profile", "Lazy checks may skip", "subscription download intervals are separate", "Local healthcheck interval saved.", "Inherited healthcheck interval restored."} {
+			wants := []string{"Values are retained", "Interval: 300 seconds (profile)", "Local healthcheck interval saved.", "Inherited healthcheck interval restored."}
+			if kind == "subscription" {
+				wants = append(wants, "Enabled/lazy: per checker")
+			} else {
+				wants = append(wants, "Enabled: true; lazy: true")
+			}
+			if kind == "group" {
+				wants = append(wants, "Provider nodes use their provider interval.")
+			} else if kind == "provider" {
+				wants = append(wants, "Groups can check provider nodes independently.")
+			}
+			for _, want := range wants {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("missing %q: %s", want, out.String())
 				}
 			}
-			if kind == "subscription" && !strings.Contains(out.String(), "Provider local settings take precedence") {
+			if strings.Contains(out.String(), "Lazy checks may skip") || strings.Contains(out.String(), "download intervals are separate") || strings.Contains(out.String(), "Provider local settings take precedence") {
 				t.Fatal(out.String())
 			}
 		})
@@ -116,7 +128,7 @@ func TestHealthcheckFailureKeepsSettingsActionsAndCancelDoesNotMutate(t *testing
 	r := &fakeRunner{results: map[string]Result{"proxy healthcheck show group Work": {Code: 1, Error: &CLIError{Message: "profile unavailable"}}}}
 	var out bytes.Buffer
 	RunPage(context.Background(), NewSession(r, strings.NewReader("1\n"), &out), healthcheckPage("group", "Work"))
-	if len(r.calls) != 1 || !strings.Contains(out.String(), "unknown") || !strings.Contains(out.String(), "Use original configuration interval") {
+	if len(r.calls) != 1 || !strings.Contains(out.String(), "unknown") || !strings.Contains(out.String(), "Reset interval") {
 		t.Fatalf("calls=%v output=%s", r.calls, out.String())
 	}
 }
@@ -157,27 +169,46 @@ func TestUnavailableMeasurementsRemainUnknownInNodeListsAndDetails(t *testing.T)
 
 func TestHealthcheckSchedulingReasonDisplayedWithUnknownAndDisabledFields(t *testing.T) {
 	for _, tc := range []struct {
-		kind, reason string
-		enabled      any
+		kind, note string
+		enabled    any
 	}{
-		{"group", "provider-only group has no native checker", nil},
-		{"provider", "provider healthchecks are disabled", false},
+		{"group", "Provider nodes use their provider interval.", nil},
+		{"provider", "Groups can check provider nodes independently.", false},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			r := &fakeRunner{results: map[string]Result{"proxy healthcheck show " + tc.kind + " Work": {Data: map[string]any{
-				"profile": "work", "interval_seconds": nil, "lazy": nil, "enabled": tc.enabled, "reason": tc.reason, "source": "profile",
+				"profile": "work", "interval_seconds": nil, "lazy": nil, "enabled": tc.enabled, "reason": "long backend description should not be shown", "source": "profile",
 			}}}}
 			var out bytes.Buffer
 			RunPage(context.Background(), NewSession(r, strings.NewReader("0\n"), &out), healthcheckPage(tc.kind, "Work"))
-			for _, want := range []string{"Interval: unknown", "lazy: unknown", "Scheduling note: " + tc.reason} {
+			for _, want := range []string{"Interval: unknown (profile)", "lazy: unknown", tc.note} {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("missing %q: %s", want, out.String())
 				}
+			}
+			if strings.Contains(out.String(), "long backend description") {
+				t.Fatalf("verbose scheduling reason shown: %s", out.String())
 			}
 			if len(r.calls) != 1 {
 				t.Fatalf("implicit mutation: %v", r.calls)
 			}
 		})
+	}
+
+	for _, enabled := range []bool{false, true} {
+		r := &fakeRunner{results: map[string]Result{"proxy healthcheck show group Work": {Data: map[string]any{
+			"interval_seconds": 0, "interval_defaulted": true, "enabled": enabled, "lazy": false, "source": "profile",
+		}}}}
+		view, err := healthcheckPage("group", "Work").Load(context.Background(), NewSession(r, strings.NewReader(""), &bytes.Buffer{}))
+		if err != nil || !strings.Contains(view.Context, "Interval: default (profile)") {
+			t.Fatalf("defaulted interval inferred an exact value: context=%q err=%v", view.Context, err)
+		}
+		if strings.Contains(view.Context, "all automatic checks") || strings.Contains(view.Context, "automatic checks are off") {
+			t.Fatalf("group state was generalized: %q", view.Context)
+		}
+		if !strings.Contains(view.Context, "Enabled: "+strconv.FormatBool(enabled)) {
+			t.Fatalf("enabled field lost: %q", view.Context)
+		}
 	}
 }
 
@@ -256,10 +287,10 @@ func TestSubscriptionLatencyEntryIsExplicitAndUsesOriginalDefault(t *testing.T) 
 		t.Fatal("implicit settings read")
 	}
 	settings, _ := action.Next().Load(context.Background(), s)
-	if settings.Actions[0].Impact != "Saves subscription setting; reloads its active profile" || !strings.Contains(settings.Context, "Profile: not applied") || !strings.Contains(settings.Context, "Checker enablement and lazy behavior follow") || strings.Contains(settings.Context, "enabled: false") {
+	if settings.Actions[0].Impact != "" || settings.Actions[0].Label != "Set interval" || !strings.Contains(settings.Context, "Profile: not applied") || !strings.Contains(settings.Context, "Enabled/lazy: per checker") || strings.Contains(settings.Context, "Enabled: false") {
 		t.Fatalf("misleading subscription settings: %+v", settings)
 	}
-	if !strings.Contains(settings.Context, "Interval: original configuration") || strings.Contains(settings.Context, "0 seconds") || settings.Actions[1].Label != "Use original configuration interval" {
+	if !strings.Contains(settings.Context, "Interval: default") || strings.Contains(settings.Context, "0 seconds") || settings.Actions[1].Label != "Reset interval" {
 		t.Fatalf("%+v", settings)
 	}
 }

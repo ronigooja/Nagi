@@ -64,3 +64,52 @@ func TestMutationFeedbackPreservesReadsAndErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestHealthcheckTestURLMutationFeedbackIsConcise(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		args     []string
+		result   Result
+		want     string
+		contains string
+	}{
+		{
+			name: "set",
+			args: []string{"proxy", "healthcheck", "url", "set", "group", "Work", "https://check.example.invalid/ping?token=private"},
+			result: Result{Data: map[string]any{
+				"test_url": "https://check.example.invalid/ping?token=private", "url_source": "override",
+			}},
+			want: "Test URL saved.",
+		},
+		{
+			name: "reset",
+			args: []string{"proxy", "healthcheck", "url", "reset", "group", "Work"},
+			result: Result{Data: map[string]any{
+				"test_url": "https://inherited.example.invalid/ping", "url_source": "profile",
+			}},
+			want: "Test URL inherited.",
+		},
+		{
+			name:     "failed set",
+			args:     []string{"proxy", "healthcheck", "url", "set", "group", "Work", "https://check.example.invalid/ping?token=private"},
+			result:   Result{Code: 1, Error: &CLIError{Message: "activation failed"}},
+			contains: "activation failed",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var out bytes.Buffer
+			s := NewSession(&fakeRunner{}, strings.NewReader(""), &out)
+			s.ShowResult(test.args, test.result)
+			got := out.String()
+			if test.want != "" && !strings.Contains(got, test.want) {
+				t.Fatalf("missing feedback %q: %s", test.want, got)
+			}
+			if test.contains != "" && !strings.Contains(got, test.contains) {
+				t.Fatalf("missing error %q: %s", test.contains, got)
+			}
+			if strings.Contains(got, "check.example.invalid") || strings.Contains(got, "inherited.example.invalid") || strings.Contains(got, "token=private") || strings.Contains(got, "url_source") {
+				t.Fatalf("test URL details leaked: %s", got)
+			}
+		})
+	}
+}

@@ -64,7 +64,7 @@ func TestTestURLSettingsRetainInputAndResetIndependentlyOfInterval(t *testing.T)
 			if count != 2 || !hasProxyCall(runner.calls, []string{"proxy", "healthcheck", "url", "reset", kind, "Work"}) {
 				t.Fatalf("calls=%v", runner.calls)
 			}
-			if !strings.Contains(output.String(), "Values are retained") || !strings.Contains(output.String(), "Test URL source: profile") || strings.Contains(output.String(), "token=private") {
+			if !strings.Contains(output.String(), "Values are retained") || !strings.Contains(output.String(), "Test URL source: profile") || strings.Contains(output.String(), endpoint) || strings.Contains(output.String(), "token=private") {
 				t.Fatal(output.String())
 			}
 		})
@@ -97,7 +97,7 @@ func TestProviderWithoutInheritedTestURLHidesReset(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, action := range view.Actions {
-		if action.Label == "Inherit test URL" {
+		if action.Label == "Reset test URL" {
 			t.Fatalf("provider without inherited URL exposes reset: %+v", view.Actions)
 		}
 	}
