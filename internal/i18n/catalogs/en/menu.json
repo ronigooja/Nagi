@@ -1198,5 +1198,14 @@
   "menu.group.url_test": "Automatic latency selection",
   "menu.group.created": "Proxy group created.",
   "menu.group.updated": "Proxy group updated.",
-  "menu.group.deleted": "Proxy group deleted."
+  "menu.group.deleted": "Proxy group deleted.",
+  "menu.group.order": "Adjust display order",
+  "menu.group.up": "Move up",
+  "menu.group.down": "Move down",
+  "menu.group.top": "Move to top",
+  "menu.group.bottom": "Move to bottom",
+  "menu.group.save_order": "Save display order",
+  "menu.group.ordered": "Proxy group display order saved.",
+  "menu.group.profile_changed": "The selected profile changed. Reopen display ordering and try again.",
+  "menu.group.order_hint": "Select a group to move it. Changes take effect after Save display order."
 }

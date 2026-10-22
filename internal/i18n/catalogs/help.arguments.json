@@ -28309,5 +28309,7 @@
   "help.command.proxy.group.show.detail": {},
   "help.command.proxy.group.show.hint": {},
   "help.command.proxy.group.show.summary": {},
-  "help.command.proxy.group.summary": {}
+  "help.command.proxy.group.summary": {},
+  "help.command.proxy.group.order.summary": {},
+  "help.command.proxy.group.order.detail": {}
 }

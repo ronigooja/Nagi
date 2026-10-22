@@ -335,6 +335,10 @@ func writeProvider(w io.Writer, p proxy.Provider) error {
 }
 
 func writeHumanMap(w io.Writer, v map[string]any) error {
+	if v["resource"] == "group" && v["action"] == "order" && v["saved"] == true {
+		return line(w, text(w, "cli.output.group.ordered", "Proxy group display order saved."))
+	}
+
 	if groups, ok := v["group_configs"].([]profile.ProxyGroupConfig); ok {
 		if len(groups) == 0 {
 			return line(w, text(w, "cli.output.group.empty", "No configured proxy groups."))

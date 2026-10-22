@@ -328,6 +328,42 @@
     "path": "string",
     "syntax": "string"
   },
+  "backend.profile.group.order_complete": {},
+  "backend.profile.group.order_complete.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "backend.profile.group.order_duplicate": {
+    "arg0": "string"
+  },
+  "backend.profile.group.order_duplicate.usage": {
+    "arg0": "string",
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "backend.profile.group.order_list": {},
+  "backend.profile.group.order_list.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "backend.profile.group.order_name": {},
+  "backend.profile.group.order_name.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "backend.profile.group.order_unknown": {
+    "arg0": "string"
+  },
+  "backend.profile.group.order_unknown.usage": {
+    "arg0": "string",
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
   "backend.profile.group.provider_missing": {
     "arg0": "string"
   },
@@ -3054,6 +3090,7 @@
   "cli.output.group.empty": {},
   "cli.output.group.interval": {},
   "cli.output.group.nodes": {},
+  "cli.output.group.ordered": {},
   "cli.output.group.providers": {},
   "cli.output.group.strategy": {},
   "cli.output.group.tolerance": {},
@@ -3824,6 +3861,8 @@
   "help.command.proxy.group.edit.summary": {},
   "help.command.proxy.group.list.detail": {},
   "help.command.proxy.group.list.summary": {},
+  "help.command.proxy.group.order.detail": {},
+  "help.command.proxy.group.order.summary": {},
   "help.command.proxy.group.remove.detail": {},
   "help.command.proxy.group.remove.summary": {},
   "help.command.proxy.group.show.detail": {},

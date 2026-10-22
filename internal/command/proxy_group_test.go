@@ -117,13 +117,14 @@ COMP_WORDS=(nagi proxy group ''); COMP_CWORD=3; _nagi_complete; printf 'ACTIONS:
 COMP_WORDS=(nagi proxy group edit My); COMP_CWORD=4; _nagi_complete; printf 'GROUP:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
 COMP_WORDS=(nagi proxy group add New --node My); COMP_CWORD=6; _nagi_complete; printf 'NODE:%s\n' "${COMPREPLY[*]}"
 COMP_WORDS=(nagi proxy group add New --provider My); COMP_CWORD=6; _nagi_complete; printf 'PROVIDER:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
+COMP_WORDS=(nagi proxy group order First My); COMP_CWORD=5; _nagi_complete; printf 'ORDER:%s:%s\n' "${#COMPREPLY[@]}" "${COMPREPLY[0]}"
 COMP_WORDS=(nagi proxy group add New --type ''); COMP_CWORD=6; _nagi_complete; printf 'TYPES:%s\n' "${COMPREPLY[*]}"
 `
 	out, err := exec.Command("bash", "-c", probe).CombinedOutput()
 	if err != nil {
 		t.Fatalf("%v %s", err, out)
 	}
-	for _, expected := range []string{"ACTIONS:list show add edit remove", "GROUP:1:My Group", "NODE:My Node My Group", "PROVIDER:1:My Feed", "TYPES:select url-test fallback load-balance"} {
+	for _, expected := range []string{"ACTIONS:list show add edit remove order", "GROUP:1:My Group", "ORDER:1:My Group", "NODE:My Node My Group", "PROVIDER:1:My Feed", "TYPES:select url-test fallback load-balance"} {
 		if !strings.Contains(string(out), expected) {
 			t.Fatalf("missing %s: %s", expected, out)
 		}

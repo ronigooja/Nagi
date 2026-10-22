@@ -6927,7 +6927,7 @@
   "help.command.rules.update.summary": "更新导入规则或规则集",
   "help.command.proxy.group.add.detail": "TYPE：select（默认）、url-test、fallback、load-balance。未指定成员选项时默认包含 DIRECT。自动组默认使用 Cloudflare generate_204 URL，检查间隔为 300 秒。间隔范围：1..31536000 秒。url-test 容差：0..65535 毫秒。load-balance 策略：consistent-hashing、round-robin、sticky-sessions。按所需顺序重复 --node 或 --provider。",
   "help.command.proxy.group.add.summary": "创建代理组",
-  "help.command.proxy.group.detail": "停止引擎时也可读取本地代理组。修改由 mihomo 校验，仅在运行时重载；保留路由规则。",
+  "help.command.proxy.group.detail": "停止引擎时也可读取本地代理组。组定义变更由 mihomo 校验，仅在运行时重载；显示排序仅在本地保存，不重载引擎。保留路由规则。",
   "help.command.proxy.group.edit.detail": "未提供的字段保持不变。成员选项替换对应列表，clear 选项将其清空。至少保留一个成员或自动包含设置。切换类型时移除不适用的容差或策略字段；保留其他原生设置。",
   "help.command.proxy.group.edit.summary": "编辑代理组",
   "help.command.proxy.group.list.detail": "按配置顺序列出本地代理组，无需运行引擎。",
@@ -6937,5 +6937,7 @@
   "help.command.proxy.group.show.detail": "显示可编辑设置，不显示提供商凭据。",
   "help.command.proxy.group.show.hint": "运行 nagi proxy group list 查找代理组。",
   "help.command.proxy.group.show.summary": "查看已配置的代理组",
-  "help.command.proxy.group.summary": "管理代理组"
+  "help.command.proxy.group.summary": "管理代理组",
+  "help.command.proxy.group.order.summary": "调整代理组显示顺序",
+  "help.command.proxy.group.order.detail": "按显示顺序完整列出每个已配置代理组且不重复。保存本地显示顺序，不重载或启动 mihomo。订阅更新后保留排序，新组追加到末尾。使用 proxy group list 查找名称；不包括引擎自动生成的 GLOBAL。"
 }

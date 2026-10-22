@@ -123,7 +123,10 @@ func bashCompletion(roots []string, children map[string][]string) string {
     fi
   fi
   if [[ ${semantic[0]} == proxy && ${semantic[1]} == group ]]; then
-    if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'list show add edit remove' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'list show add edit remove order' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -ge 3 && ${semantic[2]} == order ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates node-groups 2>/dev/null); return 0
+    fi
     if [[ ${#semantic[@]} -eq 3 && ( ${semantic[2]} == show || ${semantic[2]} == edit || ${semantic[2]} == remove ) ]]; then
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates node-groups 2>/dev/null); return 0
     fi
@@ -304,7 +307,8 @@ _nagi() {
     if (( ${#semantic} == 4 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == group ]]; then
-    if (( ${#semantic} == 2 )); then compadd -- list show add edit remove; return; fi
+    if (( ${#semantic} == 2 )); then compadd -- list show add edit remove order; return; fi
+    if (( ${#semantic} >= 3 )) && [[ ${semantic[3]} == order ]]; then compadd -- ${(f)"$(nagi completion candidates node-groups 2>/dev/null)"}; return; fi
     if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == show || ${semantic[3]} == edit || ${semantic[3]} == remove ]]; then compadd -- ${(f)"$(nagi completion candidates node-groups 2>/dev/null)"}; return; fi
     if (( ${#semantic} >= 4 )) && [[ ${semantic[3]} == add || ${semantic[3]} == edit ]]; then
       case ${semantic[-1]} in
@@ -407,7 +411,8 @@ function __nagi_semantic
   end
 end
 `)
-	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = group' -a 'list show add edit remove'
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = group' -a 'list show add edit remove order'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -ge 3; and test "$s[1]" = proxy; and test "$s[2]" = group; and test "$s[3]" = order' -a '(nagi completion candidates node-groups 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = group; and contains -- $s[3] show edit remove' -a '(nagi completion candidates node-groups 2>/dev/null)'
 `)
 	for _, option := range []struct {

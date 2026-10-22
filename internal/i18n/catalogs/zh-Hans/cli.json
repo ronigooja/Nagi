@@ -828,8 +828,8 @@
   "backend.profile.group.tolerance_type.usage": "容差仅适用于 url-test 代理组\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "backend.profile.group.type.usage": "代理组类型必须为 select、url-test、fallback 或 load-balance\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "backend.profile.group.url.usage": "代理组 URL 必须为 HTTP(S) URL\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
-  "cli.error.group.action": "请选择 group list、show、add、edit 或 remove",
-  "cli.error.group.action.usage": "请选择 group list、show、add、edit 或 remove\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
+  "cli.error.group.action": "请选择 group list、show、add、edit、remove 或 order",
+  "cli.error.group.action.usage": "请选择 group list、show、add、edit、remove 或 order\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.group.clear": "成员选项不能与对应的清空选项同时使用",
   "cli.error.group.clear.usage": "成员选项不能与对应的清空选项同时使用\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.group.duplicate": "重复的代理组选项：{arg0}",
@@ -852,5 +852,11 @@
   "cli.output.group.providers": "节点提供商",
   "cli.output.group.strategy": "负载均衡策略",
   "cli.output.group.tolerance": "容差（毫秒）",
-  "cli.output.group.url": "测速 URL"
+  "cli.output.group.url": "测速 URL",
+  "cli.output.group.ordered": "代理组显示顺序已保存。",
+  "backend.profile.group.order_name.usage": "排序名称须为 1..128 字节的可打印字符，且首尾无空白\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
+  "backend.profile.group.order_duplicate.usage": "显示顺序中存在重复代理组：{arg0}\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
+  "backend.profile.group.order_list.usage": "代理组显示顺序必须为名称列表\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
+  "backend.profile.group.order_complete.usage": "请完整列出当前配置的每个代理组且不重复；运行 nagi proxy group list 后重试\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
+  "backend.profile.group.order_unknown.usage": "当前配置中不存在代理组：{arg0}；运行 nagi proxy group list 后重试\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情"
 }

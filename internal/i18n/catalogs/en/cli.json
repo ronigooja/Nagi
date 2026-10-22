@@ -828,8 +828,8 @@
   "backend.profile.group.tolerance_type.usage": "tolerance requires a url-test group\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "backend.profile.group.type.usage": "group type must be select, url-test, fallback, or load-balance\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "backend.profile.group.url.usage": "group URL must be an HTTP(S) URL\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
-  "cli.error.group.action": "expected group list, show, add, edit, or remove",
-  "cli.error.group.action.usage": "expected group list, show, add, edit, or remove\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
+  "cli.error.group.action": "expected group list, show, add, edit, remove, or order",
+  "cli.error.group.action.usage": "expected group list, show, add, edit, remove, or order\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "cli.error.group.clear": "cannot combine member options with the corresponding clear option",
   "cli.error.group.clear.usage": "cannot combine member options with the corresponding clear option\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "cli.error.group.duplicate": "duplicate group option: {arg0}",
@@ -852,5 +852,11 @@
   "cli.output.group.providers": "Providers",
   "cli.output.group.strategy": "Balance strategy",
   "cli.output.group.tolerance": "Tolerance (milliseconds)",
-  "cli.output.group.url": "Test URL"
+  "cli.output.group.url": "Test URL",
+  "cli.output.group.ordered": "Proxy group display order saved.",
+  "backend.profile.group.order_name.usage": "group order requires printable names of 1..128 bytes without surrounding whitespace\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
+  "backend.profile.group.order_duplicate.usage": "duplicate group in display order: {arg0}\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
+  "backend.profile.group.order_list.usage": "group display order must be a list of names\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
+  "backend.profile.group.order_complete.usage": "provide every configured group exactly once; run nagi proxy group list and retry\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
+  "backend.profile.group.order_unknown.usage": "group is not in the current configuration: {arg0}; run nagi proxy group list and retry\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details"
 }

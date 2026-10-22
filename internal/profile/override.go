@@ -126,6 +126,8 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		}
 	}
 	delete(overlay, proxyAdditionsKey)
+	order := overlay[groupOrderKey]
+	delete(overlay, groupOrderKey)
 	urls := overlay[groupHealthcheckURLsKey]
 	delete(overlay, groupHealthcheckURLsKey)
 	intervals := overlay[groupHealthcheckIntervalsKey]
@@ -191,7 +193,10 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		return nil, err
 	}
 	rewritten, _, err := RewriteTailscaleState(applied, s.Dir, name, false)
-	return rewritten, err
+	if err != nil {
+		return nil, err
+	}
+	return applyProxyGroupOrder(rewritten, order)
 }
 
 func (s *Store) Effective(name string) ([]byte, error) {
@@ -281,7 +286,7 @@ func (s *Store) ApplyDefaultOverride(ctx context.Context, name string, dnsProxy 
 		if err := yaml.Unmarshal(old, &previous); err != nil || previous == nil {
 			return i18n.Errorf("backend.profile.existing_override_must_be_a_yaml_mapping", "existing override must be a YAML mapping")
 		}
-		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", proxyAdditionsKey, groupHealthcheckIntervalsKey, groupHealthcheckURLsKey, ProviderChainMembersKey} {
+		for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", proxyAdditionsKey, groupHealthcheckIntervalsKey, groupHealthcheckURLsKey, groupOrderKey, ProviderChainMembersKey} {
 			if value, ok := previous[key]; ok {
 				source[key] = value
 			}
@@ -403,7 +408,7 @@ func (s *Store) RestoreDefaultOverride(ctx context.Context, name string) error {
 }
 
 var defaultOverrideExcludedKeys = map[string]struct{}{
-	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {}, proxyAdditionsKey: {}, ProviderChainMembersKey: {}, groupHealthcheckIntervalsKey: {}, groupHealthcheckURLsKey: {},
+	"proxies": {}, "proxy-providers": {}, "proxy-groups": {}, "rules": {}, "rule-providers": {}, proxyAdditionsKey: {}, ProviderChainMembersKey: {}, groupHealthcheckIntervalsKey: {}, groupHealthcheckURLsKey: {}, groupOrderKey: {},
 	"external-controller": {}, "external-controller-unix": {}, "external-controller-tls": {},
 	"external-controller-pipe": {}, "external-controller-cors": {}, "external-controller-routing-mark": {},
 	"external-ui": {}, "external-ui-url": {}, "secret": {}, "authentication": {},

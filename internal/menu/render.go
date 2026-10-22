@@ -385,6 +385,7 @@ func localizedmutationFeedback(language i18n.Context, args []string) string {
 				"add":    groupText(language, "created", "Proxy group created."),
 				"edit":   groupText(language, "updated", "Proxy group updated."),
 				"remove": groupText(language, "deleted", "Proxy group deleted."),
+				"order":  groupText(language, "ordered", "Proxy group display order saved."),
 			}[args[2]]
 		}
 		if args[1] == "provider" && len(args) > 2 {

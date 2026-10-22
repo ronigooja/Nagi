@@ -583,5 +583,10 @@
   "backend.profile.group.strategy_type": "负载均衡策略仅适用于 load-balance 代理组",
   "backend.profile.group.tolerance_type": "容差仅适用于 url-test 代理组",
   "backend.profile.group.type": "代理组类型必须为 select、url-test、fallback 或 load-balance",
-  "backend.profile.group.url": "代理组 URL 必须为 HTTP(S) URL"
+  "backend.profile.group.url": "代理组 URL 必须为 HTTP(S) URL",
+  "backend.profile.group.order_name": "排序名称须为 1..128 字节的可打印字符，且首尾无空白",
+  "backend.profile.group.order_duplicate": "显示顺序中存在重复代理组：{arg0}",
+  "backend.profile.group.order_list": "代理组显示顺序必须为名称列表",
+  "backend.profile.group.order_complete": "请完整列出当前配置的每个代理组且不重复；运行 nagi proxy group list 后重试",
+  "backend.profile.group.order_unknown": "当前配置中不存在代理组：{arg0}；运行 nagi proxy group list 后重试"
 }

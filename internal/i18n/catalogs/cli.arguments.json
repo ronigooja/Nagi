@@ -2682,5 +2682,33 @@
   "cli.output.group.providers": {},
   "cli.output.group.strategy": {},
   "cli.output.group.tolerance": {},
-  "cli.output.group.url": {}
+  "cli.output.group.url": {},
+  "cli.output.group.ordered": {},
+  "backend.profile.group.order_name.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_duplicate.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_list.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_complete.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_unknown.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  }
 }

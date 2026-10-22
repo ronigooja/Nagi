@@ -1198,5 +1198,14 @@
   "menu.group.url_test": "自动测速选择",
   "menu.group.created": "代理组已创建。",
   "menu.group.updated": "代理组已更新。",
-  "menu.group.deleted": "代理组已删除。"
+  "menu.group.deleted": "代理组已删除。",
+  "menu.group.order": "调整显示顺序",
+  "menu.group.up": "上移",
+  "menu.group.down": "下移",
+  "menu.group.top": "移到顶部",
+  "menu.group.bottom": "移到底部",
+  "menu.group.save_order": "保存显示顺序",
+  "menu.group.ordered": "代理组显示顺序已保存。",
+  "menu.group.profile_changed": "当前配置已切换，请重新打开排序后重试。",
+  "menu.group.order_hint": "选择代理组以调整位置，点击“保存显示顺序”后生效。"
 }

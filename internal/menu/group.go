@@ -35,6 +35,9 @@ func groupManagementPage(l i18n.Context) *Page {
 		if err := localizeddecodeMenuResult(l, s.Fetch(ctx, "proxy", "group", "list"), &data); err != nil {
 			return v, err
 		}
+		if len(data.Groups) > 1 {
+			v.Actions = append(v.Actions, Item{ID: "group.order", Label: groupText(l, "order", "Adjust display order"), Next: func() *Page { return groupOrderPage(l) }})
+		}
 		for _, g := range data.Groups {
 			g := g
 			v.Items = append(v.Items, Item{Name: g.Name, Label: g.Name + " (" + g.Type + ")", Next: func() *Page { return groupConfigPage(l, g.Name) }})

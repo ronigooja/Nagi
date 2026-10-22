@@ -17,10 +17,13 @@ func groupRead(args []string) bool { return len(args) > 2 && (args[2] == "list" 
 func groupArguments(args []string) (map[string]any, error) {
 	patch := map[string]any{}
 	if len(args) < 3 {
-		return nil, messageError("cli.error.group.action", "expected group list, show, add, edit, or remove")
+		return nil, messageError("cli.error.group.action", "expected group list, show, add, edit, remove, or order")
 	}
 	if args[2] == "list" {
 		return patch, nil
+	}
+	if args[2] == "order" {
+		return patch, profile.ValidateProxyGroupOrder(args[3:])
 	}
 	if len(args) < 4 {
 		return nil, messageError("cli.error.group.name", "GROUP is required; run nagi proxy group list")
@@ -85,6 +88,13 @@ func groupArguments(args []string) (map[string]any, error) {
 	return patch, profile.ValidateProxyGroupPatch(patch)
 }
 func groupCommand(ctx context.Context, args []string, store *profile.Store, name string, reloaded bool) (any, error) {
+	if args[2] == "order" {
+		if err := store.OrderProxyGroups(ctx, name, args[3:]); err != nil {
+			return nil, err
+		}
+		return map[string]any{"profile": name, "resource": "group", "action": "order", "group_order": args[3:], "saved": true, "reloaded": false}, nil
+	}
+
 	if groupRead(args) {
 		groups, err := store.ProxyGroupConfigs(name)
 		if err != nil {

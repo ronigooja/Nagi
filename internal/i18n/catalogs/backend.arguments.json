@@ -915,5 +915,14 @@
   "backend.profile.group.strategy_type": {},
   "backend.profile.group.tolerance_type": {},
   "backend.profile.group.type": {},
-  "backend.profile.group.url": {}
+  "backend.profile.group.url": {},
+  "backend.profile.group.order_name": {},
+  "backend.profile.group.order_duplicate": {
+    "arg0": "string"
+  },
+  "backend.profile.group.order_list": {},
+  "backend.profile.group.order_complete": {},
+  "backend.profile.group.order_unknown": {
+    "arg0": "string"
+  }
 }

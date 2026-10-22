@@ -583,5 +583,10 @@
   "backend.profile.group.strategy_type": "strategy requires a load-balance group",
   "backend.profile.group.tolerance_type": "tolerance requires a url-test group",
   "backend.profile.group.type": "group type must be select, url-test, fallback, or load-balance",
-  "backend.profile.group.url": "group URL must be an HTTP(S) URL"
+  "backend.profile.group.url": "group URL must be an HTTP(S) URL",
+  "backend.profile.group.order_name": "group order requires printable names of 1..128 bytes without surrounding whitespace",
+  "backend.profile.group.order_duplicate": "duplicate group in display order: {arg0}",
+  "backend.profile.group.order_list": "group display order must be a list of names",
+  "backend.profile.group.order_complete": "provide every configured group exactly once; run nagi proxy group list and retry",
+  "backend.profile.group.order_unknown": "group is not in the current configuration: {arg0}; run nagi proxy group list and retry"
 }

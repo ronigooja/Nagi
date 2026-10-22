@@ -79,7 +79,7 @@ func transactionalMutation(args []string) bool {
 	}
 	switch args[0] {
 	case "proxy":
-		return groupInvocation(args) && !groupRead(args) || args[1] == "healthcheck" && len(args) > 2 && args[2] != "show" || nodeInvocation(args) && !nodeRead(args) || chainInvocation(args) && !chainRead(args) || len(args) > 2 && args[1] == "provider" && (args[2] == "add" || args[2] == "remove" || args[2] == "interval" && len(args) > 3 && args[3] != "show")
+		return groupInvocation(args) && len(args) > 2 && !groupRead(args) && args[2] != "order" || args[1] == "healthcheck" && len(args) > 2 && args[2] != "show" || nodeInvocation(args) && !nodeRead(args) || chainInvocation(args) && !chainRead(args) || len(args) > 2 && args[1] == "provider" && (args[2] == "add" || args[2] == "remove" || args[2] == "interval" && len(args) > 3 && args[3] != "show")
 	case "profile":
 		return args[1] == "use" || args[1] == "import" || args[1] == "restore" || args[1] == "remove" || args[1] == "override" && (len(args) < 3 || args[2] != "default-status")
 	case "subscription":

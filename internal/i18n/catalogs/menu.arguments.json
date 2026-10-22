@@ -1333,5 +1333,14 @@
   "menu.group.url_test": {},
   "menu.group.created": {},
   "menu.group.updated": {},
-  "menu.group.deleted": {}
+  "menu.group.deleted": {},
+  "menu.group.order": {},
+  "menu.group.up": {},
+  "menu.group.down": {},
+  "menu.group.top": {},
+  "menu.group.bottom": {},
+  "menu.group.save_order": {},
+  "menu.group.ordered": {},
+  "menu.group.profile_changed": {},
+  "menu.group.order_hint": {}
 }

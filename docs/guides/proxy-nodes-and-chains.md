@@ -18,6 +18,19 @@ nagi proxy group remove 'My Group'
 
 Creating a group makes it available for selection but leaves routing rules unchanged. To use it, select it in global mode or target it from a routing rule. A group still used by rules, DNS, or another dependency cannot be deleted until those references are removed. Changes live in the selected profile's local override and activate immediately only if mihomo is running. See the [group reference](../reference/cli.md#proxy-group-management) for options, defaults, persistence, and failure behavior.
 
+## Change proxy group display order
+
+Open **Proxies → Proxy Groups → Manage proxy groups → Adjust display order**. Select a group, move it up/down or to the top/bottom, then choose **Save display order**. Back before saving discards the draft. This changes the group display order immediately without reloading mihomo or switching nodes; node order inside each group stays the same. The sorting action is available when at least two configured groups exist, including while stopped.
+
+For a profile containing exactly `Work`, `Automatic`, and `Media`, the equivalent CLI operation is:
+
+```sh
+nagi proxy group list
+nagi proxy group order 'Work' 'Automatic' 'Media'
+```
+
+List every current group exactly once. Subscription updates retain the saved order and append new groups. If a save fails because another operation added/removed groups, reopen sorting and try again. See the [group reference](../reference/cli.md#proxy-group-management) for persistence and JSON behavior.
+
 ## Inspect nodes and add a Tailscale node
 
 ```sh

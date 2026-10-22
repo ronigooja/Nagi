@@ -1190,7 +1190,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 			var store *profile.Store
 			reloaded := false
-			if groupInvocation(args) && groupRead(args) || nodeInvocation(args) && nodeRead(args) || chainInvocation(args) && chainRead(args) {
+			if groupInvocation(args) && (groupRead(args) || args[2] == "order") || nodeInvocation(args) && nodeRead(args) || chainInvocation(args) && chainRead(args) {
 				store = profile.NewStore(paths.ConfigDir, nil, nil)
 				if chainInvocation(args) {
 					configureProviderChainNodes(ctx, store, paths, client)
