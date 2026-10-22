@@ -91,6 +91,84 @@ rules: ["MATCH,DIRECT"]
 	}
 }
 
+func TestSubscriptionRebasesGroupMembershipChanges(t *testing.T) {
+	for _, failure := range []string{"none", "validate", "reload"} {
+		t.Run(failure, func(t *testing.T) {
+			ctx := context.Background()
+			s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+			old := []byte("proxies: [{name: Kept, type: direct}, {name: Gone, type: direct}, {name: RemovedLocally, type: direct}]\nproxy-groups: [{name: Choice, type: select, proxies: [Kept, Gone, RemovedLocally, DIRECT], use: [old-feed, kept-feed]}]\n")
+			patch := []byte("proxies: [{name: Kept, type: direct}, {name: Gone, type: direct}, {name: RemovedLocally, type: direct}, {name: Manual, type: direct}]\nproxy-groups: [{name: Choice, type: select, proxies: [Kept, Gone, DIRECT, Manual], use: [old-feed, manual-feed], udp: false}]\n")
+			next := []byte("proxies: [{name: New, type: direct}, {name: Kept, type: direct}, {name: RemovedLocally, type: direct}]\nproxy-groups: [{name: Choice, type: select, proxies: [New, RemovedLocally, Kept, DIRECT], use: [new-feed, kept-feed], udp: true}]\n")
+			if err := s.Apply(ctx, "work", old); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SetOverride(ctx, "work", patch); err != nil {
+				t.Fatal(err)
+			}
+			preview, err := s.EffectiveSubscriptionSource("work", next)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var cfg map[string]any
+			if err := yaml.Unmarshal(preview, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			_, groups, _ := namedList(cfg["proxy-groups"])
+			group := groups["Choice"]
+			if !reflect.DeepEqual(group["proxies"], []any{"New", "Kept", "DIRECT", "Manual"}) || !reflect.DeepEqual(group["use"], []any{"new-feed", "manual-feed"}) || group["udp"] != false {
+				t.Fatalf("lost membership intent: %#v", group)
+			}
+			if saved, _ := s.Override("work"); string(saved) != string(patch) {
+				t.Fatal("preview wrote override")
+			}
+			s.Validate = func([]byte) error {
+				if failure == "validate" {
+					return errors.New("rejected")
+				}
+				return nil
+			}
+			s.Reload = func(context.Context) error {
+				if failure == "reload" {
+					return errors.New("reload failed")
+				}
+				return nil
+			}
+			err = s.ApplySubscription(ctx, "work", next)
+			if failure != "none" {
+				if err == nil {
+					t.Fatal("expected failure")
+				}
+				source, _ := s.Show("work")
+				override, _ := s.Override("work")
+				if string(source) != string(old) || string(override) != string(patch) {
+					t.Fatal("failure changed source or override")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			effective, err := s.Effective("work")
+			if err != nil || string(effective) != string(preview) {
+				t.Fatalf("preview/apply differ: %v", err)
+			}
+			// A later update must advance source order and preserve the manual delta.
+			later := []byte(strings.Replace(string(next), "[New, RemovedLocally, Kept, DIRECT]", "[Kept, DIRECT]", 1))
+			if err := s.ApplySubscription(ctx, "work", later); err != nil {
+				t.Fatal(err)
+			}
+			effective, _ = s.Effective("work")
+			if err := yaml.Unmarshal(effective, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			_, groups, _ = namedList(cfg["proxy-groups"])
+			if !reflect.DeepEqual(groups["Choice"]["proxies"], []any{"Kept", "DIRECT", "Manual"}) {
+				t.Fatal(groups["Choice"])
+			}
+		})
+	}
+}
+
 func TestSubscriptionRebaseDropsRemovedNodeWithEmptyLocalDialer(t *testing.T) {
 	ctx := context.Background()
 	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)

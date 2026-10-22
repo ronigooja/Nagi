@@ -54,7 +54,7 @@ func rebaseSubscriptionOverride(old, next, patch []byte) ([]byte, error) {
 		if !exists {
 			continue
 		}
-		merged, err := rebaseNamedList(previous[field], incoming[field], local)
+		merged, err := rebaseNamedList(previous[field], incoming[field], local, field == "proxy-groups")
 		if err != nil {
 			return nil, i18n.Errorf("backend.profile.cannot_retain_local_s_w", "cannot retain local %s: %w", field, err)
 		}
@@ -90,7 +90,7 @@ func namedList(value any) ([]any, map[string]map[string]any, error) {
 	return list, names, nil
 }
 
-func rebaseNamedList(old, next, patch any) ([]any, error) {
+func rebaseNamedList(old, next, patch any, groups bool) ([]any, error) {
 	_, previous, err := namedList(old)
 	if err != nil {
 		return nil, err
@@ -117,6 +117,15 @@ func rebaseNamedList(old, next, patch any) ([]any, error) {
 		}
 		if existed && retained {
 			node = rebaseMapping(before, node, custom)
+			if groups {
+				for _, field := range []string{"proxies", "use"} {
+					previousMembers, hadMembers := before[field]
+					localMembers, keptMembers := custom[field]
+					if hadMembers && keptMembers && !reflect.DeepEqual(previousMembers, localMembers) {
+						node[field] = rebaseGroupMembers(previousMembers, incoming[name][field], localMembers)
+					}
+				}
+			}
 		}
 		merged = append(merged, node)
 	}
@@ -131,6 +140,62 @@ func rebaseNamedList(old, next, patch any) ([]any, error) {
 		}
 	}
 	return merged, nil
+}
+
+// Group membership snapshots record local additions/removals, not ownership of
+// every old subscription member. Keep incoming source order, then append local
+// additions in their saved order. Invalid lists retain ordinary validation.
+func rebaseGroupMembers(old, next, local any) any {
+	stringsIn := func(value any) ([]string, bool) {
+		if value == nil {
+			return nil, true
+		}
+		list, ok := value.([]any)
+		if !ok {
+			return nil, false
+		}
+		out := make([]string, 0, len(list))
+		for _, item := range list {
+			name, ok := item.(string)
+			if !ok {
+				return nil, false
+			}
+			out = append(out, name)
+		}
+		return out, true
+	}
+	previous, oldOK := stringsIn(old)
+	incoming, nextOK := stringsIn(next)
+	custom, localOK := stringsIn(local)
+	if !oldOK || !nextOK || !localOK {
+		return local
+	}
+	oldNames, localNames := map[string]bool{}, map[string]bool{}
+	for _, name := range previous {
+		oldNames[name] = true
+	}
+	for _, name := range custom {
+		localNames[name] = true
+	}
+	merged := make([]any, 0, len(incoming)+len(custom))
+	seen := map[string]bool{}
+	appendName := func(name string) {
+		if !seen[name] {
+			merged = append(merged, name)
+			seen[name] = true
+		}
+	}
+	for _, name := range incoming {
+		if !oldNames[name] || localNames[name] {
+			appendName(name)
+		}
+	}
+	for _, name := range custom {
+		if !oldNames[name] {
+			appendName(name)
+		}
+	}
+	return merged
 }
 
 // Unbinding a Tailscale front proxy can leave an explicit empty dialer-proxy
