@@ -13,9 +13,11 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/rivo/uniseg"
 	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/terminal"
+	"golang.org/x/sys/unix"
 )
 
 const liveLineLimit = 8 << 20
@@ -35,6 +37,11 @@ func liveConnections(ctx context.Context, s *Session) error {
 		s.Stream(ctx, "connections", "watch")
 		return nil
 	}
+	if os.Getenv("TERM") == "dumb" {
+		s.Run(ctx, "connections", "list")
+		s.longResult = true
+		return nil
+	}
 	restore, err := terminal.Raw(s.file)
 	if err != nil {
 		s.Stream(ctx, "connections", "watch")
@@ -42,6 +49,11 @@ func liveConnections(ctx context.Context, s *Session) error {
 	}
 	defer restore()
 	defer discardLiveInput(s)
+	screen := &liveScreen{out: s.out, file: s.file}
+	if err := screen.enter(); err != nil {
+		return err
+	}
+	defer screen.leave()
 
 	streamCtx, stop := context.WithCancel(ctx)
 	defer stop()
@@ -73,6 +85,8 @@ func liveConnections(ctx context.Context, s *Session) error {
 	var detail *liveRow
 	input := strings.Builder{}
 	dirty := true
+	urgent := true
+	var lastDraw time.Time
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -87,15 +101,27 @@ func liveConnections(ctx context.Context, s *Session) error {
 					delete(closing, id)
 				}
 			}
-			sampledAt, dirty = sample.sampledAt, true
+			sampledAt = sample.sampledAt
+			// Sampling continues while copying or reading details, without
+			// touching the displayed text or the terminal's selection.
+			if !frozen && detail == nil {
+				dirty = true
+			}
 		case <-ticker.C:
-			if dirty {
+			if screen.resize() {
+				dirty, urgent = true, true
+			}
+			if dirty && (urgent || time.Since(lastDraw) >= 500*time.Millisecond) {
 				rows, ac, ec, shownAt := liveRows(active, ended), len(active), len(ended), sampledAt
 				if frozen {
 					rows, ac, ec, shownAt = frozenRows, frozenActive, frozenEnded, frozenSampledAt
 				}
-				liveRender(s.out, s.language, rows, filter, search, sortBy, frozen, ac, ec, shownAt, input.String(), page, detail)
-				dirty = false
+				var frame strings.Builder
+				liveRender(&frame, s.language, rows, filter, search, sortBy, frozen, ac, ec, shownAt, input.String(), page, detail, screen.width, screen.height)
+				if err := screen.draw(frame.String()); err != nil {
+					return err
+				}
+				dirty, urgent, lastDraw = false, false, time.Now()
 			}
 			for readCount := 0; readCount < 512; readCount++ {
 				if s.in.Buffered() == 0 {
@@ -123,11 +149,16 @@ func liveConnections(ctx context.Context, s *Session) error {
 					if input.Len() > 0 {
 						command := input.String()
 						input.Reset()
-						if err := liveCommand(command, s, ctx, active, ended, closing, &filter, &search, &sortBy, &frozen, &frozenRows, &frozenActive, &frozenEnded, &frozenSampledAt, sampledAt, &page, &detail); err != nil {
+						ac, ec, shownAt := len(active), len(ended), sampledAt
+						if frozen {
+							ac, ec, shownAt = frozenActive, frozenEnded, frozenSampledAt
+						}
+						header := liveHeader(s.language, filter, search, frozen, ac, ec, shownAt, screen.width)
+						pageSize := liveTablePageSize(screen.width, screen.height, len(header))
+						if err := liveCommand(command, s, ctx, active, ended, closing, &filter, &search, &sortBy, &frozen, &frozenRows, &frozenActive, &frozenEnded, &frozenSampledAt, sampledAt, &page, &detail, pageSize); err != nil {
 							return err
 						}
-						s.flushResult()
-						dirty = true
+						dirty, urgent = true, true
 					}
 				case 8, 127:
 					if input.Len() > 0 {
@@ -137,11 +168,11 @@ func liveConnections(ctx context.Context, s *Session) error {
 							input.WriteString(string(text[:len(text)-1]))
 						}
 					}
-					dirty = true
+					dirty, urgent = true, true
 				default:
 					if b >= 0x20 && b != 0x7f && input.Len() < 512 {
 						input.WriteByte(b)
-						dirty = true
+						dirty, urgent = true, true
 					}
 				}
 			}
@@ -305,7 +336,7 @@ func mergeLiveSample(active map[string]proxy.Connection, ended map[string]liveEn
 	}
 }
 
-func liveCommand(command string, s *Session, ctx context.Context, active map[string]proxy.Connection, ended map[string]liveEnded, closing map[string]bool, filter, search, sortBy *string, frozen *bool, frozenRows *[]liveRow, frozenActive, frozenEnded *int, frozenSampledAt *time.Time, sampledAt time.Time, page *int, detail **liveRow) error {
+func liveCommand(command string, s *Session, ctx context.Context, active map[string]proxy.Connection, ended map[string]liveEnded, closing map[string]bool, filter, search, sortBy *string, frozen *bool, frozenRows *[]liveRow, frozenActive, frozenEnded *int, frozenSampledAt *time.Time, sampledAt time.Time, page *int, detail **liveRow, pageSizes ...int) error {
 	cmd := strings.TrimSpace(command)
 	switch {
 	case cmd == "q" || cmd == "0":
@@ -341,14 +372,23 @@ func liveCommand(command string, s *Session, ctx context.Context, active map[str
 		if *frozen {
 			rows = *frozenRows
 		}
-		if max := livePageCount(liveFilteredRows(rows, *filter, *search, *sortBy)); *page+1 < max {
+		filtered := liveFilteredRows(rows, *filter, *search, *sortBy)
+		pages := livePageCount(filtered, pageSizes...)
+		// A resize or changed filter may have clamped the displayed page.
+		*page = max(0, min(*page, pages-1))
+		if *page+1 < pages {
 			*page++
 		}
 	case cmd == "b":
 		if *detail != nil {
 			*detail = nil
-		} else if *page > 0 {
-			*page--
+		} else {
+			rows := liveRows(active, ended)
+			if *frozen {
+				rows = *frozenRows
+			}
+			pages := livePageCount(liveFilteredRows(rows, *filter, *search, *sortBy), pageSizes...)
+			*page = max(0, min(*page, pages-1)-1)
 		}
 	case strings.HasPrefix(cmd, "d "):
 		rows := liveRows(active, ended)
@@ -369,7 +409,9 @@ func liveCommand(command string, s *Session, ctx context.Context, active map[str
 		}
 		id := strings.TrimSpace(strings.TrimPrefix(cmd, "c "))
 		if _, ok := active[id]; ok && !closing[id] {
-			result := s.Run(ctx, "connections", "close", id)
+			// Do not emit ordinary command feedback into the full-screen view.
+			result := s.Fetch(ctx, "connections", "close", id)
+			s.discardInterrupts()
 			if result.Error != nil {
 				return fmt.Errorf("%s", result.Error.Message)
 			}
@@ -398,13 +440,122 @@ func liveDetail(out io.Writer, language i18n.Context, row liveRow) {
 		menuText(language, "menu.traffic.live.download", "Download"), humanBytes(c.Download), menuText(language, "menu.traffic.live.back", "back to table"))
 }
 
-func liveRender(out io.Writer, language i18n.Context, rows []liveRow, filter, query, sortBy string, frozen bool, activeCount, endedCount int, sampled time.Time, input string, page int, detail *liveRow) {
-	if term := os.Getenv("TERM"); term != "" && term != "dumb" && os.Getenv("NO_COLOR") == "" {
-		fmt.Fprint(out, "\x1b[H\x1b[2J")
-	} else {
-		fmt.Fprintln(out)
+// liveScreen uses cursor addressing rather than newlines, so even a full frame
+// cannot scroll. NO_COLOR controls styling, not cursor movement. Mouse reporting
+// remains disabled: the terminal retains its normal text selection behavior.
+type liveScreen struct {
+	out           io.Writer
+	file          *os.File
+	width, height int
+	previous      []string
+}
+
+func (s *liveScreen) enter() error {
+	_, err := io.WriteString(s.out, "\x1b[?1049h\x1b[H\x1b[2J")
+	if err != nil {
+		s.leave()
 	}
-	fmt.Fprintln(out, menuText(language, "menu.traffic.live.instructions", "Connections — [f] filter  /text search  [s] sort  [p] freeze/resume  n/b page  d ID details  c ID close  x detail back  q return"))
+	return err
+}
+
+func (s *liveScreen) leave() {
+	_, _ = io.WriteString(s.out, "\x1b[?25h\x1b[?1049l")
+}
+
+func (s *liveScreen) resize() bool {
+	width, height := 80, 24
+	if n, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && n > 0 {
+		width = n
+	}
+	if n, err := strconv.Atoi(os.Getenv("LINES")); err == nil && n > 0 {
+		height = n
+	}
+	if s.file != nil {
+		if size, err := unix.IoctlGetWinsize(int(s.file.Fd()), unix.TIOCGWINSZ); err == nil {
+			if size.Col > 0 {
+				width = int(size.Col)
+			}
+			if size.Row > 0 {
+				height = int(size.Row)
+			}
+		}
+	}
+	if width == s.width && height == s.height {
+		return false
+	}
+	s.width, s.height, s.previous = width, height, nil
+	return true
+}
+
+func (s *liveScreen) draw(frame string) error {
+	lines := strings.Split(strings.TrimSuffix(frame, "\n"), "\n")
+	if len(lines) > s.height {
+		lines = lines[:s.height]
+	}
+	var update strings.Builder
+	for row := 0; row < s.height; row++ {
+		line := ""
+		if row < len(lines) {
+			line = liveClip(liveSafe(lines[row]), max(0, s.width-1))
+			lines[row] = line
+		}
+		if row < len(s.previous) && s.previous[row] == line {
+			continue
+		}
+		if update.Len() == 0 {
+			update.WriteString("\x1b[?25l")
+		}
+		fmt.Fprintf(&update, "\x1b[%d;1H\x1b[2K%s", row+1, line)
+	}
+	if update.Len() == 0 {
+		return nil
+	}
+	// Keep the cursor next to the command, away from the terminal's last cell.
+	last := ""
+	if len(lines) > 0 {
+		last = lines[len(lines)-1]
+	}
+	fmt.Fprintf(&update, "\x1b[%d;%dH\x1b[?25h", max(1, len(lines)), min(s.width, uniseg.StringWidth(last)+1))
+	_, err := io.WriteString(s.out, update.String())
+	if err == nil {
+		s.previous = make([]string, s.height)
+		copy(s.previous, lines)
+	}
+	return err
+}
+
+func liveWrapItems(text string, width int) []string {
+	var lines []string
+	line := ""
+	for _, item := range strings.Split(text, "  ") {
+		if item == "" {
+			continue
+		}
+		if line != "" && uniseg.StringWidth(line)+2+uniseg.StringWidth(item) > width {
+			lines = append(lines, line)
+			line = ""
+		}
+		if line != "" {
+			line += "  "
+		}
+		line += item
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func liveHeader(language i18n.Context, filter, query string, frozen bool, activeCount, endedCount int, sampled time.Time, width int) []string {
+	width = max(1, width-1)
+	lines := []string{menuText(language, "menu.traffic.live.instructions", "Connections")}
+	for _, control := range []string{
+		menuText(language, "menu.traffic.live.controls_view", "[f] Filter  /text Search  [s] Sort  [p] Freeze/resume"),
+		menuText(language, "menu.traffic.live.controls_actions", "[d ID] Details  [c ID] Close  [n/b] Page"),
+		menuText(language, "menu.traffic.live.controls_navigation", "[x] Table  [q] Back  Enter to apply"),
+	} {
+		lines = append(lines, liveWrapItems(control, width)...)
+	}
 	filterLabel := menuText(language, "menu.traffic.live.filter_all", "All")
 	if filter == "active" {
 		filterLabel = menuText(language, "menu.traffic.live.filter_active", "Active")
@@ -412,64 +563,126 @@ func liveRender(out io.Writer, language i18n.Context, rows []liveRow, filter, qu
 	if filter == "ended" {
 		filterLabel = menuText(language, "menu.traffic.live.filter_ended", "Recently ended")
 	}
-	fmt.Fprintf(out, "%s: %s  %s: %d  %s: %d  %s: %s", menuText(language, "menu.traffic.live.filter", "Filter"), filterLabel, menuText(language, "menu.traffic.live.active", "Active"), activeCount, menuText(language, "menu.traffic.live.ended", "Recently ended"), endedCount, menuText(language, "menu.traffic.live.sampled", "Sampled"), sampled.Format("15:04"))
+	timeLabel := "—"
+	if !sampled.IsZero() {
+		timeLabel = sampled.Format("15:04")
+	}
+	summary := fmt.Sprintf("%s: %s  %s: %d  %s: %d  %s: %s",
+		menuText(language, "menu.traffic.live.filter", "Filter"), filterLabel,
+		menuText(language, "menu.traffic.live.active", "Active"), activeCount,
+		menuText(language, "menu.traffic.live.ended", "Recently ended"), endedCount,
+		menuText(language, "menu.traffic.live.sampled", "Sampled"), timeLabel)
+	lines = append(lines, liveWrapItems(summary, width)...)
 	if frozen {
-		fmt.Fprintf(out, "  %s", menuText(language, "menu.traffic.live.frozen", "Display frozen; collection continues."))
+		lines = append(lines, menuText(language, "menu.traffic.live.frozen", "Frozen; select text to copy. Collection continues."))
 	}
-	fmt.Fprintln(out)
-	if detail != nil {
-		liveDetail(out, language, *detail)
-		fmt.Fprintf(out, "\n> %s", liveSafe(input))
-		return
+	if query != "" {
+		lines = append(lines, "/"+liveSafe(query))
 	}
-	fmt.Fprintln(out, menuText(language, "menu.traffic.live.columns", "ID / TARGET + PROCESS     PROTOCOL  PROXY CHAIN        UP / DOWN          STATE"))
-	filtered := liveFilteredRows(rows, filter, query, sortBy)
+	return lines
+}
 
-	pageSize := liveRowsPerPage()
-	pages := livePageCount(filtered)
-	if pages == 0 {
-		pages = 1
+func liveTablePageSize(width, height, headerLines int) int {
+	columns, record := 1, 1
+	if width < 120 {
+		columns, record = 2, 2
 	}
-	if page >= pages {
-		page = pages - 1
-	}
-	fmt.Fprintf(out, "%s %d/%d — n/b\n", menuText(language, "menu.traffic.live.page", "Page"), page+1, pages)
-	start := page * pageSize
-	end := start + pageSize
-	if end > len(filtered) {
-		end = len(filtered)
-	}
-	for _, r := range filtered[start:end] {
-		c := r.connection
-		state := menuText(language, "menu.traffic.live.active_state", "ACTIVE")
-		if r.ended {
-			state = menuText(language, "menu.traffic.live.ended_state", "ENDED")
+	return max(1, (height-headerLines-columns-2)/record)
+}
+
+func liveRender(out io.Writer, language i18n.Context, rows []liveRow, filter, query, sortBy string, frozen bool, activeCount, endedCount int, sampled time.Time, input string, page int, detail *liveRow, width, height int) {
+	lines := liveHeader(language, filter, query, frozen, activeCount, endedCount, sampled, width)
+	if detail != nil {
+		var body strings.Builder
+		liveDetail(&body, language, *detail)
+		lines = append(lines, strings.Split(strings.TrimSpace(body.String()), "\n")...)
+	} else {
+		filtered := liveFilteredRows(rows, filter, query, sortBy)
+		pageSize := liveTablePageSize(width, height, len(lines))
+		pages := max(1, livePageCount(filtered, pageSize))
+		page = max(0, min(page, pages-1))
+		// Compact terminals use two physical rows per connection. The full ID
+		// stays on its own line instead of forcing every table row to wrap.
+		compact := width < 120
+		idWidth := 36
+		for _, row := range rows {
+			idWidth = max(idWidth, uniseg.StringWidth(liveSafe(row.connection.ID)))
 		}
-		fmt.Fprintf(out, "%s %s %s %s %s/%s %s\n", liveSafe(c.ID), liveFit(liveSafe(liveTarget(c)), 22), liveFit(liveSafe(fmt.Sprint(c.Metadata["network"])), 6), liveFit(liveSafe(strings.Join(c.Chains, " → ")), 14), liveFit(humanBytes(c.Upload), 8), liveFit(humanBytes(c.Download), 8), state)
+		if compact {
+			lines = append(lines, menuText(language, "menu.traffic.live.id", "ID")+" / "+menuText(language, "menu.traffic.live.state", "State"))
+		}
+		targetWidth := max(1, width-1-8-12-8-8-5)
+		if !compact {
+			targetWidth = max(1, targetWidth-idWidth-1-7)
+		}
+		format := func(target, protocol, chain, upload, download string) string {
+			return fmt.Sprintf("%s %s %s %s/%s", liveFit(target, targetWidth), liveFit(protocol, 8), liveFit(chain, 12), liveFit(upload, 8), liveFit(download, 8))
+		}
+		columns := format(menuText(language, "menu.traffic.live.target", "Target")+" / "+menuText(language, "menu.traffic.live.process", "Process"),
+			menuText(language, "menu.traffic.live.protocol", "Protocol"), menuText(language, "menu.traffic.live.proxy_chain", "Proxy chain"),
+			menuText(language, "menu.traffic.live.upload", "Upload"), menuText(language, "menu.traffic.live.download", "Download"))
+		if !compact {
+			columns = liveFit("ID", idWidth) + " " + columns + " " + menuText(language, "menu.traffic.live.state", "State")
+		}
+		lines = append(lines, columns)
+		start, end := page*pageSize, min((page+1)*pageSize, len(filtered))
+		for _, row := range filtered[start:end] {
+			c := row.connection
+			state := menuText(language, "menu.traffic.live.active_state", "ACTIVE")
+			if row.ended {
+				state = menuText(language, "menu.traffic.live.ended_state", "ENDED")
+			}
+			values := format(liveSafe(liveTarget(c)), liveSafe(fmt.Sprint(c.Metadata["network"])), liveSafe(strings.Join(c.Chains, " → ")), humanBytes(c.Upload), humanBytes(c.Download))
+			if compact {
+				lines = append(lines, liveSafe(c.ID)+"  "+state, values)
+			} else {
+				lines = append(lines, liveFit(liveSafe(c.ID), idWidth)+" "+values+" "+state)
+			}
+		}
+		lines = append(lines, fmt.Sprintf("%s %d/%d", menuText(language, "menu.traffic.live.page", "Page"), page+1, pages))
 	}
-	fmt.Fprintf(out, "\n> %s", liveSafe(input))
+	// Reserve the final terminal row for input even on very small terminals.
+	if len(lines) >= height {
+		lines = lines[:max(0, height-1)]
+	}
+	for len(lines) < height-1 {
+		lines = append(lines, "")
+	}
+	lines = append(lines, liveInputViewport(input, max(0, width-1)))
+	for _, line := range lines {
+		fmt.Fprintln(out, liveClip(liveSafe(line), max(0, width-1)))
+	}
+}
+
+func liveInputViewport(input string, width int) string {
+	if width < 2 {
+		return liveClip("> ", width)
+	}
+	value := liveSafe(input)
+	g := uniseg.NewGraphemes(value)
+	remaining, start := uniseg.StringWidth(value), 0
+	for remaining > width-2 && g.Next() {
+		_, start = g.Positions()
+		remaining -= g.Width()
+	}
+	return "> " + value[start:]
 }
 
 func liveRowsPerPage() int {
 	if n, err := strconv.Atoi(os.Getenv("LINES")); err == nil && n > 0 {
-		n -= 7
-		if n < 1 {
-			return 1
-		}
-		if n > 30 {
-			return 30
-		}
-		return n
+		return max(1, n-7)
 	}
 	return 12
 }
-func livePageCount(rows []liveRow) int {
+
+func livePageCount(rows []liveRow, sizes ...int) int {
 	n := liveRowsPerPage()
-	if len(rows) == 0 {
-		return 0
+	if len(sizes) > 0 {
+		n = max(1, sizes[0])
 	}
 	return (len(rows) + n - 1) / n
 }
+
 func liveFilteredRows(rows []liveRow, filter, query, sortBy string) []liveRow {
 	filtered := make([]liveRow, 0, len(rows))
 	for _, r := range rows {
@@ -503,25 +716,23 @@ func liveFilteredRows(rows []liveRow, filter, query, sortBy string) []liveRow {
 	}
 	return filtered
 }
-func liveFit(text string, width int) string {
+func liveClip(text string, width int) string {
 	var b strings.Builder
+	g := uniseg.NewGraphemes(text)
 	cells := 0
-	for _, r := range text {
-		cell := 1
-		if r >= 0x1100 && (r <= 0x115f || r >= 0x2e80 && r <= 0xa4cf || r >= 0xac00 && r <= 0xd7a3 || r >= 0xf900 && r <= 0xfaff || r >= 0xfe10 && r <= 0xfe6f || r >= 0xff00 && r <= 0xff60) {
-			cell = 2
-		}
-		if cells+cell > width {
+	for g.Next() {
+		if cells+g.Width() > width {
 			break
 		}
-		b.WriteRune(r)
-		cells += cell
-	}
-	for cells < width {
-		b.WriteByte(' ')
-		cells++
+		b.WriteString(g.Str())
+		cells += g.Width()
 	}
 	return b.String()
+}
+
+func liveFit(text string, width int) string {
+	text = liveClip(text, width)
+	return text + strings.Repeat(" ", max(0, width-uniseg.StringWidth(text)))
 }
 
 func liveTarget(c proxy.Connection) string {

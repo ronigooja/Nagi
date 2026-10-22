@@ -1367,5 +1367,9 @@
   "menu.traffic.live.download": {},
   "menu.traffic.live.back": {},
   "menu.traffic.live.detail_active": {},
-  "menu.traffic.live.detail_ended": {}
+  "menu.traffic.live.detail_ended": {},
+  "menu.traffic.live.controls_view": {},
+  "menu.traffic.live.controls_actions": {},
+  "menu.traffic.live.controls_navigation": {},
+  "menu.traffic.live.state": {}
 }

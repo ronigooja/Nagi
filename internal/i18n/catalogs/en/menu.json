@@ -1211,7 +1211,7 @@
   "menu.group.target_position": "Target position",
   "menu.group.invalid_position": "Enter a whole number within the displayed range.",
   "menu.traffic.connections_page.live_connections": "Live connections",
-  "menu.traffic.live.instructions": "Connections — [f] filter  /text search  [s] sort  [p] freeze/resume  n/b page  d ID details  c ID close  x detail back  q return",
+  "menu.traffic.live.instructions": "Connections",
   "menu.traffic.live.filter": "Filter",
   "menu.traffic.live.filter_all": "All",
   "menu.traffic.live.filter_active": "Active",
@@ -1219,7 +1219,7 @@
   "menu.traffic.live.active": "Active",
   "menu.traffic.live.ended": "Recently ended",
   "menu.traffic.live.sampled": "Sampled",
-  "menu.traffic.live.frozen": "Display frozen; collection continues.",
+  "menu.traffic.live.frozen": "Frozen; select text to copy. Collection continues.",
   "menu.traffic.live.columns": "ID / TARGET + PROCESS     PROTOCOL  PROXY CHAIN        UP / DOWN          STATE",
   "menu.traffic.live.active_state": "ACTIVE",
   "menu.traffic.live.ended_state": "ENDED",
@@ -1233,5 +1233,9 @@
   "menu.traffic.live.download": "Download",
   "menu.traffic.live.back": "back to table",
   "menu.traffic.live.detail_active": "Active connection",
-  "menu.traffic.live.detail_ended": "Recently ended; end time and final counters are unavailable."
+  "menu.traffic.live.detail_ended": "Recently ended; end time and final counters are unavailable.",
+  "menu.traffic.live.controls_view": "[f] Filter  /text Search  [s] Sort  [p] Freeze/resume",
+  "menu.traffic.live.controls_actions": "[d ID] Details  [c ID] Close  [n/b] Page",
+  "menu.traffic.live.controls_navigation": "[x] Table  [q] Back  Enter to apply",
+  "menu.traffic.live.state": "State"
 }

@@ -3,6 +3,7 @@ package menu
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -11,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rivo/uniseg"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/terminal"
 )
@@ -98,7 +101,11 @@ func (r *livePTYRunner) Stream(ctx context.Context, _ []string, out io.Writer) R
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		_, _ = io.WriteString(out, `{"ok":true,"data":{"sampled_at":"2026-10-22T17:00:00Z","connections":[{"id":"fixture-id","metadata":{"host":"fixture.example","destinationPort":"443","process":"nagi-test","network":"tcp"},"chains":["Proxy"],"upload":1024,"download":2048}]}}`+"\n")
+		upload := 1024
+		if os.Getenv("NAGI_PTY_COPY_CHECK") == "1" {
+			upload += r.samples * 1024
+		}
+		_, _ = fmt.Fprintf(out, `{"ok":true,"data":{"sampled_at":"2026-10-22T17:00:00Z","connections":[{"id":"fixture-id","metadata":{"host":"fixture.example","destinationPort":"443","process":"nagi-test","network":"tcp"},"chains":["Proxy"],"upload":%d,"download":2048}]}}`+"\n", upload)
 		r.samples++
 		select {
 		case <-ctx.Done():
@@ -156,10 +163,96 @@ func TestLiveConnectionsPTY(t *testing.T) {
 	if runner.samples == 0 {
 		t.Fatal("watch stream delivered no samples")
 	}
+	if os.Getenv("NAGI_PTY_COPY_CHECK") == "1" && runner.samples < 10 {
+		t.Fatalf("collection stopped during copy check: %d samples", runner.samples)
+	}
 	for _, want := range []string{"fixture-id", "fixture.example", "Proxy"} {
 		if !strings.Contains(captured.String(), want) {
 			t.Errorf("live view output missing %q", want)
 		}
+	}
+}
+
+func TestLiveFramesFitTerminalIncludingUnicodeAndLongCommands(t *testing.T) {
+	var rows []liveRow
+	for n := 0; n < 100; n++ {
+		rows = append(rows, liveRow{connection: proxy.Connection{
+			ID:       fmt.Sprintf("00000000-0000-0000-0000-%012d", n),
+			Metadata: map[string]any{"host": "fixture.example", "process": "中文👩‍💻e\u0301", "network": "tcp"},
+			Chains:   []string{"代理👩‍💻"}, Upload: 1024, Download: 4096,
+		}})
+	}
+	for _, language := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		for _, size := range [][2]int{{80, 24}, {120, 24}, {60, 16}, {40, 12}, {20, 8}} {
+			for _, detail := range []*liveRow{nil, &rows[0]} {
+				var frame strings.Builder
+				liveRender(&frame, i18n.New(language), rows, "all", "", "target", true, 100, 0, time.Now(), strings.Repeat("中文👩‍💻e\u0301", 20), 999, detail, size[0], size[1])
+				lines := strings.Split(strings.TrimSuffix(frame.String(), "\n"), "\n")
+				if len(lines) != size[1] {
+					t.Fatalf("%s %v: %d lines", language, size, len(lines))
+				}
+				for _, line := range lines {
+					if uniseg.StringWidth(line) >= size[0] || strings.Contains(line, "\x1b") {
+						t.Fatalf("%s %v: unsafe physical line %q", language, size, line)
+					}
+				}
+				if !strings.HasPrefix(lines[len(lines)-1], "> ") {
+					t.Fatal("command prompt lost")
+				}
+				if size[0] >= 60 && detail == nil && !strings.Contains(frame.String(), rows[99].connection.ID) {
+					// A clamped final page must retain complete IDs in the table.
+					t.Fatalf("last page missing full ID: %s", frame.String())
+				}
+			}
+		}
+	}
+}
+
+func TestLiveScreenUsesCursorUpdatesWithoutScrollOrColorDependency(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "xterm-256color")
+	var out bytes.Buffer
+	screen := &liveScreen{out: &out, width: 40, height: 8}
+	if err := screen.enter(); err != nil {
+		t.Fatal(err)
+	}
+	defer screen.leave()
+	if !strings.Contains(out.String(), "\x1b[?1049h") {
+		t.Fatal("main terminal buffer was not preserved")
+	}
+	out.Reset()
+	frame := "Connections\n" + strings.Repeat("长", 80) + "\n> "
+	if err := screen.draw(frame); err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(out.String(), "\r\n") || !strings.Contains(out.String(), "\x1b[2K") {
+		t.Fatalf("frame can scroll or lacks in-place addressing: %q", out.String())
+	}
+	out.Reset()
+	if err := screen.draw(frame); err != nil {
+		t.Fatal(err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("unchanged text was repainted: %q", out.String())
+	}
+	if err := screen.draw(strings.Replace(frame, "Connections", "Frozen", 1)); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out.String(), "\x1b[2K") != 1 {
+		t.Fatalf("unchanged rows were repainted: %q", out.String())
+	}
+	out.Reset()
+	if err := screen.draw(strings.Replace(frame, "Connections", "Frozen", 1)); err != nil {
+		t.Fatal(err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("clipped text was needlessly repainted: %q", out.String())
+	}
+}
+
+func TestLiveFitPreservesGraphemes(t *testing.T) {
+	if got := liveFit("👩‍💻e\u0301中文", 4); got != "👩‍💻e\u0301 " {
+		t.Fatalf("split grapheme: %q", got)
 	}
 }
 
