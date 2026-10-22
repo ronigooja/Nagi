@@ -867,7 +867,7 @@
   "menu.rewrite.preview.http_method": "HTTP method",
   "menu.rewrite.rule.disable": "Disable rule",
   "menu.rewrite.rule.enable": "Enable rule",
-  "menu.rewrite.rule_summary": "{count}. {count2} — enabled {enabled} | {domain} | {text} | {pathPrefix}",
+  "menu.rewrite.rule_summary": "{count2} — enabled {enabled} | {domain} | {text} | {pathPrefix}",
   "menu.rewrite.summary.ca": "CA: ",
   "menu.rewrite.summary.ca_line": "\nCA: ",
   "menu.rewrite.summary.tun": " | TUN: ",

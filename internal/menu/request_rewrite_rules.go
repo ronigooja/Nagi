@@ -30,9 +30,9 @@ func localizedrewriteRulesPage(language i18n.Context, profile string) *Page {
 		if localizeddecodeMenuResult(language, r, &data) != nil || data.Profile != profile {
 			return v, fmt.Errorf("%s", menuText(language, "menu.request_rewrite_rules.rewrite_rules_page.rule_profile_mismatch_or_invalid_response", "rule profile mismatch or invalid response"))
 		}
-		for i, rule := range data.Rules {
+		for _, rule := range data.Rules {
 			rule := rule
-			v.Items = append(v.Items, Item{ID: "request_rewrite_rules.rewriteRulesPage.item3", Label: menuFormat(language, "menu.rewrite.rule_summary", "%d. %s — enabled %t | %s | %s | %s", i+1, rule.ID+" ["+menuState(language, rule.Stage)+"]", rule.Enabled, rule.Match.Domain, strings.Join(rule.Match.Methods, ","), rule.Match.PathPrefix), Next: func() *Page { return localizedrewriteRuleDetail(language, profile, rule.ID) }})
+			v.Items = append(v.Items, Item{ID: "request_rewrite_rules.rewriteRulesPage.item3", Label: menuFormat(language, "menu.rewrite.rule_summary", "%s — enabled %t | %s | %s | %s", rule.ID+" ["+menuState(language, rule.Stage)+"]", rule.Enabled, rule.Match.Domain, strings.Join(rule.Match.Methods, ","), rule.Match.PathPrefix), Next: func() *Page { return localizedrewriteRuleDetail(language, profile, rule.ID) }})
 		}
 		v.Empty = menuText(language, "menu.request_rewrite_rules.rewrite_rules_page.no_rules", "No rules.")
 		return v, nil
@@ -121,14 +121,17 @@ func rewriteRuleReorder(ctx context.Context, s *Session, profile, id string) err
 	if index < 0 {
 		return fmt.Errorf("%s", menuText(s.language, "menu.request_rewrite_rules.rewrite_rule_reorder.rule_no_longer_exists", "rule no longer exists"))
 	}
-	_, err := s.rewriteForm(ctx, []Field{{Key: "position", Label: menuFormat(s.language, "menu.request_rewrite_rules.rewrite_rule_reorder.position_1_d", "Position (1–%d)", len(ids)), Required: true, Validate: func(v string) error {
+	start := index / pageSize * pageSize
+	count := min(pageSize, len(ids)-start)
+	_, err := s.rewriteForm(ctx, []Field{{Key: "position", Label: menuFormat(s.language, "menu.request_rewrite_rules.rewrite_rule_reorder.position_1_d", "Position (1–%d)", count), Required: true, Validate: func(v string) error {
 		n, e := strconv.Atoi(v)
-		if e != nil || n < 1 || n > len(ids) {
+		if e != nil || n < 1 || n > count || strconv.Itoa(n) != v {
 			return fmt.Errorf("%s", menuText(s.language, "menu.request_rewrite_rules.rewrite_rule_reorder.choose_an_existing_position", "choose an existing position"))
 		}
 		return nil
 	}}}, nil, func(v map[string]string) Result {
 		position, _ := strconv.Atoi(v["position"])
+		position += start
 		ordered := append([]string{}, ids...)
 		ordered = append(ordered[:index], ordered[index+1:]...)
 		ordered = append(ordered, "")
@@ -195,7 +198,7 @@ func localizedrewriteOperationsPage(language i18n.Context, rule *rewrite.Rule) *
 		}}}}
 		for index, op := range rule.Operations {
 			index := index
-			v.Items = append(v.Items, Item{ID: "request_rewrite_rules.rewriteOperationsPage.item3", Label: fmt.Sprintf("%d. %s", index+1, op.Op), Next: func() *Page { return localizedrewriteOperationDetail(language, rule, index) }})
+			v.Items = append(v.Items, Item{ID: "request_rewrite_rules.rewriteOperationsPage.item3", Label: op.Op, Next: func() *Page { return localizedrewriteOperationDetail(language, rule, index) }})
 		}
 		return v, nil
 	}}
@@ -208,7 +211,7 @@ func localizedrewriteOperationDetail(language i18n.Context, rule *rewrite.Rule, 
 				return rewriteOperationForm(ctx, s, &rule.Operations[index], func(op rewrite.Operation) { rule.Operations[index] = op })
 			}},
 			{ID: "request_rewrite_rules.rewriteOperationDetail.item3", Label: menuText(language, "menu.request_rewrite_rules.rewrite_operation_detail.move_operation", "Move operation"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
-				err := rewriteDraftPosition(ctx, s, len(rule.Operations), func(to int) {
+				err := rewriteDraftPosition(ctx, s, index, len(rule.Operations), func(to int) {
 					item := rule.Operations[index]
 					rule.Operations = append(rule.Operations[:index], rule.Operations[index+1:]...)
 					rule.Operations = append(rule.Operations, rewrite.Operation{})
@@ -235,14 +238,20 @@ func localizedrewriteOperationDetail(language i18n.Context, rule *rewrite.Rule, 
 		return PageView{ContextRaw: true, Context: menuText(language, "menu.request_rewrite_rules.rewrite_operation_detail.sensitive_values_may_contain_credentials_urls_an", "Sensitive values may contain credentials, URLs and bodies; visible locally in terminal scrollback.") + "\n" + string(raw), Actions: actions}, nil
 	}}
 }
-func rewriteDraftPosition(ctx context.Context, s *Session, count int, apply func(int)) error {
+func rewriteDraftPosition(ctx context.Context, s *Session, index, total int, apply func(int)) error {
+	start := index / pageSize * pageSize
+	count := min(pageSize, total-start)
 	_, err := s.Form(ctx, []Field{{Key: "position", Label: menuFormat(s.language, "menu.request_rewrite_rules.rewrite_draft_position.position_1_d", "Position (1–%d)", count), Required: true, Validate: func(v string) error {
 		n, e := strconv.Atoi(v)
-		if e != nil || n < 1 || n > count {
+		if e != nil || n < 1 || n > count || strconv.Itoa(n) != v {
 			return fmt.Errorf("%s", menuText(s.language, "menu.request_rewrite_rules.rewrite_draft_position.choose_an_existing_position", "choose an existing position"))
 		}
 		return nil
-	}}}, nil, func(v map[string]string) Result { n, _ := strconv.Atoi(v["position"]); apply(n - 1); return Result{} })
+	}}}, nil, func(v map[string]string) Result {
+		n, _ := strconv.Atoi(v["position"])
+		apply(start + n - 1)
+		return Result{}
+	})
 	return err
 }
 func rewriteOperationForm(ctx context.Context, s *Session, existing *rewrite.Operation, save func(rewrite.Operation)) error {

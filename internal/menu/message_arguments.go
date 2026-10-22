@@ -13,7 +13,7 @@ var menuArgumentNames = map[string][]string{
 	"menu.proxy.decode_menu_result.command_exited_with_status_d":                                      {"code"},
 	"menu.render.render.page_d_d": {"count", "count2"},
 	"menu.request_capture.capture_draft_page.rule_s_base_version_s_position_d_enable_t_save_c": {"iD", "baseRuleVersion", "position", "enable"},
-	"menu.rewrite.rule_summary": {"count", "count2", "enabled", "domain", "text", "pathPrefix"},
+	"menu.rewrite.rule_summary": {"count2", "enabled", "domain", "text", "pathPrefix"},
 	"menu.profile.subscription_metadata.s_available_s_total_s_uploaded_s_downloaded":                      {"text", "text2", "text3", "text4"},
 	"menu.render.render_value.s_d_more_entries_use_the_resource_list_or_ordina":                           {"indent", "count"},
 	"menu.request_rewrite_rules.rewrite_rule_reorder.position_1_d":                                        {"count"},

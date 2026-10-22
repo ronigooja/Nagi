@@ -979,7 +979,6 @@
   "menu.rewrite.rule.disable": {},
   "menu.rewrite.rule.enable": {},
   "menu.rewrite.rule_summary": {
-    "count": "number",
     "count2": "string",
     "domain": "string",
     "enabled": "boolean",

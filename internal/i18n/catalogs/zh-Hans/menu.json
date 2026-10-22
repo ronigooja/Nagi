@@ -867,7 +867,7 @@
   "menu.rewrite.preview.http_method": "HTTP 方法",
   "menu.rewrite.rule.disable": "禁用规则",
   "menu.rewrite.rule.enable": "启用规则",
-  "menu.rewrite.rule_summary": "{count}. {count2} — 启用 {enabled} | {domain} | {text} | {pathPrefix}",
+  "menu.rewrite.rule_summary": "{count2} — 启用 {enabled} | {domain} | {text} | {pathPrefix}",
   "menu.rewrite.summary.ca": "CA：",
   "menu.rewrite.summary.ca_line": "\nCA：",
   "menu.rewrite.summary.tun": " | TUN：",

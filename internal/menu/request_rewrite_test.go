@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/ronigooja/Nagi/internal/i18n"
 	rewrite "github.com/ronigooja/Nagi/internal/requestrewrite"
 )
 
@@ -176,12 +178,84 @@ func TestRewriteOperationsPaginationMoveAndRemoveOnlyDraft(t *testing.T) {
 		rule.Operations = append(rule.Operations, rewrite.Operation{Op: "header_delete", Name: string(rune('A' + i))})
 	}
 	f := &rewriteTestRunner{}
-	out := rewriteRun(t, rewriteOperationsPage(&rule), f, "12\n1\n2\n1\n0\n0\n")
-	if !strings.Contains(out, "Next page") || rule.Operations[0].Name != "K" {
+	out := rewriteRun(t, rewriteOperationsPage(&rule), f, "12\n2\n2\n1\n0\n0\n")
+	if !strings.Contains(out, "Next page") || rule.Operations[10].Name != "L" || rule.Operations[11].Name != "K" {
 		t.Fatalf("%s %+v", out, rule.Operations)
 	}
 	if len(f.calls) != 0 {
 		t.Fatal(f.calls)
+	}
+}
+
+func TestRewriteMovesUseCurrentPageNumbers(t *testing.T) {
+	for _, lang := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		for _, total := range []int{12, 20, 26} {
+			for _, kind := range []string{"rule", "operation"} {
+				t.Run(fmt.Sprintf("%s/%s/%d", lang, kind, total), func(t *testing.T) {
+					start := (total - 1) / pageSize * pageSize
+					count := total - start
+					ids := make([]string, total)
+					rules := make([]rewrite.RuleSummary, total)
+					draft := rewrite.Rule{}
+					for i := range ids {
+						ids[i] = fmt.Sprintf("R%02d", i+1)
+						rules[i] = rewrite.RuleSummary{ID: ids[i], Stage: rewrite.StageRequest}
+						draft.Operations = append(draft.Operations, rewrite.Operation{Op: "header_delete", Name: ids[i]})
+					}
+					want := append([]string{}, ids[:start]...)
+					want = append(want, ids[total-1])
+					want = append(want, ids[start:total-1]...)
+					f := &rewriteTestRunner{run: func(a []string) Result {
+						if a[2] == "list" {
+							return Result{Data: map[string]any{"profile": "work", "rules": rules}}
+						}
+						return Result{Data: map[string]any{"profile": "work", "rule": rules[total-1]}}
+					}}
+					language := i18n.New(lang)
+					page := localizedrewriteRulesPage(language, "work")
+					move, submit := 3, "1\n"
+					if kind == "operation" {
+						page = localizedrewriteOperationsPage(language, &draft)
+						move, submit = 2, ""
+					}
+					// Reject the action number after the last resource, then move to this page's first slot.
+					input := strings.Repeat("12\n", start/pageSize) + fmt.Sprintf("%d\n%d\n%d\n1\n%s", count, move, count+1, submit)
+					var out bytes.Buffer
+					s := NewSessionWithLanguage(f, strings.NewReader(input), &out, language)
+					if code := RunPage(context.Background(), s, page); code != 0 {
+						t.Fatalf("exit %d: %s", code, out.String())
+					}
+					if kind == "rule" {
+						var got []string
+						if len(f.inputs) != 1 || json.Unmarshal([]byte(f.inputs[0]), &got) != nil || !reflect.DeepEqual(got, want) {
+							t.Fatalf("saved rule order: %v; want %v", f.inputs, want)
+						}
+						if !strings.Contains(out.String(), "1. "+ids[start]+" [") {
+							t.Fatalf("rule choice contains an extra sequence number: %s", out.String())
+						}
+					} else {
+						got := make([]string, total)
+						for i, op := range draft.Operations {
+							got[i] = op.Name
+						}
+						if !reflect.DeepEqual(got, want) || len(f.calls) != 0 {
+							t.Fatalf("draft order: %v; want %v; calls: %v", got, want, f.calls)
+						}
+						if !strings.Contains(out.String(), "1. header_delete\n") {
+							t.Fatalf("operation choice contains an extra sequence number: %s", out.String())
+						}
+					}
+					promptID := "menu.request_rewrite_rules.rewrite_rule_reorder.position_1_d"
+					if kind == "operation" {
+						promptID = "menu.request_rewrite_rules.rewrite_draft_position.position_1_d"
+					}
+					prompt := menuFormat(language, promptID, "Position (1–%d)", count)
+					if strings.Count(out.String(), prompt) != 2 {
+						t.Fatalf("missing page range or invalid-position retry: %s", out.String())
+					}
+				})
+			}
+		}
 	}
 }
 func TestRewriteRuleEditExplicitSensitiveExportAndPortableValidation(t *testing.T) {
