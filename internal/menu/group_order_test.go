@@ -228,7 +228,7 @@ func TestProxyGroupOrderPositionInvalidInputFeedbackPrecedesRetryPrompt(t *testi
 	}
 }
 
-func TestProxyGroupOrderPositionUsesDisplayedPageNumbers(t *testing.T) {
+func TestProxyGroupOrderMovesUseDisplayedPage(t *testing.T) {
 	for _, lang := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
 		for _, tc := range []struct {
 			name    string
@@ -238,10 +238,15 @@ func TestProxyGroupOrderPositionUsesDisplayedPageNumbers(t *testing.T) {
 			limit   int
 			invalid bool
 		}{
-			{"first page", "10\n5\n1\n11\n", 9, 0, 10, false},
-			{"second page", "12\n10\n5\n1\n11\n", 19, 10, 10, false},
+			{"first page", "10\n3\n1\n11\n", 9, 0, 10, false},
+			{"second page", "12\n10\n3\n1\n11\n", 19, 10, 10, false},
 			{"last page rejects action number", "12\n12\n6\n3\n7\n1\n7\n", 25, 20, 6, true},
-			{"last page moves down", "12\n12\n1\n5\n6\n7\n", 20, 25, 6, false},
+			{"last page moves down", "12\n12\n1\n3\n6\n7\n", 20, 25, 6, false},
+			{"first page bottom", "5\n4\n11\n", 4, 9, 0, false},
+			{"second page top", "12\n5\n2\n11\n", 14, 10, 0, false},
+			{"second page bottom", "12\n5\n4\n11\n", 14, 19, 0, false},
+			{"last page top", "12\n12\n4\n2\n7\n", 23, 20, 0, false},
+			{"last page bottom", "12\n12\n3\n4\n7\n", 22, 25, 0, false},
 		} {
 			t.Run(string(lang)+"/"+tc.name, func(t *testing.T) {
 				names := make([]string, 26)
@@ -262,6 +267,9 @@ func TestProxyGroupOrderPositionUsesDisplayedPageNumbers(t *testing.T) {
 				}
 				prompt := fmt.Sprintf("%s (1-%d)", groupText(s.language, "target_position", "Target position"), tc.limit)
 				count := 1
+				if tc.limit == 0 {
+					count = 0
+				}
 				if tc.invalid {
 					count = 2
 				}
@@ -269,6 +277,61 @@ func TestProxyGroupOrderPositionUsesDisplayedPageNumbers(t *testing.T) {
 					t.Fatalf("expected %d prompts with page range %q: %s", count, prompt, output.String())
 				}
 			})
+		}
+	}
+}
+
+func TestProxyGroupOrderMovementPageBoundaries(t *testing.T) {
+	ctx := context.Background()
+	for _, total := range []int{21, 26} {
+		names := make([]string, total)
+		for i := range names {
+			names[i] = fmt.Sprintf("G%02d", i+1)
+		}
+		for index := range names {
+			start := index / pageSize * pageSize
+			end := min(start+pageSize, total)
+			for _, action := range []struct {
+				id      string
+				target  int
+				visible bool
+			}{
+				{"up", index - 1, index > start},
+				{"top", start, index > start},
+				{"down", index + 1, index < end-1},
+				{"bottom", end - 1, index < end-1},
+			} {
+				t.Run(fmt.Sprintf("%d/%d/%s", total, index+1, action.id), func(t *testing.T) {
+					r := groupOrderRunner(names...)
+					s := NewSession(r, strings.NewReader(""), io.Discard)
+					page := groupOrderPage(s.language)
+					v := loadChainPage(t, page, s)
+					detail := loadChainPage(t, v.Items[index].Next(), s)
+					var selected *Item
+					for i := range detail.Actions {
+						if detail.Actions[i].ID == "group.order."+action.id {
+							selected = &detail.Actions[i]
+						}
+					}
+					if (selected != nil) != action.visible {
+						t.Fatalf("action visibility at page boundary: %v", detail.Actions)
+					}
+					if selected == nil {
+						return
+					}
+					nav, err := selected.Navigate(ctx, s)
+					if err != nil || !nav.Back {
+						t.Fatalf("navigation: %v, %v", nav, err)
+					}
+					got := visibleOrder(loadChainPage(t, page, s))
+					if got[action.target] != names[index] || !reflect.DeepEqual(got[:start], names[:start]) || !reflect.DeepEqual(got[end:], names[end:]) {
+						t.Fatalf("move escaped selected page or missed target %d: %v", action.target+1, got)
+					}
+					if len(r.calls) != 1 {
+						t.Fatalf("movement persisted before Save: %v", r.calls)
+					}
+				})
+			}
 		}
 	}
 }

@@ -43,21 +43,22 @@ func groupOrderPage(l i18n.Context) *Page {
 					if index < 0 {
 						return view, nil
 					}
+					start := index / pageSize * pageSize
+					end := min(start+pageSize, len(names))
 					move := func(target int) func(context.Context, *Session) (Navigation, error) {
 						return func(context.Context, *Session) (Navigation, error) {
 							moveGroupOrder(names, index, target)
 							return Navigation{Back: true}, nil
 						}
 					}
-					if index > 0 {
-						view.Actions = append(view.Actions, Item{ID: "group.order.up", Label: groupText(l, "up", "Move up"), Navigate: move(index - 1)}, Item{ID: "group.order.top", Label: groupText(l, "top", "Move to top"), Navigate: move(0)})
+					if index > start {
+						view.Actions = append(view.Actions, Item{ID: "group.order.up", Label: groupText(l, "up", "Move up"), Navigate: move(index - 1)}, Item{ID: "group.order.top", Label: groupText(l, "top", "Move to top"), Navigate: move(start)})
 					}
-					if index < len(names)-1 {
-						view.Actions = append(view.Actions, Item{ID: "group.order.down", Label: groupText(l, "down", "Move down"), Navigate: move(index + 1)}, Item{ID: "group.order.bottom", Label: groupText(l, "bottom", "Move to bottom"), Navigate: move(len(names) - 1)})
+					if index < end-1 {
+						view.Actions = append(view.Actions, Item{ID: "group.order.down", Label: groupText(l, "down", "Move down"), Navigate: move(index + 1)}, Item{ID: "group.order.bottom", Label: groupText(l, "bottom", "Move to bottom"), Navigate: move(end - 1)})
 					}
 					view.Actions = append(view.Actions, Item{ID: "group.order.position", Label: groupText(l, "position", "Move to position"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
-						start := index / pageSize * pageSize
-						count := min(pageSize, len(names)-start)
+						count := end - start
 						for {
 							value, err := s.Prompt(fmt.Sprintf("%s (1-%d)", groupText(l, "target_position", "Target position"), count))
 							if err != nil {
