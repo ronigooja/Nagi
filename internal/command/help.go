@@ -128,7 +128,7 @@ var commandSpecs = []commandSpec{
 	{"proxy test", "proxy test <group|provider> OWNER NODE", "Measure a node in its source context", "Uses the effective group or provider URL, timeout and expected status; requires an unambiguous individual node.", "nagi proxy test group 'Proxy Group' NodeA", "Inspect `nagi proxy groups` or `nagi proxy providers`.", 0, -1},
 	{"proxy test group", "proxy test group GROUP NODE", "Measure a group node", "Uses the group's configured URL, timeout and expected status, resolving only its configured node sources.", "nagi proxy test group 'Proxy Group' NodeA", "Run `nagi proxy show GROUP` to inspect nodes.", 2, 2},
 	{"proxy test provider", "proxy test provider PROVIDER NODE", "Measure a provider node", "Uses the provider's configured health-check URL, timeout and expected status.", "nagi proxy test provider Remote NodeA", "Run `nagi proxy provider show PROVIDER` to inspect nodes.", 2, 2},
-	{"proxy delay", "proxy delay NODE [URL] [TIMEOUT_MS]", "Measure proxy delay", "Measures an HTTP(S) URL through a proxy node. URL defaults to https://www.gstatic.com/generate_204 and timeout to 5000 ms.", "nagi proxy delay NodeA", "Run `nagi proxy groups` to find a node name.", 1, 3},
+	{"proxy delay", "proxy delay NODE [URL] [TIMEOUT_MS]", "Measure proxy delay", "Measures an HTTP(S) URL through a proxy node. URL defaults to https://cp.cloudflare.com/generate_204 and timeout to 5000 ms.", "nagi proxy delay NodeA", "Run `nagi proxy groups` to find a node name.", 1, 3},
 	{"rules", "rules <test TARGET [options]|list|providers|custom|conflicts|connection ID|add NAME TYPE PAYLOAD TARGET|remove NAME|enable NAME|disable NAME|import NAME SOURCE>", "Manage routing rules", "Custom rules belong to the selected profile, are stored separately from its source, and apply before its rules. Switching profiles selects that profile's custom rules.", "nagi rules list", "", 0, -1},
 	{"rules test", "rules test TARGET [--ip IP] [--port PORT] [--network tcp|udp] [--process NAME]", "Test a domain or IP against active rules", "Requires a running matching mihomo engine. Tests its active rules and rule providers without connecting to the destination; synthetic matching does not update rule counters. Defaults to TCP port 443. TARGET is an ASCII domain or bare IP; --ip supplies a domain's destination address. Mihomo resolves DNS when a rule requires it. Always tests rules even in global/direct mode. Source, inbound, UID, process path and sniffing are unavailable; use rules connection for actual traffic.", "nagi rules test 154.19.187.117", "Start the matching mihomo engine before testing.", 1, -2},
 	{"rules list", "rules list", "List active rules", "Shows mihomo's ordered active rules, including disabled state and hit counts.", "nagi rules list", "", 0, 0},
@@ -462,7 +462,7 @@ func validateInvocation(args []string) error {
 		if strings.TrimSpace(args[2]) == "" {
 			return syntaxError(messageError("cli.error.validation.proxy_node_or_group_required", "proxy node or group required"), spec)
 		}
-		target := "https://www.gstatic.com/generate_204"
+		target := "https://cp.cloudflare.com/generate_204"
 		if n >= 2 {
 			target = args[3]
 		}

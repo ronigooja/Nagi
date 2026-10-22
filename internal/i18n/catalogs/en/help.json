@@ -161,7 +161,7 @@
   "help.command.proxy.chain.show.hint": "Run `nagi proxy chain list` to discover target names.",
   "help.command.proxy.chain.show.summary": "Show a target chain",
   "help.command.proxy.chain.summary": "Manage proxy chains",
-  "help.command.proxy.delay.detail": "Measures an HTTP(S) URL through a proxy node. URL defaults to https://www.gstatic.com/generate_204 and timeout to 5000 ms.",
+  "help.command.proxy.delay.detail": "Measures an HTTP(S) URL through a proxy node. URL defaults to https://cp.cloudflare.com/generate_204 and timeout to 5000 ms.",
   "help.command.proxy.delay.hint": "Run `nagi proxy groups` to find a node name.",
   "help.command.proxy.delay.summary": "Measure proxy delay",
   "help.command.proxy.delays.detail": "Measures all nodes in a group and sorts successful results by ascending latency. Omitted URL and timeout use the effective group settings (fallback: https://www.gstatic.com/generate_204, 5000 ms). Explicit arguments override them; URLTest uses its native configured URL.",

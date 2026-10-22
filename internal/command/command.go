@@ -2169,7 +2169,7 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		}
 		return result, delayErr
 	case "delay":
-		target := "https://www.gstatic.com/generate_204"
+		target := "https://cp.cloudflare.com/generate_204"
 		timeoutMS := 5000
 		if len(args) >= 4 {
 			target = args[3]

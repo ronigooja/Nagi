@@ -62,6 +62,13 @@ func TestAddProviderPreservesUnrelatedConfiguration(t *testing.T) {
 			if provider["type"] != "http" || provider["interval"] != 7200 || provider["health-check"].(map[string]any)["interval"] != 300 {
 				t.Fatalf("provider=%v", provider)
 			}
+			wantURL := "https://cp.cloudflare.com/generate_204"
+			if group == "Auto" {
+				wantURL = "https://example.com/204"
+			}
+			if got := provider["health-check"].(map[string]any)["url"]; got != wantURL {
+				t.Fatalf("healthcheck URL=%v, want %s", got, wantURL)
+			}
 			groups := current["proxy-groups"].([]any)
 			for _, value := range groups {
 				item := value.(map[string]any)
