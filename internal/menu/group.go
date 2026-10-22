@@ -85,7 +85,7 @@ func groupConfigPage(l i18n.Context, name string) *Page {
 
 // All edits stay in memory until Save. A failed CLI save keeps the whole draft.
 func groupDraftPage(l i18n.Context, existing string) *Page {
-	draft := menuGroupConfig{Name: existing, Type: "select", Proxies: []string{"DIRECT"}, URL: "https://cp.cloudflare.com/generate_204", Interval: 300, Strategy: "consistent-hashing"}
+	draft := menuGroupConfig{Name: existing, Type: "select", Proxies: []string{"DIRECT"}, URL: "https://cp.cloudflare.com/generate_204", Interval: 600, Strategy: "consistent-hashing"}
 	initialized := existing == ""
 	return &Page{ID: "group.draft", Title: groupText(l, "draft", "Proxy group draft"), Load: func(ctx context.Context, s *Session) (PageView, error) {
 		if !initialized {

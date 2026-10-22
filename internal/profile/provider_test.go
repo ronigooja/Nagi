@@ -59,7 +59,7 @@ func TestAddProviderPreservesUnrelatedConfiguration(t *testing.T) {
 				t.Fatal("old provider changed")
 			}
 			provider := providers["work"].(map[string]any)
-			if provider["type"] != "http" || provider["interval"] != 7200 || provider["health-check"].(map[string]any)["interval"] != 300 {
+			if provider["type"] != "http" || provider["interval"] != 7200 || provider["health-check"].(map[string]any)["interval"] != 600 {
 				t.Fatalf("provider=%v", provider)
 			}
 			wantURL := "https://cp.cloudflare.com/generate_204"

@@ -51,7 +51,7 @@ func TestProxyGroupCRUDPreservesSourceAndUnrelatedSettings(t *testing.T) {
 		if !reflect.DeepEqual(g.Proxies, []string{"Beta", "Alpha"}) || !reflect.DeepEqual(g.Use, []string{"feed"}) {
 			t.Fatal(g)
 		}
-		if g.Type != "select" && (g.Interval != 300 || g.URL != "https://cp.cloudflare.com/generate_204") {
+		if g.Type != "select" && (g.Interval != 600 || g.URL != "https://cp.cloudflare.com/generate_204") {
 			t.Fatal(g)
 		}
 	}
@@ -217,7 +217,7 @@ func TestProxyGroupEditingReconcilesExplicitHealthcheckIntent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if groups[0].URL != "https://cp.cloudflare.com/generate_204" || groups[0].Interval != 300 {
+	if groups[0].URL != "https://cp.cloudflare.com/generate_204" || groups[0].Interval != 600 {
 		t.Fatal("recreation inherited removed group's settings", groups[0])
 	}
 }

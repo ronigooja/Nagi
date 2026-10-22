@@ -23,7 +23,7 @@ func groupAction(t *testing.T, v PageView, id string) Item {
 }
 func TestProxyGroupDraftSaveFailureKeepsAllFieldsAndRetriesExplicitly(t *testing.T) {
 	ctx := context.Background()
-	args := []string{"proxy", "group", "add", "My Group", "--type", "url-test", "--node", "DIRECT", "--node", "Node A", "--provider", "Remote Feed", "--url", "https://cp.cloudflare.com/generate_204", "--interval", "300", "--tolerance", "0"}
+	args := []string{"proxy", "group", "add", "My Group", "--type", "url-test", "--node", "DIRECT", "--node", "Node A", "--provider", "Remote Feed", "--url", "https://cp.cloudflare.com/generate_204", "--interval", "600", "--tolerance", "0"}
 	r := &featureRunner{results: map[string]Result{
 		"proxy\x00node\x00list":    {Data: menuNodeList{Nodes: []menuProxyNode{{Name: "Node A"}}, ProviderCandidates: []string{"Remote Feed"}}},
 		strings.Join(args, "\x00"): {Code: 1, Error: &CLIError{Message: "validation failed"}},

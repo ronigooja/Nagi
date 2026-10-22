@@ -120,7 +120,7 @@ language-independent raw content.
 | `version` | Report Nagi version, mihomo version and pinned commit, OS, and architecture. |
 | `completion bash\|zsh\|fish` | Print a shell completion script without reading runtime configuration. |
 
-Profile and subscription names consist of ASCII letters, digits, `_`, or `-` and have a maximum length of 128 characters. A profile file is named `profiles/NAME.yaml`. `subscription update` accepts HTTP 200 responses only. Nagi validates a mihomo YAML document with `proxies` or `proxy-providers`, or a Base64/plain V2Ray-style link list supported by mihomo (including SS, SSR, VMess, VLESS, Trojan, Hysteria, TUIC, SOCKS, HTTP, AnyTLS, and Mieru), before replacing the cache. A YAML document without `proxy-groups` gets `Subscription Auto` (`url-test`), `Subscription Fallback`, `Subscription Balance` (`load-balance`), and a `Subscription` manual select group. The manual group defaults to Auto and includes the other strategies, top-level nodes, and `DIRECT`. Generated strategy groups use top-level nodes and all proxy providers; the manual group also includes provider nodes directly. The Auto group tests `https://cp.cloudflare.com/generate_204` every 300 seconds with zero tolerance. Generated names that conflict with top-level nodes, proxy provider names, or known inline-provider node names receive deterministic numeric suffixes. When a top-level node is named `GLOBAL`, Nagi gives that node the first available `GLOBAL-N` name (starting at `GLOBAL-2`) so it remains selectable and the required `GLOBAL` group can be generated. In this generated-group case, Nagi updates downloaded proxy targets in rules and sub-rules, node and inline-provider node `dialer-proxy` references, proxy-provider download `proxy` and `dialer-proxy` references, provider-override `dialer-proxy` references, rule-provider download `proxy` references, and DNS upstream proxy bindings that refer to that node. `SUB-RULE` targets remain sub-rule names, even when named `GLOBAL`. A generated `GLOBAL` group selects `Subscription`. If `rules` is absent, Nagi adds a `MATCH` rule targeting the generated manual group, the first existing group, or `DIRECT` when an existing group list is empty. Existing groups and rules retain their order and definitions. Unsupported or malformed responses leave the previous cache and refresh metadata intact.
+Profile and subscription names consist of ASCII letters, digits, `_`, or `-` and have a maximum length of 128 characters. A profile file is named `profiles/NAME.yaml`. `subscription update` accepts HTTP 200 responses only. Nagi validates a mihomo YAML document with `proxies` or `proxy-providers`, or a Base64/plain V2Ray-style link list supported by mihomo (including SS, SSR, VMess, VLESS, Trojan, Hysteria, TUIC, SOCKS, HTTP, AnyTLS, and Mieru), before replacing the cache. A YAML document without `proxy-groups` gets `Subscription Auto` (`url-test`), `Subscription Fallback`, `Subscription Balance` (`load-balance`), and a `Subscription` manual select group. The manual group defaults to Auto and includes the other strategies, top-level nodes, and `DIRECT`. Generated strategy groups use top-level nodes and all proxy providers; the manual group also includes provider nodes directly. The Auto group tests `https://cp.cloudflare.com/generate_204` every 600 seconds with zero tolerance. Generated names that conflict with top-level nodes, proxy provider names, or known inline-provider node names receive deterministic numeric suffixes. When a top-level node is named `GLOBAL`, Nagi gives that node the first available `GLOBAL-N` name (starting at `GLOBAL-2`) so it remains selectable and the required `GLOBAL` group can be generated. In this generated-group case, Nagi updates downloaded proxy targets in rules and sub-rules, node and inline-provider node `dialer-proxy` references, proxy-provider download `proxy` and `dialer-proxy` references, provider-override `dialer-proxy` references, rule-provider download `proxy` references, and DNS upstream proxy bindings that refer to that node. `SUB-RULE` targets remain sub-rule names, even when named `GLOBAL`. A generated `GLOBAL` group selects `Subscription`. If `rules` is absent, Nagi adds a `MATCH` rule targeting the generated manual group, the first existing group, or `DIRECT` when an existing group list is empty. Existing groups and rules retain their order and definitions. Unsupported or malformed responses leave the previous cache and refresh metadata intact.
 
 `subscription add NAME URL` defaults to hourly updates. `--schedule SECONDS|off` and `--test-url URL` save optional settings with the new record before any download or apply; their order is interchangeable. `off` disables scheduled downloads and automatic apply. The test URL follows the saved subscription when it is applied to a profile. The terminal menu and macOS App collect these options during Add and Apply. Creation does not fetch or activate a profile; their Add and Apply flows perform those later steps explicitly.
 
@@ -267,7 +267,7 @@ New default profiles include TUN settings for `auto-route`, `strict-route`, `aut
 
 `proxy provider add` accepts `off` in place of `SECONDS` to disable automatic source downloads. Optional `--test-url URL` saves a Provider-specific latency test URL at creation. `proxy provider interval show NAME` reads the configured download interval while stopped; `set NAME SECONDS|off` changes it and `reset NAME` restores the source value when one exists. A Provider created locally has no source interval to inherit, so `reset` is unavailable for it. These commands change download timing, independently of `proxy healthcheck` settings. They read local configuration without requiring a running engine; mutations validate and reload the selected running profile, using the existing rollback transaction. Invalid values exit `2`; missing targets, validation, and activation failures exit `1` with `proxy_provider_error`. `show` and successful mutations return the same Provider interval fields listed under [JSON and exit codes](#json-and-exit-codes).
 
-The provider uses mihomo's automatic cache path, the requested update interval when enabled, and native healthchecks every 300 seconds. For `url-test`, `fallback`, and `load-balance` groups, its healthcheck uses the group's `url` and any configured `expected-status`. When the group omits `url`, it uses the first nonempty healthcheck URL from an already attached provider, matching mihomo's group default. Otherwise the URL defaults to `https://cp.cloudflare.com/generate_204`. Mihomo owns downloading, decoding, and checking its nodes; Nagi does not require a separate connectivity test before saving the configuration.
+The provider uses mihomo's automatic cache path, the requested update interval when enabled, and native healthchecks every 600 seconds. For `url-test`, `fallback`, and `load-balance` groups, its healthcheck uses the group's `url` and any configured `expected-status`. When the group omits `url`, it uses the first nonempty healthcheck URL from an already attached provider, matching mihomo's group default. Otherwise the URL defaults to `https://cp.cloudflare.com/generate_204`. Mihomo owns downloading, decoding, and checking its nodes; Nagi does not require a separate connectivity test before saving the configuration.
 
 Nagi merges the provider into `config/overrides/PROFILE.yaml` and stores the full effective `proxy-groups` list there because override lists replace source lists. Existing source content, DNS, rules, nodes, and unrelated override settings are retained. This group snapshot takes precedence over later source imports. Subscription application rebases local group changes against the new source as described under [profile overrides](#local-profile-files-and-overrides). Explicit `profile override clear` or replacement of the override removes these local additions. Source export, backup, and `config show` do not include the override.
 
@@ -289,7 +289,7 @@ These commands manage the selected profile's native mihomo `proxy-groups`. They 
 nagi proxy group list
 nagi proxy group show 'My Group'
 nagi proxy group add 'My Group' --type select --node DIRECT --node 'Node A'
-nagi proxy group add 'Automatic' --type url-test --provider work-feed --interval 300 --tolerance 50
+nagi proxy group add 'Automatic' --type url-test --provider work-feed --interval 600 --tolerance 50
 nagi proxy group edit 'My Group' --node 'Node B' --node DIRECT
 nagi proxy group edit 'Automatic' --clear-providers --node 'Node A'
 nagi proxy group remove 'My Group'
@@ -304,7 +304,7 @@ nagi proxy group remove 'My Group'
 | `--provider NAME` | Repeat for existing proxy providers. Replaces the entire `use` list in argument order. Unknown or duplicate names are rejected. |
 | `--clear-nodes`, `--clear-providers` | Explicitly clear the corresponding list. Cannot be combined with that list's member option. At least one explicit member/provider or existing native automatic-inclusion setting is required. |
 | `--url URL` | Absolute HTTP(S) test URL without userinfo, fragment, or surrounding whitespace. Newly created automatic groups default to `https://cp.cloudflare.com/generate_204`. |
-| `--interval SECONDS` | Integer `1..31536000`. Newly created automatic groups default to 300 seconds. Uses mihomo's native healthcheck scheduler. |
+| `--interval SECONDS` | Integer `1..31536000`. Newly created automatic groups default to 600 seconds. Uses mihomo's native healthcheck scheduler. |
 | `--tolerance MS` | Integer `0..65535`, only for `url-test`; omitted creation value uses mihomo's zero default. |
 | `--strategy STRATEGY` | `consistent-hashing`, `round-robin`, or `sticky-sessions`, only for `load-balance`; omission uses mihomo's `consistent-hashing` default. |
 
@@ -404,11 +404,11 @@ Usage errors exit `2`; operational failures exit `1` with `proxy_node_error` or 
 
 ### Automatic latency check intervals
 
-These settings control mihomo latency and availability checks, separately from subscription or Provider downloads. The terminal menu exposes subscription, Provider, and group check intervals and URLs; the App exposes subscription and Provider settings. The CLI supports all three scopes.
+These settings control mihomo latency and availability checks, separately from subscription or Provider downloads. Nagi supplies a 600-second (10-minute) interval for automatic groups and enabled Provider healthchecks when the native interval is omitted or zero, while retaining explicit nonzero intervals. This also applies to groups and Providers added to the built-in `default` profile; its initial template has no nodes or checks. Source files remain unchanged. The terminal menu exposes subscription, Provider, and group check intervals and URLs; the App exposes subscription and Provider settings. The CLI supports all three scopes.
 
 ```sh
 nagi proxy healthcheck show subscription work
-nagi proxy healthcheck set subscription work 300
+nagi proxy healthcheck set subscription work 600
 nagi proxy healthcheck show provider airport
 nagi proxy healthcheck show provider airport --full-url
 nagi proxy healthcheck set provider airport 600
@@ -418,7 +418,7 @@ nagi proxy healthcheck url set subscription work https://example.com/generate_20
 nagi proxy healthcheck url set provider airport https://example.com/generate_204
 nagi proxy healthcheck url reset provider airport
 # Advanced group-level control:
-nagi proxy healthcheck set group 'Subscription Auto' 300
+nagi proxy healthcheck set group 'Subscription Auto' 600
 nagi proxy healthcheck url set group 'Subscription Auto' https://example.com/generate_204
 ```
 

@@ -143,7 +143,7 @@ func TestGeneratedGroupsUseNodesAndProviders(t *testing.T) {
 			}
 		}
 		auto := groups[0].(map[string]any)
-		if auto["type"] != "url-test" || auto["url"] != "https://cp.cloudflare.com/generate_204" || auto["interval"] != 300 || auto["tolerance"] != 0 || !reflect.DeepEqual(auto["use"], []any{"remote"}) {
+		if auto["type"] != "url-test" || auto["url"] != "https://cp.cloudflare.com/generate_204" || auto["interval"] != 600 || auto["tolerance"] != 0 || !reflect.DeepEqual(auto["use"], []any{"remote"}) {
 			t.Fatalf("auto: %#v", auto)
 		}
 		for _, value := range groups[:3] {

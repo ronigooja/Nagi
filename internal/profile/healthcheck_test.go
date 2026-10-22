@@ -8,6 +8,59 @@ import (
 	"testing"
 )
 
+func TestDefaultHealthcheckIntervalsReachEffectiveDefaultProfile(t *testing.T) {
+	const source = `proxy-groups:
+  - {name: Auto, type: url-test, proxies: [DIRECT]}
+  - {name: Fallback, type: fallback, proxies: [DIRECT], interval: 0}
+  - {name: Balance, type: load-balance, proxies: [DIRECT], interval: "0"}
+  - {name: Explicit, type: url-test, proxies: [DIRECT], interval: 123}
+  - {name: Manual, type: select, proxies: [DIRECT]}
+proxy-providers:
+  omitted: {type: inline, payload: [], health-check: {enable: true, url: 'https://example.invalid/check'}}
+  zero: {type: inline, payload: [], health-check: {enable: true, interval: 0}}
+  explicit: {type: inline, payload: [], health-check: {enable: true, interval: 123}}
+  disabled: {type: inline, payload: [], health-check: {enable: false, interval: 0}}
+  absent: {type: inline, payload: []}
+`
+	for _, override := range []bool{false, true} {
+		t.Run(map[bool]string{false: "source", true: "override"}[override], func(t *testing.T) {
+			s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+			ctx := context.Background()
+			if err := s.Write(ctx, "default", []byte(source)); err != nil {
+				t.Fatal(err)
+			}
+			if override {
+				if err := s.SetOverride(ctx, "default", []byte("mode: global\n")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			data, err := s.Effective("default")
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg := yamlMapping(t, data)
+			for name, want := range map[string]int{"Auto": 600, "Fallback": 600, "Balance": 600, "Explicit": 123, "Manual": 0} {
+				group, err := healthTarget(cfg, "group", name)
+				got, parseErr := healthInterval(group["interval"])
+				if err != nil || parseErr != nil || got != want {
+					t.Fatalf("group %s: got %d, want %d (%v, %v)", name, got, want, err, parseErr)
+				}
+			}
+			for name, want := range map[string]int{"omitted": 600, "zero": 600, "explicit": 123, "disabled": 0, "absent": 0} {
+				provider, err := healthTarget(cfg, "provider", name)
+				got, parseErr := healthInterval(healthFields(provider, "provider")["interval"])
+				if err != nil || parseErr != nil || got != want {
+					t.Fatalf("provider %s: got %d, want %d (%v, %v)", name, got, want, err, parseErr)
+				}
+			}
+			unchanged, err := s.Show("default")
+			if err != nil || string(unchanged) != source {
+				t.Fatalf("source changed: %v", err)
+			}
+		})
+	}
+}
+
 func TestHealthcheckSetResetAndRebase(t *testing.T) {
 	s, source, _ := providerFixture(t)
 	ctx := context.Background()
@@ -62,7 +115,7 @@ func TestHealthcheckProviderResetRetainsLocalSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, _ = s.Healthcheck("default", "provider", "work")
-	if r.IntervalSeconds != 300 || r.Source != "profile" || !*r.Enabled {
+	if r.IntervalSeconds != 600 || r.Source != "profile" || !*r.Enabled {
 		t.Fatal(r)
 	}
 	b, _ := s.Effective("default")
@@ -187,7 +240,7 @@ func TestHealthcheckIncludedNodesAndQuotedInterval(t *testing.T) {
 			t.Fatal(err)
 		}
 		r, err := s.Healthcheck("default", "group", "Auto")
-		if err != nil || r.IntervalSeconds != 300 || r.Enabled == nil || !*r.Enabled || !r.IntervalDefaulted {
+		if err != nil || r.IntervalSeconds != 600 || r.Enabled == nil || !*r.Enabled || r.IntervalDefaulted {
 			t.Fatalf("%s %+v %v", flag, r, err)
 		}
 		source = append(source, []byte("   interval: \"123\"\n")...)

@@ -83,6 +83,13 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 		if err != nil {
 			return nil, err
 		}
+		var base map[string]any
+		if yaml.Unmarshal(source, &base) == nil && base != nil && applyDefaultHealthcheckIntervals(base) {
+			source, err = yaml.Marshal(base)
+			if err != nil {
+				return nil, err
+			}
+		}
 		managed, err := applyManaged(name, source)
 		if err != nil {
 			return nil, err
@@ -176,6 +183,7 @@ func (s *Store) effectiveSourceWithOverride(name string, source, patch []byte, e
 			base["proxies"] = append(tsProxies(base), node)
 		}
 	}
+	applyDefaultHealthcheckIntervals(base)
 	merged, err := yaml.Marshal(base)
 	if err != nil {
 		return nil, err

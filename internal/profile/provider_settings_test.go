@@ -79,7 +79,7 @@ func TestProviderIntervalAndURLValidationRollback(t *testing.T) {
 		t.Fatal(r, err)
 	}
 	h, _ := s.Healthcheck("default", "provider", "work")
-	if h.TestURL != "https://probe.example" || h.IntervalSeconds != 300 {
+	if h.TestURL != "https://probe.example" || h.IntervalSeconds != 600 {
 		t.Fatal(h)
 	}
 	before, _ := s.Override("default")
@@ -196,7 +196,7 @@ func TestLocalProviderURLResetInheritsSubscriptionPolicy(t *testing.T) {
 	data, _ := s.Effective("default")
 	effective := yamlMapping(t, data)
 	target, _ := healthTarget(effective, "provider", "local")
-	if healthFields(target, "provider")["url"] != policy || healthFields(target, "provider")["interval"] != 300 || target["interval"] != 3600 {
+	if healthFields(target, "provider")["url"] != policy || healthFields(target, "provider")["interval"] != 600 || target["interval"] != 3600 {
 		t.Fatal(target)
 	}
 }

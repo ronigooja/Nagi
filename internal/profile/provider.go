@@ -164,7 +164,7 @@ func (s *Store) AddProvider(ctx context.Context, profileName, name, rawURL, grou
 	if localProviders == nil {
 		localProviders = map[string]any{}
 	}
-	healthcheck := map[string]any{"enable": true, "url": "https://cp.cloudflare.com/generate_204", "interval": 300}
+	healthcheck := map[string]any{"enable": true, "url": "https://cp.cloudflare.com/generate_204", "interval": 600}
 	switch target["type"] {
 	case "url-test", "fallback", "load-balance":
 		// Match mihomo's group URL selection, including groups that inherit

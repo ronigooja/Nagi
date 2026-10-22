@@ -60,7 +60,7 @@ func TestProxyGroupStoppedCommandCRUDAndFailure(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("%v code=%d: %s", args, code, out)
 		}
-		if args[0] == "show" && (!strings.Contains(out, `"tolerance":42`) || !strings.Contains(out, `"interval":300`)) {
+		if args[0] == "show" && (!strings.Contains(out, `"tolerance":42`) || !strings.Contains(out, `"interval":600`)) {
 			t.Fatal(out)
 		}
 	}

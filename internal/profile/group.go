@@ -208,7 +208,7 @@ func (s *Store) SaveProxyGroup(ctx context.Context, profileName, name string, pa
 			target["url"] = "https://cp.cloudflare.com/generate_204"
 		}
 		if _, ok := target["interval"]; !ok {
-			target["interval"] = 300
+			target["interval"] = 600
 		}
 	}
 	cfg["proxy-groups"] = groups

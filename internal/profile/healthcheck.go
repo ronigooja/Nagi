@@ -18,6 +18,35 @@ import (
 // list snapshots, including values equal to the subscription's current value.
 const groupHealthcheckIntervalsKey = "nagi-group-healthcheck-intervals"
 
+// Supply native intervals rather than changing mihomo's own default scheduler.
+// Source files and explicit nonzero intervals remain unchanged.
+func applyDefaultHealthcheckIntervals(base map[string]any) bool {
+	changed := false
+	setDefault := func(fields map[string]any) {
+		if n, err := healthInterval(fields["interval"]); err == nil && n == 0 {
+			fields["interval"] = 600
+			changed = true
+		}
+	}
+	groups, _ := base["proxy-groups"].([]any)
+	for _, raw := range groups {
+		group, _ := raw.(map[string]any)
+		switch group["type"] {
+		case "url-test", "fallback", "load-balance":
+			setDefault(group)
+		}
+	}
+	providers, _ := base["proxy-providers"].(map[string]any)
+	for _, raw := range providers {
+		provider, _ := raw.(map[string]any)
+		check := healthFields(provider, "provider")
+		if healthBool(check["enable"]) {
+			setDefault(check)
+		}
+	}
+	return changed
+}
+
 func healthInterval(value any) (int, error) {
 	if value == nil {
 		return 0, nil
@@ -208,13 +237,13 @@ func (s *Store) healthcheckFromMaps(name, kind, targetName string, effective, so
 	if kind == "provider" {
 		enabled = healthBool(fields["enable"])
 		if enabled && r.IntervalSeconds == 0 {
-			r.IntervalSeconds = 300
+			r.IntervalSeconds = 600
 		}
 		r.Reason = "Provider scheduling can also be enabled by groups registering a different test URL."
 	} else {
 		enabled = r.IntervalSeconds > 0
 		if explicit := groupHasExplicitNodes(target, effective); explicit != nil && *explicit && target["type"] != "select" && r.IntervalSeconds == 0 {
-			r.IntervalSeconds = 300
+			r.IntervalSeconds = 600
 			enabled = true
 		}
 		r.Reason = "Group interval controls explicit nodes; provider nodes use their provider scheduler, whose nonzero interval takes precedence."
@@ -225,13 +254,13 @@ func (s *Store) healthcheckFromMaps(name, kind, targetName string, effective, so
 			r.Enabled = nil
 			if explicit == nil {
 				reasonID += "_included"
-				r.Reason += " Included node membership is resolved by mihomo; automatic groups with included explicit nodes default to 300 seconds."
+				r.Reason += " Included node membership is resolved by mihomo; automatic groups with included explicit nodes default to 600 seconds."
 			}
 		}
 	}
 	if r.IntervalDefaulted {
 		reasonID += "_defaulted"
-		r.Reason += " Interval is omitted or zero; mihomo defaults apply."
+		r.Reason += " Interval is omitted or zero; Nagi defaults apply."
 	}
 	r.Messages = map[string]i18n.Descriptor{"/reason": {ID: reasonID}}
 	if interval, e := s.subscriptionHealthcheck(name); e != nil {

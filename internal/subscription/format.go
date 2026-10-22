@@ -132,14 +132,14 @@ func completeGroups(doc map[string]any, proxies []any) {
 		g := map[string]any{"name": name, "type": kind, "proxies": names, "use": providers}
 		if kind == "url-test" || kind == "fallback" {
 			g["url"] = "https://cp.cloudflare.com/generate_204"
-			g["interval"] = 300
+			g["interval"] = 600
 		}
 		if kind == "url-test" {
 			g["tolerance"] = 0
 		}
 		if kind == "load-balance" {
 			g["url"] = "https://cp.cloudflare.com/generate_204"
-			g["interval"] = 300
+			g["interval"] = 600
 		}
 		return g
 	}
