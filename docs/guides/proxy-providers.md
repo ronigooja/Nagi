@@ -33,7 +33,7 @@ nagi mode global
 nagi proxy select GLOBAL 'My Proxy'
 ```
 
-Then select a provider node under **Proxies → Proxy Groups → GROUP** in the terminal menu (**Proxy Groups → GROUP** in the macOS app), or use `nagi proxy select 'My Proxy' 'NODE_NAME'`, replacing `NODE_NAME` with a listed node. Clicking a node inside the terminal Provider detail page measures latency; selection happens in the proxy group.
+Then select a provider node under **Proxies → Proxy Groups → Manage proxy groups → GROUP → Select node** in the terminal menu (**Proxy Groups → GROUP** in the macOS app), or use `nagi proxy select 'My Proxy' 'NODE_NAME'`, replacing `NODE_NAME` with a listed node. Clicking a node inside the terminal Provider detail page measures latency; selection happens in the proxy group.
 
 ## Refresh and maintain
 

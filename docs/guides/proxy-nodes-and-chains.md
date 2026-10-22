@@ -4,7 +4,7 @@ This guide covers selected-profile node and proxy group management, group member
 
 ## Create and manage a proxy group
 
-Open **Proxies → Proxy Groups → Create proxy group** in `nagi menu`. Enter the group name, choose manual selection, automatic latency selection, fallback, or load balancing, and select nodes/groups or proxy providers. Automatic types expose their test settings. Choose **Save proxy group** to validate and save; failed saves keep the draft for correction. Back before Save leaves configuration unchanged. **Manage proxy groups** remains available while the engine is stopped and offers editing and deletion. A running group's **Show group details** opens the same settings.
+Open **Proxies → Proxy Groups → Create proxy group** in `nagi menu`. Enter the group name, choose manual selection, automatic latency selection, fallback, or load balancing, and select nodes/groups or proxy providers. Automatic types expose their test settings. Choose **Save proxy group** to validate and save; failed saves keep the draft for correction. Back before Save leaves configuration unchanged. **Manage proxy groups** contains the group list and remains available while the engine is stopped. Select a group for editing and deletion, or choose **Select node** to open its live node list when mihomo is running. **Show group details** on that node list returns to the same settings.
 
 For example, with `Node A` and `Node B` already configured:
 

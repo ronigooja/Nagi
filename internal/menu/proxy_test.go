@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 type featureRunner struct {
@@ -25,15 +27,20 @@ func (r *featureRunner) Run(_ context.Context, args []string) Result {
 func TestProxyGroupNodeNamesStaySingleArguments(t *testing.T) {
 	ctx := context.Background()
 	runner := &featureRunner{results: map[string]Result{
-		"proxy\x00groups":               {Data: map[string]any{"groups": []any{map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}, "now": "Node A", "selected_status": "available"}}}},
-		"proxy\x00show\x00World Select": {Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}, "now": "Node A", "selected_status": "available"}},
+		"proxy\x00group\x00list":                 {Data: map[string]any{"group_configs": []menuGroupConfig{{Name: "World Select", Type: "select"}}}},
+		"proxy\x00group\x00show\x00World Select": {Data: map[string]any{"group_config": menuGroupConfig{Name: "World Select", Type: "select"}}},
+		"proxy\x00show\x00World Select":          {Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}, "now": "Node A", "selected_status": "available"}},
 	}}
 	s := NewSession(runner, strings.NewReader(""), &bytes.Buffer{})
-	groups, err := proxyGroupsPage().Load(ctx, s)
+	groups, err := groupManagementPage(s.language).Load(ctx, s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	detail, err := groups.Items[0].Next().Load(ctx, s)
+	config, err := groups.Items[0].Next().Load(ctx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail, err := groupAction(t, config, "group.select_node").Next().Load(ctx, s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,9 +62,11 @@ func hasProxyCall(calls [][]string, want []string) bool {
 	return false
 }
 
-func TestProxySwitchNeedsFourSelectionsFromRoot(t *testing.T) {
+func TestProxySwitchThroughManagementFromRoot(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{
 		"proxy\x00groups":                           {Data: map[string]any{"groups": []any{map[string]any{"name": "World Select"}}}},
+		"proxy\x00group\x00list":                    {Data: map[string]any{"group_configs": []menuGroupConfig{{Name: "World Select", Type: "select"}}}},
+		"proxy\x00group\x00show\x00World Select":    {Data: map[string]any{"group_config": menuGroupConfig{Name: "World Select", Type: "select"}}},
 		"proxy\x00show\x00World Select":             {Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}}},
 		"proxy\x00select\x00World Select\x00Node A": {Data: map[string]any{"group": "World Select", "node": "Node A"}},
 	}}
@@ -65,7 +74,7 @@ func TestProxySwitchNeedsFourSelectionsFromRoot(t *testing.T) {
 		return PageView{Items: []Item{{Label: "Proxy", Next: ProxyPage}}}, nil
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n1\n1\n1\nq\n"), &out), root)
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("1\n1\n2\n1\n1\n1\nq\n"), &out), root)
 	count := 0
 	for _, call := range runner.calls {
 		if len(call) > 1 && call[1] == "select" {
@@ -210,7 +219,9 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 			{Data: map[string]any{"running": false}},
 			{Data: map[string]any{"running": true}},
 		},
-		"start": {{Data: map[string]any{"running": true}}},
+		"start":                         {{Data: map[string]any{"running": true}}},
+		"proxy group list":              {{Data: map[string]any{"group_configs": []menuGroupConfig{{Name: "World Select", Type: "select"}}}}},
+		"proxy group show World Select": {{Data: map[string]any{"group_config": menuGroupConfig{Name: "World Select", Type: "select"}}}},
 		"proxy show World Select": {
 			{Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}}},
 			{Data: map[string]any{"name": "World Select", "node_info": ordinaryNodeInfo([]string{"Node A"}), "all": []string{"Node A"}, "now": "Node A"}},
@@ -218,7 +229,7 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 		"proxy select World Select Node A": {{Data: map[string]any{"group": "World Select", "node": "Node A"}}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("3\n1\n0\n0\n1\n1\n0\n3\n1\n1\n1\n0\n0\n0\n0\n"), &out), RootPage())
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("3\n1\n0\n0\n1\n1\n0\n3\n1\n2\n1\n1\n1\nq\n"), &out), RootPage())
 	for _, want := range [][]string{{"start"}, {"proxy", "select", "World Select", "Node A"}} {
 		count := 0
 		for _, call := range runner.calls {
@@ -240,6 +251,33 @@ func TestProxyGroupsSuccessfulReadDoesNotQueryRuntime(t *testing.T) {
 	view, err := proxyGroupsPage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
 	if err != nil || len(view.Actions) != 3 || !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}}) {
 		t.Fatalf("view=%#v err=%v calls=%v", view, err, runner.calls)
+	}
+}
+
+func TestProxyGroupsRunningMenuKeepsThreeStableEntries(t *testing.T) {
+	for _, lang := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		t.Run(string(lang), func(t *testing.T) {
+			groups := make([]menuProxyGroup, 26)
+			for i := range groups {
+				groups[i].Name = fmt.Sprintf("Group %02d", i+1)
+			}
+			runner := &featureRunner{results: map[string]Result{
+				"proxy\x00groups": {Data: map[string]any{"groups": groups}},
+			}}
+			var out bytes.Buffer
+			s := NewSessionWithLanguage(runner, strings.NewReader("0\n"), &out, i18n.New(lang))
+			page := localizedproxyGroupsPage(s.language)
+			view := loadChainPage(t, page, s)
+			if len(view.Items) != 0 || len(view.Actions) != 3 || view.Actions[0].ID != "group.create" || view.Actions[1].ID != "group.manage" || !reflect.DeepEqual(view.Actions[2].Args, []string{"proxy", "restore"}) {
+				t.Fatalf("outer menu changed with engine groups: %+v", view)
+			}
+			RunPage(context.Background(), s, page)
+			for _, text := range []string{"Group 01", "Group 26", "Page 1/", "第 1/", "Select a group, then a node"} {
+				if strings.Contains(out.String(), text) {
+					t.Fatalf("group list leaked into outer menu: %s", out.String())
+				}
+			}
+		})
 	}
 }
 

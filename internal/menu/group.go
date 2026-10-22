@@ -54,7 +54,7 @@ func groupConfigPage(l i18n.Context, name string) *Page {
 			return PageView{}, err
 		}
 		g := data.Group
-		v := PageView{Context: g.Type + "\n" + groupText(l, "nodes", "Nodes and groups") + ": " + strings.Join(g.Proxies, ", ") + "\n" + groupText(l, "providers", "Providers") + ": " + strings.Join(g.Use, ", ")}
+		v := PageView{Context: g.Type + "\n" + groupText(l, "nodes", "Nodes and groups") + ": " + strings.Join(g.Proxies, ", ") + "\n" + groupText(l, "providers", "Providers") + ": " + strings.Join(g.Use, ", "), Actions: []Item{{ID: "group.select_node", Label: groupText(l, "select_node", "Select node"), Next: func() *Page { return localizedproxyGroupPage(l, name) }}}}
 		switch g.Type {
 		case "select", "url-test", "fallback", "load-balance":
 			v.Actions = append(v.Actions, Item{ID: "group.edit", Label: groupText(l, "edit", "Edit proxy group"), Next: func() *Page { return groupDraftPage(l, name) }})

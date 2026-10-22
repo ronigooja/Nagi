@@ -52,7 +52,7 @@ func localizedProxyPage(language i18n.Context) *Page {
 
 func localizedproxyGroupsPage(language i18n.Context) *Page {
 	return &Page{ID: "proxy.proxyGroupsPage.page1", Title: menuText(language, "menu.proxy.proxy_groups_page.proxy_groups", "Proxy Groups"), Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Context: menuText(language, "menu.proxy.proxy_groups_page.select_a_group_then_a_node_to_switch", "Select a group, then a node to switch."), Empty: menuText(language, "menu.proxy.proxy_groups_page.no_proxy_groups_check_the_profile_in_profiles_su", "No proxy groups. Check the profile in Profiles & Subscriptions > Profiles."), Actions: []Item{
+		view := PageView{Actions: []Item{
 			{ID: "group.create", Label: groupText(language, "create", "Create proxy group"), Next: func() *Page { return groupDraftPage(language, "") }},
 			{ID: "group.manage", Label: groupText(language, "manage", "Manage proxy groups"), Next: func() *Page { return groupManagementPage(language) }},
 			{ID: "proxy.proxyGroupsPage.item2", Label: menuText(language, "menu.proxy.proxy_groups_page.restore_saved_selections", "Restore saved selections"), Args: []string{"proxy", "restore"}},
@@ -85,13 +85,6 @@ func localizedproxyGroupsPage(language i18n.Context) *Page {
 				}
 			}
 			return view, err
-		}
-		for _, group := range data.Groups {
-			if group.Hidden {
-				continue
-			}
-			group := group
-			view.Items = append(view.Items, Item{ID: "proxy.proxyGroupsPage.item3", Name: group.Name, Label: localizedproxyGroupLabel(language, group), Next: func() *Page { return localizedproxyGroupPage(language, group.Name) }})
 		}
 		return view, nil
 	}}

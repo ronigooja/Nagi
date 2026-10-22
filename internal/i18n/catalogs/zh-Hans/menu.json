@@ -1174,6 +1174,7 @@
   "menu.rules.manage.updated": "规则已更新。",
   "menu.rules.manage.view": "查看规则",
   "menu.rules.manage.target": "目标：",
+  "menu.group.select_node": "选择节点",
   "menu.group.create": "创建代理组",
   "menu.group.done": "继续",
   "menu.group.draft": "代理组草稿",
