@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/ronigooja/Nagi/internal/output"
 )
 
 type menuNodeDelay struct {
@@ -190,13 +192,13 @@ func localizedhealthcheckPage(language i18n.Context, kind, name string) *Page {
 	}}
 }
 
-// Display only the origin provided by the CLI, never credentials or URL paths.
+// Keep the configured endpoint details while removing URL authentication data.
 func localizedmenuTestEndpoint(language i18n.Context, raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return "unknown"
 	}
-	return u.Host + " (" + u.Scheme + ")"
+	return output.RedactError(raw)
 }
 
 func localizedtestURLField(language i18n.Context, required bool) Field {

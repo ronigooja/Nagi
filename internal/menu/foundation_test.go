@@ -101,7 +101,7 @@ func TestActionNavigationAndNoConfirmation(t *testing.T) {
 	}
 }
 
-func TestMenuResultSummaryRedactsAndRawConfiguration(t *testing.T) {
+func TestMenuResultSummaryPreservesURLContextAndRawConfiguration(t *testing.T) {
 	var out bytes.Buffer
 	s := NewSession(&fakeRunner{}, strings.NewReader(""), &out)
 	entries := make([]string, 100)
@@ -109,7 +109,7 @@ func TestMenuResultSummaryRedactsAndRawConfiguration(t *testing.T) {
 		entries[i] = "https://secret.example/token"
 	}
 	s.ShowResult([]string{"example", "list"}, Result{Data: map[string]any{"added": entries}})
-	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "100 entries") || strings.Count(out.String(), "[redacted URL]") != 10 {
+	if strings.Count(out.String(), "https://secret.example/token") != 10 || !strings.Contains(out.String(), "100 entries") {
 		t.Fatal(out.String())
 	}
 	out.Reset()

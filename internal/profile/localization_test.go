@@ -33,7 +33,7 @@ func TestValidationDiagnosticKeepsEnglishAndExternalCause(t *testing.T) {
 	}
 	original.Message = "https://private.example/?token=secret"
 	errors.As(original, &message)
-	if message.Descriptor().Args["detail"] != "[redacted URL]" {
+	if message.Descriptor().Args["detail"] != "https://private.example/?token=%5Bredacted%5D" {
 		t.Fatal(message.Descriptor())
 	}
 	var typed *ValidationError
@@ -77,7 +77,7 @@ func TestValidationDiagnosticRedactsNativeDetails(t *testing.T) {
 	}
 	for _, language := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
 		text := i18n.New(language).Render(message)
-		if strings.Contains(text, "SECRET") || !strings.Contains(text, "[redacted URL]") {
+		if strings.Contains(text, "SECRET") || !strings.Contains(text, "https://private.example/?token=%5Bredacted%5D") {
 			t.Fatal(text)
 		}
 	}

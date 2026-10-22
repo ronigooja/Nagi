@@ -120,7 +120,7 @@ func TestAppUpdateErrorIsRedactedAndConsumedWithoutInstallation(t *testing.T) {
 	}
 	m := &Manager{OS: "darwin", Executable: "/missing/nagi"}
 	result, err := m.Manage(context.Background(), "app-update-error", "")
-	if err != nil || result["error"] != "installation failed: [redacted URL]" {
+	if err != nil || result["error"] != "installation failed: https://example.com/private?token=%5Bredacted%5D" {
 		t.Fatalf("%v %v", result, err)
 	}
 	result, err = m.Manage(context.Background(), "app-update-error", "")

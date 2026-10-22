@@ -94,8 +94,8 @@ func TestTailscaleAddGroupsSingleCommitAndRetainedRetry(t *testing.T) {
 		if countMenuCall(r.calls, want) != 2 || len(r.keys) != 2 || r.keys[0] != r.keys[1] {
 			t.Fatalf("calls=%v keys=%d output=%s", r.calls, len(r.keys), out.String())
 		}
-		if strings.Contains(out.String(), "secret.invalid") {
-			t.Fatal(out.String())
+		if !strings.Contains(out.String(), "https://secret.invalid/token") {
+			t.Fatalf("error URL context was hidden: %s", out.String())
 		}
 	}
 }
@@ -114,8 +114,8 @@ func TestChainOrderedSelectionApplyAndExplicitRetry(t *testing.T) {
 				t.Fatalf("missing %s: %s", text, out.String())
 			}
 		}
-		if strings.Contains(out.String(), "secret.invalid") {
-			t.Fatal(out.String())
+		if !strings.Contains(out.String(), "https://secret.invalid/token") {
+			t.Fatalf("error URL context was hidden: %s", out.String())
 		}
 	}
 }

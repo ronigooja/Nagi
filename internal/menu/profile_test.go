@@ -170,7 +170,7 @@ func TestSubscriptionUpdateAndApplyStages(t *testing.T) {
 				if stage == "apply" {
 					feedback = "apply failed. cache retained"
 				}
-				if !strings.Contains(strings.ToLower(out.String()), feedback) || strings.Contains(out.String(), "secret.example") {
+				if !strings.Contains(strings.ToLower(out.String()), feedback) || (stage != "success" && !strings.Contains(out.String(), "https://secret.example/token")) {
 					t.Fatal(out.String())
 				}
 			})
@@ -444,8 +444,8 @@ func TestSettingsRefreshFailureDropsStateDependentActions(t *testing.T) {
 		runner := &sequenceRunner{results: map[string][]Result{tc.command: {tc.initial, {Code: 1, Error: &CLIError{Message: "read failed https://example.invalid/private-token"}}}}}
 		var out bytes.Buffer
 		RunPage(context.Background(), NewSession(runner, strings.NewReader(tc.input), &out), tc.page)
-		if strings.Count(out.String(), tc.staleLabel) != 1 || !strings.Contains(out.String(), "unavailable") || strings.Contains(out.String(), "private-token") {
-			t.Fatalf("%s stale action or unredacted error: %s", tc.page.Title, out.String())
+		if strings.Count(out.String(), tc.staleLabel) != 1 || !strings.Contains(out.String(), "unavailable") || !strings.Contains(out.String(), "https://example.invalid/private-token") {
+			t.Fatalf("%s stale action or missing actionable error: %s", tc.page.Title, out.String())
 		}
 	}
 }

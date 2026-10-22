@@ -64,7 +64,7 @@ func TestTestURLSettingsRetainInputAndResetIndependentlyOfInterval(t *testing.T)
 			if count != 2 || !hasProxyCall(runner.calls, []string{"proxy", "healthcheck", "url", "reset", kind, "Work"}) {
 				t.Fatalf("calls=%v", runner.calls)
 			}
-			if !strings.Contains(output.String(), "Values are retained") || !strings.Contains(output.String(), "Test URL: original.example.invalid (https) (profile settings)") || strings.Contains(output.String(), endpoint) || strings.Contains(output.String(), "token=private") {
+			if !strings.Contains(output.String(), "Values are retained") || !strings.Contains(output.String(), "Test URL: https://original.example.invalid (profile settings)") || strings.Contains(output.String(), endpoint) || strings.Contains(output.String(), "token=private") {
 				t.Fatal(output.String())
 			}
 		})

@@ -2,6 +2,7 @@ package diagnostic
 
 import (
 	"github.com/ronigooja/Nagi/internal/i18n"
+	"github.com/ronigooja/Nagi/internal/sensitive"
 	"strings"
 )
 
@@ -9,7 +10,8 @@ func (c Check) MessageDescriptors() map[string]i18n.Descriptor {
 	return i18n.CopyDescriptors(c.Messages)
 }
 func newCheck(name, status string, message *i18n.Message) Check {
-	c := Check{Name: name, Status: status, Message: message.Error(), Messages: map[string]i18n.Descriptor{"/message": message.Descriptor()}}
+	descriptor := i18n.CopyDescriptor(message.Descriptor(), sensitive.RedactURLDetails)
+	c := Check{Name: name, Status: status, Message: sensitive.RedactURLDetails(message.Error()), Messages: map[string]i18n.Descriptor{"/message": descriptor}}
 	switch name {
 	case "config_directory":
 		c.Messages["/name"] = i18n.Descriptor{ID: "backend.diagnostic.name.config_directory"}

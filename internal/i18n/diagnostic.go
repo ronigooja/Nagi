@@ -1,7 +1,9 @@
 package i18n
 
-// SafeDiagnostic applies the ordinary diagnostic URL redaction at message
-// origins. Raw content explicitly viewed or exported never passes through it.
+import "github.com/ronigooja/Nagi/internal/sensitive"
+
+// SafeDiagnostic removes URL authentication values while retaining useful
+// destination details. Raw explicitly viewed or exported content bypasses it.
 func SafeDiagnostic(value string) string {
-	return diagnosticURL.ReplaceAllString(value, "[redacted URL]")
+	return sensitive.RedactURLCredentials(value)
 }

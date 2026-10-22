@@ -67,12 +67,12 @@ func TestMeasurementDetailsShowTimeAndOnlyEndpoint(t *testing.T) {
 	var out bytes.Buffer
 	s := NewSession(&fakeRunner{}, strings.NewReader(""), &out)
 	s.ShowResult([]string{"proxy", "show", "Group"}, Result{Data: map[string]any{"node_info": ordinaryNodeInfo([]string{"Node"}), "node_delays": map[string]any{"Node": map[string]any{"status": "ok", "delay_ms": 5, "measured_at": "2026-10-16T20:00:00Z", "test_url": "https://user:secret@example.invalid/private?token=secret"}}}})
-	for _, want := range []string{subscriptionTime("2026-10-16T20:00:00Z"), "example.invalid (https)", "test endpoint"} {
+	for _, want := range []string{subscriptionTime("2026-10-16T20:00:00Z"), "https://example.invalid/private?token=%5Bredacted%5D", "test endpoint"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("missing %q: %s", want, out.String())
 		}
 	}
-	for _, secret := range []string{"user:", "secret", "private", "token"} {
+	for _, secret := range []string{"user:", "secret", "?token=secret"} {
 		if strings.Contains(out.String(), secret) {
 			t.Fatalf("exposed %q: %s", secret, out.String())
 		}
@@ -306,13 +306,13 @@ func TestExplicitProviderNodeIdentityOverridesReservedNameFallback(t *testing.T)
 	}
 }
 
-func TestSubscriptionHealthcheckSummaryLanguagesAndURLPrivacy(t *testing.T) {
+func TestSubscriptionHealthcheckSummaryLanguagesAndURLDetails(t *testing.T) {
 	for _, tc := range []struct {
 		language                                   i18n.Language
 		inherited, custom, intervalReset, urlReset string
 	}{
-		{i18n.English, "Profile: work\nCheck interval: as configured (profile settings)\nTest URL: as configured (profile settings)", "Check interval: 120 seconds (custom setting)\nTest URL: check.example.invalid (https) (custom setting)", "Use profile check intervals", "Use profile test URLs"},
-		{i18n.SimplifiedChinese, "配置：work\n检测间隔：使用配置值（配置文件）\n测试 URL：使用配置值 (配置文件)", "检测间隔：120 秒（自定义设置）\n测试 URL：check.example.invalid (https) (自定义设置)", "使用配置文件中的检测间隔", "使用配置文件中的测试 URL"},
+		{i18n.English, "Profile: work\nCheck interval: as configured (profile settings)\nTest URL: as configured (profile settings)", "Check interval: 120 seconds (custom setting)\nTest URL: https://check.example.invalid/private?token=%5Bredacted%5D (custom setting)", "Use profile check intervals", "Use profile test URLs"},
+		{i18n.SimplifiedChinese, "配置：work\n检测间隔：使用配置值（配置文件）\n测试 URL：使用配置值 (配置文件)", "检测间隔：120 秒（自定义设置）\n测试 URL：https://check.example.invalid/private?token=%5Bredacted%5D (自定义设置)", "使用配置文件中的检测间隔", "使用配置文件中的测试 URL"},
 	} {
 		t.Run(string(tc.language), func(t *testing.T) {
 			runner := &fakeRunner{results: map[string]Result{
@@ -330,7 +330,7 @@ func TestSubscriptionHealthcheckSummaryLanguagesAndURLPrivacy(t *testing.T) {
 			if err != nil || !strings.Contains(view.Context, tc.custom) {
 				t.Fatalf("custom settings=%+v err=%v", view, err)
 			}
-			for _, unwanted := range []string{"secret", "private", "token", "user:", "Enabled/lazy", "per checker", "懒惰"} {
+			for _, unwanted := range []string{"secret", "user:", "Enabled/lazy", "per checker", "懒惰"} {
 				if strings.Contains(view.Context, unwanted) {
 					t.Fatalf("unexpected %q in %s", unwanted, view.Context)
 				}

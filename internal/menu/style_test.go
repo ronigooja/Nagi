@@ -121,14 +121,14 @@ func TestMenuStyledPageRedactsBeforeApplyingHighlights(t *testing.T) {
 		Items:   []Item{{Label: "Node https://secret.example/node", Selected: true, Impact: "Effect https://secret.example/impact"}},
 	}, 0, 1)
 	got := out.String()
-	if strings.Contains(got, "secret.example") || strings.Count(got, "[redacted URL]") != 4 {
-		t.Fatalf("highlighted page leaked URL: %q", got)
+	if strings.Count(got, "https://secret.example/") != 4 {
+		t.Fatalf("highlighted page lost URL context: %q", got)
 	}
-	assertMenuStyled(t, got, "Title [redacted URL]", "33")
-	assertMenuStyled(t, got, "Node [redacted URL]", "32")
-	assertMenuStyled(t, got, " — Effect [redacted URL]", "2")
-	if !strings.Contains(got, "\nState [redacted URL]\n") {
-		t.Fatalf("redacted context should remain plain: %q", got)
+	assertMenuStyled(t, got, "Title https://secret.example/title", "33")
+	assertMenuStyled(t, got, "Node https://secret.example/node", "32")
+	assertMenuStyled(t, got, " — Effect https://secret.example/impact", "2")
+	if !strings.Contains(got, "\nState https://secret.example/context\n") {
+		t.Fatalf("context should remain plain: %q", got)
 	}
 }
 
@@ -195,9 +195,9 @@ func TestMenuFeedbackKindsRedactAndResetBeforeFollowingOutput(t *testing.T) {
 		s.WriteLine("plain stream content")
 		got := out.String()
 		assertMenuStyled(t, got, "Saved.", "32")
-		assertMenuStyled(t, got, "Cache remains; apply failed: [redacted URL]", "33")
-		assertMenuStyled(t, got, "Read failed: [redacted URL]", "31")
-		if strings.Contains(got, "secret.example") || !strings.HasSuffix(got, "\x1b[0m\nplain stream content\n") || s.pending != "" {
+		assertMenuStyled(t, got, "Cache remains; apply failed: https://secret.example/token", "33")
+		assertMenuStyled(t, got, "Read failed: https://secret.example/token", "31")
+		if !strings.Contains(got, "secret.example") || !strings.HasSuffix(got, "\x1b[0m\nplain stream content\n") || s.pending != "" {
 			t.Fatalf("feedback leaked content or style: %q pending=%q", got, s.pending)
 		}
 	}
@@ -215,9 +215,9 @@ func TestMenuCommandAndReadFailuresAreRedAndSuccessIsGreen(t *testing.T) {
 	RunPage(context.Background(), s, page)
 	assertMenuStyled(t, out.String(), "Done.", "32")
 	assertMenuStyled(t, out.String(), "Error: command failed", "31")
-	assertMenuStyled(t, out.String(), "Error reading Resources: read failed [redacted URL]", "31")
-	if strings.Contains(out.String(), "secret.example") {
-		t.Fatal("read failure contains URL")
+	assertMenuStyled(t, out.String(), "Error reading Resources: read failed https://secret.example/token", "31")
+	if !strings.Contains(out.String(), "secret.example") {
+		t.Fatal("read failure lost URL context")
 	}
 }
 

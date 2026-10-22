@@ -157,8 +157,11 @@ tracks this fixture contract, not a new CLI envelope version.
   usable. Child keys are visited in sorted order. Composition is bounded to
   eight child levels. Copying and decoding retain at most 64 child nodes;
   rendering uses a 64-node budget including the root descriptor. Bounds discard
-  deeper metadata and retain the original scalar. Producers sanitize every level before
-  serialization; no cause object or raw captured content becomes an argument.
+  deeper metadata and retain the original scalar. Local message presentation
+  masks URL userinfo and values in query strings or fragments whose names
+  identify common credentials, while preserving useful URL context. No cause
+  object or raw captured content becomes an argument. Shareable diagnostics use
+  their stricter URL-origin-only policy.
   Older consumers ignore this optional field and display the original scalar.
 - Metadata is presentation-only. Consumers branch on `error.code`, typed state,
   command identities and protocol fields. They never branch on localized text.
@@ -172,7 +175,7 @@ The initial shared IDs are `cli.language.invalid` (`value: string`),
 added to producer and consumer catalogs together. Originating errors retain
 English `Error()` behavior and wrapping/unwrapping; presentation uses their
 separate descriptor. Nagi-owned error wrappers can translate their context
-while preserving a redacted external diagnostic argument.
+while preserving an external diagnostic argument with URL credentials removed.
 
 Resource ownership is split to avoid concurrent catalog edits: CLI command and
 help resources, human output resources, and terminal-menu resources are separate
@@ -200,10 +203,12 @@ Raw content includes configuration and overrides, profile diffs, engine logs,
 shell completion scripts and candidate output, rewrite JSON/YAML/script source,
 public certificates and exports, HAR/native capture archives, original headers,
 cookies, URLs, body bytes, WebSocket payloads and explicit preview results.
-These workflows may contain sensitive information. Ordinary localized messages
-and metadata arguments must use the same redaction as their English equivalents;
-translation must not reintroduce a secret through a descriptor argument. No
-argument carries a private key, subscription secret or original captured body.
+These workflows may contain sensitive information. Explicit raw views and
+exports bypass message formatting and retain their original content. Localized
+messages and metadata arguments follow the same [content-visibility rules](../development/ui-design.md#local-output-and-sensitive-content)
+as their English equivalents; translation does not add a separate masking
+policy. Shareable diagnostic messages retain at most URL origins. No argument
+carries a private key, subscription secret or original captured body.
 
 Machine state such as `running`, `warning`, `request`, `websocket_client`,
 `selector`, `rule`, `direct`, `fragment` and `forward_original` stays unchanged in

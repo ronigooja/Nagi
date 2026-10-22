@@ -98,8 +98,8 @@ func TestStatusOptionalReadFailuresPreserveFields(t *testing.T) {
 			if data["running"] != true || data["pid"] != 42 || data["profile_error"] != "invalid selection" || data["system_dns"].(traffic.DNSState).Status != "attention" {
 				t.Fatalf("required fields changed: %v", data)
 			}
-			if message, ok := data["system_dns_error"].(string); !ok || strings.Contains(message, "private.example") {
-				t.Fatalf("DNS failure not redacted: %v", data)
+			if message, ok := data["system_dns_error"].(string); !ok || !strings.Contains(message, "https://private.example/token") {
+				t.Fatalf("DNS failure lost actionable URL context: %v", data)
 			}
 		})
 	}

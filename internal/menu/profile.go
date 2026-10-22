@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ronigooja/Nagi/internal/output"
 )
 
 type menuProfiles struct {
@@ -41,8 +43,6 @@ type menuSubscription struct {
 }
 
 var menuNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-
-var menuURLPattern = regexp.MustCompile(`(?i)[a-z][a-z0-9+.-]*://[^\s<>"']+`)
 
 func init() {
 	RegisterPage("profile", ProfilePage)
@@ -113,9 +113,9 @@ func localizedprofileDetailPage(language i18n.Context, name string) *Page {
 		}}
 		var data menuProfiles
 		if err := localizeddecodeMenuResult(language, s.Fetch(ctx, "profile", "list"), &data); err != nil {
-			view.Context = menuText(language, "menu.profile.profile_detail_page.selected_profile_unknown", "Selected profile: unknown (") + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ")"
+			view.Context = menuText(language, "menu.profile.profile_detail_page.selected_profile_unknown", "Selected profile: unknown (") + output.RedactError(err.Error()) + ")"
 		} else if data.CurrentError != "" {
-			view.Context = menuText(language, "menu.profile.profile_detail_page.selected_profile_unknown", "Selected profile: unknown (") + menuURLPattern.ReplaceAllString(data.CurrentError, "[redacted URL]") + ")"
+			view.Context = menuText(language, "menu.profile.profile_detail_page.selected_profile_unknown", "Selected profile: unknown (") + output.RedactError(data.CurrentError) + ")"
 		} else if data.Current != "" {
 			view.Context = menuText(language, "menu.profile.profile_detail_page.selected_profile", "Selected profile: ") + data.Current
 		} else {
@@ -390,7 +390,7 @@ func localizedsubscriptionDetailPage(language i18n.Context, name string) *Page {
 			Subscriptions []menuSubscription `json:"subscriptions"`
 		}
 		if err := localizeddecodeMenuResult(language, s.Fetch(ctx, "subscription", "list"), &data); err != nil {
-			view.Context = menuText(language, "menu.profile.subscription_detail_page.subscription_metadata_unknown", "Subscription metadata: unknown (") + menuURLPattern.ReplaceAllString(err.Error(), "[redacted URL]") + ")"
+			view.Context = menuText(language, "menu.profile.subscription_detail_page.subscription_metadata_unknown", "Subscription metadata: unknown (") + output.RedactError(err.Error()) + ")"
 		} else {
 			view.Context = menuText(language, "menu.profile.subscription_detail_page.subscription_metadata_unknown_record_unavailable", "Subscription metadata: unknown (record unavailable)")
 			for _, entry := range data.Subscriptions {

@@ -277,7 +277,7 @@ func TestOperationFormsValidateInPlace(t *testing.T) {
 	}
 }
 
-func TestTrafficUnknownStatusPreservesActionsAndRedacts(t *testing.T) {
+func TestTrafficUnknownStatusPreservesActionsAndURLContext(t *testing.T) {
 	runner := &fakeRunner{results: map[string]Result{
 		"tun status": {Error: &CLIError{Message: "failed https://secret.example/token"}},
 	}}
@@ -287,7 +287,7 @@ func TestTrafficUnknownStatusPreservesActionsAndRedacts(t *testing.T) {
 	}
 	var out bytes.Buffer
 	RunPage(context.Background(), NewSession(runner, strings.NewReader(selection+"\nq\n"), &out), TrafficPage())
-	if !strings.Contains(out.String(), "TUN: unknown") || strings.Contains(out.String(), "secret.example") {
+	if !strings.Contains(out.String(), "TUN: unknown") || !strings.Contains(out.String(), "https://secret.example/token") {
 		t.Fatal(out.String())
 	}
 	for _, args := range runner.calls {

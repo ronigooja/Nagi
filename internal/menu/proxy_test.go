@@ -186,8 +186,11 @@ func TestProxyGroupsReadFailureShowsRuntimeRecovery(t *testing.T) {
 			if strings.Contains(out.String(), "mihomo control unavailable:") != tc.err || strings.Contains(out.String(), "socket missing") != tc.err {
 				t.Fatalf("read error visibility=%v output=%s", tc.err, out.String())
 			}
-			if strings.Contains(out.String(), ". Start / Stop") || strings.Contains(out.String(), ". Proxy Providers") || strings.Contains(out.String(), ". Tailscale") || strings.Contains(out.String(), "private.example") || strings.Contains(out.String(), "Data unavailable. Return to the parent page") {
+			if strings.Contains(out.String(), ". Start / Stop") || strings.Contains(out.String(), ". Proxy Providers") || strings.Contains(out.String(), ". Tailscale") || strings.Contains(out.String(), "Data unavailable. Return to the parent page") {
 				t.Fatalf("unsafe or misleading guidance: %s", out.String())
+			}
+			if tc.err && !strings.Contains(out.String(), "https://private.example/token") {
+				t.Fatalf("actionable error lost URL context: %s", out.String())
 			}
 			if !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}, {"status"}}) {
 				t.Fatalf("reads must not start or retry the engine: %v", runner.calls)
@@ -253,7 +256,7 @@ func TestProxyBatchErrorsRetainUnderlyingStateExplanation(t *testing.T) {
 	}
 }
 
-func TestProxyLatencyFailureKeepsLastMeasurementsAndRedactsNames(t *testing.T) {
+func TestProxyLatencyFailureKeepsLastMeasurementsAndURLContext(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{
 		"proxy\x00show\x00https://secret.example/token":   {Data: map[string]any{"name": "https://secret.example/token", "node_info": ordinaryNodeInfo([]string{"Node"}), "all": []string{"Node"}}},
 		"proxy\x00delays\x00https://secret.example/token": {Data: map[string]any{"results": []any{map[string]any{"proxy": "Node", "delay_ms": 7}}}},
@@ -276,7 +279,7 @@ func TestProxyLatencyFailureKeepsLastMeasurementsAndRedactsNames(t *testing.T) {
 		t.Fatalf("measurement lost: %#v", view.Items)
 	}
 	s.render(page, view, 0, 1)
-	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "engine already changed; saving failed") {
+	if !strings.Contains(out.String(), "https://secret.example/token") || !strings.Contains(out.String(), "engine already changed; saving failed") {
 		t.Fatalf("output: %s", out.String())
 	}
 }

@@ -126,8 +126,8 @@ func TestFailedRefreshDropsStaleChoices(t *testing.T) {
 	if !strings.Contains(out.String(), "Data unavailable. Return to the parent page") || !strings.Contains(out.String(), "Choose a listed number") {
 		t.Fatalf("failed refresh did not clear stale choices: %s", out.String())
 	}
-	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "[redacted URL]") {
-		t.Fatalf("refresh error URL was not hidden: %s", out.String())
+	if !strings.Contains(out.String(), "https://secret.example/token") {
+		t.Fatalf("refresh error lost URL context: %s", out.String())
 	}
 }
 
@@ -146,14 +146,14 @@ func TestReturningToParentRefreshesList(t *testing.T) {
 	}
 }
 
-func TestCommandErrorHidesURL(t *testing.T) {
+func TestCommandErrorPreservesURLContext(t *testing.T) {
 	fake := &fakeRunner{results: map[string]Result{
 		"status": {Data: map[string]any{"running": false}},
 		"start":  {Code: 1, Error: &CLIError{Message: "failed https://secret.example/token"}},
 	}}
 	var out bytes.Buffer
 	Run(context.Background(), NewSession(fake, strings.NewReader("1\n1\n0\n0\n"), &out))
-	if strings.Contains(out.String(), "secret.example") || !strings.Contains(out.String(), "Error: failed [redacted URL]") {
-		t.Fatalf("command error URL was not hidden: %s", out.String())
+	if !strings.Contains(out.String(), "Error: failed https://secret.example/token") {
+		t.Fatalf("command error lost URL context: %s", out.String())
 	}
 }

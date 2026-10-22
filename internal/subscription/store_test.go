@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,14 +52,17 @@ func TestRefreshCachesAndHidesURL(t *testing.T) {
 
 func TestRefreshErrorDoesNotRevealURL(t *testing.T) {
 	s := NewStore(t.TempDir(), t.TempDir(), &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return nil, errors.New("token=private")
+		return nil, &url.Error{Op: "Get", URL: "https://user:pass@example.invalid/private-feed-token?jwt=secret", Err: errors.New("dial tcp: lookup example.invalid: no such host")}
 	})})
 	if err := s.Add("work", "https://example.invalid/sub?token=private"); err != nil {
 		t.Fatal(err)
 	}
 	_, err := s.Refresh(context.Background(), "work")
-	if err == nil || strings.Contains(err.Error(), "private") {
+	if err == nil || strings.Contains(err.Error(), "private-feed-token") || strings.Contains(err.Error(), "jwt=secret") || strings.Contains(err.Error(), "user:pass") {
 		t.Fatalf("unsafe error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "lookup example.invalid") {
+		t.Fatalf("useful fetch cause was lost: %v", err)
 	}
 }
 

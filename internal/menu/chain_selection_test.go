@@ -236,8 +236,8 @@ func TestChainInvalidOrFailedPlansNeverSubmit(t *testing.T) {
 			t.Fatal("invalid plan accepted")
 		}
 		assertNoChainMutation(t, r.calls)
-		if strings.Contains(out.String(), "secret.invalid") {
-			t.Fatal(out.String())
+		if result.Code != 0 && !strings.Contains(out.String(), "https://secret.invalid/token") {
+			t.Fatalf("error URL context was hidden: %s", out.String())
 		}
 	}
 }

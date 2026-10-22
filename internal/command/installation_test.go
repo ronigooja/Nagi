@@ -55,7 +55,7 @@ func TestAppUpdateErrorJSONAndEmptyResult(t *testing.T) {
 	if err := installation.SaveUpdateError(errors.New("update failed: https://user:secret@example.com/private")); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"update failed: [redacted URL]", ""} {
+	for _, want := range []string{"update failed: https://example.com/private", ""} {
 		var out, errs bytes.Buffer
 		if code := Run([]string{"--json", "app", "update-error"}, &out, &errs, "test", "commit"); code != 0 {
 			t.Fatalf("%d %s", code, &errs)

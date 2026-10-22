@@ -41,7 +41,7 @@ func TestUpdateErrorSourceMetadataPersistsWithCompatibleText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(text) != "cannot start background update: open [redacted URL] unavailable" {
+	if string(text) != "cannot start background update: open https://private.invalid/feed?token=%5Bredacted%5D unavailable" {
 		t.Fatalf("compatible text=%q", text)
 	}
 	manager := &Manager{OS: "darwin"}
@@ -57,7 +57,7 @@ func TestUpdateErrorSourceMetadataPersistsWithCompatibleText(t *testing.T) {
 	if !ok {
 		t.Fatal("missing source descriptor")
 	}
-	if got := i18n.New(i18n.SimplifiedChinese).RenderDescriptor(descriptor, value["error"].(string)); got != "无法启动后台更新：open [redacted URL] unavailable" {
+	if got := i18n.New(i18n.SimplifiedChinese).RenderDescriptor(descriptor, value["error"].(string)); got != "无法启动后台更新：open https://private.invalid/feed?token=%5Bredacted%5D unavailable" {
 		t.Fatalf("localized=%q", got)
 	}
 	encoded, err := json.Marshal(result)

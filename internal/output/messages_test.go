@@ -36,7 +36,7 @@ func TestMessageRedaction(t *testing.T) {
 	for _, jsonMode := range []bool{true, false} {
 		var out bytes.Buffer
 		WriteMessageError(&out, jsonMode, i18n.New(i18n.SimplifiedChinese), "usage", message)
-		if strings.Contains(out.String(), "secret") || strings.Contains(out.String(), "example.invalid") {
+		if strings.Contains(out.String(), "user:secret") || strings.Contains(out.String(), "token=secret") || !strings.Contains(out.String(), "https://example.invalid/private") {
 			t.Fatal(out.String())
 		}
 	}

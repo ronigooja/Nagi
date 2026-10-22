@@ -14,12 +14,12 @@ func TestSourceErrorPreservesOriginalAndSanitizesArguments(t *testing.T) {
 	if message.Error() != fmt.Errorf("read mihomo response: %w", cause).Error() || !errors.Is(message, cause) {
 		t.Fatal("original error contract lost")
 	}
-	if got := New(SimplifiedChinese).Render(message); got != "读取 mihomo 响应：[redacted URL]" {
+	if got := New(SimplifiedChinese).Render(message); got != "读取 mihomo 响应：https://private.example/?token=%5Bredacted%5D" {
 		t.Fatal(got)
 	}
 	descriptor := message.Descriptor()
 	descriptor.Args["arg0"] = "changed"
-	if message.Descriptor().Args["arg0"] != "[redacted URL]" {
+	if message.Descriptor().Args["arg0"] != "https://private.example/?token=%5Bredacted%5D" {
 		t.Fatal("descriptor aliases its arguments")
 	}
 }

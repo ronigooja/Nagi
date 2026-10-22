@@ -23,7 +23,6 @@ These rules apply to every feature:
 ## Sensitive Information
 
 - Use clearly marked placeholders or fictitious addresses in examples; never include real credentials or usable private subscription URLs.
-- Redact sensitive information from ordinary output, errors, and diagnostics while preserving necessary troubleshooting details. Document that raw configuration and logs explicitly viewed or exported by the user may contain sensitive information.
 - Restrict sensitive files to owner-only access, avoid passing secrets through command arguments, and promptly remove sensitive temporary files that are no longer needed.
 
 ## Documentation Locations and Responsibilities

@@ -4,6 +4,35 @@ Apply this rule when adding or changing Nagi's native macOS interface or interac
 
 Make operations self-explanatory through clear naming, layout, and interaction. Do not fill interfaces with purpose explanations or tutorials by default; provide necessary help on demand.
 
+## Local output and sensitive content
+
+These presentation rules also apply to ordinary CLI output and errors. Local
+interfaces serve the user operating their own system; they are not assumed to
+be reports intended for sharing.
+
+- Preserve node names, domains, paths, relevant URL details, and actionable error
+  causes needed to operate or troubleshoot the system. Do not blanket-mask URLs
+  or replace useful failures with generic messages solely because the output is
+  visible locally.
+- Lists and summaries need not include passwords, private keys, authentication
+  tokens, or complete request bodies. Omit or mask actual credential values
+  without hiding the surrounding operational context.
+- Preserve original content when the user explicitly views configuration,
+  logs, capture records, or exports their data. Explain sensitivity where it
+  helps the user decide whether to share that content.
+- Redact diagnostic reports intended for sharing by default. Keep this separate
+  from local operation and explicit raw exports; do not add reveal steps or
+  confirmations to routine local use merely to enforce sharing precautions.
+
+The CLI reference documents the implemented local formatter and the stricter
+URL handling used for shareable diagnostic reports. The local formatter masks
+URL userinfo and values in query strings or fragments whose names identify
+common credentials; it is not a general secret detector, so known sensitive
+summary fields must still be omitted at their source. Shareable diagnostics
+retain at most a URL origin.
+
+## Native controls
+
 For the macOS interface, use native controls with regular system sizing. Keep comparable inputs, pop-up selectors, and action buttons consistent within and across forms, using intrinsic control heights and aligned rows. Preserve native shape differences for search fields, checkboxes, help buttons, and other specialized controls; do not impose one corner radius on every control.
 
 Use the shared AppKit and SwiftUI control-style helpers for new forms. Multiline SwiftUI text surfaces use the system text background and separator colors, a 4-point clipped corner radius, and a border that does not intercept input. Keep editor scrolling, focus, selection, accessibility labels, and keyboard actions intact. Grouped content containers may retain their separate 6-point radius.

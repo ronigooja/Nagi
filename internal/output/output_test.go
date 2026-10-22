@@ -54,7 +54,7 @@ func TestHumanSuccessShapes(t *testing.T) {
 		{"rules import", map[string]any{"name": "personal", "action": "import", "saved": true}, []string{"Rule personal: import.", "Effective configuration was validated"}, []string{"Tailscale", "DNS policy"}},
 		{"service", service.Result{Manager: "systemd", Path: "/tmp/nagi.service"}, []string{"Service manager: systemd", "Service file: /tmp/nagi.service"}, nil},
 		{"version", map[string]any{"nagi": "1.0", "mihomo": "2.0", "mihomo_commit": "abc", "os": "linux", "arch": "arm64"}, []string{"Nagi: 1.0", "Mihomo: 2.0", "Mihomo commit: abc", "OS: linux", "Architecture: arm64"}, nil},
-		{"update failure", map[string]any{"error": "download failed: https://user:secret@example.com/private"}, []string{"Last background update error: download failed: [redacted URL]"}, []string{"secret", "example.com"}},
+		{"update failure", map[string]any{"error": "download failed: https://user:secret@example.com/private"}, []string{"Last background update error: download failed: https://example.com/private"}, []string{"user:secret"}},
 		{"no update failure", map[string]any{"error": ""}, []string{"No background update failure is pending."}, nil},
 	}
 	for _, tt := range tests {
@@ -164,11 +164,11 @@ func TestWritePropagatesWriterFailure(t *testing.T) {
 	}
 }
 
-func TestErrorRedactsURLsInBothModes(t *testing.T) {
+func TestErrorPreservesURLContextAndRedactsCredentialsInBothModes(t *testing.T) {
 	for _, jsonMode := range []bool{false, true} {
 		var out bytes.Buffer
-		WriteError(&out, jsonMode, "subscription_error", "fetch https://user:password@example.com/secret?token=abc failed")
-		if strings.Contains(out.String(), "password") || strings.Contains(out.String(), "token=abc") || !strings.Contains(out.String(), "[redacted URL]") {
+		WriteError(&out, jsonMode, "subscription_error", "fetch https://user:password@example.com/secret?token=abc&region=west failed")
+		if strings.Contains(out.String(), "password") || strings.Contains(out.String(), "token=abc") || !strings.Contains(out.String(), "https://example.com/secret") || !strings.Contains(out.String(), "region=west") {
 			t.Fatalf("mode=%v: %s", jsonMode, out.String())
 		}
 	}

@@ -15,7 +15,7 @@ func TestChainMissingReferenceNamesAndPrivacy(t *testing.T) {
 		{"group", "proxy-groups: [{name: app-group, proxies: [missing-node]}]", "app-group", "missing-node", "出站不存在"},
 		{"provider dialer", "proxy-providers: {feed: {override: {dialer-proxy: missing-hop}}}", "feed", "missing-hop", "出站不存在"},
 		{"provider use", "proxy-groups: [{name: app-group, use: [missing-feed]}]", "app-group", "missing-feed", "代理提供者不存在"},
-		{"private names", "proxies: [{name: 'https://example.invalid/?token=PRIVATE', dialer-proxy: 'https://example.invalid/?key=SECRET'}]", "[redacted URL]", "[redacted URL]", "出站不存在"},
+		{"private names", "proxies: [{name: 'https://example.invalid/?token=PRIVATE', dialer-proxy: 'https://example.invalid/?key=SECRET'}]", "https://example.invalid/?token=%5Bredacted%5D", "https://example.invalid/?key=%5Bredacted%5D", "出站不存在"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var cfg map[string]any

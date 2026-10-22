@@ -38,10 +38,10 @@ func TestCollectMessagesNestedCheckAndRedaction(t *testing.T) {
 	report := diagnostic.Report{Checks: []diagnostic.Check{check}}
 	descriptors := CollectMessages(report)
 	d := descriptors["/data/checks/0/message"]
-	if d.Args["arg0"] != "[redacted URL]" {
+	if d.Args["arg0"] != "https://private.example/?token=%5Bredacted%5D" {
 		t.Fatalf("unsafe metadata: %#v", d)
 	}
-	if got := RenderMessageField(check, "/message", check.Message, i18n.New(i18n.SimplifiedChinese)); got != "读取 mihomo 响应：[redacted URL]" {
+	if got := RenderMessageField(check, "/message", check.Message, i18n.New(i18n.SimplifiedChinese)); got != "读取 mihomo 响应：https://private.example/?token=%5Bredacted%5D" {
 		t.Fatal(got)
 	}
 	if report.Checks[0].Message != message.Error() {
@@ -78,7 +78,7 @@ func TestNestedSourceMetadataIsInvariantAndRedacted(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if en.String() != zh.String() || strings.Contains(en.String(), "token=secret") || !strings.Contains(en.String(), "argument_messages") {
+	if en.String() != zh.String() || strings.Contains(en.String(), "token=secret") || !strings.Contains(en.String(), "https://secret.example/") || !strings.Contains(en.String(), "argument_messages") {
 		t.Fatal(en.String(), zh.String())
 	}
 	var envelope Envelope
@@ -86,7 +86,7 @@ func TestNestedSourceMetadataIsInvariantAndRedacted(t *testing.T) {
 		t.Fatal(err)
 	}
 	descriptor := envelope.Messages["/data"]
-	if got := i18n.New(i18n.SimplifiedChinese).RenderDescriptor(descriptor, "fallback"); got != "读取 mihomo 响应：读取 mihomo 响应：[redacted URL]" {
+	if got := i18n.New(i18n.SimplifiedChinese).RenderDescriptor(descriptor, "fallback"); got != "读取 mihomo 响应：读取 mihomo 响应：https://secret.example/?token=%5Bredacted%5D" {
 		t.Fatal(got)
 	}
 }

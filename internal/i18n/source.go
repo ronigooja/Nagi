@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/ronigooja/Nagi/internal/sensitive"
 )
 
 // MessageSource associates descriptors with existing string fields. Pointers are
@@ -31,7 +33,6 @@ func CopyDescriptors(messages map[string]Descriptor) map[string]Descriptor {
 }
 
 var errorFormat = regexp.MustCompile(`%[-+#0 .0-9]*[a-zA-Z%]`)
-var diagnosticURL = regexp.MustCompile(`(?i)[a-z][a-z0-9+.-]*://[^\s<>"']+`)
 
 // Errorf constructs a descriptor at an error origin, preserving fmt's English
 // formatting and complete wrapping graph. Descriptor arguments are sanitized
@@ -50,7 +51,7 @@ func Errorf(id, format string, values ...any) *Message {
 		if strings.HasSuffix(conversion, "w") {
 			conversion = strings.TrimSuffix(conversion, "w") + "v"
 		}
-		args[fmt.Sprintf("arg%d", index)] = diagnosticURL.ReplaceAllString(fmt.Sprintf(conversion, values[index]), "[redacted URL]")
+		args[fmt.Sprintf("arg%d", index)] = sensitive.RedactURLCredentials(fmt.Sprintf(conversion, values[index]))
 		index++
 	}
 	message := NewMessage(id, args, original.Error(), original)

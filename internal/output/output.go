@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 
 	"github.com/ronigooja/Nagi/internal/diagnostic"
@@ -13,6 +12,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
+	"github.com/ronigooja/Nagi/internal/sensitive"
 	"github.com/ronigooja/Nagi/internal/service"
 	"github.com/ronigooja/Nagi/internal/subscription"
 	"github.com/ronigooja/Nagi/internal/traffic"
@@ -20,10 +20,8 @@ import (
 
 type Candidates []string
 
-var urlPattern = regexp.MustCompile(`(?i)[a-z][a-z0-9+.-]*://[^\s<>"']+`)
-
 func RedactError(message string) string {
-	return urlPattern.ReplaceAllString(message, "[redacted URL]")
+	return sensitive.RedactURLCredentials(message)
 }
 
 type Failure struct {

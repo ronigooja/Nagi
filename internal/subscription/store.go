@@ -656,14 +656,22 @@ func (s *Store) keyVersion(name string) (string, error) {
 }
 
 func sanitizeError(err error) error {
-	// net/http errors often contain the full URL, including tokens in its query.
 	if errors.Is(err, context.Canceled) {
 		return context.Canceled
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return context.DeadlineExceeded
 	}
-	return i18n.Errorf("backend.subscription.network_error", "network error")
+	// url.Error includes the complete feed URL, whose path or query may itself
+	// be a credential. Keep its transport cause and omit the private URL field.
+	var requestErr *url.Error
+	for errors.As(err, &requestErr) {
+		err = requestErr.Err
+		if err == nil {
+			return errors.New("subscription request failed")
+		}
+	}
+	return err
 }
 
 func parseUserInfo(header string) (time.Time, int64, int64, int64) {
