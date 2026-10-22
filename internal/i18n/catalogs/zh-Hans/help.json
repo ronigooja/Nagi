@@ -6924,5 +6924,18 @@
   "help.command.rules.edit.detail": "替换单条规则的类型、匹配内容和目标；MATCH 的匹配内容使用 -。保留名称、顺序和启用状态。校验后在运行中重载；失败时恢复已保存规则。",
   "help.command.rules.edit.summary": "编辑自定义规则",
   "help.command.rules.update.detail": "从已保存的来源更新，或指定本地文件或不含用户信息的绝对 HTTP(S) URL（最多 8 MiB）更换来源。保留名称、顺序、类型和启用状态。已有规则集接受 YAML payload 列表；规则包接受完整原生规则。校验后在运行中重载；失败时恢复已保存规则。旧导入对象需先指定一次 SOURCE。",
-  "help.command.rules.update.summary": "更新导入规则或规则集"
+  "help.command.rules.update.summary": "更新导入规则或规则集",
+  "help.command.proxy.group.add.detail": "TYPE：select（默认）、url-test、fallback、load-balance。未指定成员选项时默认包含 DIRECT。自动组默认使用 Cloudflare generate_204 URL，检查间隔为 300 秒。间隔范围：1..31536000 秒。url-test 容差：0..65535 毫秒。load-balance 策略：consistent-hashing、round-robin、sticky-sessions。按所需顺序重复 --node 或 --provider。",
+  "help.command.proxy.group.add.summary": "创建代理组",
+  "help.command.proxy.group.detail": "停止引擎时也可读取本地代理组。修改由 mihomo 校验，仅在运行时重载；保留路由规则。",
+  "help.command.proxy.group.edit.detail": "未提供的字段保持不变。成员选项替换对应列表，clear 选项将其清空。至少保留一个成员或自动包含设置。切换类型时移除不适用的容差或策略字段；保留其他原生设置。",
+  "help.command.proxy.group.edit.summary": "编辑代理组",
+  "help.command.proxy.group.list.detail": "按配置顺序列出本地代理组，无需运行引擎。",
+  "help.command.proxy.group.list.summary": "列出已配置的代理组",
+  "help.command.proxy.group.remove.detail": "拒绝删除仍被引用的代理组。请先移除路由、DNS 等依赖。保留节点和提供商。",
+  "help.command.proxy.group.remove.summary": "删除代理组",
+  "help.command.proxy.group.show.detail": "显示可编辑设置，不显示提供商凭据。",
+  "help.command.proxy.group.show.hint": "运行 nagi proxy group list 查找代理组。",
+  "help.command.proxy.group.show.summary": "查看已配置的代理组",
+  "help.command.proxy.group.summary": "管理代理组"
 }

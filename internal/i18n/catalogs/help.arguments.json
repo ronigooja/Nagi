@@ -28296,5 +28296,18 @@
   "help.command.rules.edit.detail": {},
   "help.command.rules.edit.summary": {},
   "help.command.rules.update.detail": {},
-  "help.command.rules.update.summary": {}
+  "help.command.rules.update.summary": {},
+  "help.command.proxy.group.add.detail": {},
+  "help.command.proxy.group.add.summary": {},
+  "help.command.proxy.group.detail": {},
+  "help.command.proxy.group.edit.detail": {},
+  "help.command.proxy.group.edit.summary": {},
+  "help.command.proxy.group.list.detail": {},
+  "help.command.proxy.group.list.summary": {},
+  "help.command.proxy.group.remove.detail": {},
+  "help.command.proxy.group.remove.summary": {},
+  "help.command.proxy.group.show.detail": {},
+  "help.command.proxy.group.show.hint": {},
+  "help.command.proxy.group.show.summary": {},
+  "help.command.proxy.group.summary": {}
 }

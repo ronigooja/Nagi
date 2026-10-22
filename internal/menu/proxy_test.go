@@ -238,7 +238,7 @@ func TestProxyGroupsRecoverThroughRuntimePage(t *testing.T) {
 func TestProxyGroupsSuccessfulReadDoesNotQueryRuntime(t *testing.T) {
 	runner := &featureRunner{results: map[string]Result{"proxy\x00groups": {Data: map[string]any{"groups": []any{}}}}}
 	view, err := proxyGroupsPage().Load(context.Background(), NewSession(runner, strings.NewReader(""), &bytes.Buffer{}))
-	if err != nil || len(view.Actions) != 1 || !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}}) {
+	if err != nil || len(view.Actions) != 3 || !reflect.DeepEqual(runner.calls, [][]string{{"proxy", "groups"}}) {
 		t.Fatalf("view=%#v err=%v calls=%v", view, err, runner.calls)
 	}
 }

@@ -335,6 +335,21 @@ func writeProvider(w io.Writer, p proxy.Provider) error {
 }
 
 func writeHumanMap(w io.Writer, v map[string]any) error {
+	if groups, ok := v["group_configs"].([]profile.ProxyGroupConfig); ok {
+		if len(groups) == 0 {
+			return line(w, text(w, "cli.output.group.empty", "No configured proxy groups."))
+		}
+		for _, group := range groups {
+			if err := writeProxyGroupConfig(w, group); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if group, ok := v["group_config"].(profile.ProxyGroupConfig); ok {
+		return writeProxyGroupConfig(w, group)
+	}
+
 	if svc, ok := v["service"].(service.Result); ok {
 		if err := writeServiceResult(w, svc); err != nil {
 			return err

@@ -2515,5 +2515,172 @@
   },
   "cli.error.rules.change_restored": {
     "arg0": "string"
-  }
+  },
+  "backend.profile.group.conflict.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.cycle.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.empty.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.exists.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.members.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.missing.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.node_missing.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.number.usage": {
+    "arg0": "string",
+    "arg1": "string",
+    "arg2": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.option.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.provider_missing.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.referenced.usage": {
+    "arg0": "string",
+    "arg1": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.strategy.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.strategy_type.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.tolerance_type.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.type.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.url.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.action": {},
+  "cli.error.group.action.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.clear": {},
+  "cli.error.group.clear.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.duplicate": {
+    "arg0": "string"
+  },
+  "cli.error.group.duplicate.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.edit": {},
+  "cli.error.group.edit.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.integer": {
+    "arg0": "string"
+  },
+  "cli.error.group.integer.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.missing": {
+    "arg0": "string"
+  },
+  "cli.error.group.missing.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.name": {},
+  "cli.error.group.name.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.option": {
+    "arg0": "string"
+  },
+  "cli.error.group.option.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.value": {
+    "arg0": "string"
+  },
+  "cli.error.group.value.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.output.group.empty": {},
+  "cli.output.group.interval": {},
+  "cli.output.group.nodes": {},
+  "cli.output.group.providers": {},
+  "cli.output.group.strategy": {},
+  "cli.output.group.tolerance": {},
+  "cli.output.group.url": {}
 }

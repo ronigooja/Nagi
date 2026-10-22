@@ -230,3 +230,19 @@ cover all window families, preferred/per-App language and restart, long text,
 focused/disabled controls, editor interaction, scrolling and minimum window size.
 The [localization design](../design/localization.md) separates source migration
 from this remaining desktop acceptance.
+
+## Proxy group management verification
+
+The [group management interface](../reference/cli.md#proxy-group-management) uses native mihomo group configuration and the existing activation transaction. Focused checks run from the repository root:
+
+```sh
+go test -race ./internal/profile ./internal/command ./internal/menu ./internal/output ./internal/i18n
+go test -p 1 ./...
+make build cli
+```
+
+The October 2026 Linux check with Go 1.26.4 passed the serial full Go suite, focused race checks, CLI build, Darwin ARM64 cross-compilation, and manual review of changed relative links, options, defaults, JSON fields, and exit codes. Profile/command tests cover all four group types, ordered membership, preserved source/unrelated settings, explicit healthcheck metadata, malformed lists, dependency conflicts, validation/reload rollback, private permissions, offline reads, and saved-choice deletion. Menu tests cover complete retained drafts, explicit retries, numeric member selection, cancellation/EOF, missing objects, bilingual feedback, and the generated GLOBAL group's live-only details. Bash completion was exercised with names containing spaces; Zsh and Fish were unavailable for shell execution checks.
+
+An isolated run against the exact engine commit in `engine.lock` passed stopped CRUD, provider attachment, interoperability with independent healthcheck settings, native validation rejection with unchanged override bytes, running reload and deletion, cycle/reference refusal, and saved-choice cleanup. Real English/Simplified Chinese Linux PTY journeys created load-balancing groups through the production menu and exited while mihomo remained running. Fixtures used direct outbounds and loopback-only test URLs, with TUN, DNS, and proxy listeners disabled; private fixtures were removed afterward. These checks establish configuration and terminal behavior, not forwarding performance or macOS interaction.
+
+Two parallel full-suite attempts encountered `TestHTTP2ConcurrentFlowAndAuthority` stream `INTERNAL_ERROR` failures in the unchanged request-rewrite service package. The individual test passed three consecutive reruns, the baseline package passed three complete reruns in an isolated checkout, and the serial full suite passed. No request-rewrite implementation or assertion was changed for this feature.

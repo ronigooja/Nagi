@@ -85,11 +85,18 @@ var commandSpecs = []commandSpec{
 	{"dns tun off", "dns tun off", "Disable TUN DNS interception", "Disables TUN in the selected profile override.", "nagi dns tun off", "", 0, 0},
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
-	{"proxy", "proxy <groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|node SUBCOMMAND|chain SUBCOMMAND|test SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|group SUBCOMMAND|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|node SUBCOMMAND|chain SUBCOMMAND|test SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy healthcheck", "proxy healthcheck <show|set|reset|url> group|provider|subscription NAME [SECONDS]", "Manage configured healthcheck intervals and test URLs", "Reads or changes local configuration while offline. Subscription settings can be saved before first apply; associated profiles validate and reload only when selected and running. Provider and group schedulers may differ.", "nagi proxy healthcheck show group Auto", "", 0, -1},
 	{"proxy healthcheck show", "proxy healthcheck show group|provider|subscription NAME [--full-url]", "Show automatic-check settings", "Reports interval, test URL origin, sources, lazy setting, and scheduling caveats without probing nodes. --full-url includes the complete saved test URL and read-only inherited-value previews for editing.", "nagi proxy healthcheck show provider work", "", 2, 3},
 	{"proxy healthcheck set", "proxy healthcheck set group|provider|subscription NAME SECONDS", "Save a healthcheck interval", "SECONDS must be 1..31536000. Changes interval only; provider enable and URL remain unchanged.", "nagi proxy healthcheck set group Auto 300", "", 3, 3},
 	{"proxy healthcheck reset", "proxy healthcheck reset group|provider|subscription NAME", "Restore the source healthcheck interval", "Removes only the local interval setting while retaining unrelated overrides.", "nagi proxy healthcheck reset group Auto", "", 2, 2},
+	{"proxy group", "proxy group <list|show GROUP|add GROUP [OPTIONS]|edit GROUP OPTIONS|remove GROUP>", "Manage proxy groups", "Reads local groups while stopped. Mutations validate with mihomo and reload only when running; routing rules remain unchanged.", "nagi proxy group list", "", 0, -1},
+	{"proxy group list", "proxy group list", "List configured proxy groups", "Reports local groups in profile order without requiring the engine.", "nagi proxy group list", "", 0, 0},
+	{"proxy group show", "proxy group show GROUP", "Show configured proxy group", "Reports editable settings without provider credentials.", "nagi proxy group show Choice", "Run nagi proxy group list to discover groups.", 1, 1},
+	{"proxy group add", "proxy group add GROUP [--type TYPE] [--node NODE ...|--clear-nodes] [--provider PROVIDER ...|--clear-providers] [--url URL] [--interval SECONDS] [--tolerance MS] [--strategy STRATEGY]", "Create a proxy group", "TYPE: select (default), url-test, fallback, load-balance. Without member options, defaults to DIRECT. Automatic groups default to the Cloudflare generate_204 URL and 300 seconds. Interval: 1..31536000. URL-test tolerance: 0..65535 ms. Load-balance strategy: consistent-hashing, round-robin, sticky-sessions. Repeat --node/--provider in desired order.", "nagi proxy group add Choice --type select --node DIRECT", "", 1, -2},
+	{"proxy group edit", "proxy group edit GROUP [--type TYPE] [--node NODE ...|--clear-nodes] [--provider PROVIDER ...|--clear-providers] [--url URL] [--interval SECONDS] [--tolerance MS] [--strategy STRATEGY]", "Edit a proxy group", "Omitted fields remain unchanged. Member options replace the corresponding list; clear removes it. At least one member or automatic inclusion is required. Changing type removes inapplicable tolerance/strategy fields; other native settings remain unchanged.", "nagi proxy group edit Choice --node DIRECT --node 'Node A'", "", 2, -2},
+	{"proxy group remove", "proxy group remove GROUP", "Delete a proxy group", "Refuses referenced groups. Remove routing, DNS and other dependencies first. Retains nodes and providers.", "nagi proxy group remove Choice", "", 1, 1},
+
 	{"proxy groups", "proxy groups", "List proxy groups", "Lists groups in the current profile's order with their live selections.", "nagi proxy groups", "", 0, 0},
 	{"proxy show", "proxy show GROUP", "Show a proxy group", "Shows one group and its available nodes.", "nagi proxy show 'Proxy Group'", "Run `nagi proxy groups` to find a group name.", 1, 1},
 	{"proxy search", "proxy search QUERY", "Search nodes", "Lists case-insensitive node-name matches by group.", "nagi proxy search Hong", "Run `nagi proxy groups` to inspect all nodes.", 1, 1},
@@ -333,6 +340,11 @@ func validateInvocation(args []string) error {
 		value := args[consumed]
 		if !(spec.path == "update" && (value == "--terminal" || value == "--app")) && !installation.ValidTag(value) {
 			return syntaxError(messageError("cli.error.validation.tag_must_be_vx_y_z_an_optional_release_suffix_is_allowed", "TAG must be vX.Y.Z (an optional release suffix is allowed)"), spec)
+		}
+	}
+	if strings.HasPrefix(spec.path, "proxy group ") {
+		if _, err := groupArguments(args); err != nil {
+			return syntaxError(err, spec)
 		}
 	}
 	if strings.HasPrefix(spec.path, "proxy node ") {

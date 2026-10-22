@@ -6924,5 +6924,18 @@
   "help.command.rules.edit.detail": "Replace a single rule's type, payload and target; use - as MATCH payload. Preserves its name, position and enabled state. Validates and reloads if running; restores saved rules on failure.",
   "help.command.rules.edit.summary": "Edit a custom rule",
   "help.command.rules.update.detail": "Refresh from the saved source, or replace it with a local file or absolute HTTP(S) URL without userinfo (maximum 8 MiB). Preserves name, order, kind and enabled state. Existing sets accept YAML payload lists; bundles accept native rules. Validates and reloads if running; restores saved rules on failure. Older imports require SOURCE once.",
-  "help.command.rules.update.summary": "Update imported rules or a set"
+  "help.command.rules.update.summary": "Update imported rules or a set",
+  "help.command.proxy.group.add.detail": "TYPE: select (default), url-test, fallback, load-balance. Without member options, defaults to DIRECT. Automatic groups default to the Cloudflare generate_204 URL and 300 seconds. Interval: 1..31536000. URL-test tolerance: 0..65535 ms. Load-balance strategy: consistent-hashing, round-robin, sticky-sessions. Repeat --node/--provider in desired order.",
+  "help.command.proxy.group.add.summary": "Create a proxy group",
+  "help.command.proxy.group.detail": "Reads local groups while stopped. Mutations validate with mihomo and reload only when running; routing rules remain unchanged.",
+  "help.command.proxy.group.edit.detail": "Omitted fields remain unchanged. Member options replace the corresponding list; clear removes it. At least one member or automatic inclusion is required. Changing type removes inapplicable tolerance/strategy fields; other native settings remain unchanged.",
+  "help.command.proxy.group.edit.summary": "Edit a proxy group",
+  "help.command.proxy.group.list.detail": "Reports local groups in profile order without requiring the engine.",
+  "help.command.proxy.group.list.summary": "List configured proxy groups",
+  "help.command.proxy.group.remove.detail": "Refuses referenced groups. Remove routing, DNS and other dependencies first. Retains nodes and providers.",
+  "help.command.proxy.group.remove.summary": "Delete a proxy group",
+  "help.command.proxy.group.show.detail": "Reports editable settings without provider credentials.",
+  "help.command.proxy.group.show.hint": "Run nagi proxy group list to discover groups.",
+  "help.command.proxy.group.show.summary": "Show configured proxy group",
+  "help.command.proxy.group.summary": "Manage proxy groups"
 }

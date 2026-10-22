@@ -380,6 +380,13 @@ func localizedmutationFeedback(language i18n.Context, args []string) string {
 			}
 			return map[string]string{"set": menuText(language, "menu.render.mutation_feedback.local_healthcheck_interval_saved", "Local healthcheck interval saved."), "reset": menuText(language, "menu.render.mutation_feedback.inherited_healthcheck_interval_restored", "Inherited healthcheck interval restored.")}[args[2]]
 		}
+		if args[1] == "group" && len(args) > 2 {
+			return map[string]string{
+				"add":    groupText(language, "created", "Proxy group created."),
+				"edit":   groupText(language, "updated", "Proxy group updated."),
+				"remove": groupText(language, "deleted", "Proxy group deleted."),
+			}[args[2]]
+		}
 		if args[1] == "provider" && len(args) > 2 {
 			return map[string]string{
 				"add": menuText(language, "menu.render.mutation_feedback.provider_added", "Provider added."), "remove": menuText(language, "menu.render.mutation_feedback.provider_removed", "Provider removed."), "update": menuText(language, "menu.render.mutation_feedback.provider_updated", "Provider updated."), "healthcheck": menuText(language, "menu.render.mutation_feedback.healthcheck_started", "Healthcheck started."),

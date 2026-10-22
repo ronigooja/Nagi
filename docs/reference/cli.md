@@ -85,6 +85,8 @@ language-independent raw content.
 | `subscription apply NAME` | Replace profile `NAME` with the cached mihomo configuration, retain local settings and node/group changes and any persistent subscription chain policy, clear saved group choices, then activate it. |
 | `subscription remove NAME` | Remove a saved subscription, its cache, and its stored identity. |
 | `proxy groups`, `proxy show GROUP` | Read mihomo proxy groups, nodes, current selection, and selection availability through its Unix Socket API. |
+| `proxy group list`, `proxy group show GROUP` | Read configured proxy groups and editable settings locally, including while stopped. |
+| `proxy group add GROUP [OPTIONS]`, `proxy group edit GROUP OPTIONS`, `proxy group remove GROUP` | Create, edit, or delete a configured group through the local override; validate and reload only when running. See [proxy group management](#proxy-group-management). |
 | `proxy search QUERY` | Find nodes by case-insensitive name substring and list matching groups. |
 | `proxy select GROUP NODE` | Select a node in a group and save the choice for the selected profile. |
 | `proxy auto GROUP` | Remove a fixed choice from a URLTest or Fallback group and its saved selection, resuming mihomo automatic selection. |
@@ -278,7 +280,44 @@ Groups, their remaining members and settings, routing rules, and unrelated overr
 
 The command works while stopped and does not start the engine. It takes the configuration lock, validates the remaining effective configuration, and reloads a running engine once through the activation transaction. Missing providers, validation, persistence, and activation failures exit `1` with `proxy_provider_error`; failures restore disk settings and attempt confirmed runtime recovery under the existing transaction contract. A source-defined provider is removed from the source profile, so a later subscription replacement can restore it. Such source edits follow the automatic subscription apply source-change pause rules. Source exports include source removals; locally added provider removal leaves the source unchanged. Both menu entry points dispatch the same CLI operation.
 
-### Proxy nodes and chains
+### Proxy group management
+
+These commands manage the selected profile's native mihomo `proxy-groups`. They do not change routing rules, routing mode, OS traffic access, or the running/stopped preference.
+
+```sh
+nagi proxy group list
+nagi proxy group show 'My Group'
+nagi proxy group add 'My Group' --type select --node DIRECT --node 'Node A'
+nagi proxy group add 'Automatic' --type url-test --provider work-feed --interval 300 --tolerance 50
+nagi proxy group edit 'My Group' --node 'Node B' --node DIRECT
+nagi proxy group edit 'Automatic' --clear-providers --node 'Node A'
+nagi proxy group remove 'My Group'
+```
+
+`GROUP` is a printable name of 1..128 bytes without surrounding whitespace. Reserved names `DIRECT`, `REJECT`, `REJECT-DROP`, `PASS`, `COMPATIBLE`, and `GLOBAL` cannot be managed. Creation rejects existing group, top-level node, and provider names. Renaming is not supported. Reads include groups of other native types, but editing supports only the four types below.
+
+| Option | Definition |
+| --- | --- |
+| `--type TYPE` | `select` (manual), `url-test` (latency selection), `fallback` (ordered failover), or `load-balance`. Creation defaults to `select`. |
+| `--node NAME` | Repeat for explicit top-level nodes, other groups, or built-in outbounds such as `DIRECT`. Replaces the entire `proxies` list in argument order. Self references, missing members, duplicate members, and dependency cycles are rejected. Provider payload nodes are included through their provider. |
+| `--provider NAME` | Repeat for existing proxy providers. Replaces the entire `use` list in argument order. Unknown or duplicate names are rejected. |
+| `--clear-nodes`, `--clear-providers` | Explicitly clear the corresponding list. Cannot be combined with that list's member option. At least one explicit member/provider or existing native automatic-inclusion setting is required. |
+| `--url URL` | Absolute HTTP(S) test URL without userinfo, fragment, or surrounding whitespace. Newly created automatic groups default to `https://cp.cloudflare.com/generate_204`. |
+| `--interval SECONDS` | Integer `1..31536000`. Newly created automatic groups default to 300 seconds. Uses mihomo's native healthcheck scheduler. |
+| `--tolerance MS` | Integer `0..65535`, only for `url-test`; omitted creation value uses mihomo's zero default. |
+| `--strategy STRATEGY` | `consistent-hashing`, `round-robin`, or `sticky-sessions`, only for `load-balance`; omission uses mihomo's `consistent-hashing` default. |
+
+On creation, omitting both member-list options adds `DIRECT`; explicitly empty lists do not get a silent fallback. On edit, at least one option is required. Omitted fields remain unchanged, including native filters, inclusion settings, hidden/icon metadata, and other advanced settings. Changing type removes an inapplicable `tolerance` or `strategy`. Edits retain compatible saved selections, including a prior fixed choice after changing type. Use `proxy auto GROUP` or **Resume automatic selection** to release a URLTest/Fallback choice and let mihomo select automatically. Omitted URL/interval fields on existing groups continue to use native inheritance/defaults; `show` reports configured values, with an empty URL or zero interval indicating omission rather than a measured runtime value.
+
+Deletion refuses effective references from other groups, node chains, rules/sub-rules, DNS upstreams, providers, NTP, listeners, and tunnels, naming the affected configuration sections. Custom rules and managed-policy composition still undergo effective configuration validation. Remove or redirect references first. Successful deletion removes the saved choice for that group, while retaining its nodes, providers, and routing rules.
+
+Mutations store the complete effective group list in `config/overrides/PROFILE.yaml` with private permissions, preserving unrelated override keys and leaving source profiles and subscription caches unchanged. Explicit group URL/interval edits use the same durable per-group metadata as the healthcheck commands, so neither interface silently overrides a newer edit; deletion also clears that group's metadata. Source imports retain this snapshot; subscription application rebases local group intent as described under [profile overrides](#local-profile-files-and-overrides). Clearing/replacing the override removes these changes. The configuration lock and existing activation transaction serialize mutations: mihomo validates the effective configuration, the selected running engine reloads through its configuration API, and failures use the existing file/runtime rollback and uncertain-activation handling. Stopped engines stay stopped. No separate connectivity check is required to save a group; automatic checks are mihomo's configured behavior.
+
+Successful reads/mutations exit `0`; syntax and option-value errors exit `2`. Missing groups, conflicts, invalid effective configurations, and activation failures exit `1` with `proxy_group_error`. `list` returns `{profile, group_configs: [...]}`; `show` returns `{profile, group_config: {...}}`. Each configuration has `name`, `type`, ordered `proxies`/`use` arrays, `url`, `interval`, `tolerance`, and `strategy`. Provider URLs and credentials are not included. Mutations return `{profile, name, resource: "group", action: "add"|"edit"|"remove", saved: true, reloaded: BOOLEAN}`. `reloaded: false` means saved while stopped; start explicitly to activate.
+
+The terminal entry is **Proxies → Proxy Groups → Create proxy group**. **Manage proxy groups** lists local groups even while mihomo is stopped. A configured group's **Show group details** opens local settings with editing, live inspection, and deletion; mihomo's generated `GLOBAL` group retains live-only details. Creation/editing uses an in-memory draft with numeric type/member selection and a final **Save proxy group** action. Toggling members appends newly selected names, preserving failover order; cancellation discards that selector's pending changes. Save failure keeps the draft for explicit editing/retry. Back/EOF before Save does not mutate configuration; successful save/deletion returns to the parent list/detail. Bash, Zsh, and Fish completion include these commands, types, strategies, and local group/node/provider candidates.
+
+## Proxy nodes and chains
 
 These commands read and modify the selected effective profile. Reads and dry-run plans do not require a running engine. Mutations require the matching binary pinned in `engine.lock` to validate the complete candidate. A stopped engine stays stopped; a selected running profile reloads through the configuration transaction. Successful saving or activation does not establish Tailscale login or end-to-end forwarding. These commands do not enable TUN, install a helper, select a backend, or rename nodes.
 
@@ -499,7 +538,7 @@ To inspect mihomo's own diagnostics locally, use `mihomo -t -f FILE -d DIRECTORY
 
 ## JSON and exit codes
 
-JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `scheduler_already_running`, `not_running`, `lifecycle_busy`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `proxy_provider_error`, `proxy_node_error`, `proxy_chain_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `mihomo_api_error`, `response_too_large`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. Error URLs retain useful host/path context; URL userinfo and query or fragment values whose names identify common credentials are masked in text and JSON errors. Subscription fetch failures omit the private request URL and retain the underlying cause.
+JSON success output has the shape `{"ok":true,"data":{...}}`. JSON failure output is written to stderr as `{"ok":false,"error":{"code":"...","message":"..."}}`. Successful commands exit with status `0`; usage errors exit with `2`; all other errors exit with `1`. Error codes include `usage`, `already_running`, `scheduler_already_running`, `not_running`, `lifecycle_busy`, `not_found`, `invalid_config`, `profile_error`, `subscription_error`, `dns_error`, `rule_error`, `proxy_selection_error`, `proxy_provider_error`, `proxy_node_error`, `proxy_group_error`, `proxy_chain_error`, `system_proxy_error`, `tun_error`, `diagnostic_error`, `mihomo_api_error`, `response_too_large`, and `internal_error`. These codes and field names are the CLI integration contract for the macOS app. Error messages are intended for people and may change; applications should branch on `error.code`. Error URLs retain useful host/path context; URL userinfo and query or fragment values whose names identify common credentials are masked in text and JSON errors. Subscription fetch failures omit the private request URL and retain the underlying cause.
 
 Additional success payloads are defined below; all appear in `data`:
 

@@ -1,6 +1,22 @@
 # Proxy nodes and chains
 
-This guide covers selected-profile node management, group membership, and ordered outbound chains. Mihomo implements protocol connections and forwarding; Nagi saves, validates, and activates native configuration. Use the matching engine pinned in `engine.lock`.
+This guide covers selected-profile node and proxy group management, group membership, and ordered outbound chains. Mihomo implements protocol connections and forwarding; Nagi saves, validates, and activates native configuration. Use the matching engine pinned in `engine.lock`.
+
+## Create and manage a proxy group
+
+Open **Proxies → Proxy Groups → Create proxy group** in `nagi menu`. Enter the group name, choose manual selection, automatic latency selection, fallback, or load balancing, and select nodes/groups or proxy providers. Automatic types expose their test settings. Choose **Save proxy group** to validate and save; failed saves keep the draft for correction. Back before Save leaves configuration unchanged. **Manage proxy groups** remains available while the engine is stopped and offers editing and deletion. A running group's **Show group details** opens the same settings.
+
+For example, with `Node A` and `Node B` already configured:
+
+```sh
+nagi proxy group add 'My Group' --node 'Node A' --node 'Node B'
+nagi proxy group add 'Automatic' --type url-test --node 'Node A' --node 'Node B'
+nagi proxy group list
+nagi proxy group edit 'My Group' --node 'Node B' --node DIRECT
+nagi proxy group remove 'My Group'
+```
+
+Creating a group makes it available for selection but leaves routing rules unchanged. To use it, select it in global mode or target it from a routing rule. A group still used by rules, DNS, or another dependency cannot be deleted until those references are removed. Changes live in the selected profile's local override and activate immediately only if mihomo is running. See the [group reference](../reference/cli.md#proxy-group-management) for options, defaults, persistence, and failure behavior.
 
 ## Inspect nodes and add a Tailscale node
 

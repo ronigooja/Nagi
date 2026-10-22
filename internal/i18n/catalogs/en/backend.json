@@ -567,5 +567,21 @@
   "backend.rules.edit_single_only": "only single rules can be edited; use `nagi rules update NAME [SOURCE]` for imports",
   "backend.rules.list_mapping_required": "input must be a YAML {arg0} mapping or string list",
   "backend.rules.update_import_only": "only imported rules or sets can be updated; use `nagi rules edit NAME TYPE PAYLOAD TARGET` for a single rule",
-  "backend.rules.update_source_required": "no saved update source; run `nagi rules update NAME SOURCE` to specify a local file or HTTP(S) URL"
+  "backend.rules.update_source_required": "no saved update source; run `nagi rules update NAME SOURCE` to specify a local file or HTTP(S) URL",
+  "backend.profile.group.conflict": "group name conflicts with a proxy or provider: {arg0}",
+  "backend.profile.group.cycle": "proxy group change would create a dependency cycle",
+  "backend.profile.group.empty": "select at least one node or provider",
+  "backend.profile.group.exists": "proxy group already exists: {arg0}",
+  "backend.profile.group.members": "group members must be a list of distinct names",
+  "backend.profile.group.missing": "proxy group not found: {arg0}; run nagi proxy group list",
+  "backend.profile.group.node_missing": "group member is missing or refers to the group itself: {arg0}",
+  "backend.profile.group.number": "{arg0} must be an integer from {arg1} to {arg2}",
+  "backend.profile.group.option": "unsupported group setting: {arg0}",
+  "backend.profile.group.provider_missing": "proxy provider not found: {arg0}",
+  "backend.profile.group.referenced": "proxy group {arg0} is still referenced by {arg1}; remove these references first",
+  "backend.profile.group.strategy": "strategy must be consistent-hashing, round-robin, or sticky-sessions",
+  "backend.profile.group.strategy_type": "strategy requires a load-balance group",
+  "backend.profile.group.tolerance_type": "tolerance requires a url-test group",
+  "backend.profile.group.type": "group type must be select, url-test, fallback, or load-balance",
+  "backend.profile.group.url": "group URL must be an HTTP(S) URL"
 }

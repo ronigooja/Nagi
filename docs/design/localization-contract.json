@@ -380,6 +380,132 @@
     "backend.profile.exit_node_and_hostname_must_be_nonempty_and_at_most_253_bytes": {},
     "backend.profile.exit_node_and_hostname_must_be_printable": {},
     "backend.profile.expected_a_list_of_named_mappings": {},
+    "backend.profile.group.conflict": {
+      "arg0": "string"
+    },
+    "backend.profile.group.conflict.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.cycle": {},
+    "backend.profile.group.cycle.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.empty": {},
+    "backend.profile.group.empty.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.exists": {
+      "arg0": "string"
+    },
+    "backend.profile.group.exists.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.members": {},
+    "backend.profile.group.members.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.missing": {
+      "arg0": "string"
+    },
+    "backend.profile.group.missing.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.node_missing": {
+      "arg0": "string"
+    },
+    "backend.profile.group.node_missing.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.number": {
+      "arg0": "string",
+      "arg1": "string",
+      "arg2": "string"
+    },
+    "backend.profile.group.number.usage": {
+      "arg0": "string",
+      "arg1": "string",
+      "arg2": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.option": {
+      "arg0": "string"
+    },
+    "backend.profile.group.option.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.provider_missing": {
+      "arg0": "string"
+    },
+    "backend.profile.group.provider_missing.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.referenced": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "backend.profile.group.referenced.usage": {
+      "arg0": "string",
+      "arg1": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.strategy": {},
+    "backend.profile.group.strategy.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.strategy_type": {},
+    "backend.profile.group.strategy_type.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.tolerance_type": {},
+    "backend.profile.group.tolerance_type.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.type": {},
+    "backend.profile.group.type.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "backend.profile.group.url": {},
+    "backend.profile.group.url.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
     "backend.profile.group_conflicts_with_a_reserved_mihomo_proxy_name": {},
     "backend.profile.group_conflicts_with_an_existing_provider_name": {},
     "backend.profile.group_conflicts_with_an_existing_proxy_node": {},
@@ -1660,6 +1786,75 @@
       "syntax": "string"
     },
     "cli.error.export.json_unsupported": {},
+    "cli.error.group.action": {},
+    "cli.error.group.action.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "cli.error.group.clear": {},
+    "cli.error.group.clear.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "cli.error.group.duplicate": {
+      "arg0": "string"
+    },
+    "cli.error.group.duplicate.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "cli.error.group.edit": {},
+    "cli.error.group.edit.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "cli.error.group.integer": {
+      "arg0": "string"
+    },
+    "cli.error.group.integer.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "cli.error.group.missing": {
+      "arg0": "string"
+    },
+    "cli.error.group.missing.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "cli.error.group.name": {},
+    "cli.error.group.name.usage": {
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "cli.error.group.option": {
+      "arg0": "string"
+    },
+    "cli.error.group.option.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
+    "cli.error.group.value": {
+      "arg0": "string"
+    },
+    "cli.error.group.value.usage": {
+      "arg0": "string",
+      "syntax": "string",
+      "hint": "string",
+      "path": "string"
+    },
     "cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel": {
       "arg0": "string"
     },
@@ -2984,6 +3179,13 @@
       "value": "string"
     },
     "cli.language.missing": {},
+    "cli.output.group.empty": {},
+    "cli.output.group.interval": {},
+    "cli.output.group.nodes": {},
+    "cli.output.group.providers": {},
+    "cli.output.group.strategy": {},
+    "cli.output.group.tolerance": {},
+    "cli.output.group.url": {},
     "cli.output.printsystemdns.dns_targets.message": {
       "targets": "string"
     },
@@ -3743,6 +3945,19 @@
     "help.command.proxy.delays.hint": {},
     "help.command.proxy.delays.summary": {},
     "help.command.proxy.detail": {},
+    "help.command.proxy.group.add.detail": {},
+    "help.command.proxy.group.add.summary": {},
+    "help.command.proxy.group.detail": {},
+    "help.command.proxy.group.edit.detail": {},
+    "help.command.proxy.group.edit.summary": {},
+    "help.command.proxy.group.list.detail": {},
+    "help.command.proxy.group.list.summary": {},
+    "help.command.proxy.group.remove.detail": {},
+    "help.command.proxy.group.remove.summary": {},
+    "help.command.proxy.group.show.detail": {},
+    "help.command.proxy.group.show.hint": {},
+    "help.command.proxy.group.show.summary": {},
+    "help.command.proxy.group.summary": {},
     "help.command.proxy.groups.detail": {},
     "help.command.proxy.groups.summary": {},
     "help.command.proxy.healthcheck.detail": {},

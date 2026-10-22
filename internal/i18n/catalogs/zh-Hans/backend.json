@@ -567,5 +567,21 @@
   "backend.rules.edit_single_only": "只能编辑单条规则；导入对象请使用 `nagi rules update NAME [SOURCE]`",
   "backend.rules.list_mapping_required": "输入必须为包含 {arg0} 的 YAML 映射或字符串列表",
   "backend.rules.update_import_only": "只能更新导入规则或规则集；单条规则请使用 `nagi rules edit NAME TYPE PAYLOAD TARGET`",
-  "backend.rules.update_source_required": "尚未保存更新来源；请使用 `nagi rules update NAME SOURCE` 指定本地文件或 HTTP(S) URL"
+  "backend.rules.update_source_required": "尚未保存更新来源；请使用 `nagi rules update NAME SOURCE` 指定本地文件或 HTTP(S) URL",
+  "backend.profile.group.conflict": "代理组名称与节点或提供商冲突：{arg0}",
+  "backend.profile.group.cycle": "代理组变更会造成循环依赖",
+  "backend.profile.group.empty": "请至少选择一个节点或提供商",
+  "backend.profile.group.exists": "代理组已存在：{arg0}",
+  "backend.profile.group.members": "代理组成员必须为不重复的名称列表",
+  "backend.profile.group.missing": "找不到代理组：{arg0}；请运行 nagi proxy group list",
+  "backend.profile.group.node_missing": "代理组成员不存在或引用了代理组自身：{arg0}",
+  "backend.profile.group.number": "{arg0} 必须为 {arg1} 至 {arg2} 的整数",
+  "backend.profile.group.option": "不支持的代理组设置：{arg0}",
+  "backend.profile.group.provider_missing": "找不到节点提供商：{arg0}",
+  "backend.profile.group.referenced": "代理组 {arg0} 仍被 {arg1} 引用；请先移除这些引用",
+  "backend.profile.group.strategy": "策略必须为 consistent-hashing、round-robin 或 sticky-sessions",
+  "backend.profile.group.strategy_type": "负载均衡策略仅适用于 load-balance 代理组",
+  "backend.profile.group.tolerance_type": "容差仅适用于 url-test 代理组",
+  "backend.profile.group.type": "代理组类型必须为 select、url-test、fallback 或 load-balance",
+  "backend.profile.group.url": "代理组 URL 必须为 HTTP(S) URL"
 }

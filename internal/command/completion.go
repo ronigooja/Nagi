@@ -122,6 +122,25 @@ func bashCompletion(roots []string, children map[string][]string) string {
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates healthcheck-targets "${semantic[3]}" 2>/dev/null); return 0
     fi
   fi
+  if [[ ${semantic[0]} == proxy && ${semantic[1]} == group ]]; then
+    if [[ ${#semantic[@]} -eq 2 ]]; then COMPREPLY=( $(compgen -W 'list show add edit remove' -- "$cur") ); return 0; fi
+    if [[ ${#semantic[@]} -eq 3 && ( ${semantic[2]} == show || ${semantic[2]} == edit || ${semantic[2]} == remove ) ]]; then
+      while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates node-groups 2>/dev/null); return 0
+    fi
+    if [[ ${#semantic[@]} -ge 4 && ( ${semantic[2]} == add || ${semantic[2]} == edit ) ]]; then
+      case ${semantic[${#semantic[@]}-1]} in
+        --type) COMPREPLY=( $(compgen -W 'select url-test fallback load-balance' -- "$cur") );;
+        --strategy) COMPREPLY=( $(compgen -W 'consistent-hashing round-robin sticky-sessions' -- "$cur") );;
+        --node)
+          while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates proxy-nodes 2>/dev/null; nagi completion candidates node-groups 2>/dev/null; printf '%s\n' DIRECT REJECT REJECT-DROP);;
+        --provider)
+          while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates chain-targets provider 2>/dev/null);;
+        --url|--interval|--tolerance) ;;
+        *) COMPREPLY=( $(compgen -W '--type --node --provider --clear-nodes --clear-providers --url --interval --tolerance --strategy' -- "$cur") );;
+      esac
+    fi
+    return 0
+  fi
   if [[ ${semantic[0]} == proxy && ${semantic[1]} == node ]]; then
     if [[ ${semantic[${#semantic[@]}-1]} == --auth-key-file ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
     if [[ ${semantic[${#semantic[@]}-1]} == --group ]]; then while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates node-groups 2>/dev/null); return 0; fi
@@ -284,6 +303,21 @@ _nagi() {
     if (( ${#semantic} == 3 )); then compadd -- group provider subscription; return; fi
     if (( ${#semantic} == 4 )); then compadd -- ${(f)"$(nagi completion candidates healthcheck-targets "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
+  if [[ ${semantic[1]} == proxy && ${semantic[2]} == group ]]; then
+    if (( ${#semantic} == 2 )); then compadd -- list show add edit remove; return; fi
+    if (( ${#semantic} == 3 )) && [[ ${semantic[3]} == show || ${semantic[3]} == edit || ${semantic[3]} == remove ]]; then compadd -- ${(f)"$(nagi completion candidates node-groups 2>/dev/null)"}; return; fi
+    if (( ${#semantic} >= 4 )) && [[ ${semantic[3]} == add || ${semantic[3]} == edit ]]; then
+      case ${semantic[-1]} in
+        --type) compadd -- select url-test fallback load-balance;;
+        --strategy) compadd -- consistent-hashing round-robin sticky-sessions;;
+        --node) compadd -- DIRECT REJECT REJECT-DROP ${(f)"$(nagi completion candidates proxy-nodes 2>/dev/null)"} ${(f)"$(nagi completion candidates node-groups 2>/dev/null)"};;
+        --provider) compadd -- ${(f)"$(nagi completion candidates chain-targets provider 2>/dev/null)"};;
+        --url|--interval|--tolerance) ;;
+        *) compadd -- --type --node --provider --clear-nodes --clear-providers --url --interval --tolerance --strategy;;
+      esac
+    fi
+    return
+  fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == node ]]; then
     if [[ ${semantic[-1]} == --auth-key-file ]]; then _files; return; fi
     if [[ ${semantic[-1]} == --group ]]; then compadd -- ${(f)"$(nagi completion candidates node-groups 2>/dev/null)"}; return; fi
@@ -373,6 +407,26 @@ function __nagi_semantic
   end
 end
 `)
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = group' -a 'list show add edit remove'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = group; and contains -- $s[3] show edit remove' -a '(nagi completion candidates node-groups 2>/dev/null)'
+`)
+	for _, option := range []struct {
+		name, values string
+		takesValue   bool
+	}{
+		{"type", "select url-test fallback load-balance", true},
+		{"node", "(nagi completion candidates proxy-nodes 2>/dev/null) (nagi completion candidates node-groups 2>/dev/null) DIRECT REJECT REJECT-DROP", true},
+		{"provider", "(nagi completion candidates chain-targets provider 2>/dev/null)", true},
+		{"clear-nodes", "", false}, {"clear-providers", "", false},
+		{"url", "", true}, {"interval", "", true}, {"tolerance", "", true},
+		{"strategy", "consistent-hashing round-robin sticky-sessions", true},
+	} {
+		requirement := ""
+		if option.takesValue {
+			requirement = " -r"
+		}
+		fmt.Fprintf(&b, "complete -c nagi -f%s -n 'set -l s (__nagi_semantic); test (count $s) -ge 4; and test \"$s[1]\" = proxy; and test \"$s[2]\" = group; and contains -- $s[3] add edit' -l %s -a '%s'\n", requirement, option.name, option.values)
+	}
 	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = connections; and test "$s[2]" = watch' -l interval -r -d 'Snapshot interval in milliseconds (250–60000)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = test' -a 'group provider'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = test; and test "$s[3]" = group' -a '(nagi completion candidates groups 2>/dev/null)'

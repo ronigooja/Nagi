@@ -708,7 +708,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	healthcheckURL := healthcheck && len(args) > 2 && args[2] == "url"
 	subscriptionHealthcheck := healthcheck && (len(args) > 3 && args[3] == "subscription" || healthcheckURL && len(args) > 4 && args[4] == "subscription")
 	providerInterval := command == "proxy" && len(args) > 2 && args[1] == "provider" && args[2] == "interval"
-	needsProfile := healthcheck && !subscriptionHealthcheck || nodeInvocation(args) || chainInvocation(args) || addingProvider || removingProvider || providerInterval || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
+	needsProfile := groupInvocation(args) || healthcheck && !subscriptionHealthcheck || nodeInvocation(args) || chainInvocation(args) || addingProvider || removingProvider || providerInterval || command == "start" || command == "restart" || command == "config" || command == "profile" || command == "dns" || (command == "mode" && len(args) > 1 && (args[1] == "save" || args[1] == "saved")) || (command == "subscription" && len(args) > 1 && (args[1] == "apply" || args[1] == "preview"))
 	readsProfile := needsProfile || command == "status"
 	var profileName string
 	var profileErr error
@@ -1180,14 +1180,17 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 			return r, nil
 		}
-		if nodeInvocation(args) || chainInvocation(args) {
+		if groupInvocation(args) || nodeInvocation(args) || chainInvocation(args) {
 			code := "proxy_node_error"
+			if groupInvocation(args) {
+				code = "proxy_group_error"
+			}
 			if chainInvocation(args) {
 				code = "proxy_chain_error"
 			}
 			var store *profile.Store
 			reloaded := false
-			if nodeInvocation(args) && nodeRead(args) || chainInvocation(args) && chainRead(args) {
+			if groupInvocation(args) && groupRead(args) || nodeInvocation(args) && nodeRead(args) || chainInvocation(args) && chainRead(args) {
 				store = profile.NewStore(paths.ConfigDir, nil, nil)
 				if chainInvocation(args) {
 					configureProviderChainNodes(ctx, store, paths, client)
@@ -1210,7 +1213,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 			var result any
 			var e error
-			if chainInvocation(args) {
+			if groupInvocation(args) {
+				result, e = groupCommand(ctx, args, store, profileName, reloaded)
+			} else if chainInvocation(args) {
 				result, e = chainCommand(ctx, args, store, subs, profileName, reloaded)
 			} else {
 				result, e = nodeCommand(ctx, args, store, profileName, reloaded)
