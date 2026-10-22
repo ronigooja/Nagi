@@ -37,10 +37,7 @@ func localizedRulesPage(language i18n.Context) *Page {
 				Item{ID: "rules.RulesPage.item5", Label: menuText(language, "menu.rules.rules_page.list_custom_rules_and_sets", "List custom rules and sets"), Args: []string{"rules", "custom"}},
 				Item{ID: "rules.RulesPage.item6", Label: menuText(language, "menu.rules.rules_page.show_rule_order_and_conflicts", "Show rule order and conflicts"), Args: []string{"rules", "conflicts"}},
 				Item{ID: "rules.RulesPage.item7", Label: menuText(language, "menu.rules.rules_page.show_rule_matched_by_a_connection", "Show rule matched by a connection"), Action: ruleConnection})),
-			localizedsubmenu(language, localizedactionPage(language, menuText(language, "menu.rules.rules_page.manage_rules_and_sets", "Manage Rules and Sets"), Item{ID: "rules.RulesPage.item8", Label: menuText(language, "menu.rules.rules_page.add_custom_rule", "Add custom rule"), Impact: menuText(language, "menu.rules.rules_page.saves_to_the_selected_profile_reloads_if_running", "Saves to the selected profile; reloads if running"), Action: ruleAdd},
-				Item{ID: "rules.RulesPage.item9", Label: menuText(language, "menu.rules.rules_page.enable_custom_rule_or_set", "Enable custom rule or set"), Action: localizedruleChange(language, "enable")},
-				Item{ID: "rules.RulesPage.item10", Label: menuText(language, "menu.rules.rules_page.disable_custom_rule_or_set", "Disable custom rule or set"), Action: localizedruleChange(language, "disable")},
-				Item{ID: "rules.RulesPage.item11", Label: menuText(language, "menu.rules.rules_page.remove_custom_rule_or_set", "Remove custom rule or set"), Impact: menuText(language, "menu.rules.rules_page.removes_the_whole_named_object_from_the_selected", "Removes the whole named object from the selected profile; reloads if running"), Action: localizedruleChange(language, "remove")})),
+			localizedsubmenu(language, localizedRuleManagementPage(language)),
 			{ID: "rules.RulesPage.item12", Label: menuText(language, "menu.rules.rules_page.import_rules", "Import rules"), Impact: menuText(language, "menu.rules.rules_page.reads_a_file_or_downloads_a_snapshot_into_the_se", "Reads a file or downloads a snapshot into the selected profile; reloads if running"), Action: ruleImport},
 		}}
 		return view, nil
@@ -123,7 +120,18 @@ func ruleConnection(ctx context.Context, s *Session) error {
 }
 
 func ruleAdd(ctx context.Context, s *Session) error {
+	return ruleForm(ctx, s, nil, "")
+}
+
+func ruleEditForm(ctx context.Context, s *Session, profile string, entry rules.Entry) error {
+	return ruleForm(ctx, s, &entry, profile)
+}
+
+func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile string) error {
 	values := map[string]string{}
+	if existing != nil {
+		values = map[string]string{"name": existing.Name, "type": existing.Type, "payload": existing.Payload, "target": existing.Target}
+	}
 	fields := []Field{
 		{Key: "name", Label: menuText(s.language, "menu.rules.rule_add.rule_name", "Rule name"), Required: true, Validate: func(v string) error {
 			return localizedvalidateMenuRuleName(s.language, v)
@@ -138,12 +146,30 @@ func ruleAdd(ctx context.Context, s *Session) error {
 		}},
 		{Key: "target", Label: menuText(s.language, "menu.rules.rule_add.target_direct_reject_or_proxy_group", "Target (DIRECT, REJECT, or proxy group)"), Required: true},
 	}
+	if existing != nil {
+		fields = fields[1:]
+		// Text input lets Enter preserve the prefilled type, just like the
+		// other edit fields; CLI validation retains invalid values for retry.
+		fields[0].Choices, fields[0].ChoiceLabels = nil, nil
+		for i := range fields {
+			if current := values[fields[i].Key]; current != "" {
+				fields[i].Label += " [" + current + "]"
+			}
+		}
+	}
 	_, err := s.Form(ctx, fields, values, func(v map[string]string) Result {
 		payload := v["payload"]
 		if v["type"] == "MATCH" {
 			payload = "-"
 		}
-		return s.Run(ctx, "rules", "add", v["name"], v["type"], payload, v["target"])
+		verb := "add"
+		if existing != nil {
+			verb = "edit"
+		}
+		if existing != nil {
+			return runManagedRule(ctx, s, profile, v["name"], "rules", verb, v["name"], v["type"], payload, v["target"])
+		}
+		return s.Run(ctx, "rules", verb, v["name"], v["type"], payload, v["target"])
 	})
 	return err
 }

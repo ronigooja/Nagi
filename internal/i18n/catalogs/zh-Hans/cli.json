@@ -809,5 +809,7 @@
   "cli.error.validation.provider_chain_completion": "PROVIDER 只能用于 chain-targets provider-node 之后",
   "cli.error.rules.import_validation_rejected": "导入 {arg0} 到配置 {arg1} 失败：{arg2}；导入规则未保存，运行配置未变更",
   "cli.error.rules.import_missing_proxy": "导入 {name} 失败：第 {rule} 条规则引用的出站不存在：{target}\n规则未保存，运行配置未改变。",
-  "cli.error.subscription_apply.configuration_failed": "应用订阅失败：{arg0}"
+  "cli.error.subscription_apply.configuration_failed": "应用订阅失败：{arg0}",
+  "cli.error.rules.change_validation_rejected": "规则更改被拒绝：{arg0}；规则未保存；运行时配置未更改",
+  "cli.error.rules.change_restored": "规则更改失败：{arg0}；已恢复保存的规则；无法确认运行时状态"
 }

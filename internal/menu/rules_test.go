@@ -125,18 +125,18 @@ func TestRuleImportCancellationAndEOFDoNotSubmit(t *testing.T) {
 }
 
 func TestRuleManagementOffersWholeNamedObjects(t *testing.T) {
-	runner := &fakeRunner{results: map[string]Result{"rules custom": {Data: map[string]any{"entries": []map[string]any{
+	runner := &fakeRunner{results: map[string]Result{"rules custom": {Data: map[string]any{"profile": "work", "entries": []map[string]any{
 		{"name": "single", "kind": "rule"}, {"name": "bundle", "kind": "rules"}, {"name": "set", "kind": "set"},
 	}}}}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("3\n4\n2\n0\n0\n"), &out), RulesPage())
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("3\n2\n4\n0\n0\n"), &out), RulesPage())
 	var removes [][]string
 	for _, args := range runner.calls {
 		if len(args) > 1 && args[1] == "remove" {
 			removes = append(removes, args)
 		}
 	}
-	if !reflect.DeepEqual(removes, [][]string{{"rules", "remove", "bundle"}}) || !strings.Contains(out.String(), "Removes the whole named object") {
+	if !reflect.DeepEqual(removes, [][]string{{"rules", "remove", "bundle"}}) || !strings.Contains(out.String(), "Deletes all rules in this object") {
 		t.Fatalf("calls=%v out=%s", runner.calls, out.String())
 	}
 }

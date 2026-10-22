@@ -468,7 +468,11 @@
   "backend.rules.download_rule_import_w": {
     "arg0": "string"
   },
+  "backend.rules.duplicate_list_field": {
+    "arg0": "string"
+  },
   "backend.rules.duplicate_rules_field": {},
+  "backend.rules.edit_single_only": {},
   "backend.rules.imported_rules_preserve_each_rule_target_and_cannot_have_a_shared_target": {},
   "backend.rules.invalid_domain_target": {},
   "backend.rules.invalid_profile_name": {},
@@ -477,6 +481,9 @@
   },
   "backend.rules.ip_can_only_accompany_a_domain_target": {},
   "backend.rules.ip_must_be_an_ipv4_or_ipv6_address_without_a_zone": {},
+  "backend.rules.list_mapping_required": {
+    "arg0": "string"
+  },
   "backend.rules.match_has_no_payload": {},
   "backend.rules.network_must_be_tcp_or_udp": {},
   "backend.rules.parse_rule_import_w": {
@@ -530,6 +537,8 @@
   "backend.rules.target_must_be_direct_reject_or_a_proxy_group_name_without_commas": {},
   "backend.rules.unknown_rule_kind": {},
   "backend.rules.unsupported_rule_type": {},
+  "backend.rules.update_import_only": {},
+  "backend.rules.update_source_required": {},
   "backend.runtime.could_not_create_tailscale_state_directory": {},
   "backend.runtime.could_not_open_tailscale_state_root": {},
   "backend.runtime.could_not_secure_tailscale_state_directory": {},
@@ -2079,6 +2088,12 @@
     "hint": "string",
     "path": "string",
     "syntax": "string"
+  },
+  "cli.error.rules.change_restored": {
+    "arg0": "string"
+  },
+  "cli.error.rules.change_validation_rejected": {
+    "arg0": "string"
   },
   "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list": {
     "arg0": "string"
@@ -4011,6 +4026,8 @@
   "help.command.rules.disable.detail": {},
   "help.command.rules.disable.hint": {},
   "help.command.rules.disable.summary": {},
+  "help.command.rules.edit.detail": {},
+  "help.command.rules.edit.summary": {},
   "help.command.rules.enable.detail": {},
   "help.command.rules.enable.hint": {},
   "help.command.rules.enable.summary": {},
@@ -4027,6 +4044,8 @@
   "help.command.rules.test.detail": {},
   "help.command.rules.test.hint": {},
   "help.command.rules.test.summary": {},
+  "help.command.rules.update.detail": {},
+  "help.command.rules.update.summary": {},
   "help.command.service.detail": {},
   "help.command.service.install.detail": {},
   "help.command.service.install.summary": {},

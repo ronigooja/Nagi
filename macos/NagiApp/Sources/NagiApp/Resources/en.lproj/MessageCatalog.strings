@@ -355,13 +355,16 @@
 "backend.rules.conflict.shadowed" = "earlier MATCH rule shadows this rule";
 "backend.rules.download_rule_import_http_d" = "download rule import: HTTP %1$@";
 "backend.rules.download_rule_import_w" = "download rule import: %1$@";
+"backend.rules.duplicate_list_field" = "duplicate %1$@ field";
 "backend.rules.duplicate_rules_field" = "duplicate rules field";
+"backend.rules.edit_single_only" = "only single rules can be edited; use `nagi rules update NAME [SOURCE]` for imports";
 "backend.rules.imported_rules_preserve_each_rule_target_and_cannot_have_a_shared_target" = "imported rules preserve each rule target and cannot have a shared target";
 "backend.rules.invalid_domain_target" = "invalid domain TARGET";
 "backend.rules.invalid_profile_name" = "invalid profile name";
 "backend.rules.invalid_yaml_w" = "invalid YAML: %1$@";
 "backend.rules.ip_can_only_accompany_a_domain_target" = "--ip can only accompany a domain target";
 "backend.rules.ip_must_be_an_ipv4_or_ipv6_address_without_a_zone" = "--ip must be an IPv4 or IPv6 address without a zone";
+"backend.rules.list_mapping_required" = "input must be a YAML %1$@ mapping or string list";
 "backend.rules.match_has_no_payload" = "MATCH has no payload";
 "backend.rules.network_must_be_tcp_or_udp" = "--network must be tcp or udp";
 "backend.rules.parse_rule_import_w" = "parse rule import: %1$@";
@@ -394,6 +397,8 @@
 "backend.rules.target_must_be_direct_reject_or_a_proxy_group_name_without_commas" = "target must be DIRECT, REJECT, or a proxy group name without commas";
 "backend.rules.unknown_rule_kind" = "unknown rule kind";
 "backend.rules.unsupported_rule_type" = "unsupported rule type";
+"backend.rules.update_import_only" = "only imported rules or sets can be updated; use `nagi rules edit NAME TYPE PAYLOAD TARGET` for a single rule";
+"backend.rules.update_source_required" = "no saved update source; run `nagi rules update NAME SOURCE` to specify a local file or HTTP(S) URL";
 "backend.runtime.could_not_create_tailscale_state_directory" = "could not create Tailscale state directory";
 "backend.runtime.could_not_open_tailscale_state_root" = "could not open Tailscale state root";
 "backend.runtime.could_not_secure_tailscale_state_directory" = "could not secure Tailscale state directory";
@@ -922,6 +927,8 @@
 "cli.error.request_rewrite_trust.certificate_store_unavailable.usage" = "certificate store unavailable\nUsage: nagi %3$@%1$@\nRun `nagi help %2$@` for details";
 "cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request" = "rewrite_trust_manual: export the public certificate with `nagi request-rewrite ca export FILE`, then use your distribution or application certificate trust settings; removal must use the same store; run `nagi request-rewrite ca status` afterwards";
 "cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request.usage" = "rewrite_trust_manual: export the public certificate with `nagi request-rewrite ca export FILE`, then use your distribution or application certificate trust settings; removal must use the same store; run `nagi request-rewrite ca status` afterwards\nUsage: nagi %3$@%1$@\nRun `nagi help %2$@` for details";
+"cli.error.rules.change_restored" = "rule change failed: %1$@; saved rules were restored; runtime state could not be confirmed";
+"cli.error.rules.change_validation_rejected" = "rule change rejected: %1$@; rules were not saved; runtime configuration was not changed";
 "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list" = "connection %1$@ is no longer active; run `nagi connections list`";
 "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list.usage" = "connection %1$@ is no longer active; run `nagi connections list`\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
 "cli.error.rules.import_missing_proxy" = "Import %1$@ failed: rule %2$@ references missing outbound: %3$@\nRules were not saved; runtime configuration was not changed.";
@@ -1996,6 +2003,8 @@
 "help.command.rules.disable.detail" = "Disables a named custom rule, imported per-rule list, or rule set in the selected profile.";
 "help.command.rules.disable.hint" = "Run `nagi rules custom` to find names.";
 "help.command.rules.disable.summary" = "Disable a custom rule";
+"help.command.rules.edit.detail" = "Replace a single rule's type, payload and target; use - as MATCH payload. Preserves its name, position and enabled state. Validates and reloads if running; restores saved rules on failure.";
+"help.command.rules.edit.summary" = "Edit a custom rule";
 "help.command.rules.enable.detail" = "Enables a named custom rule, imported per-rule list, or rule set in the selected profile.";
 "help.command.rules.enable.hint" = "Run `nagi rules custom` to find names.";
 "help.command.rules.enable.summary" = "Enable a custom rule";
@@ -2012,6 +2021,8 @@
 "help.command.rules.test.detail" = "Requires a running matching mihomo engine. Tests its active rules and rule providers without connecting to the destination; synthetic matching does not update rule counters. Defaults to TCP port 443. TARGET is an ASCII domain or bare IP; --ip supplies a domain's destination address. Mihomo resolves DNS when a rule requires it. Always tests rules even in global/direct mode. Source, inbound, UID, process path and sniffing are unavailable; use rules connection for actual traffic.";
 "help.command.rules.test.hint" = "Start the matching mihomo engine before testing.";
 "help.command.rules.test.summary" = "Test a domain or IP against active rules";
+"help.command.rules.update.detail" = "Refresh from the saved source, or replace it with a local file or absolute HTTP(S) URL without userinfo (maximum 8 MiB). Preserves name, order, kind and enabled state. Existing sets accept YAML payload lists; bundles accept native rules. Validates and reloads if running; restores saved rules on failure. Older imports require SOURCE once.";
+"help.command.rules.update.summary" = "Update imported rules or a set";
 "help.command.service.detail" = "Installs or removes the per-user launchd Agent or systemd service.";
 "help.command.service.install.detail" = "Installs a per-user launchd Agent or systemd service.";
 "help.command.service.install.summary" = "Install the user service";

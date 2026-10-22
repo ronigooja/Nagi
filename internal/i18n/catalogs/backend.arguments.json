@@ -871,5 +871,14 @@
   "backend.profile.chain_missing_provider_reference": {
     "arg0": "string",
     "arg1": "string"
-  }
+  },
+  "backend.rules.duplicate_list_field": {
+    "arg0": "string"
+  },
+  "backend.rules.edit_single_only": {},
+  "backend.rules.list_mapping_required": {
+    "arg0": "string"
+  },
+  "backend.rules.update_import_only": {},
+  "backend.rules.update_source_required": {}
 }

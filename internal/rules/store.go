@@ -19,15 +19,18 @@ import (
 )
 
 type Entry struct {
-	Name     string   `yaml:"name" json:"name"`
-	Enabled  bool     `yaml:"enabled" json:"enabled"`
-	Kind     string   `yaml:"kind" json:"kind"`
-	Type     string   `yaml:"type,omitempty" json:"type,omitempty"`
-	Payload  string   `yaml:"payload,omitempty" json:"payload,omitempty"`
-	Target   string   `yaml:"target" json:"target"`
-	Behavior string   `yaml:"behavior,omitempty" json:"behavior,omitempty"`
-	Items    []string `yaml:"items,omitempty" json:"items,omitempty"`
-	Source   string   `yaml:"source,omitempty" json:"source,omitempty"`
+	// RefreshSource is private; Source remains a safe display summary.
+	RefreshSource string   `yaml:"refresh-source,omitempty" json:"-"`
+	CanUpdate     bool     `yaml:"-" json:"can_update,omitempty"`
+	Name          string   `yaml:"name" json:"name"`
+	Enabled       bool     `yaml:"enabled" json:"enabled"`
+	Kind          string   `yaml:"kind" json:"kind"`
+	Type          string   `yaml:"type,omitempty" json:"type,omitempty"`
+	Payload       string   `yaml:"payload,omitempty" json:"payload,omitempty"`
+	Target        string   `yaml:"target" json:"target"`
+	Behavior      string   `yaml:"behavior,omitempty" json:"behavior,omitempty"`
+	Items         []string `yaml:"items,omitempty" json:"items,omitempty"`
+	Source        string   `yaml:"source,omitempty" json:"source,omitempty"`
 }
 type Document struct {
 	Entries []Entry `yaml:"entries" json:"entries"`
@@ -95,6 +98,9 @@ func (s *Store) List() (Document, error) {
 	}
 	if doc.Entries == nil {
 		doc.Entries = []Entry{}
+	}
+	for i := range doc.Entries {
+		doc.Entries[i].CanUpdate = doc.Entries[i].RefreshSource != ""
 	}
 	return doc, nil
 }
@@ -247,7 +253,82 @@ func (s *Store) Import(ctx context.Context, name, source string) error {
 	if err != nil {
 		return i18n.Errorf("backend.rules.parse_rule_import_w", "parse rule import: %w", err)
 	}
-	return s.Add(ctx, Entry{Name: name, Enabled: true, Kind: "rules", Source: origin, Items: items})
+	return s.Add(ctx, Entry{Name: name, Enabled: true, Kind: "rules", Source: origin, RefreshSource: savedSource(source), Items: items})
+}
+
+// Edit replaces only the contents of an existing single rule.
+func (s *Store) Edit(ctx context.Context, replacement Entry) error {
+	doc, err := s.List()
+	if err != nil {
+		return err
+	}
+	for i, e := range doc.Entries {
+		if e.Name != replacement.Name {
+			continue
+		}
+		if e.Kind != "rule" {
+			return i18n.Errorf("backend.rules.edit_single_only", "only single rules can be edited; use `nagi rules update NAME [SOURCE]` for imports")
+		}
+		replacement.Kind, replacement.Enabled = "rule", e.Enabled
+		if err := Validate(replacement); err != nil {
+			return err
+		}
+		doc.Entries[i] = replacement
+		return s.Save(ctx, doc)
+	}
+	return i18n.Errorf("backend.rules.rule_s_not_found_run_nagi_rules_custom", "rule %s not found; run `nagi rules custom`", replacement.Name)
+}
+
+// Update refreshes a snapshot in place, preserving its kind, position and state.
+func (s *Store) Update(ctx context.Context, name, source string) error {
+	doc, err := s.List()
+	if err != nil {
+		return err
+	}
+	for i, e := range doc.Entries {
+		if e.Name != name {
+			continue
+		}
+		if e.Kind != "rules" && e.Kind != "set" {
+			return i18n.Errorf("backend.rules.update_import_only", "only imported rules or sets can be updated; use `nagi rules edit NAME TYPE PAYLOAD TARGET` for a single rule")
+		}
+		if source == "" {
+			source = e.RefreshSource
+		}
+		if source == "" {
+			return i18n.Errorf("backend.rules.update_source_required", "no saved update source; run `nagi rules update NAME SOURCE` to specify a local file or HTTP(S) URL")
+		}
+		data, origin, err := s.readSource(ctx, source)
+		if err != nil {
+			return err
+		}
+		if e.Kind == "set" {
+			// Existing provider sets retain their behavior and common target.
+			e.Items, err = parseList(data, "payload", "set")
+		} else {
+			e.Items, err = ParseRules(data)
+		}
+		if err != nil {
+			return err
+		}
+		e.Source, e.RefreshSource = origin, savedSource(source)
+		if err := Validate(e); err != nil {
+			return err
+		}
+		doc.Entries[i] = e
+		return s.Save(ctx, doc)
+	}
+	return i18n.Errorf("backend.rules.rule_s_not_found_run_nagi_rules_custom", "rule %s not found; run `nagi rules custom`", name)
+}
+
+func savedSource(source string) string {
+	if u, err := url.Parse(source); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+		return source
+	}
+	if absolute, err := filepath.Abs(source); err == nil {
+		return absolute
+	}
+	return source
 }
 
 const maxImportBytes = 8 << 20
@@ -274,6 +355,10 @@ func validateItems(items []string, kind string) error {
 // ParseRules accepts only a YAML mapping's rules list or a YAML string list.
 // Mihomo validates rule syntax and semantics when the snapshot is activated.
 func ParseRules(data []byte) ([]string, error) {
+	return parseList(data, "rules", "rules")
+}
+
+func parseList(data []byte, field, kind string) ([]string, error) {
 	if len(data) == 0 || len(data) > maxImportBytes {
 		return nil, i18n.Errorf("backend.rules.rule_import_must_contain_1_byte_to_8_mib", "rule import must contain 1 byte to 8 MiB")
 	}
@@ -287,15 +372,15 @@ func ParseRules(data []byte) ([]string, error) {
 		return nil, i18n.Errorf("backend.rules.rule_import_must_contain_exactly_one_yaml_document", "rule import must contain exactly one YAML document")
 	}
 	if len(doc.Content) != 1 {
-		return nil, i18n.Errorf("backend.rules.rules_must_be_a_yaml_rules_mapping_or_string_list", "rules must be a YAML rules mapping or string list")
+		return nil, i18n.Errorf("backend.rules.list_mapping_required", "input must be a YAML %s mapping or string list", field)
 	}
 	node := doc.Content[0]
 	if node.Kind == yaml.MappingNode {
 		var rules *yaml.Node
 		for i := 0; i < len(node.Content); i += 2 {
-			if node.Content[i].Value == "rules" {
+			if node.Content[i].Value == field {
 				if rules != nil {
-					return nil, i18n.Errorf("backend.rules.duplicate_rules_field", "duplicate rules field")
+					return nil, i18n.Errorf("backend.rules.duplicate_list_field", "duplicate %s field", field)
 				}
 				rules = node.Content[i+1]
 			}
@@ -303,7 +388,7 @@ func ParseRules(data []byte) ([]string, error) {
 		node = rules
 	}
 	if node == nil || node.Kind != yaml.SequenceNode {
-		return nil, i18n.Errorf("backend.rules.rules_must_be_a_yaml_rules_mapping_or_string_list", "rules must be a YAML rules mapping or string list")
+		return nil, i18n.Errorf("backend.rules.list_mapping_required", "input must be a YAML %s mapping or string list", field)
 	}
 	items := make([]string, 0, len(node.Content))
 	for _, item := range node.Content {
@@ -312,7 +397,7 @@ func ParseRules(data []byte) ([]string, error) {
 		}
 		items = append(items, item.Value)
 	}
-	if err := validateItems(items, "rules"); err != nil {
+	if err := validateItems(items, kind); err != nil {
 		return nil, err
 	}
 	return items, nil

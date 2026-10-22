@@ -82,10 +82,10 @@ func bashCompletion(roots []string, children map[string][]string) string {
       while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates profile-groups "${semantic[3]}" 2>/dev/null); return 0
     fi
   fi
-  if [[ ${#semantic[@]} -eq 2 && ${semantic[0]} == rules && ( ${semantic[1]} == remove || ${semantic[1]} == enable || ${semantic[1]} == disable ) ]]; then
+  if [[ ${#semantic[@]} -eq 2 && ${semantic[0]} == rules && ( ${semantic[1]} == remove || ${semantic[1]} == enable || ${semantic[1]} == disable || ${semantic[1]} == edit || ${semantic[1]} == update ) ]]; then
     while IFS= read -r line; do [[ "$line" == "$cur"* ]] && COMPREPLY+=("$line"); done < <(nagi completion candidates rules 2>/dev/null); return 0
   fi
-  if [[ ${semantic[0]} == rules && ${semantic[1]} == import ]]; then
+  if [[ ${semantic[0]} == rules && ( ${semantic[1]} == import || ${semantic[1]} == update ) ]]; then
     if [[ ${#semantic[@]} -eq 3 ]]; then while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$cur"); return 0; fi
   fi
   if [[ ${semantic[0]} == proxy && ${semantic[1]} == test ]]; then
@@ -250,10 +250,10 @@ _nagi() {
     if (( ${#semantic} == 4 )); then compadd -- --dns-proxy; return; fi
     if (( ${#semantic} == 5 )) && [[ ${semantic[5]} == --dns-proxy ]]; then compadd -- ${(f)"$(nagi completion candidates profile-groups "${semantic[4]}" 2>/dev/null)"}; return; fi
   fi
-  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == rules && ( ${semantic[2]} == remove || ${semantic[2]} == enable || ${semantic[2]} == disable ) ]]; then
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == rules && ( ${semantic[2]} == remove || ${semantic[2]} == enable || ${semantic[2]} == disable || ${semantic[2]} == edit || ${semantic[2]} == update ) ]]; then
     compadd -- ${(f)"$(nagi completion candidates rules 2>/dev/null)"}; return
   fi
-  if [[ ${semantic[1]} == rules && ${semantic[2]} == import ]]; then
+  if [[ ${semantic[1]} == rules && ( ${semantic[2]} == import || ${semantic[2]} == update ) ]]; then
     if (( ${#semantic} == 3 )); then _files; return; fi
   fi
   if [[ ${semantic[1]} == proxy && ${semantic[2]} == test ]]; then
@@ -392,9 +392,9 @@ complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 4; and t
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 5; and test "$s[1]" = proxy; and test "$s[2]" = provider; and test "$s[3]" = interval; and test "$s[4]" = set' -a 'off'
 
 `)
-	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = rules; and contains -- "$s[2]" remove enable disable' -a '(nagi completion candidates rules 2>/dev/null)'
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = rules; and contains -- "$s[2]" remove enable disable edit update' -a '(nagi completion candidates rules 2>/dev/null)'
 `)
-	b.WriteString(`complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = rules; and test "$s[2]" = import' -F
+	b.WriteString(`complete -c nagi -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = rules; and contains -- "$s[2]" import update' -F
 `)
 	for _, root := range roots {
 		fmt.Fprintf(&b, "complete -c nagi -f -n 'test (count (__nagi_semantic)) -eq 0' -a '%s'\n", root)

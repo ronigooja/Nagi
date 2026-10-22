@@ -562,5 +562,10 @@
   "backend.profile.chain_provider_policy_incompatible": "provider-node chains cannot be combined with a subscription chain policy; clear the existing chain first",
   "backend.proxy.provider_chain_refresh_failed": "provider updated, but a selected chain node refresh failed; mihomo retained its last good node; inspect mihomo logs",
   "backend.profile.chain_missing_outbound_reference": "{arg0} references missing outbound: {arg1}",
-  "backend.profile.chain_missing_provider_reference": "{arg0} references missing provider: {arg1}"
+  "backend.profile.chain_missing_provider_reference": "{arg0} references missing provider: {arg1}",
+  "backend.rules.duplicate_list_field": "duplicate {arg0} field",
+  "backend.rules.edit_single_only": "only single rules can be edited; use `nagi rules update NAME [SOURCE]` for imports",
+  "backend.rules.list_mapping_required": "input must be a YAML {arg0} mapping or string list",
+  "backend.rules.update_import_only": "only imported rules or sets can be updated; use `nagi rules edit NAME TYPE PAYLOAD TARGET` for a single rule",
+  "backend.rules.update_source_required": "no saved update source; run `nagi rules update NAME SOURCE` to specify a local file or HTTP(S) URL"
 }

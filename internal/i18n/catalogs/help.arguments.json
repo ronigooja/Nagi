@@ -28292,5 +28292,9 @@
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": {
     "path": "string",
     "syntax": "string"
-  }
+  },
+  "help.command.rules.edit.detail": {},
+  "help.command.rules.edit.summary": {},
+  "help.command.rules.update.detail": {},
+  "help.command.rules.update.summary": {}
 }

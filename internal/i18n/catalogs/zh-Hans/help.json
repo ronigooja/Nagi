@@ -6920,5 +6920,9 @@
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.apply": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n运行 `nagi subscription preview NAME` 查看节点变更。\n运行 `nagi help {path}` 查看详情",
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.key": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n运行 `nagi subscription list` 查找订阅名称。\n运行 `nagi help {path}` 查看详情",
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.watch": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n运行 `nagi subscription list` 检查到期时间和失败情况。\n运行 `nagi help {path}` 查看详情",
-  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n查看实时流量前请先启动 mihomo。\n运行 `nagi help {path}` 查看详情"
+  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": "URL 必须为不含用户信息的绝对 HTTP(S) URL\n用法：nagi {syntax}\n查看实时流量前请先启动 mihomo。\n运行 `nagi help {path}` 查看详情",
+  "help.command.rules.edit.detail": "替换单条规则的类型、匹配内容和目标；MATCH 的匹配内容使用 -。保留名称、顺序和启用状态。校验后在运行中重载；失败时恢复已保存规则。",
+  "help.command.rules.edit.summary": "编辑自定义规则",
+  "help.command.rules.update.detail": "从已保存的来源更新，或指定本地文件或不含用户信息的绝对 HTTP(S) URL（最多 8 MiB）更换来源。保留名称、顺序、类型和启用状态。已有规则集接受 YAML payload 列表；规则包接受完整原生规则。校验后在运行中重载；失败时恢复已保存规则。旧导入对象需先指定一次 SOURCE。",
+  "help.command.rules.update.summary": "更新导入规则或规则集"
 }

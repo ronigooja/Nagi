@@ -153,25 +153,39 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 			return err
 		}
 		if err := activateConfig(ctx, client, path); err != nil {
+			if args[1] == "edit" || args[1] == "update" {
+				return err
+			}
 			return messageError("cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back", "reload active rules: %w; saved rules were rolled back", err)
 		}
 		return nil
 	}
 	store := rules.New(configDir, name, check)
 	switch args[1] {
-	case "add":
+	case "add", "edit":
 		typ := strings.ToUpper(args[3])
 		payload := args[4]
 		if typ == "MATCH" && payload == "-" {
 			payload = ""
 		}
-		err = store.Add(ctx, rules.Entry{Name: args[2], Enabled: true, Kind: "rule", Type: typ, Payload: payload, Target: args[5]})
+		entry := rules.Entry{Name: args[2], Enabled: true, Kind: "rule", Type: typ, Payload: payload, Target: args[5]}
+		if args[1] == "edit" {
+			err = store.Edit(ctx, entry)
+		} else {
+			err = store.Add(ctx, entry)
+		}
 	case "remove":
 		err = store.Remove(ctx, args[2])
 	case "enable":
 		err = store.SetEnabled(ctx, args[2], true)
 	case "disable":
 		err = store.SetEnabled(ctx, args[2], false)
+	case "update":
+		source := ""
+		if len(args) == 4 {
+			source = args[3]
+		}
+		err = store.Update(ctx, args[2], source)
 	case "import":
 		err = store.Import(ctx, args[2], args[3])
 	default:
@@ -179,6 +193,12 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 	}
 	if err != nil {
 		var rejected *rules.CheckError
+		if (args[1] == "edit" || args[1] == "update") && !validationRejected && errors.As(err, &rejected) && rejected.RollbackErr == nil {
+			err = messageError("cli.error.rules.change_restored", "rule change failed: %w; saved rules were restored; runtime state could not be confirmed", err)
+		}
+		if (args[1] == "update" || args[1] == "edit") && validationRejected && errors.As(err, &rejected) && rejected.RollbackErr == nil {
+			err = messageError("cli.error.rules.change_validation_rejected", "rule change rejected: %w; rules were not saved; runtime configuration was not changed", err)
+		}
 		if args[1] == "import" && validationRejected && errors.As(err, &rejected) && rejected.RollbackErr == nil {
 			err = messageError("cli.error.rules.import_validation_rejected", "import %q into profile %q failed: %w; imported rules were not saved; runtime configuration was not changed", args[2], name, err)
 			var diagnostic *profile.ValidationError
@@ -197,10 +217,14 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 
 // validateRuleImportArguments checks syntax before resolving runtime paths.
 func validateRuleImportArguments(args []string) error {
-	name, source := args[2], args[3]
+	name := args[2]
 	if len(name) < 1 || len(name) > 128 || strings.Trim(name, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-") != "" {
 		return messageError("cli.error.rules.name_must_use_1_128_ascii_letters_digits_or", "NAME must use 1..128 ASCII letters, digits, _ or -")
 	}
+	if len(args) == 3 {
+		return nil
+	}
+	source := args[3]
 	if strings.TrimSpace(source) == "" {
 		return messageError("cli.error.rules.source_is_required", "SOURCE is required")
 	}

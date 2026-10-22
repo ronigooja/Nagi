@@ -2509,5 +2509,11 @@
   },
   "cli.error.subscription_apply.configuration_failed": {
     "arg0": "string"
+  },
+  "cli.error.rules.change_validation_rejected": {
+    "arg0": "string"
+  },
+  "cli.error.rules.change_restored": {
+    "arg0": "string"
   }
 }

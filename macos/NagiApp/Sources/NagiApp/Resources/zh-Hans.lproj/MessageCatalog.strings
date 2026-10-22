@@ -355,13 +355,16 @@
 "backend.rules.conflict.shadowed" = "前面的 MATCH 规则遮蔽了此规则";
 "backend.rules.download_rule_import_http_d" = "下载规则导入：HTTP %1$@";
 "backend.rules.download_rule_import_w" = "下载规则导入：%1$@";
+"backend.rules.duplicate_list_field" = "重复的 %1$@ 字段";
 "backend.rules.duplicate_rules_field" = "rules 字段重复";
+"backend.rules.edit_single_only" = "只能编辑单条规则；导入对象请使用 `nagi rules update NAME [SOURCE]`";
 "backend.rules.imported_rules_preserve_each_rule_target_and_cannot_have_a_shared_target" = "导入的规则保留各自目标，不能使用共享目标";
 "backend.rules.invalid_domain_target" = "域名 TARGET 无效";
 "backend.rules.invalid_profile_name" = "配置名称无效";
 "backend.rules.invalid_yaml_w" = "YAML 无效：%1$@";
 "backend.rules.ip_can_only_accompany_a_domain_target" = "--ip 只能用于域名目标";
 "backend.rules.ip_must_be_an_ipv4_or_ipv6_address_without_a_zone" = "--ip 必须为不含区域标识的 IPv4 或 IPv6 地址";
+"backend.rules.list_mapping_required" = "输入必须为包含 %1$@ 的 YAML 映射或字符串列表";
 "backend.rules.match_has_no_payload" = "MATCH 没有 payload";
 "backend.rules.network_must_be_tcp_or_udp" = "--network 必须为 tcp 或 udp";
 "backend.rules.parse_rule_import_w" = "解析规则导入：%1$@";
@@ -394,6 +397,8 @@
 "backend.rules.target_must_be_direct_reject_or_a_proxy_group_name_without_commas" = "目标必须为 DIRECT、REJECT 或不含逗号的代理组名称";
 "backend.rules.unknown_rule_kind" = "未知规则种类";
 "backend.rules.unsupported_rule_type" = "不支持的规则类型";
+"backend.rules.update_import_only" = "只能更新导入规则或规则集；单条规则请使用 `nagi rules edit NAME TYPE PAYLOAD TARGET`";
+"backend.rules.update_source_required" = "尚未保存更新来源；请使用 `nagi rules update NAME SOURCE` 指定本地文件或 HTTP(S) URL";
 "backend.runtime.could_not_create_tailscale_state_directory" = "无法创建 Tailscale 状态目录";
 "backend.runtime.could_not_open_tailscale_state_root" = "无法打开 Tailscale 状态根目录";
 "backend.runtime.could_not_secure_tailscale_state_directory" = "无法保护 Tailscale 状态目录";
@@ -922,6 +927,8 @@
 "cli.error.request_rewrite_trust.certificate_store_unavailable.usage" = "证书存储不可用\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
 "cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request" = "rewrite_trust_manual：运行 `nagi request-rewrite ca export FILE` 导出公共证书，然后通过发行版或应用程序的证书信任设置操作；移除时必须使用同一存储；之后运行 `nagi request-rewrite ca status`";
 "cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request.usage" = "rewrite_trust_manual：运行 `nagi request-rewrite ca export FILE` 导出公共证书，然后通过发行版或应用程序的证书信任设置操作；移除时必须使用同一存储；之后运行 `nagi request-rewrite ca status`\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
+"cli.error.rules.change_restored" = "规则更改失败：%1$@；已恢复保存的规则；无法确认运行时状态";
+"cli.error.rules.change_validation_rejected" = "规则更改被拒绝：%1$@；规则未保存；运行时配置未更改";
 "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list" = "连接 %1$@ 已不再活动；运行 `nagi connections list`";
 "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list.usage" = "连接 %1$@ 已不再活动；运行 `nagi connections list`\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
 "cli.error.rules.import_missing_proxy" = "导入 %1$@ 失败：第 %2$@ 条规则引用的出站不存在：%3$@\n规则未保存，运行配置未改变。";
@@ -1996,6 +2003,8 @@
 "help.command.rules.disable.detail" = "在当前配置方案中停用指定自定义规则、导入的逐条规则列表或规则集。";
 "help.command.rules.disable.hint" = "运行 `nagi rules custom` 查找名称。";
 "help.command.rules.disable.summary" = "停用自定义规则";
+"help.command.rules.edit.detail" = "替换单条规则的类型、匹配内容和目标；MATCH 的匹配内容使用 -。保留名称、顺序和启用状态。校验后在运行中重载；失败时恢复已保存规则。";
+"help.command.rules.edit.summary" = "编辑自定义规则";
 "help.command.rules.enable.detail" = "在当前配置方案中启用指定自定义规则、导入的逐条规则列表或规则集。";
 "help.command.rules.enable.hint" = "运行 `nagi rules custom` 查找名称。";
 "help.command.rules.enable.summary" = "启用自定义规则";
@@ -2012,6 +2021,8 @@
 "help.command.rules.test.detail" = "需要运行中的匹配 mihomo 引擎。测试其生效规则和规则提供方，不连接目标；模拟匹配不更新规则计数。默认为 TCP 端口 443。TARGET 为 ASCII 域名或裸 IP；--ip 提供域名的目标地址。规则需要时由 mihomo 解析 DNS。即使处于 global/direct 模式也始终测试规则。无法提供源地址、入站、UID、进程路径和嗅探；实际流量请使用 rules connection。";
 "help.command.rules.test.hint" = "测试前请先启动匹配的 mihomo 引擎。";
 "help.command.rules.test.summary" = "使用生效规则测试域名或 IP";
+"help.command.rules.update.detail" = "从已保存的来源更新，或指定本地文件或不含用户信息的绝对 HTTP(S) URL（最多 8 MiB）更换来源。保留名称、顺序、类型和启用状态。已有规则集接受 YAML payload 列表；规则包接受完整原生规则。校验后在运行中重载；失败时恢复已保存规则。旧导入对象需先指定一次 SOURCE。";
+"help.command.rules.update.summary" = "更新导入规则或规则集";
 "help.command.service.detail" = "安装或移除每用户的 launchd Agent 或 systemd 服务。";
 "help.command.service.install.detail" = "安装每用户的 launchd Agent 或 systemd 服务。";
 "help.command.service.install.summary" = "安装用户服务";

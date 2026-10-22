@@ -161,7 +161,7 @@ func TestOperationPromptCommands(t *testing.T) {
 func TestRuleRemovalUsesFreshNameOnce(t *testing.T) {
 	runner := &operationRunner{data: map[string]any{"rules custom": map[string]any{"entries": []map[string]any{{"name": "work rule"}}}}}
 	session := NewSession(runner, strings.NewReader("1\n"), &bytes.Buffer{})
-	item := operationItem(t, RulesPage(), "Remove custom rule or set")
+	item := Item{Action: ruleChange("remove")}
 	if err := item.Action(context.Background(), session); err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestRuleRemovalUsesFreshNameOnce(t *testing.T) {
 func TestRuleSelectionCanceled(t *testing.T) {
 	runner := &operationRunner{data: map[string]any{"rules custom": map[string]any{"entries": []map[string]any{{"name": "work rule"}}}}}
 	session := NewSession(runner, strings.NewReader("0\n"), &bytes.Buffer{})
-	item := operationItem(t, RulesPage(), "Remove custom rule or set")
+	item := Item{Action: ruleChange("remove")}
 	if err := item.Action(context.Background(), session); err != ErrBack {
 		t.Fatalf("cancel = %v", err)
 	}

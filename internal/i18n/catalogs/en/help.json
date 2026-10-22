@@ -6920,5 +6920,9 @@
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.apply": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nRun `nagi subscription preview NAME` to inspect node changes.\nRun `nagi help {path}` for details",
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.key": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nRun `nagi subscription list` to find a subscription name.\nRun `nagi help {path}` for details",
   "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.subscription.watch": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nRun `nagi subscription list` to inspect due times and failures.\nRun `nagi help {path}` for details",
-  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nStart mihomo before watching traffic.\nRun `nagi help {path}` for details"
+  "help.usage.cli.error.validation.url_must_be_an_absolute_http_s_url_without_userinfo.traffic.watch": "URL must be an absolute HTTP(S) URL without userinfo\nUsage: nagi {syntax}\nStart mihomo before watching traffic.\nRun `nagi help {path}` for details",
+  "help.command.rules.edit.detail": "Replace a single rule's type, payload and target; use - as MATCH payload. Preserves its name, position and enabled state. Validates and reloads if running; restores saved rules on failure.",
+  "help.command.rules.edit.summary": "Edit a custom rule",
+  "help.command.rules.update.detail": "Refresh from the saved source, or replace it with a local file or absolute HTTP(S) URL without userinfo (maximum 8 MiB). Preserves name, order, kind and enabled state. Existing sets accept YAML payload lists; bundles accept native rules. Validates and reloads if running; restores saved rules on failure. Older imports require SOURCE once.",
+  "help.command.rules.update.summary": "Update imported rules or a set"
 }

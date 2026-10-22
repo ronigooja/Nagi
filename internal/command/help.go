@@ -12,6 +12,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/installation"
 	"github.com/ronigooja/Nagi/internal/output"
 	"github.com/ronigooja/Nagi/internal/profile"
+	"github.com/ronigooja/Nagi/internal/rules"
 )
 
 type commandSpec struct {
@@ -129,7 +130,7 @@ var commandSpecs = []commandSpec{
 	{"proxy test group", "proxy test group GROUP NODE", "Measure a group node", "Uses the group's configured URL, timeout and expected status, resolving only its configured node sources.", "nagi proxy test group 'Proxy Group' NodeA", "Run `nagi proxy show GROUP` to inspect nodes.", 2, 2},
 	{"proxy test provider", "proxy test provider PROVIDER NODE", "Measure a provider node", "Uses the provider's configured health-check URL, timeout and expected status.", "nagi proxy test provider Remote NodeA", "Run `nagi proxy provider show PROVIDER` to inspect nodes.", 2, 2},
 	{"proxy delay", "proxy delay NODE [URL] [TIMEOUT_MS]", "Measure proxy delay", "Measures an HTTP(S) URL through a proxy node. URL defaults to https://cp.cloudflare.com/generate_204 and timeout to 5000 ms.", "nagi proxy delay NodeA", "Run `nagi proxy groups` to find a node name.", 1, 3},
-	{"rules", "rules <test TARGET [options]|list|providers|custom|conflicts|connection ID|add NAME TYPE PAYLOAD TARGET|remove NAME|enable NAME|disable NAME|import NAME SOURCE>", "Manage routing rules", "Custom rules belong to the selected profile, are stored separately from its source, and apply before its rules. Switching profiles selects that profile's custom rules.", "nagi rules list", "", 0, -1},
+	{"rules", "rules <test TARGET [options]|list|providers|custom|conflicts|connection ID|add NAME TYPE PAYLOAD TARGET|remove NAME|enable NAME|disable NAME|import NAME SOURCE|edit NAME TYPE PAYLOAD TARGET|update NAME [SOURCE]>", "Manage routing rules", "Custom rules belong to the selected profile, are stored separately from its source, and apply before its rules. Switching profiles selects that profile's custom rules.", "nagi rules list", "", 0, -1},
 	{"rules test", "rules test TARGET [--ip IP] [--port PORT] [--network tcp|udp] [--process NAME]", "Test a domain or IP against active rules", "Requires a running matching mihomo engine. Tests its active rules and rule providers without connecting to the destination; synthetic matching does not update rule counters. Defaults to TCP port 443. TARGET is an ASCII domain or bare IP; --ip supplies a domain's destination address. Mihomo resolves DNS when a rule requires it. Always tests rules even in global/direct mode. Source, inbound, UID, process path and sniffing are unavailable; use rules connection for actual traffic.", "nagi rules test 154.19.187.117", "Start the matching mihomo engine before testing.", 1, -2},
 	{"rules list", "rules list", "List active rules", "Shows mihomo's ordered active rules, including disabled state and hit counts.", "nagi rules list", "", 0, 0},
 	{"rules providers", "rules providers", "List active rule providers", "Shows mihomo rule providers from the running engine.", "nagi rules providers", "", 0, 0},
@@ -137,6 +138,8 @@ var commandSpecs = []commandSpec{
 	{"rules conflicts", "rules conflicts", "Report rule order and conflicts", "Shows the selected profile's effective rule order, duplicate matchers, and rules shadowed by MATCH.", "nagi rules conflicts", "", 0, 0},
 	{"rules connection", "rules connection ID", "Show a connection's matched rule", "Reads the rule and payload recorded by mihomo for an active connection.", "nagi rules connection CONNECTION_ID", "Run `nagi connections list` to find an ID.", 1, 1},
 	{"rules add", "rules add NAME TYPE PAYLOAD TARGET", "Add a custom rule", "Supports DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, DOMAIN-REGEX, IP-CIDR, IP-CIDR6, GEOIP, GEOSITE, PROCESS-NAME, and MATCH (use - for its payload). TARGET is DIRECT, REJECT, or a group name. Saves to the selected profile.", "nagi rules add work DOMAIN-SUFFIX example.com DIRECT", "", 4, 4},
+	{"rules edit", "rules edit NAME TYPE PAYLOAD TARGET", "Edit a custom rule", "Replace a single rule's type, payload and target; use - as MATCH payload. Preserves its name, position and enabled state. Validates and reloads if running; restores saved rules on failure.", "nagi rules edit work DOMAIN-SUFFIX example.com DIRECT", "", 4, 4},
+	{"rules update", "rules update NAME [SOURCE]", "Update imported rules or a set", "Refresh from the saved source, or replace it with a local file or absolute HTTP(S) URL without userinfo (maximum 8 MiB). Preserves name, order, kind and enabled state. Existing sets accept YAML payload lists; bundles accept native rules. Validates and reloads if running; restores saved rules on failure. Older imports require SOURCE once.", "nagi rules update work", "", 1, 2},
 	{"rules remove", "rules remove NAME", "Remove a custom rule", "Removes a named custom rule, imported per-rule list, or rule set from the selected profile.", "nagi rules remove work", "Run `nagi rules custom` to find names.", 1, 1},
 	{"rules enable", "rules enable NAME", "Enable a custom rule", "Enables a named custom rule, imported per-rule list, or rule set in the selected profile.", "nagi rules enable work", "Run `nagi rules custom` to find names.", 1, 1},
 	{"rules disable", "rules disable NAME", "Disable a custom rule", "Disables a named custom rule, imported per-rule list, or rule set in the selected profile.", "nagi rules disable work", "Run `nagi rules custom` to find names.", 1, 1},
@@ -477,9 +480,19 @@ func validateInvocation(args []string) error {
 			}
 		}
 	}
-	if spec.path == "rules add" {
+	if spec.path == "rules add" || spec.path == "rules edit" {
 		if strings.TrimSpace(args[2]) == "" || strings.TrimSpace(args[3]) == "" || strings.TrimSpace(args[5]) == "" {
 			return syntaxError(messageError("cli.error.validation.name_type_and_target_are_required", "NAME, TYPE, and TARGET are required"), spec)
+		}
+	}
+	if spec.path == "rules edit" {
+		payload := args[4]
+		typ := strings.ToUpper(args[3])
+		if typ == "MATCH" && payload == "-" {
+			payload = ""
+		}
+		if err := rules.Validate(rules.Entry{Name: args[2], Kind: "rule", Type: typ, Payload: payload, Target: args[5]}); err != nil {
+			return syntaxError(err, spec)
 		}
 	}
 	if spec.path == "rules test" {
@@ -487,7 +500,7 @@ func validateInvocation(args []string) error {
 			return syntaxError(err, spec)
 		}
 	}
-	if spec.path == "rules import" {
+	if spec.path == "rules import" || spec.path == "rules update" {
 		if err := validateRuleImportArguments(args); err != nil {
 			return syntaxError(err, spec)
 		}

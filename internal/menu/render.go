@@ -398,6 +398,8 @@ func localizedmutationFeedback(language i18n.Context, args []string) string {
 			"add": menuText(language, "menu.render.mutation_feedback.rule_saved", "Rule saved."), "remove": menuText(language, "menu.render.mutation_feedback.rule_or_set_removed", "Rule or set removed."),
 			"enable": menuText(language, "menu.render.mutation_feedback.rule_or_set_enabled", "Rule or set enabled."), "disable": menuText(language, "menu.render.mutation_feedback.rule_or_set_disabled", "Rule or set disabled."),
 			"import": menuText(language, "menu.render.mutation_feedback.rules_imported", "Rules imported."),
+			"edit":   menuText(language, "menu.rules.manage.saved", "Rule updated."),
+			"update": menuText(language, "menu.rules.manage.updated", "Rules updated."),
 		}[args[1]]
 	}
 	return ""
