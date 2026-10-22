@@ -119,6 +119,8 @@
 "backend.profile.chain_local_override_must_be_a_yaml_mapping" = "local override must be a YAML mapping";
 "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes" = "local proxy additions must contain named compatible nodes";
 "backend.profile.chain_managed_chain_node_not_found" = "managed chain node not found";
+"backend.profile.chain_missing_outbound_reference" = "%1$@ references missing outbound: %2$@";
+"backend.profile.chain_missing_provider_reference" = "%1$@ references missing provider: %2$@";
 "backend.profile.chain_node_belongs_to_a_subscription_chain_clear_the_subscription_chain_first" = "node belongs to a subscription chain; clear the subscription chain first";
 "backend.profile.chain_policy_owns_edge" = "subscription policy owns a changed edge; clear the subscription chain first";
 "backend.profile.chain_profile_must_be_a_yaml_mapping" = "profile must be a YAML mapping";
@@ -964,6 +966,7 @@
 "cli.error.startup_watch.system_proxy_recheck_failed_s_inspect_nagi_startup_check.usage" = "system proxy recheck failed: %1$@; inspect `nagi startup check`\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
 "cli.error.subscription_apply.cache_version_changed_during_automatic_apply" = "cache version changed during automatic apply";
 "cli.error.subscription_apply.cache_version_changed_during_automatic_apply.usage" = "cache version changed during automatic apply\nUsage: nagi %3$@%1$@\nRun `nagi help %2$@` for details";
+"cli.error.subscription_apply.configuration_failed" = "apply subscription failed: %1$@";
 "cli.error.subscription_apply.effective_profile_is_invalid" = "effective profile is invalid";
 "cli.error.subscription_apply.effective_profile_is_invalid.usage" = "effective profile is invalid\nUsage: nagi %3$@%1$@\nRun `nagi help %2$@` for details";
 "cli.error.subscription_apply.enabled_custom_rule_target_is_unavailable_in_the_updated_subscriptio" = "enabled custom rule target is unavailable in the updated subscription; update custom rules";

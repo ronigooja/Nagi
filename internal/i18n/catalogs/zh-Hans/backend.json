@@ -560,5 +560,7 @@
   "backend.profile.chain_provider_protocol_unsupported": "此 Provider 节点协议不支持独立串联",
   "backend.profile.chain_provider_node_unavailable": "已保存的 Provider 节点在当前来源中不可用",
   "backend.profile.chain_provider_policy_incompatible": "Provider 单节点串联不能与整个订阅串联策略并用；请先清除现有串联",
-  "backend.proxy.provider_chain_refresh_failed": "Provider 已更新，但所选串联节点刷新失败；mihomo 保留了上次可用节点，请检查 mihomo 日志"
+  "backend.proxy.provider_chain_refresh_failed": "Provider 已更新，但所选串联节点刷新失败；mihomo 保留了上次可用节点，请检查 mihomo 日志",
+  "backend.profile.chain_missing_outbound_reference": "{arg0} 引用的出站不存在：{arg1}",
+  "backend.profile.chain_missing_provider_reference": "{arg0} 引用的代理提供者不存在：{arg1}"
 }

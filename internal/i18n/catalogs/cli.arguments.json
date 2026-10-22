@@ -2506,5 +2506,8 @@
     "name": "string",
     "rule": "string",
     "target": "string"
+  },
+  "cli.error.subscription_apply.configuration_failed": {
+    "arg0": "string"
   }
 }

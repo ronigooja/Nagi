@@ -863,5 +863,13 @@
   "backend.profile.chain_provider_protocol_unsupported": {},
   "backend.profile.chain_provider_node_unavailable": {},
   "backend.profile.chain_provider_policy_incompatible": {},
-  "backend.proxy.provider_chain_refresh_failed": {}
+  "backend.proxy.provider_chain_refresh_failed": {},
+  "backend.profile.chain_missing_outbound_reference": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "backend.profile.chain_missing_provider_reference": {
+    "arg0": "string",
+    "arg1": "string"
+  }
 }

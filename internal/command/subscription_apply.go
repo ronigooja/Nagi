@@ -137,7 +137,7 @@ func validateRuleTargets(dir, profileName string, candidate []byte) error {
 	profiles := profile.NewStore(dir, nil, nil)
 	effective, err := profiles.EffectiveSubscriptionSource(profileName, candidate)
 	if err != nil {
-		return messageError("cli.error.subscription_apply.w_effective_profile_unavailable_v", "%w: effective profile unavailable: %v", errRuleConflict, err)
+		return messageError("cli.error.subscription_apply.configuration_failed", "apply subscription failed: %w", err)
 	}
 	var doc map[string]any
 	if err := yaml.Unmarshal(effective, &doc); err != nil || doc == nil {

@@ -303,6 +303,14 @@
     "backend.profile.chain_local_override_must_be_a_yaml_mapping": {},
     "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": {},
     "backend.profile.chain_managed_chain_node_not_found": {},
+    "backend.profile.chain_missing_outbound_reference": {
+      "arg0": "string",
+      "arg1": "string"
+    },
+    "backend.profile.chain_missing_provider_reference": {
+      "arg0": "string",
+      "arg1": "string"
+    },
     "backend.profile.chain_node_belongs_to_a_subscription_chain_clear_the_subscription_chain_first": {},
     "backend.profile.chain_policy_owns_edge": {},
     "backend.profile.chain_profile_must_be_a_yaml_mapping": {},
@@ -2365,6 +2373,9 @@
       "hint": "string",
       "path": "string",
       "syntax": "string"
+    },
+    "cli.error.subscription_apply.configuration_failed": {
+      "arg0": "string"
     },
     "cli.error.subscription_apply.effective_profile_is_invalid": {},
     "cli.error.subscription_apply.effective_profile_is_invalid.usage": {

@@ -236,10 +236,10 @@ func chainGraph(cfg map[string]any) (map[chainVertex][]chainVertex, error) {
 		if provider {
 			kind = "provider"
 			if _, ok := providers[to]; !ok {
-				return i18n.Errorf("backend.profile.chain_proxy_group_references_a_missing_provider", "proxy group references a missing provider")
+				return i18n.Errorf("backend.profile.chain_missing_provider_reference", "%q references missing provider: %q", i18n.SafeDiagnostic(from.Name), i18n.SafeDiagnostic(to))
 			}
 		} else if !names[to] {
-			return i18n.Errorf("backend.profile.chain_proxy_dependency_references_a_missing_node_or_group", "proxy dependency references a missing node or group")
+			return i18n.Errorf("backend.profile.chain_missing_outbound_reference", "%q references missing outbound: %q", i18n.SafeDiagnostic(from.Name), i18n.SafeDiagnostic(to))
 		}
 		graph[from] = append(graph[from], chainVertex{kind, to})
 		return nil

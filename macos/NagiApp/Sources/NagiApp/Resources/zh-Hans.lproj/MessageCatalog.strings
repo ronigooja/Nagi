@@ -119,6 +119,8 @@
 "backend.profile.chain_local_override_must_be_a_yaml_mapping" = "本地覆盖配置必须为 YAML 映射";
 "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes" = "本地新增代理必须包含具名且兼容的节点";
 "backend.profile.chain_managed_chain_node_not_found" = "未找到托管的链式代理节点";
+"backend.profile.chain_missing_outbound_reference" = "%1$@ 引用的出站不存在：%2$@";
+"backend.profile.chain_missing_provider_reference" = "%1$@ 引用的代理提供者不存在：%2$@";
 "backend.profile.chain_node_belongs_to_a_subscription_chain_clear_the_subscription_chain_first" = "节点属于订阅链式代理；请先清除订阅链式代理";
 "backend.profile.chain_policy_owns_edge" = "订阅策略拥有已修改的依赖；请先清除订阅链式代理";
 "backend.profile.chain_profile_must_be_a_yaml_mapping" = "配置方案必须为 YAML 映射";
@@ -964,6 +966,7 @@
 "cli.error.startup_watch.system_proxy_recheck_failed_s_inspect_nagi_startup_check.usage" = "系统代理复查失败：%1$@；运行 `nagi startup check` 检查\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
 "cli.error.subscription_apply.cache_version_changed_during_automatic_apply" = "自动应用期间缓存版本发生变化";
 "cli.error.subscription_apply.cache_version_changed_during_automatic_apply.usage" = "自动应用期间缓存版本发生变化\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
+"cli.error.subscription_apply.configuration_failed" = "应用订阅失败：%1$@";
 "cli.error.subscription_apply.effective_profile_is_invalid" = "有效配置方案无效";
 "cli.error.subscription_apply.effective_profile_is_invalid.usage" = "有效配置方案无效\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
 "cli.error.subscription_apply.enabled_custom_rule_target_is_unavailable_in_the_updated_subscriptio" = "已启用的自定义规则目标在更新后的订阅中不可用；请更新自定义规则";

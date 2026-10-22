@@ -808,5 +808,6 @@
   "cli.stream.traffic.sample": "Upload: {arg0} B/s (total {arg1} B)  Download: {arg2} B/s (total {arg3} B)  Sampled: {arg4}",
   "cli.error.validation.provider_chain_completion": "PROVIDER is only valid after chain-targets provider-node",
   "cli.error.rules.import_validation_rejected": "import {arg0} into profile {arg1} failed: {arg2}; imported rules were not saved; runtime configuration was not changed",
-  "cli.error.rules.import_missing_proxy": "Import {name} failed: rule {rule} references missing outbound: {target}\nRules were not saved; runtime configuration was not changed."
+  "cli.error.rules.import_missing_proxy": "Import {name} failed: rule {rule} references missing outbound: {target}\nRules were not saved; runtime configuration was not changed.",
+  "cli.error.subscription_apply.configuration_failed": "apply subscription failed: {arg0}"
 }
