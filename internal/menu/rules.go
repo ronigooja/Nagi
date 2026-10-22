@@ -38,7 +38,7 @@ func localizedRulesPage(language i18n.Context) *Page {
 				Item{ID: "rules.RulesPage.item6", Label: menuText(language, "menu.rules.rules_page.show_rule_order_and_conflicts", "Show rule order and conflicts"), Args: []string{"rules", "conflicts"}},
 				Item{ID: "rules.RulesPage.item7", Label: menuText(language, "menu.rules.rules_page.show_rule_matched_by_a_connection", "Show rule matched by a connection"), Action: ruleConnection})),
 			localizedsubmenu(language, localizedRuleManagementPage(language)),
-			{ID: "rules.RulesPage.item12", Label: menuText(language, "menu.rules.rules_page.import_rules", "Import rules"), Impact: menuText(language, "menu.rules.rules_page.reads_a_file_or_downloads_a_snapshot_into_the_se", "Reads a file or downloads a snapshot into the selected profile; reloads if running"), Action: ruleImport},
+			{ID: "rules.RulesPage.item12", Label: menuText(language, "menu.rules.rules_page.import_rules", "Import rules"), Action: ruleImport},
 		}}
 		return view, nil
 	}}

@@ -1308,6 +1308,5 @@
   "menu.rules.manage.update": {},
   "menu.rules.manage.updated": {},
   "menu.rules.manage.view": {},
-  "menu.rules.manage.target": {},
-  "menu.rules.manage.reload": {}
+  "menu.rules.manage.target": {}
 }

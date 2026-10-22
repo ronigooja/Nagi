@@ -136,7 +136,7 @@ func TestRuleManagementOffersWholeNamedObjects(t *testing.T) {
 			removes = append(removes, args)
 		}
 	}
-	if !reflect.DeepEqual(removes, [][]string{{"rules", "remove", "bundle"}}) || !strings.Contains(out.String(), "Deletes all rules in this object") {
+	if !reflect.DeepEqual(removes, [][]string{{"rules", "remove", "bundle"}}) || !strings.Contains(out.String(), "All rules:") {
 		t.Fatalf("calls=%v out=%s", runner.calls, out.String())
 	}
 }

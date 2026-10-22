@@ -48,8 +48,8 @@ func ruleEnabled(language i18n.Context, enabled bool) string {
 func localizedRuleManagementPage(language i18n.Context) *Page {
 	return &Page{ID: "rules.manage", Title: menuText(language, "menu.rules.rules_page.manage_rules_and_sets", "Manage Rules and Sets"), Load: func(ctx context.Context, s *Session) (PageView, error) {
 		v := PageView{Empty: menuText(language, "menu.rules.manage.empty", "No custom rules or sets."), Actions: []Item{
-			{ID: "rules.manage.add", Label: menuText(language, "menu.rules.rules_page.add_custom_rule", "Add custom rule"), Impact: menuText(language, "menu.rules.rules_page.saves_to_the_selected_profile_reloads_if_running", "Saves to the selected profile; reloads if running"), Action: ruleAdd},
-			{ID: "rules.manage.import", Label: menuText(language, "menu.rules.rules_page.import_rules", "Import rules"), Impact: menuText(language, "menu.rules.rules_page.reads_a_file_or_downloads_a_snapshot_into_the_se", "Reads a file or downloads a snapshot into the selected profile; reloads if running"), Action: ruleImport},
+			{ID: "rules.manage.add", Label: menuText(language, "menu.rules.rules_page.add_custom_rule", "Add custom rule"), Action: ruleAdd},
+			{ID: "rules.manage.import", Label: menuText(language, "menu.rules.rules_page.import_rules", "Import rules"), Action: ruleImport},
 		}}
 		data, err := fetchManagedRules(ctx, s, "")
 		if err != nil {
@@ -115,9 +115,8 @@ func localizedRuleDetailPage(language i18n.Context, profile, name string) *Page 
 			v.Context += "\n" + menuText(language, "menu.rules.manage.source", "Source: ") + e.Source
 		}
 		v.Actions = append(v.Actions, Item{ID: "rules.detail.view", Label: menuText(language, "menu.rules.manage.view", "View rules"), Next: func() *Page { return localizedRuleContentsPage(language, profile, name) }})
-		impact := menuText(language, "menu.rules.rules_page.saves_to_the_selected_profile_reloads_if_running", "Saves to the selected profile; reloads if running")
 		if e.Kind == "rule" {
-			v.Actions = append(v.Actions, Item{ID: "rules.detail.edit", Label: menuText(language, "menu.rules.manage.edit", "Edit rule"), Impact: impact, Action: func(ctx context.Context, s *Session) error {
+			v.Actions = append(v.Actions, Item{ID: "rules.detail.edit", Label: menuText(language, "menu.rules.manage.edit", "Edit rule"), Action: func(ctx context.Context, s *Session) error {
 				current, err := managedRule(ctx, s, profile, name)
 				if err != nil {
 					return err
@@ -126,7 +125,7 @@ func localizedRuleDetailPage(language i18n.Context, profile, name string) *Page 
 			}})
 		} else {
 			if e.CanUpdate {
-				v.Actions = append(v.Actions, Item{ID: "rules.detail.update", Label: menuText(language, "menu.rules.manage.update", "Update from source"), Impact: impact, Action: func(ctx context.Context, s *Session) error {
+				v.Actions = append(v.Actions, Item{ID: "rules.detail.update", Label: menuText(language, "menu.rules.manage.update", "Update from source"), Action: func(ctx context.Context, s *Session) error {
 					// Use a retained form on failure so retry stays an explicit choice.
 					_, err := s.Form(ctx, nil, nil, func(map[string]string) Result { return runManagedRule(ctx, s, profile, name, "rules", "update", name) })
 					return err
@@ -136,7 +135,7 @@ func localizedRuleDetailPage(language i18n.Context, profile, name string) *Page 
 			if !e.CanUpdate {
 				label = menuText(language, "menu.rules.manage.set_source", "Set update source…")
 			}
-			v.Actions = append(v.Actions, Item{ID: "rules.detail.source", Label: label, Impact: impact, Action: func(ctx context.Context, s *Session) error {
+			v.Actions = append(v.Actions, Item{ID: "rules.detail.source", Label: label, Action: func(ctx context.Context, s *Session) error {
 				_, err := s.Form(ctx, []Field{{Key: "source", Label: menuText(language, "menu.rules.rule_import.local_file_path_or_http_s_url", "Local file path or HTTP(S) URL"), Required: true}}, nil, func(values map[string]string) Result {
 					return runManagedRule(ctx, s, profile, name, "rules", "update", name, values["source"])
 				})
@@ -148,11 +147,11 @@ func localizedRuleDetailPage(language i18n.Context, profile, name string) *Page 
 			verb, label = "disable", menuText(language, "menu.rules.manage.disable", "Disable")
 		}
 		v.Actions = append(v.Actions,
-			Item{ID: "rules.detail.toggle", Label: label, Impact: impact, Action: func(ctx context.Context, s *Session) error {
+			Item{ID: "rules.detail.toggle", Label: label, Action: func(ctx context.Context, s *Session) error {
 				runManagedRule(ctx, s, profile, name, "rules", verb, name)
 				return nil
 			}},
-			Item{ID: "rules.detail.remove", Label: menuText(language, "menu.rules.manage.remove", "Remove"), Impact: menuText(language, "menu.rules.manage.remove_count", "Deletes all rules in this object: ") + strconv.Itoa(count) + menuText(language, "menu.rules.manage.reload", "; reloads if running"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
+			Item{ID: "rules.detail.remove", Label: menuText(language, "menu.rules.manage.remove", "Remove"), Impact: menuText(language, "menu.rules.manage.remove_count", "All rules: ") + strconv.Itoa(count), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
 				result := runManagedRule(ctx, s, profile, name, "rules", "remove", name)
 				return Navigation{Back: result.Code == 0 && result.Error == nil}, nil
 			}},

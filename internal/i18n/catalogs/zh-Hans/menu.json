@@ -1162,7 +1162,7 @@
   "menu.rules.manage.invalid": "规则不可用或所选配置已更改，请返回管理规则与规则集。",
   "menu.rules.manage.missing": "此规则或规则集已不存在，请返回管理规则与规则集。",
   "menu.rules.manage.remove": "删除",
-  "menu.rules.manage.remove_count": "删除此对象中的全部规则，数量：",
+  "menu.rules.manage.remove_count": "全部规则：",
   "menu.rules.manage.saved": "规则已更新。",
   "menu.rules.manage.set": "规则集",
   "menu.rules.manage.set_source": "设置更新来源…",
@@ -1173,6 +1173,5 @@
   "menu.rules.manage.update": "从来源更新",
   "menu.rules.manage.updated": "规则已更新。",
   "menu.rules.manage.view": "查看规则",
-  "menu.rules.manage.target": "目标：",
-  "menu.rules.manage.reload": "；运行中自动重载"
+  "menu.rules.manage.target": "目标："
 }

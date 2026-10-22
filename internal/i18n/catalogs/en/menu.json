@@ -1162,7 +1162,7 @@
   "menu.rules.manage.invalid": "Rules unavailable or selected profile changed. Return to Manage Rules and Sets.",
   "menu.rules.manage.missing": "This rule or set no longer exists. Return to Manage Rules and Sets.",
   "menu.rules.manage.remove": "Remove",
-  "menu.rules.manage.remove_count": "Deletes all rules in this object: ",
+  "menu.rules.manage.remove_count": "All rules: ",
   "menu.rules.manage.saved": "Rule updated.",
   "menu.rules.manage.set": "Set",
   "menu.rules.manage.set_source": "Set update source…",
@@ -1173,6 +1173,5 @@
   "menu.rules.manage.update": "Update from source",
   "menu.rules.manage.updated": "Rules updated.",
   "menu.rules.manage.view": "View rules",
-  "menu.rules.manage.target": "Target: ",
-  "menu.rules.manage.reload": "; reloads if running"
+  "menu.rules.manage.target": "Target: "
 }
