@@ -544,6 +544,7 @@
   "menu.proxy.decode_menu_result.command_exited_with_status_d": {
     "code": "number"
   },
+  "menu.proxy.group.healthcheck": {},
   "menu.proxy.group.automatic": {},
   "menu.proxy.group.fixed": {},
   "menu.proxy.proxy_groups_page.check_logs_in_monitoring_diagnostics_clean_stale": {},

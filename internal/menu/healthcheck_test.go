@@ -78,7 +78,7 @@ func TestMeasurementDetailsShowTimeAndOnlyEndpoint(t *testing.T) {
 }
 
 func TestHealthcheckRetainedFormAndRestorationJourney(t *testing.T) {
-	for _, kind := range []string{"subscription", "provider"} {
+	for _, kind := range []string{"subscription", "provider", "group"} {
 		t.Run(kind, func(t *testing.T) {
 			r := &sequenceRunner{results: map[string][]Result{
 				"proxy healthcheck show " + kind + " Work":    {{Data: map[string]any{"profile": "work", "interval_seconds": 300, "enabled": true, "lazy": true, "source": "profile", "test_url": "https://example.invalid"}}},
@@ -211,10 +211,15 @@ func TestNodeIdentityControlsLatencyAndIndividualTests(t *testing.T) {
 			t.Fatalf("item=%+v want=%s", item, want[i])
 		}
 	}
-	for _, a := range view.Actions {
-		if strings.Contains(a.Label, "Automatic latency") {
-			t.Fatal("group retains interval settings")
-		}
+	action := profileAction(t, view, "Automatic latency checks")
+	if action.Next == nil || hasProxyCall(r.calls, []string{"proxy", "healthcheck", "show", "group", "Group"}) {
+		t.Fatal("group settings should load only on entry")
+	}
+	if _, err := action.Next().Load(context.Background(), s); err != nil {
+		t.Fatal(err)
+	}
+	if !hasProxyCall(r.calls, []string{"proxy", "healthcheck", "show", "group", "Group"}) {
+		t.Fatal("group settings lost source context")
 	}
 	tests, _ := proxyNodesPage("Group", true).Load(context.Background(), s)
 	if len(tests.Items) != 1 || !reflect.DeepEqual(tests.Items[0].Args, []string{"proxy", "test", "group", "Group", "Fast"}) {

@@ -504,6 +504,7 @@
   "menu.provider.provider_list_page.s_s_d_nodes": "{name}（{type}）· {count} 个节点",
   "menu.provider.provider_list_page.updates_the_selected_profile_reloads_running_mih": "更新当前配置；重新加载正在运行的 mihomo",
   "menu.proxy.decode_menu_result.command_exited_with_status_d": "命令退出，状态码 {code}",
+  "menu.proxy.group.healthcheck": "自动延迟检查",
   "menu.proxy.group.automatic": "（自动）",
   "menu.proxy.group.fixed": "（固定：",
   "menu.proxy.proxy_groups_page.check_logs_in_monitoring_diagnostics_clean_stale": "请在“监控与诊断”中查看日志，在“服务 \u003e 启动恢复”中清理残留运行记录，然后通过“服务”启动 mihomo。",

@@ -504,6 +504,7 @@
   "menu.provider.provider_list_page.s_s_d_nodes": "{name} ({type}) · {count} nodes",
   "menu.provider.provider_list_page.updates_the_selected_profile_reloads_running_mih": "Updates the selected profile; reloads running mihomo",
   "menu.proxy.decode_menu_result.command_exited_with_status_d": "command exited with status {code}",
+  "menu.proxy.group.healthcheck": "Automatic latency checks",
   "menu.proxy.group.automatic": " (automatic)",
   "menu.proxy.group.fixed": " (fixed: ",
   "menu.proxy.proxy_groups_page.check_logs_in_monitoring_diagnostics_clean_stale": "Check logs in Monitoring \u0026 Diagnostics, clean stale runtime records in Service \u003e Startup Recovery, then start mihomo through Service.",

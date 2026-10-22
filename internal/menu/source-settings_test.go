@@ -41,7 +41,7 @@ func TestSourceCreationDispatchesScheduleAndOptionalTestURL(t *testing.T) {
 }
 
 func TestTestURLSettingsRetainInputAndResetIndependentlyOfInterval(t *testing.T) {
-	for _, kind := range []string{"subscription", "provider"} {
+	for _, kind := range []string{"subscription", "provider", "group"} {
 		t.Run(kind, func(t *testing.T) {
 			const endpoint = "https://check.example.invalid/ping?token=private"
 			set := "proxy healthcheck url set " + kind + " Work " + endpoint

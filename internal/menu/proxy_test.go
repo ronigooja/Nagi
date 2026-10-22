@@ -92,7 +92,7 @@ func TestProxyPaginationAndBatchSelectSameNames(t *testing.T) {
 		"proxy\x00select\x00Auto\x00Node 11": {Data: map[string]any{"group": "Auto", "node": "Node 11"}},
 	}}
 	var out bytes.Buffer
-	RunPage(context.Background(), NewSession(runner, strings.NewReader("16\n2\n8\n13\n1\n1\n0\n"), &out), proxyGroupPage("Auto"))
+	RunPage(context.Background(), NewSession(runner, strings.NewReader("17\n2\n9\n13\n1\n1\n0\n"), &out), proxyGroupPage("Auto"))
 	count := 0
 	for _, call := range runner.calls {
 		if reflect.DeepEqual(call, []string{"proxy", "select", "Auto", "Node 11"}) {

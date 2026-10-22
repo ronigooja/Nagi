@@ -192,6 +192,9 @@ func localizedproxyNodesPage(language i18n.Context, name string, testOnly bool) 
 				view.Actions = append(view.Actions, Item{ID: "proxy.proxyNodesPage.item6", Label: menuText(language, "menu.proxy.proxy_nodes_page.resume_automatic_selection", "Resume automatic selection"), Impact: menuText(language, "menu.proxy.proxy_nodes_page.clears_this_group_s_fixed_choice_and_saved_selec", "Clears this group's fixed choice and saved selection"), Args: []string{"proxy", "auto", name}})
 			}
 		}
+		if !testOnly {
+			view.Actions = append(view.Actions, Item{ID: "proxy.group.healthcheck", Label: menuText(language, "menu.proxy.group.healthcheck", "Automatic latency checks"), Next: func() *Page { return localizedhealthcheckPage(language, "group", name) }})
+		}
 		if testOnly {
 			view.Context += menuText(language, "menu.proxy.proxy_nodes_page.choose_a_node_to_measure_latency", "\nChoose a node to measure latency.")
 		} else {
