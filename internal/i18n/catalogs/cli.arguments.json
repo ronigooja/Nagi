@@ -2501,5 +2501,10 @@
     "arg0": "string",
     "arg1": "string",
     "arg2": "string"
+  },
+  "cli.error.rules.import_missing_proxy": {
+    "name": "string",
+    "rule": "string",
+    "target": "string"
   }
 }

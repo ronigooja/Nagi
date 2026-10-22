@@ -19,7 +19,7 @@ func TestRuleImportValidationFailureShowsCauseAndState(t *testing.T) {
 		t.Run(strings.Join(invocation, " "), func(t *testing.T) {
 			root := t.TempDir()
 			paths := isolatedTestPaths(t, root)
-			t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[0]\",\"code\":\"invalid_config\",\"message\":\"configuration validation failed\"}]}'\necho 'PRIVATE raw diagnostic' >&2\nexit 1\n"))
+			t.Setenv("NAGI_MIHOMO_BIN", writeFakeMihomo(t, root, "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[0]\",\"code\":\"rule_proxy_not_found\",\"message\":\"outbound does not exist: missing-target\",\"target\":\"missing-target\"}]}'\necho 'PRIVATE raw diagnostic' >&2\nexit 1\n"))
 			file := filepath.Join(root, "rules.yaml")
 			if err := os.WriteFile(file, []byte("rules: [\"IP-CIDR,192.0.2.1/32,missing-target,no-resolve\"]\n"), 0600); err != nil {
 				t.Fatal(err)
@@ -29,7 +29,7 @@ func TestRuleImportValidationFailureShowsCauseAndState(t *testing.T) {
 			if code := Run(args, &out, &errs, "test", "commit"); code != 1 || out.Len() != 0 {
 				t.Fatalf("exit=%d out=%s err=%s", code, out.String(), errs.String())
 			}
-			for _, want := range []string{"Personal", "default", "rules[0]", "invalid_config", "missing-target"} {
+			for _, want := range []string{"Personal", "missing-target"} {
 				if !strings.Contains(errs.String(), want) {
 					t.Errorf("missing %q: %s", want, errs.String())
 				}
@@ -41,12 +41,12 @@ func TestRuleImportValidationFailureShowsCauseAndState(t *testing.T) {
 			}
 			jsonMode := strings.Contains(strings.Join(invocation, " "), "--json")
 			if strings.Contains(strings.Join(invocation, " "), "zh-Hans") && !jsonMode {
-				for _, want := range []string{"不存在的代理目标", "导入规则未保存", "运行配置未变更"} {
+				for _, want := range []string{"第 1 条规则引用的出站不存在", "规则未保存", "运行配置未改变"} {
 					if !strings.Contains(errs.String(), want) {
 						t.Errorf("missing localized %q: %s", want, errs.String())
 					}
 				}
-			} else if !strings.Contains(errs.String(), "imported rules were not saved; runtime configuration was not changed") {
+			} else if !strings.Contains(errs.String(), "runtime configuration was not changed") {
 				t.Errorf("missing failure state: %s", errs.String())
 			}
 			if jsonMode {

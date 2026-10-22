@@ -10,6 +10,7 @@ import (
 
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/engine"
+	"github.com/ronigooja/Nagi/internal/i18n"
 	"github.com/ronigooja/Nagi/internal/profile"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
@@ -180,6 +181,14 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		var rejected *rules.CheckError
 		if args[1] == "import" && validationRejected && errors.As(err, &rejected) && rejected.RollbackErr == nil {
 			err = messageError("cli.error.rules.import_validation_rejected", "import %q into profile %q failed: %w; imported rules were not saved; runtime configuration was not changed", args[2], name, err)
+			var diagnostic *profile.ValidationError
+			if errors.As(err, &diagnostic) && diagnostic.Code == "rule_proxy_not_found" && diagnostic.MissingProxy != "" {
+				if number := rejectedRuleNumber(diagnostic.Path); number != "" {
+					err = i18n.NewMessage("cli.error.rules.import_missing_proxy", map[string]any{
+						"name": i18n.SafeDiagnostic(args[2]), "rule": number, "target": i18n.SafeDiagnostic(diagnostic.MissingProxy),
+					}, err.Error(), err)
+				}
+			}
 		}
 		return nil, fail("rule_error", err)
 	}

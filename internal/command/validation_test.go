@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -99,7 +100,7 @@ func TestProfileValidatorReportsCandidateRuleFailure(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected validation failure")
 			}
-			for _, want := range []string{`profile "work" validation failed at rules[10446] (invalid_config): configuration validation failed`, "mihomo did not provide a specific cause", "rule syntax", "referenced rule providers or sub-rules", "mihomo -t -f FILE -d DIRECTORY"} {
+			for _, want := range []string{`profile "work" validation failed at rules[10446] (invalid_config): configuration validation failed`} {
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("missing %q: %v", want, err)
 				}
@@ -133,31 +134,22 @@ func TestProfileValidatorPreservesSpecificRuleDiagnostic(t *testing.T) {
 	}
 }
 
-func TestMissingRuleProxyEvidence(t *testing.T) {
-	for _, tc := range []struct {
-		name, path, code, message, candidate, want string
-	}{
-		{"missing", "rules[0]", "invalid_config", "configuration validation failed", "rules: [\"IP-CIDR,192.0.2.1/32,missing-target,no-resolve\"]", "missing-target"},
-		{"domain", "rules[1]", "invalid_config", "configuration validation failed", "rules: [\"MATCH,DIRECT\", \"DOMAIN,example.com,Work\"]", "Work"},
-		{"node exists", "rules[0]", "invalid_config", "configuration validation failed", "proxies: [{name: Work}]\nrules: [\"MATCH,Work\"]", ""},
-		{"group exists", "rules[0]", "invalid_config", "configuration validation failed", "proxy-groups: [{name: Work}]\nrules: [\"MATCH,Work\"]", ""},
-		{"builtin", "rules[0]", "invalid_config", "configuration validation failed", "rules: [\"MATCH,PASS-RULE\"]", ""},
-		{"provider unknown", "rules[0]", "invalid_config", "configuration validation failed", "proxy-providers: {remote: {type: http}}\nrules: [\"MATCH,Work\"]", ""},
-		{"inline renaming", "rules[0]", "invalid_config", "configuration validation failed", "proxy-providers: {local: {type: inline, payload: [{name: Work}]}}\nrules: [\"MATCH,Work\"]", ""},
-		{"specific cause", "rules[0]", "geodata_download_failed", "download failed", "rules: [\"MATCH,Work\"]", ""},
-		{"specific message", "rules[0]", "invalid_config", "specific engine reason", "rules: [\"MATCH,Work\"]", ""},
-		{"bad index", "rules[10446]", "invalid_config", "configuration validation failed", "rules: [\"MATCH,Work\"]", ""},
-		{"nested path", "sub-rules[test][0]", "invalid_config", "configuration validation failed", "rules: [\"MATCH,Work\"]", ""},
-		{"complex rule", "rules[0]", "invalid_config", "configuration validation failed", "rules: [\"AND,((DOMAIN,example.com)),Work\"]", ""},
-		{"invalid yaml", "rules[0]", "invalid_config", "configuration validation failed", "rules: [", ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			diagnostic := &profile.ValidationError{Path: tc.path, Code: tc.code, Message: tc.message}
-			annotateMissingRuleProxy([]byte(tc.candidate), diagnostic)
-			if diagnostic.MissingProxy != tc.want || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
-				t.Fatalf("unexpected diagnostic: %+v", diagnostic)
-			}
-		})
+func TestProfileValidatorUsesOnlyNativeMissingProxyEvidence(t *testing.T) {
+	for _, code := range []string{"rule_proxy_not_found", "invalid_config"} {
+		binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\necho '{\"valid\":false,\"errors\":[{\"path\":\"rules[0]\",\"code\":\""+code+"\",\"message\":\"outbound does not exist\",\"target\":\"missing-target\"}]}'\nexit 1\n")
+		store, _ := validationStore(t, binary)
+		err := store.Write(context.Background(), "work", []byte("rules: [\"AND,((DOMAIN,example.com)),missing-target\"]\n"))
+		var diagnostic *profile.ValidationError
+		if !errors.As(err, &diagnostic) {
+			t.Fatal(err)
+		}
+		want := ""
+		if code == "rule_proxy_not_found" {
+			want = "missing-target"
+		}
+		if diagnostic.MissingProxy != want {
+			t.Fatalf("unexpected evidence: %+v", diagnostic)
+		}
 	}
 }
 

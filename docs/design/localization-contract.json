@@ -518,35 +518,11 @@
       "code": "string",
       "detail": "string"
     },
-    "backend.profile.validation.missing_proxy": {
-      "path": "string",
-      "code": "string",
-      "detail": "string",
-      "target": "string"
-    },
     "backend.profile.validation.named": {
       "path": "string",
       "code": "string",
       "detail": "string",
       "profile": "string"
-    },
-    "backend.profile.validation.named.missing_proxy": {
-      "path": "string",
-      "code": "string",
-      "detail": "string",
-      "profile": "string",
-      "target": "string"
-    },
-    "backend.profile.validation.named.rules": {
-      "path": "string",
-      "code": "string",
-      "detail": "string",
-      "profile": "string"
-    },
-    "backend.profile.validation.rules": {
-      "path": "string",
-      "code": "string",
-      "detail": "string"
     },
     "backend.profile.w_use_nagi_profile_use_name_or_nagi_subscription_apply_name_to_repair_the_selection": {
       "arg0": "string"
@@ -2232,6 +2208,11 @@
       "hint": "string",
       "path": "string",
       "syntax": "string"
+    },
+    "cli.error.rules.import_missing_proxy": {
+      "name": "string",
+      "rule": "string",
+      "target": "string"
     },
     "cli.error.rules.import_validation_rejected": {
       "arg0": "string",

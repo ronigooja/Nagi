@@ -133,12 +133,15 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 						Path    string `json:"path"`
 						Code    string `json:"code"`
 						Message string `json:"message"`
+						Target  string `json:"target"`
 					} `json:"errors"`
 				}
 				if json.Unmarshal(out, &result) == nil && len(result.Errors) > 0 {
 					first := result.Errors[0]
 					diagnostic := &profile.ValidationError{Path: first.Path, Code: first.Code, Message: first.Message}
-					annotateMissingRuleProxy(data, diagnostic)
+					if first.Code == "rule_proxy_not_found" {
+						diagnostic.MissingProxy = first.Target
+					}
 					return diagnostic
 				}
 				return messageError("cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_", "profile validation failed; validate a local copy with mihomo -t --check-json -f FILE -d DIRECTORY")

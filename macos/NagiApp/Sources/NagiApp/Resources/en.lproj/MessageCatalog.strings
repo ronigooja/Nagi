@@ -298,11 +298,7 @@
 "backend.profile.unsupported_tailscale_action" = "unsupported Tailscale action";
 "backend.profile.url_must_be_an_absolute_http_s_url_without_userinfo_or_fragment" = "URL must be an absolute HTTP(S) URL without userinfo or fragment";
 "backend.profile.validation" = "profile validation failed at %3$@ (%1$@): %2$@";
-"backend.profile.validation.missing_proxy" = "profile validation failed at %3$@ (%1$@): %2$@; candidate rule references missing proxy target %4$@; use an existing proxy target or add it to the candidate profile, then retry";
 "backend.profile.validation.named" = "profile %4$@ validation failed at %3$@ (%1$@): %2$@";
-"backend.profile.validation.named.missing_proxy" = "profile %4$@ validation failed at %3$@ (%1$@): %2$@; candidate rule references missing proxy target %5$@; use an existing proxy target or add it to the candidate profile, then retry";
-"backend.profile.validation.named.rules" = "profile %4$@ validation failed at %3$@ (%1$@): %2$@; inspect rule syntax, proxy targets, and referenced rule providers or sub-rules in the candidate configuration; validate a local copy with `mihomo -t -f FILE -d DIRECTORY` for detailed diagnostics (may contain private configuration values)";
-"backend.profile.validation.rules" = "profile validation failed at %3$@ (%1$@): %2$@; inspect rule syntax, proxy targets, and referenced rule providers or sub-rules in the candidate configuration; validate a local copy with `mihomo -t -f FILE -d DIRECTORY` for detailed diagnostics (may contain private configuration values)";
 "backend.profile.w_use_nagi_profile_use_name_or_nagi_subscription_apply_name_to_repair_the_selection" = "%1$@; use `nagi profile use NAME` or `nagi subscription apply NAME` to repair the selection";
 "backend.proxy.ambiguous_node_ownership" = "ambiguous node ownership";
 "backend.proxy.cannot_read_proxy_providers_from_mihomo" = "cannot read proxy providers from mihomo";
@@ -926,6 +922,7 @@
 "cli.error.request_rewrite_trust.rewrite_trust_manual_export_the_public_certificate_with_nagi_request.usage" = "rewrite_trust_manual: export the public certificate with `nagi request-rewrite ca export FILE`, then use your distribution or application certificate trust settings; removal must use the same store; run `nagi request-rewrite ca status` afterwards\nUsage: nagi %3$@%1$@\nRun `nagi help %2$@` for details";
 "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list" = "connection %1$@ is no longer active; run `nagi connections list`";
 "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list.usage" = "connection %1$@ is no longer active; run `nagi connections list`\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
+"cli.error.rules.import_missing_proxy" = "Import %1$@ failed: rule %2$@ references missing outbound: %3$@\nRules were not saved; runtime configuration was not changed.";
 "cli.error.rules.import_validation_rejected" = "import %1$@ into profile %2$@ failed: %3$@; imported rules were not saved; runtime configuration was not changed";
 "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or" = "NAME must use 1..128 ASCII letters, digits, _ or -";
 "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.usage" = "NAME must use 1..128 ASCII letters, digits, _ or -\nUsage: nagi %3$@%1$@\nRun `nagi help %2$@` for details";

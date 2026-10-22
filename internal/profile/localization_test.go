@@ -11,7 +11,7 @@ import (
 
 func TestValidationDiagnosticKeepsEnglishAndExternalCause(t *testing.T) {
 	original := &ValidationError{Profile: "work", Path: "rules[2]", Code: "rule_invalid", Message: "configuration validation failed"}
-	expected := "profile \"work\" validation failed at rules[2] (rule_invalid): configuration validation failed; mihomo did not provide a specific cause; inspect rule syntax, proxy targets, and referenced rule providers or sub-rules in the candidate configuration; validate a local copy with `mihomo -t -f FILE -d DIRECTORY` for detailed diagnostics (may contain private configuration values)"
+	expected := "profile \"work\" validation failed at rules[2] (rule_invalid): configuration validation failed"
 	if original.Error() != expected {
 		t.Fatal(original.Error())
 	}
@@ -20,7 +20,7 @@ func TestValidationDiagnosticKeepsEnglishAndExternalCause(t *testing.T) {
 		t.Fatal("typed diagnostic lost original English")
 	}
 	localized := i18n.New(i18n.SimplifiedChinese).Render(message)
-	if !strings.Contains(localized, "验证失败") || !strings.Contains(localized, "configuration validation failed") || !strings.Contains(localized, "检查候选配置") {
+	if !strings.Contains(localized, "验证失败") || !strings.Contains(localized, "configuration validation failed") {
 		t.Fatal(localized)
 	}
 	// External prose cannot change event identity or typed control flow.
@@ -69,8 +69,8 @@ func TestHealthcheckExplanationHasSourceMetadata(t *testing.T) {
 	}
 }
 
-func TestMissingProxyEvidenceIsLocalizedAndRedacted(t *testing.T) {
-	diagnostic := &ValidationError{Profile: "work", Path: "rules[0]", Code: "invalid_config", Message: "configuration validation failed", MissingProxy: "https://private.example/?token=SECRET"}
+func TestValidationDiagnosticRedactsNativeDetails(t *testing.T) {
+	diagnostic := &ValidationError{Profile: "work", Path: "rules[0]", Code: "rule_proxy_not_found", Message: "outbound does not exist: https://private.example/?token=SECRET"}
 	var message *i18n.Message
 	if !errors.As(diagnostic, &message) || !i18n.ValidDescriptor(message.Descriptor()) {
 		t.Fatal("missing valid diagnostic descriptor")
@@ -80,8 +80,5 @@ func TestMissingProxyEvidenceIsLocalizedAndRedacted(t *testing.T) {
 		if strings.Contains(text, "SECRET") || !strings.Contains(text, "[redacted URL]") {
 			t.Fatal(text)
 		}
-	}
-	if strings.Contains(diagnostic.Error(), "SECRET") {
-		t.Fatal(diagnostic.Error())
 	}
 }
