@@ -3,6 +3,7 @@ package menu
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"reflect"
@@ -224,5 +225,50 @@ func TestProxyGroupOrderPositionInvalidInputFeedbackPrecedesRetryPrompt(t *testi
 	}
 	if s.pending != "" {
 		t.Fatalf("stale feedback remained pending: %q", s.pending)
+	}
+}
+
+func TestProxyGroupOrderPositionUsesDisplayedPageNumbers(t *testing.T) {
+	for _, lang := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		for _, tc := range []struct {
+			name    string
+			input   string
+			from    int
+			to      int
+			limit   int
+			invalid bool
+		}{
+			{"first page", "10\n5\n1\n11\n", 9, 0, 10, false},
+			{"second page", "12\n10\n5\n1\n11\n", 19, 10, 10, false},
+			{"last page rejects action number", "12\n12\n6\n3\n7\n1\n7\n", 25, 20, 6, true},
+			{"last page moves down", "12\n12\n1\n5\n6\n7\n", 20, 25, 6, false},
+		} {
+			t.Run(string(lang)+"/"+tc.name, func(t *testing.T) {
+				names := make([]string, 26)
+				for i := range names {
+					names[i] = fmt.Sprintf("G%02d", i+1)
+				}
+				r := groupOrderRunner(names...)
+				var output bytes.Buffer
+				s := NewSessionWithLanguage(r, strings.NewReader(tc.input), &output, i18n.New(lang))
+				if code := RunPage(context.Background(), s, groupOrderPage(s.language)); code != 0 {
+					t.Fatalf("RunPage exit code = %d", code)
+				}
+				want := append([]string(nil), names...)
+				moveGroupOrder(want, tc.from, tc.to)
+				args := append([]string{"proxy", "group", "order"}, want...)
+				if countMenuCall(r.calls, args) != 1 || len(r.calls) != 3 {
+					t.Fatalf("expected one save with page-relative position: %v", r.calls)
+				}
+				prompt := fmt.Sprintf("%s (1-%d)", groupText(s.language, "target_position", "Target position"), tc.limit)
+				count := 1
+				if tc.invalid {
+					count = 2
+				}
+				if strings.Count(output.String(), prompt) != count {
+					t.Fatalf("expected %d prompts with page range %q: %s", count, prompt, output.String())
+				}
+			})
+		}
 	}
 }

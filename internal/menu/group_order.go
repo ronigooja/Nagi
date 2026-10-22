@@ -56,17 +56,19 @@ func groupOrderPage(l i18n.Context) *Page {
 						view.Actions = append(view.Actions, Item{ID: "group.order.down", Label: groupText(l, "down", "Move down"), Navigate: move(index + 1)}, Item{ID: "group.order.bottom", Label: groupText(l, "bottom", "Move to bottom"), Navigate: move(len(names) - 1)})
 					}
 					view.Actions = append(view.Actions, Item{ID: "group.order.position", Label: groupText(l, "position", "Move to position"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
+						start := index / pageSize * pageSize
+						count := min(pageSize, len(names)-start)
 						for {
-							value, err := s.Prompt(fmt.Sprintf("%s (1-%d)", groupText(l, "target_position", "Target position"), len(names)))
+							value, err := s.Prompt(fmt.Sprintf("%s (1-%d)", groupText(l, "target_position", "Target position"), count))
 							if err != nil {
 								return Navigation{}, err
 							}
 							target, parseErr := strconv.Atoi(value)
-							if parseErr != nil || target < 1 || target > len(names) || strconv.Itoa(target) != value {
+							if parseErr != nil || target < 1 || target > count || strconv.Itoa(target) != value {
 								s.writeFeedback(feedbackWarning, groupText(l, "invalid_position", "Enter a whole number within the displayed range."))
 								continue
 							}
-							moveGroupOrder(names, index, target-1)
+							moveGroupOrder(names, index, start+target-1)
 							return Navigation{Back: true}, nil
 						}
 					}})
