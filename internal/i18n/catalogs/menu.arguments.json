@@ -1309,6 +1309,8 @@
   "menu.rules.manage.view": {},
   "menu.rules.manage.target": {},
   "menu.group.select_node": {},
+  "menu.group.detail_type": {},
+  "menu.group.current_selection": {},
   "menu.group.create": {},
   "menu.group.done": {},
   "menu.group.draft": {},

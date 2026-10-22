@@ -54,7 +54,22 @@ func groupConfigPage(l i18n.Context, name string) *Page {
 			return PageView{}, err
 		}
 		g := data.Group
-		v := PageView{Context: g.Type + "\n" + groupText(l, "nodes", "Nodes and groups") + ": " + strings.Join(g.Proxies, ", ") + "\n" + groupText(l, "providers", "Providers") + ": " + strings.Join(g.Use, ", "), Actions: []Item{{ID: "group.select_node", Label: groupText(l, "select_node", "Select node"), Next: func() *Page { return localizedproxyGroupPage(l, name) }}}}
+		var live menuProxyGroup
+		current := menuState(l, "unknown")
+		if err := localizeddecodeMenuResult(l, s.Fetch(ctx, "proxy", "show", name), &live); err != nil {
+			current += " — " + err.Error()
+		} else if live.Now == "" {
+			current = menuState(l, "none")
+		} else {
+			current = live.Now
+			if live.SelectedStatus == "removed" || live.SelectedStatus == "unavailable" {
+				current += " (" + menuState(l, live.SelectedStatus) + ")"
+			}
+		}
+		v := PageView{
+			Context: "\n" + groupText(l, "detail_type", "Type: ") + g.Type + "\n" + groupText(l, "current_selection", "Current selection: ") + current + "\n",
+			Actions: []Item{{ID: "group.select_node", Label: groupText(l, "select_node", "Select node or group"), Next: func() *Page { return localizedproxyGroupPage(l, name) }}},
+		}
 		switch g.Type {
 		case "select", "url-test", "fallback", "load-balance":
 			v.Actions = append(v.Actions, Item{ID: "group.edit", Label: groupText(l, "edit", "Edit proxy group"), Next: func() *Page { return groupDraftPage(l, name) }})

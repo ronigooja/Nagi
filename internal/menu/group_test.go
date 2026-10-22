@@ -165,3 +165,73 @@ func TestGeneratedGlobalKeepsLiveDetails(t *testing.T) {
 		t.Fatal(a)
 	}
 }
+
+func TestProxyGroupDetailCurrentSelectionAndRecovery(t *testing.T) {
+	for _, tc := range []struct {
+		language    i18n.Language
+		typeLine    string
+		current     string
+		selectLabel string
+	}{
+		{i18n.English, "Type: select", "Current selection: ", "Select node or group"},
+		{i18n.SimplifiedChinese, "类型：select", "当前选择：", "选择节点或代理组"},
+	} {
+		t.Run(string(tc.language), func(t *testing.T) {
+			const name = "Default Group"
+			const liveKey = "proxy\x00show\x00" + name
+			r := &featureRunner{results: map[string]Result{
+				"proxy\x00group\x00show\x00" + name: {Data: map[string]any{"group_config": menuGroupConfig{
+					Name: name, Type: "select", Proxies: []string{"First Member", "Second Member"}, Use: []string{"Remote Feed"},
+				}}},
+				liveKey: {Data: menuProxyGroup{Now: "Automatic Group", SelectedStatus: "available"}},
+			}}
+			var out bytes.Buffer
+			s := NewSessionWithLanguage(r, strings.NewReader(""), &out, i18n.New(tc.language))
+			page := groupConfigPage(s.language, name)
+			view := loadChainPage(t, page, s)
+			s.render(page, view, 0, 2)
+			if !strings.Contains(out.String(), tc.typeLine) || !strings.Contains(out.String(), tc.current+"Automatic Group") {
+				t.Fatal(out.String())
+			}
+			for _, unwanted := range []string{"First Member", "Second Member", "Remote Feed", "Providers", "节点提供商", "Nodes and groups", "节点和代理组"} {
+				if strings.Contains(out.String(), unwanted) {
+					t.Fatalf("detail includes %q: %s", unwanted, out.String())
+				}
+			}
+			if len(view.Actions) != 4 || view.Actions[0].Label != tc.selectLabel || view.Actions[3].ID != "group.remove" {
+				t.Fatal(view.Actions)
+			}
+			// Returning from selection rereads the live value without changing configuration.
+			r.results[liveKey] = Result{Data: menuProxyGroup{Now: "Second Member", SelectedStatus: "available"}}
+			view = loadChainPage(t, page, s)
+			if !strings.Contains(view.Context, tc.current+"Second Member") || strings.Contains(view.Context, "Automatic Group") {
+				t.Fatal(view.Context)
+			}
+			// An unavailable runtime must not retain the previous choice or block editing.
+			r.results[liveKey] = Result{Code: 1, Error: &CLIError{Message: "engine stopped"}}
+			view = loadChainPage(t, page, s)
+			if !strings.Contains(view.Context, tc.current+menuState(s.language, "unknown")) || !strings.Contains(view.Context, "engine stopped") || strings.Contains(view.Context, "Second Member") {
+				t.Fatal(view.Context)
+			}
+			if groupAction(t, view, "group.edit").Next == nil || groupAction(t, view, "group.select_node").Next == nil {
+				t.Fatal("runtime failure hid actions")
+			}
+			for _, state := range []menuProxyGroup{{}, {Now: "Second Member", SelectedStatus: "removed"}, {Now: "Second Member", SelectedStatus: "unavailable"}} {
+				r.results[liveKey] = Result{Data: state}
+				view = loadChainPage(t, page, s)
+				want := menuState(s.language, "none")
+				if state.Now != "" {
+					want = state.Now + " (" + menuState(s.language, state.SelectedStatus) + ")"
+				}
+				if !strings.Contains(view.Context, tc.current+want) || strings.Contains(view.Context, "engine stopped") {
+					t.Fatal(view.Context)
+				}
+			}
+			for _, call := range r.calls {
+				if !reflect.DeepEqual(call, []string{"proxy", "group", "show", name}) && !reflect.DeepEqual(call, []string{"proxy", "show", name}) {
+					t.Fatalf("summary dispatched unexpected command: %v", call)
+				}
+			}
+		})
+	}
+}
