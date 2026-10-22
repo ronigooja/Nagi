@@ -1,8 +1,10 @@
 package menu
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -106,6 +108,18 @@ func TestProxyGroupOrderCancellationPaginationAndLocalization(t *testing.T) {
 			if lang == i18n.SimplifiedChinese && groupAction(t, v, "group.order.save").Label != "保存显示顺序" {
 				t.Fatal(v.Actions)
 			}
+			for _, item := range v.Items {
+				if item.Name == "G01" {
+					detail := loadChainPage(t, item.Next(), s)
+					want := "移动到指定位置"
+					if lang == i18n.English {
+						want = "Move to position"
+					}
+					if got := groupAction(t, detail, "group.order.position").Label; got != want {
+						t.Fatalf("position label = %q, want %q", got, want)
+					}
+				}
+			}
 			// EOF exits the unsaved draft, including after numeric pagination.
 			session := NewSessionWithLanguage(r, strings.NewReader("12\n"), io.Discard, i18n.New(lang))
 			RunPage(context.Background(), session, groupOrderPage(s.language))
@@ -115,5 +129,100 @@ func TestProxyGroupOrderCancellationPaginationAndLocalization(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestProxyGroupOrderMoveToPositionValidatesAndKeepsDraftOnly(t *testing.T) {
+	ctx := context.Background()
+	r := groupOrderRunner("A", "B", "C", "D")
+	// A malformed value and an out-of-range position are rejected before 2 is accepted.
+	s := NewSession(r, strings.NewReader("2.5\n5\n2\n"), io.Discard)
+	page := groupOrderPage(s.language)
+	v := loadChainPage(t, page, s)
+	var selected Item
+	for _, item := range v.Items {
+		if item.Name == "D" {
+			selected = item
+		}
+	}
+	if selected.Next == nil {
+		t.Fatal("missing group detail page")
+	}
+	detail := loadChainPage(t, selected.Next(), s)
+	position := groupAction(t, detail, "group.order.position")
+	nav, err := position.Navigate(ctx, s)
+	if err != nil || !nav.Back {
+		t.Fatalf("%v %v", nav, err)
+	}
+	v = loadChainPage(t, page, s)
+	if want := []string{"A", "D", "B", "C"}; !reflect.DeepEqual(visibleOrder(v), want) {
+		t.Fatalf("position draft = %v, want %v", visibleOrder(v), want)
+	}
+	args := []string{"proxy", "group", "order", "A", "D", "B", "C"}
+	r.results[strings.Join(args, "\x00")] = Result{Code: 1, Error: &CLIError{Message: "save failed"}}
+	nav, err = groupAction(t, v, "group.order.save").Navigate(ctx, s)
+	if err != nil || nav.Back {
+		t.Fatalf("failed save: %v %v", nav, err)
+	}
+	v = loadChainPage(t, page, s)
+	if !reflect.DeepEqual(visibleOrder(v), []string{"A", "D", "B", "C"}) || countMenuCall(r.calls, args) != 1 {
+		t.Fatalf("failed save lost target-position draft: %v", r.calls)
+	}
+	if len(r.calls) != 3 {
+		t.Fatalf("unexpected calls while moving position: %v", r.calls)
+	}
+}
+
+func TestProxyGroupOrderMoveToPositionCancellationLeavesDraftUnchanged(t *testing.T) {
+	ctx := context.Background()
+	r := groupOrderRunner("A", "B", "C")
+	s := NewSession(r, strings.NewReader(""), io.Discard)
+	s.interrupts = make(chan os.Signal, 1)
+	s.interrupts <- os.Interrupt
+	page := groupOrderPage(s.language)
+	v := loadChainPage(t, page, s)
+	var selected Item
+	for _, item := range v.Items {
+		if item.Name == "B" {
+			selected = item
+		}
+	}
+	detail := loadChainPage(t, selected.Next(), s)
+	_, err := groupAction(t, detail, "group.order.position").Navigate(ctx, s)
+	if err != ErrBack {
+		t.Fatalf("cancel error = %v, want ErrBack", err)
+	}
+	v = loadChainPage(t, page, s)
+	if want := []string{"A", "B", "C"}; !reflect.DeepEqual(visibleOrder(v), want) {
+		t.Fatalf("canceled position changed draft: %v", visibleOrder(v))
+	}
+	for _, call := range r.calls {
+		if len(call) > 2 && call[2] == "order" {
+			t.Fatalf("canceled position persisted: %v", r.calls)
+		}
+	}
+}
+
+func TestProxyGroupOrderPositionInvalidInputFeedbackPrecedesRetryPrompt(t *testing.T) {
+	r := groupOrderRunner("A", "B", "C", "D")
+	var output bytes.Buffer
+	s := NewSession(r, strings.NewReader("4\n3\n5\n2\nq\n"), &output)
+	if code := RunPage(context.Background(), s, groupOrderPage(s.language)); code != 0 {
+		t.Fatalf("RunPage exit code = %d", code)
+	}
+	text := output.String()
+	firstPrompt := strings.Index(text, "Target position (1-4) (Ctrl-C cancels): ")
+	secondPrompt := strings.Index(text[firstPrompt+1:], "Target position (1-4) (Ctrl-C cancels): ")
+	if firstPrompt < 0 || secondPrompt < 0 {
+		t.Fatalf("position retry prompts missing: %q", text)
+	}
+	secondPrompt += firstPrompt + 1
+	warning := "Enter a whole number within the displayed range."
+	warningAt := strings.Index(text, warning)
+	if warningAt <= firstPrompt || warningAt >= secondPrompt || strings.Count(text, warning) != 1 {
+		t.Fatalf("warning was not shown once between the invalid and retried prompts: %q", text)
+	}
+	if s.pending != "" {
+		t.Fatalf("stale feedback remained pending: %q", s.pending)
 	}
 }

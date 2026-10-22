@@ -1342,5 +1342,8 @@
   "menu.group.save_order": {},
   "menu.group.ordered": {},
   "menu.group.profile_changed": {},
-  "menu.group.order_hint": {}
+  "menu.group.order_hint": {},
+  "menu.group.position": {},
+  "menu.group.target_position": {},
+  "menu.group.invalid_position": {}
 }

@@ -3,6 +3,7 @@ package menu
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/ronigooja/Nagi/internal/i18n"
 )
@@ -44,12 +45,7 @@ func groupOrderPage(l i18n.Context) *Page {
 					}
 					move := func(target int) func(context.Context, *Session) (Navigation, error) {
 						return func(context.Context, *Session) (Navigation, error) {
-							if target < index {
-								copy(names[target+1:index+1], names[target:index])
-							} else {
-								copy(names[index:target], names[index+1:target+1])
-							}
-							names[target] = name
+							moveGroupOrder(names, index, target)
 							return Navigation{Back: true}, nil
 						}
 					}
@@ -59,6 +55,21 @@ func groupOrderPage(l i18n.Context) *Page {
 					if index < len(names)-1 {
 						view.Actions = append(view.Actions, Item{ID: "group.order.down", Label: groupText(l, "down", "Move down"), Navigate: move(index + 1)}, Item{ID: "group.order.bottom", Label: groupText(l, "bottom", "Move to bottom"), Navigate: move(len(names) - 1)})
 					}
+					view.Actions = append(view.Actions, Item{ID: "group.order.position", Label: groupText(l, "position", "Move to position"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
+						for {
+							value, err := s.Prompt(fmt.Sprintf("%s (1-%d)", groupText(l, "target_position", "Target position"), len(names)))
+							if err != nil {
+								return Navigation{}, err
+							}
+							target, parseErr := strconv.Atoi(value)
+							if parseErr != nil || target < 1 || target > len(names) || strconv.Itoa(target) != value {
+								s.writeFeedback(feedbackWarning, groupText(l, "invalid_position", "Enter a whole number within the displayed range."))
+								continue
+							}
+							moveGroupOrder(names, index, target-1)
+							return Navigation{Back: true}, nil
+						}
+					}})
 					return view, nil
 				}}
 			}})
@@ -83,4 +94,17 @@ func groupOrderPage(l i18n.Context) *Page {
 		// Names stay in the draft's order; pagination never changes the list.
 		return v, nil
 	}}
+}
+
+func moveGroupOrder(names []string, from, to int) {
+	if from == to {
+		return
+	}
+	name := names[from]
+	if to < from {
+		copy(names[to+1:from+1], names[to:from])
+	} else {
+		copy(names[from:to], names[from+1:to+1])
+	}
+	names[to] = name
 }

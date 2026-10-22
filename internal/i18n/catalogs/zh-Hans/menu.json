@@ -1207,5 +1207,8 @@
   "menu.group.save_order": "保存显示顺序",
   "menu.group.ordered": "代理组显示顺序已保存。",
   "menu.group.profile_changed": "当前配置已切换，请重新打开排序后重试。",
-  "menu.group.order_hint": "选择代理组以调整位置，点击“保存显示顺序”后生效。"
+  "menu.group.order_hint": "选择代理组以调整位置，点击“保存显示顺序”后生效。",
+  "menu.group.position": "移动到指定位置",
+  "menu.group.target_position": "目标位置",
+  "menu.group.invalid_position": "请输入显示范围内的整数。"
 }

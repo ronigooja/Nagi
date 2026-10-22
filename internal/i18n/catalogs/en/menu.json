@@ -1207,5 +1207,8 @@
   "menu.group.save_order": "Save display order",
   "menu.group.ordered": "Proxy group display order saved.",
   "menu.group.profile_changed": "The selected profile changed. Reopen display ordering and try again.",
-  "menu.group.order_hint": "Select a group to move it. Changes take effect after Save display order."
+  "menu.group.order_hint": "Select a group to move it. Changes take effect after Save display order.",
+  "menu.group.position": "Move to position",
+  "menu.group.target_position": "Target position",
+  "menu.group.invalid_position": "Enter a whole number within the displayed range."
 }
