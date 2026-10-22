@@ -1,21 +1,31 @@
 package menu
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/sys/unix"
 )
 
-func TestPromptUTF8ErasureAndTerminalRestore(t *testing.T) {
+func TestPromptGraphemeErasureAndTerminalRestore(t *testing.T) {
 	for _, tc := range []struct {
 		name, input, want string
 		interrupt         bool
 		wantErr           error
 	}{
+		{name: "flag and Chinese", input: "🇨🇳国\x7f\x7fX\n", want: "X"},
+		{name: "Chinese after flag", input: "🇨🇳国\x7f\n", want: "🇨🇳"},
+		{name: "flag erased", input: "🇨🇳\x7f\n", want: ""},
+		{name: "family emoji", input: "A👨‍👩‍👧‍👦\x7f\n", want: "A"},
+		{name: "skin tone", input: "👍🏽\x08\n", want: ""},
+		{name: "combining accent", input: "Aé\x7f\n", want: "A"},
+		{name: "clear line", input: "🇨🇳国\x15X\n", want: "X"},
+		{name: "erase word", input: "A 🇨🇳国\x17X\n", want: "A X"},
+		{name: "escape sequence", input: "A\x1b[D国\x7f\n", want: "A"},
 		{name: "Chinese", input: "中 得\x7f\n", want: "中"},
 		{name: "mixed", input: "A中B得\x7f\x7f\x7f文\n", want: "A文"},
 		{name: "erase all", input: "中文\x7f\x7f\x7fX\n", want: "X"},
@@ -49,7 +59,8 @@ func TestPromptUTF8ErasureAndTerminalRestore(t *testing.T) {
 			if err := unix.IoctlSetTermios(int(slave.Fd()), unix.TCSETS, before); err != nil {
 				t.Fatal(err)
 			}
-			s := NewSession(&fakeRunner{}, slave, io.Discard)
+			var output bytes.Buffer
+			s := NewSession(&fakeRunner{}, slave, &output)
 			s.interrupts = make(chan os.Signal, 1)
 			done := make(chan struct{})
 			var value string
@@ -64,13 +75,13 @@ func TestPromptUTF8ErasureAndTerminalRestore(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if state.Iflag&unix.IUTF8 != 0 {
+				if state.Lflag&(unix.ICANON|unix.ECHO) == 0 {
 					break
 				}
 				if time.Now().After(deadline) {
 					s.interrupts <- os.Interrupt
 					<-done
-					t.Fatal("prompt did not enable UTF-8 erasure")
+					t.Fatal("prompt did not enable character input")
 				}
 				time.Sleep(time.Millisecond)
 			}
@@ -88,6 +99,19 @@ func TestPromptUTF8ErasureAndTerminalRestore(t *testing.T) {
 			}
 			if value != tc.want || readErr != tc.wantErr {
 				t.Fatalf("Prompt = (%q, %v), want (%q, %v)", value, readErr, tc.want, tc.wantErr)
+			}
+			if tc.wantErr == nil {
+				screen := output.String()
+				at := strings.LastIndex(screen, "\r\x1b[2K")
+				if at < 0 {
+					t.Fatalf("no screen redraw: %q", screen)
+				}
+				visible := strings.TrimSuffix(screen[at+5:], "\n")
+				expected := "Group name (Ctrl-C cancels): " + tc.want
+				// readLine trims trailing spaces, while the editor displays them.
+				if strings.TrimRight(visible, " ") != strings.TrimRight(expected, " ") {
+					t.Fatalf("visible prompt = %q, want %q", visible, expected)
+				}
 			}
 			after, err := unix.IoctlGetTermios(int(slave.Fd()), unix.TCGETS)
 			if err != nil {

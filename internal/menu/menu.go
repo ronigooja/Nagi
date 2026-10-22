@@ -6,13 +6,11 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/signal"
 	"runtime"
 	"strconv"
-	"syscall"
 
 	"github.com/ronigooja/Nagi/internal/terminal"
 )
@@ -280,55 +278,6 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 		}
 	}
 	return 0
-}
-
-// The terminal is canonical: readiness means a complete line is available.
-// Polling in the same goroutine avoids abandoned readers after cancellation.
-func (s *Session) interruptibleRead() (string, error) {
-	if s.file != nil && IsTerminal(s.file) {
-		restore, err := terminal.UTF8(s.file)
-		if err != nil {
-			return "", err
-		}
-		defer restore()
-	}
-	select {
-	case <-s.interrupts:
-		fmt.Fprintln(s.out)
-		return "", ErrBack
-	default:
-	}
-	if s.in.Buffered() > 0 || s.file == nil || !IsTerminal(s.file) {
-		return s.in.ReadString('\n')
-	}
-	temporary := false
-	if s.interrupts == nil {
-		s.interrupts = make(chan os.Signal, 8)
-		signal.Notify(s.interrupts, os.Interrupt)
-		temporary = true
-	}
-	if temporary {
-		defer func() { signal.Stop(s.interrupts); s.interrupts = nil }()
-	}
-	for {
-		select {
-		case <-s.interrupts:
-			fmt.Fprintln(s.out)
-			return "", ErrBack
-		default:
-		}
-		fd := s.file.Fd()
-		n, errno := terminalReady(fd)
-		if errno == syscall.EINTR {
-			continue
-		}
-		if errno != 0 {
-			return "", errno
-		}
-		if n > 0 {
-			return s.in.ReadString('\n')
-		}
-	}
 }
 
 func (s *Session) discardInterrupts() {

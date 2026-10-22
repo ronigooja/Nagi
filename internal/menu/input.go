@@ -15,10 +15,10 @@ var ErrQuit = errors.New("quit menu")
 var ErrBack = errors.New("back")
 
 func (s *Session) readLine(label string) (string, error) {
-	if label != "" {
+	if label != "" && (s.file == nil || !IsTerminal(s.file)) {
 		fmt.Fprint(s.out, s.styled(stylePrompt, output.RedactError(label)))
 	}
-	line, err := s.interruptibleRead()
+	line, err := s.interruptibleRead(output.RedactError(label))
 	if err != nil && err != io.EOF {
 		return "", err
 	}
