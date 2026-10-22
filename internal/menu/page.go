@@ -27,6 +27,7 @@ type Navigation struct {
 	ReturnTo string // Return to an existing ancestor page after a completed flow.
 	Next     *Page
 	Back     bool
+	BackPage *int // Parent's pagination index after Back; nil preserves its current page.
 }
 
 // Item opens a page, dispatches a command, or performs a custom flow.

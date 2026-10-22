@@ -48,14 +48,15 @@ func groupOrderPage(l i18n.Context) *Page {
 					move := func(target int) func(context.Context, *Session) (Navigation, error) {
 						return func(context.Context, *Session) (Navigation, error) {
 							moveGroupOrder(names, index, target)
-							return Navigation{Back: true}, nil
+							page := target / pageSize
+							return Navigation{Back: true, BackPage: &page}, nil
 						}
 					}
-					if index > start {
-						view.Actions = append(view.Actions, Item{ID: "group.order.up", Label: groupText(l, "up", "Move up"), Navigate: move(index - 1)}, Item{ID: "group.order.top", Label: groupText(l, "top", "Move to top"), Navigate: move(start)})
+					if start > 0 {
+						view.Actions = append(view.Actions, Item{ID: "group.order.previous_page", Label: groupText(l, "previous_page", "Move to previous page"), Navigate: move(index - pageSize)})
 					}
-					if index < end-1 {
-						view.Actions = append(view.Actions, Item{ID: "group.order.down", Label: groupText(l, "down", "Move down"), Navigate: move(index + 1)}, Item{ID: "group.order.bottom", Label: groupText(l, "bottom", "Move to bottom"), Navigate: move(end - 1)})
+					if end < len(names) {
+						view.Actions = append(view.Actions, Item{ID: "group.order.next_page", Label: groupText(l, "next_page", "Move to next page"), Navigate: move(min(index+pageSize, len(names)-1))})
 					}
 					view.Actions = append(view.Actions, Item{ID: "group.order.position", Label: groupText(l, "position", "Move to position"), Navigate: func(ctx context.Context, s *Session) (Navigation, error) {
 						count := end - start
@@ -69,8 +70,7 @@ func groupOrderPage(l i18n.Context) *Page {
 								s.writeFeedback(feedbackWarning, groupText(l, "invalid_position", "Enter a whole number within the displayed range."))
 								continue
 							}
-							moveGroupOrder(names, index, start+target-1)
-							return Navigation{Back: true}, nil
+							return move(start+target-1)(ctx, s)
 						}
 					}})
 					return view, nil

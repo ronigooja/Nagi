@@ -32,15 +32,15 @@ func TestProxyGroupOrderingDraftMovesRetriesAndSavesOnlyOnce(t *testing.T) {
 	r := groupOrderRunner("A Group", "B Group", "C Group", "D Group")
 	args := []string{"proxy", "group", "order", "D Group", "B Group", "A Group", "C Group"}
 	r.results[strings.Join(args, "\x00")] = Result{Code: 1, Error: &CLIError{Message: "save failed"}}
-	s := NewSession(r, strings.NewReader(""), io.Discard)
+	s := NewSession(r, strings.NewReader("2\n1\n4\n2\n"), io.Discard)
 	page := groupOrderPage(s.language)
-	move := func(name, id string) {
+	move := func(name string) {
 		t.Helper()
 		v := loadChainPage(t, page, s)
 		for _, item := range v.Items {
 			if item.Name == name {
 				detail := loadChainPage(t, item.Next(), s)
-				nav, err := groupAction(t, detail, id).Navigate(ctx, s)
+				nav, err := groupAction(t, detail, "group.order.position").Navigate(ctx, s)
 				if err != nil || !nav.Back {
 					t.Fatalf("%v %v", nav, err)
 				}
@@ -49,11 +49,10 @@ func TestProxyGroupOrderingDraftMovesRetriesAndSavesOnlyOnce(t *testing.T) {
 		}
 		t.Fatal("missing group", name)
 	}
-	move("A Group", "group.order.down")   // B A C D
-	move("D Group", "group.order.top")    // D B A C
-	move("B Group", "group.order.bottom") // D A C B
-	move("B Group", "group.order.up")     // D A B C
-	move("B Group", "group.order.up")     // D B A C
+	move("A Group") // B A C D
+	move("D Group") // D B A C
+	move("B Group") // D A C B
+	move("B Group") // D B A C
 	if len(r.calls) != 1 {
 		t.Fatal("movement persisted configuration", r.calls)
 	}
@@ -207,7 +206,7 @@ func TestProxyGroupOrderMoveToPositionCancellationLeavesDraftUnchanged(t *testin
 func TestProxyGroupOrderPositionInvalidInputFeedbackPrecedesRetryPrompt(t *testing.T) {
 	r := groupOrderRunner("A", "B", "C", "D")
 	var output bytes.Buffer
-	s := NewSession(r, strings.NewReader("4\n3\n5\n2\nq\n"), &output)
+	s := NewSession(r, strings.NewReader("4\n1\n5\n2\nq\n"), &output)
 	if code := RunPage(context.Background(), s, groupOrderPage(s.language)); code != 0 {
 		t.Fatalf("RunPage exit code = %d", code)
 	}
@@ -238,15 +237,15 @@ func TestProxyGroupOrderMovesUseDisplayedPage(t *testing.T) {
 			limit   int
 			invalid bool
 		}{
-			{"first page", "10\n3\n1\n11\n", 9, 0, 10, false},
+			{"first page", "10\n2\n1\n11\n", 9, 0, 10, false},
 			{"second page", "12\n10\n3\n1\n11\n", 19, 10, 10, false},
-			{"last page rejects action number", "12\n12\n6\n3\n7\n1\n7\n", 25, 20, 6, true},
-			{"last page moves down", "12\n12\n1\n3\n6\n7\n", 20, 25, 6, false},
-			{"first page bottom", "5\n4\n11\n", 4, 9, 0, false},
-			{"second page top", "12\n5\n2\n11\n", 14, 10, 0, false},
-			{"second page bottom", "12\n5\n4\n11\n", 14, 19, 0, false},
-			{"last page top", "12\n12\n4\n2\n7\n", 23, 20, 0, false},
-			{"last page bottom", "12\n12\n3\n4\n7\n", 22, 25, 0, false},
+			{"last page rejects action number", "12\n12\n6\n2\n7\n1\n7\n", 25, 20, 6, true},
+			{"last page position", "12\n12\n1\n2\n6\n7\n", 20, 25, 6, false},
+			{"first to second page", "5\n1\n11\n", 4, 14, 0, false},
+			{"second to first page", "12\n5\n1\n11\n", 14, 4, 0, false},
+			{"second to last page", "12\n5\n2\n7\n", 14, 24, 0, false},
+			{"short last page clamps position", "12\n10\n2\n7\n", 19, 25, 0, false},
+			{"last to second page", "12\n12\n6\n1\n11\n", 25, 15, 0, false},
 		} {
 			t.Run(string(lang)+"/"+tc.name, func(t *testing.T) {
 				names := make([]string, 26)
@@ -265,6 +264,15 @@ func TestProxyGroupOrderMovesUseDisplayedPage(t *testing.T) {
 				if countMenuCall(r.calls, args) != 1 || len(r.calls) != 3 {
 					t.Fatalf("expected one save with page-relative position: %v", r.calls)
 				}
+				if tc.from/pageSize != tc.to/pageSize {
+					pageMarker := fmt.Sprintf("Page %d/3", tc.to/pageSize+1)
+					if lang == i18n.SimplifiedChinese {
+						pageMarker = fmt.Sprintf("第 %d/3 页", tc.to/pageSize+1)
+					}
+					if !strings.Contains(output.String(), pageMarker) {
+						t.Fatalf("did not display destination page %q: %s", pageMarker, output.String())
+					}
+				}
 				prompt := fmt.Sprintf("%s (1-%d)", groupText(s.language, "target_position", "Target position"), tc.limit)
 				count := 1
 				if tc.limit == 0 {
@@ -281,9 +289,9 @@ func TestProxyGroupOrderMovesUseDisplayedPage(t *testing.T) {
 	}
 }
 
-func TestProxyGroupOrderMovementPageBoundaries(t *testing.T) {
+func TestProxyGroupOrderPageMoveAvailabilityAndDraftOnly(t *testing.T) {
 	ctx := context.Background()
-	for _, total := range []int{21, 26} {
+	for _, total := range []int{1, 10, 21, 26} {
 		names := make([]string, total)
 		for i := range names {
 			names[i] = fmt.Sprintf("G%02d", i+1)
@@ -296,10 +304,8 @@ func TestProxyGroupOrderMovementPageBoundaries(t *testing.T) {
 				target  int
 				visible bool
 			}{
-				{"up", index - 1, index > start},
-				{"top", start, index > start},
-				{"down", index + 1, index < end-1},
-				{"bottom", end - 1, index < end-1},
+				{"previous_page", index - pageSize, start > 0},
+				{"next_page", min(index+pageSize, total-1), end < total},
 			} {
 				t.Run(fmt.Sprintf("%d/%d/%s", total, index+1, action.id), func(t *testing.T) {
 					r := groupOrderRunner(names...)
@@ -307,6 +313,12 @@ func TestProxyGroupOrderMovementPageBoundaries(t *testing.T) {
 					page := groupOrderPage(s.language)
 					v := loadChainPage(t, page, s)
 					detail := loadChainPage(t, v.Items[index].Next(), s)
+					for _, item := range detail.Actions {
+						switch item.ID {
+						case "group.order.up", "group.order.down", "group.order.top", "group.order.bottom":
+							t.Fatalf("removed movement still offered: %s", item.ID)
+						}
+					}
 					var selected *Item
 					for i := range detail.Actions {
 						if detail.Actions[i].ID == "group.order."+action.id {
@@ -324,8 +336,8 @@ func TestProxyGroupOrderMovementPageBoundaries(t *testing.T) {
 						t.Fatalf("navigation: %v, %v", nav, err)
 					}
 					got := visibleOrder(loadChainPage(t, page, s))
-					if got[action.target] != names[index] || !reflect.DeepEqual(got[:start], names[:start]) || !reflect.DeepEqual(got[end:], names[end:]) {
-						t.Fatalf("move escaped selected page or missed target %d: %v", action.target+1, got)
+					if got[action.target] != names[index] || nav.BackPage == nil || *nav.BackPage != action.target/pageSize {
+						t.Fatalf("missed target %d or destination page: %v, %v", action.target+1, got, nav)
 					}
 					if len(r.calls) != 1 {
 						t.Fatalf("movement persisted before Save: %v", r.calls)

@@ -273,6 +273,9 @@ func RunPage(ctx context.Context, s *Session, root *Page) int {
 		} else if err == nil && nav.Back && len(stack) > 1 {
 			stack = stack[:len(stack)-1]
 			stack[len(stack)-1].loaded = false
+			if nav.BackPage != nil {
+				stack[len(stack)-1].index = *nav.BackPage
+			}
 		} else if err == nil && nav.Next != nil {
 			stack = append(stack, frame{page: nav.Next, render: true})
 		}

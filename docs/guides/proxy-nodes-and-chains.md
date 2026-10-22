@@ -20,7 +20,7 @@ Creating a group makes it available for selection but leaves routing rules uncha
 
 ## Change proxy group display order
 
-Open **Proxies → Proxy Groups → Manage proxy groups → Adjust display order**. Select a group, move it up/down or to the top/bottom, or use **Move to position** with a group number from the page where you selected it, then choose **Save display order**. All moves stay within the current page: top/bottom means the page’s first/last group, and up/down stops at its boundaries. Back before saving discards the draft. This changes the group display order immediately without reloading mihomo or switching nodes; node order inside each group stays the same. The sorting action is available when at least two configured groups exist, including while stopped.
+Open **Proxies → Proxy Groups → Manage proxy groups → Adjust display order**. Select a group and choose **Move to previous page**, **Move to next page**, or **Move to position**, then choose **Save display order**. Cross-page movement keeps the same page-relative position, or uses the destination page’s last position if it has fewer groups; the list then shows that page. Previous/next movement is offered only when that adjacent page exists. **Move to position** uses a group number from the current page. Back before saving discards the draft. This changes the group display order immediately without reloading mihomo or switching nodes; node order inside each group stays the same. The sorting action is available when at least two configured groups exist, including while stopped.
 
 For a profile containing exactly `Work`, `Automatic`, and `Media`, the equivalent CLI operation is:
 
