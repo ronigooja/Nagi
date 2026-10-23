@@ -86,6 +86,7 @@ func localizednodeDetailPage(l i18n.Context, name string) *Page {
 			}
 			v.Context += "\n" + nodeText(l, "exit", "Exit node: ") + t.ExitNode + "\n" + nodeText(l, "hostname", "Hostname: ") + t.Hostname + "\n" + nodeText(l, "control", "Control URL: ") + t.ControlURL + "\n" + nodeText(l, "key", "Auth key: ") + key
 			v.Actions = append(v.Actions, Item{ID: "node.edit", Label: nodeText(l, "edit", "Edit Tailscale node"), Action: func(ctx context.Context, s *Session) error { return editTailscale(ctx, s, t) }})
+			v.Actions = append(v.Actions, Item{ID: "node.tailscalePath", Label: nodeText(l, "path_status", "Tailscale path status"), Next: func() *Page { return localizedtailscalePathPage(l, name) }})
 		}
 		v.Actions = append(v.Actions, Item{ID: "node.groups", Label: nodeText(l, "groups", "Set group membership"), Action: func(ctx context.Context, s *Session) error {
 			groups, err := selectNodeGroups(ctx, s, n.Groups.Explicit, nodeText(l, "save", "Save changes"))

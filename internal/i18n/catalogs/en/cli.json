@@ -858,5 +858,8 @@
   "backend.profile.group.order_duplicate.usage": "duplicate group in display order: {arg0}\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "backend.profile.group.order_list.usage": "group display order must be a list of names\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "backend.profile.group.order_complete.usage": "provide every configured group exactly once; run nagi proxy group list and retry\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
-  "backend.profile.group.order_unknown.usage": "group is not in the current configuration: {arg0}; run nagi proxy group list and retry\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details"
+  "backend.profile.group.order_unknown.usage": "group is not in the current configuration: {arg0}; run nagi proxy group list and retry\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
+  "cli.error.validation.invalid_proxy_node_name": "invalid proxy node name",
+  "cli.error.validation.tailscale_peer_ip_must_be_a_literal_ip_address": "PEER_IP must be a literal IP address",
+  "cli.error.validation.tailscale_probe_timeout_must_be_between_1000_and_15000": "TIMEOUT_MS must be an integer from 1000 to 15000"
 }

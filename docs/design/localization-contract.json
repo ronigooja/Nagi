@@ -1181,6 +1181,8 @@
     "cli.display.bind": {},
     "cli.display.block": {},
     "cli.display.blocked": {},
+    "cli.display.derp": {},
+    "cli.display.direct": {},
     "cli.display.expired": {},
     "cli.display.forward_original": {},
     "cli.display.fragment": {},
@@ -1188,15 +1190,19 @@
     "cli.display.generated": {},
     "cli.display.group": {},
     "cli.display.idle": {},
+    "cli.display.idle_path": {},
     "cli.display.invalid": {},
     "cli.display.missing": {},
     "cli.display.node": {},
     "cli.display.not_after": {},
     "cli.display.not_before": {},
+    "cli.display.not_running": {},
     "cli.display.override": {},
+    "cli.display.peer_relay": {},
     "cli.display.prepared": {},
     "cli.display.profile": {},
     "cli.display.provider": {},
+    "cli.display.ready": {},
     "cli.display.request": {},
     "cli.display.response": {},
     "cli.display.starting": {},
@@ -1204,6 +1210,7 @@
     "cli.display.trusted": {},
     "cli.display.unbind": {},
     "cli.display.uncertain": {},
+    "cli.display.unknown": {},
     "cli.display.untrusted": {},
     "cli.display.websocket_client": {},
     "cli.display.websocket_server": {},
@@ -3077,6 +3084,7 @@
       "path": "string",
       "syntax": "string"
     },
+    "cli.error.validation.invalid_proxy_node_name": {},
     "cli.error.validation.kind_must_be_group_provider_or_subscription": {},
     "cli.error.validation.kind_must_be_group_provider_or_subscription.usage": {
       "hint": "string",
@@ -3186,6 +3194,8 @@
       "path": "string",
       "syntax": "string"
     },
+    "cli.error.validation.tailscale_peer_ip_must_be_a_literal_ip_address": {},
+    "cli.error.validation.tailscale_probe_timeout_must_be_between_1000_and_15000": {},
     "cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds": {},
     "cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds.usage": {
       "hint": "string",
@@ -3282,6 +3292,7 @@
       "hostname": "string"
     },
     "cli.output.write.automatic_selection_resumed_saved_choice_removed": {},
+    "cli.output.write.backend_state": {},
     "cli.output.write.conflict_rule_d_shadows_rule_d_s": {
       "earlier": "number",
       "later": "number",
@@ -3290,6 +3301,7 @@
     "cli.output.write.could_not_restore.message": {
       "selection": "string"
     },
+    "cli.output.write.derp_region": {},
     "cli.output.write.diagnostics": {},
     "cli.output.write.diagnostics_needs.message": {
       "state": "string"
@@ -3298,6 +3310,10 @@
       "bytes": "number",
       "name": "string"
     },
+    "cli.output.write.endpoint": {},
+    "cli.output.write.exit": {},
+    "cli.output.write.ip_unknown": {},
+    "cli.output.write.latency": {},
     "cli.output.write.latency_unavailable": {},
     "cli.output.write.nagi_doctor": {},
     "cli.output.write.nagi_doctor_needs.message": {
@@ -3312,6 +3328,11 @@
       "selection": "string",
       "unavailable": "string"
     },
+    "cli.output.write.path": {},
+    "cli.output.write.peer": {},
+    "cli.output.write.peer_relay": {},
+    "cli.output.write.peers": {},
+    "cli.output.write.probe": {},
     "cli.output.write.provider_s_download_interval_d_seconds_s_enabled_t": {
       "enabled": "string",
       "interval": "number",
@@ -3327,6 +3348,7 @@
       "timeout": "number",
       "url": "string"
     },
+    "cli.output.write.relay": {},
     "cli.output.write.restored.message": {
       "selection": "string"
     },
@@ -3341,6 +3363,7 @@
       "name": "string",
       "source": "string"
     },
+    "cli.output.write.status": {},
     "cli.output.write.subscription_s_follows_subscription_configuration_and_mihomo_def": {
       "name": "string"
     },
@@ -3348,6 +3371,7 @@
       "backend": "string",
       "state": "string"
     },
+    "cli.output.write.tailscale_instance": {},
     "cli.output.write.test_url.message": {
       "source": "string",
       "url": "string"
@@ -4080,6 +4104,15 @@
     "help.command.proxy.show.hint": {},
     "help.command.proxy.show.summary": {},
     "help.command.proxy.summary": {},
+    "help.command.proxy.tailscale.detail": {},
+    "help.command.proxy.tailscale.hint": {},
+    "help.command.proxy.tailscale.probe.detail": {},
+    "help.command.proxy.tailscale.probe.hint": {},
+    "help.command.proxy.tailscale.probe.summary": {},
+    "help.command.proxy.tailscale.status.detail": {},
+    "help.command.proxy.tailscale.status.hint": {},
+    "help.command.proxy.tailscale.status.summary": {},
+    "help.command.proxy.tailscale.summary": {},
     "help.command.proxy.test.detail": {},
     "help.command.proxy.test.group.detail": {},
     "help.command.proxy.test.group.hint": {},

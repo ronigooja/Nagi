@@ -141,6 +141,10 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return writeConnection(w, v)
 	case proxy.DelayResult:
 		return line(w, renderText(w, "cli.output.write.proxy_s_delay_s_url_s_timeout_d_ms", map[string]any{"proxy": fmt.Sprint(v.Proxy), "latency": fmt.Sprint(latencyText(v.DelayMS)), "url": fmt.Sprint(v.URL), "timeout": v.TimeoutMS}, fmt.Sprintf("Proxy %s delay: %s (URL: %s, timeout: %d ms)", v.Proxy, latencyText(v.DelayMS), v.URL, v.TimeoutMS)))
+	case proxy.TailscalePathStatus:
+		return writeTailscalePathStatus(w, v)
+	case proxy.TailscalePathProbe:
+		return writeTailscalePathProbe(w, v)
 	case proxy.BatchDelayResult:
 		if err := line(w, renderText(w, "cli.output.write.proxy_group.message", map[string]any{"group": fmt.Sprint(v.Group)}, "Proxy group "+fmt.Sprint(v.Group)+" latency:")); err != nil {
 			return err
@@ -996,6 +1000,116 @@ func WriteError(w io.Writer, jsonMode bool, code, message string) {
 	if code == "usage" {
 		_, _ = io.WriteString(w, text(w, "cli.output.writeerror.run_nagi_help_for_usage", "Run `nagi --help` for usage.\n"))
 	}
+}
+
+func pathLabel(w io.Writer, path string) string {
+	switch path {
+	case "direct":
+		return text(w, "cli.display.direct", "DIRECT")
+	case "derp":
+		return text(w, "cli.display.derp", "DERP")
+	case "peer_relay":
+		return text(w, "cli.display.peer_relay", "PEER RELAY")
+	case "idle":
+		return text(w, "cli.display.idle_path", "IDLE")
+	default:
+		return text(w, "cli.display.unknown", "UNKNOWN")
+	}
+}
+
+func writeTailscalePathStatus(w io.Writer, v proxy.TailscalePathStatus) error {
+	state := v.State
+	switch {
+	case v.State == "ok" && v.Available:
+		state = "READY"
+	case v.State == "ok" && !v.Available:
+		state = "NOT RUNNING"
+	}
+	if err := stateLine(w, text(w, "cli.output.write.tailscale_instance", "Tailscale instance"), state); err != nil {
+		return err
+	}
+	if v.BackendState != "" {
+		if err := line(w, text(w, "cli.output.write.backend_state", "Backend")+": "+v.BackendState); err != nil {
+			return err
+		}
+	}
+	if v.ErrorCode != "" {
+		if err := line(w, text(w, "cli.output.write.status", "Status")+": "+v.ErrorCode); err != nil {
+			return err
+		}
+	}
+	if v.SelectedExitNode != nil {
+		n := v.SelectedExitNode
+		if err := line(w, fmt.Sprintf("%s: %s · %s", text(w, "cli.output.write.exit", "Exit"), firstText(n.Hostname, n.DNSName), first(n.TailscaleIPs, "IP unknown"))); err != nil {
+			return err
+		}
+		if err := line(w, text(w, "cli.output.write.path", "Path")+": "+pathLabel(w, n.Path)); err != nil {
+			return err
+		}
+		if n.Path == "direct" && n.Endpoint != "" {
+			if err := line(w, text(w, "cli.output.write.endpoint", "Endpoint")+": "+n.Endpoint); err != nil {
+				return err
+			}
+		}
+		if n.Path == "derp" && n.DERPRegion != "" {
+			if err := line(w, text(w, "cli.output.write.relay", "Relay")+": "+n.DERPRegion); err != nil {
+				return err
+			}
+		}
+		if n.Path == "peer_relay" && n.PeerRelay != "" {
+			if err := line(w, text(w, "cli.output.write.peer_relay", "Peer relay")+": "+n.PeerRelay); err != nil {
+				return err
+			}
+		}
+	}
+	if err := line(w, fmt.Sprintf("%s: %d", text(w, "cli.output.write.peers", "Peers"), len(v.Peers))); err != nil {
+		return err
+	}
+	for _, peer := range v.Peers {
+		if err := line(w, fmt.Sprintf("  %s  %s · %s", pathLabel(w, peer.Path), firstText(peer.Hostname, peer.DNSName), first(peer.TailscaleIPs, text(w, "cli.output.write.ip_unknown", "IP unknown")))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeTailscalePathProbe(w io.Writer, v proxy.TailscalePathProbe) error {
+	if err := stateLine(w, text(w, "cli.output.write.probe", "Probe"), pathLabel(w, v.Transport)); err != nil {
+		return err
+	}
+	if err := line(w, fmt.Sprintf("%s: %s · %s", text(w, "cli.output.write.peer", "Peer"), v.NodeName, v.PeerIP)); err != nil {
+		return err
+	}
+	if v.Transport == "direct" && v.Endpoint != "" {
+		if err := line(w, text(w, "cli.output.write.endpoint", "Endpoint")+": "+v.Endpoint); err != nil {
+			return err
+		}
+	}
+	if v.Transport == "derp" && v.DERPRegionCode != "" {
+		if err := line(w, fmt.Sprintf("%s: %s (%d)", text(w, "cli.output.write.derp_region", "DERP region"), v.DERPRegionCode, v.DERPRegionID)); err != nil {
+			return err
+		}
+	}
+	if v.Transport == "peer_relay" && v.PeerRelay != "" {
+		if err := line(w, text(w, "cli.output.write.peer_relay", "Peer relay")+": "+v.PeerRelay); err != nil {
+			return err
+		}
+	}
+	return line(w, fmt.Sprintf("%s: %d ms", text(w, "cli.output.write.latency", "Latency"), v.LatencyMS))
+}
+
+func first(values []string, fallback string) string {
+	if len(values) != 0 {
+		return values[0]
+	}
+	return fallback
+}
+
+func firstText(value, fallback string) string {
+	if value != "" {
+		return value
+	}
+	return fallback
 }
 
 func printSystemDNS(w io.Writer, data map[string]any) error {

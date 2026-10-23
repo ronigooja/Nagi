@@ -10,7 +10,7 @@ import (
 	"github.com/ronigooja/Nagi/internal/terminal"
 )
 
-var stateWords = regexp.MustCompile(`(?i)\b(unexpected exit|running|stopped|unknown|unavailable|available|removed|enabled|disabled|active|inactive|automatic|fixed|paused|managed|unmanaged|unsupported|attention|partial|warning|failed|failure|error|conflict|healthy|unhealthy|ok|none|yes|no|true|false|rule|rules|global|direct|proxy|mixed|user|system|privileged|doh|stale)\b`)
+var stateWords = regexp.MustCompile(`(?i)\b(unexpected exit|not running|running|stopped|unknown|unavailable|available|removed|enabled|disabled|active|inactive|automatic|fixed|paused|managed|unmanaged|unsupported|attention|partial|warning|failed|failure|error|conflict|healthy|unhealthy|ready|idle|derp|ok|none|yes|no|true|false|rule|rules|global|direct|proxy|mixed|user|system|privileged|doh|stale)\b`)
 var profileField = regexp.MustCompile(`(?i)(?:selected\s+)?profile\s*:\s*([^|\n,.(;]+)`)
 
 func StylesEnabled(w io.Writer) bool {
@@ -122,9 +122,9 @@ func overlapsProfile(profiles [][]int, start, end int) bool {
 
 func stateColor(word string) string {
 	switch strings.ToLower(word) {
-	case "running", "enabled", "active", "available", "automatic", "managed", "healthy", "ok", "yes", "true":
+	case "running", "enabled", "active", "available", "automatic", "managed", "healthy", "ok", "ready", "yes", "true":
 		return "32"
-	case "stopped", "unexpected exit", "unknown", "unavailable", "removed", "disabled", "inactive", "paused", "unmanaged", "unsupported", "attention", "partial", "warning", "stale", "no", "false":
+	case "stopped", "not running", "unexpected exit", "unknown", "unavailable", "removed", "disabled", "inactive", "paused", "unmanaged", "unsupported", "attention", "partial", "warning", "stale", "no", "false":
 		return "33"
 	case "failed", "failure", "error", "conflict", "unhealthy":
 		return "31"

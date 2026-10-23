@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -693,6 +694,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	controlTimeout := 10 * time.Second
 	if len(args) >= 2 && command == "proxy" && (args[1] == "delay" || args[1] == "delays" || args[1] == "test") {
 		controlTimeout = 31 * time.Second
+	}
+	if len(args) >= 3 && command == "proxy" && args[1] == "tailscale" && args[2] == "probe" {
+		controlTimeout = 20 * time.Second
 	}
 	client := control.NewWithTimeout(paths.SocketPath, controlTimeout)
 	trafficManager := traffic.New(paths.StateDir)
@@ -2028,7 +2032,7 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 
 func proxyCommand(ctx context.Context, args []string, service *proxy.Service, selections proxy.SelectionStore, configDir string) (any, error) {
 	if len(args) < 2 {
-		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider show|update|healthcheck NAME|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
+		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider show|healthcheck NAME|node SUBCOMMAND|tailscale SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
 	}
 	switch args[1] {
 	case "groups":
@@ -2117,6 +2121,47 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 			return nil, fail("proxy_selection_error", err)
 		}
 		return result, nil
+	case "tailscale":
+		if len(args) < 4 {
+			return nil, usage("proxy tailscale status NODE|probe NODE PEER_IP [TIMEOUT_MS]")
+		}
+		switch args[2] {
+		case "status":
+			if err := arity(args, 4); err != nil {
+				return nil, err
+			}
+			result, err := service.TailscalePathStatus(ctx, args[3])
+			if err != nil {
+				return nil, fail("proxy_tailscale_error", err)
+			}
+			return result, nil
+		case "probe":
+			if len(args) < 5 || len(args) > 6 {
+				return nil, usage("proxy tailscale probe NODE PEER_IP [TIMEOUT_MS]")
+			}
+			timeout := 5000
+			if len(args) == 6 {
+				var err error
+				timeout, err = proxy.ParseTailscalePathTimeout(args[5])
+				if err != nil {
+					return nil, usage("proxy tailscale probe NODE PEER_IP [TIMEOUT_MS]")
+				}
+			}
+			addr, parseErr := netip.ParseAddr(args[4])
+			if parseErr != nil || addr.Zone() != "" {
+				return nil, usage("proxy tailscale probe NODE PEER_IP [TIMEOUT_MS]")
+			}
+			if timeout < 1000 || timeout > 15000 {
+				return nil, usage("proxy tailscale probe NODE PEER_IP [TIMEOUT_MS]")
+			}
+			result, err := service.TailscalePathProbe(ctx, args[3], addr.String(), timeout)
+			if err != nil {
+				return nil, fail("proxy_tailscale_error", err)
+			}
+			return result, nil
+		default:
+			return nil, usage("proxy tailscale status NODE|probe NODE PEER_IP [TIMEOUT_MS]")
+		}
 	case "search":
 		if err := arity(args, 3); err != nil {
 			return nil, err
@@ -2184,7 +2229,7 @@ func proxyCommand(ctx context.Context, args []string, service *proxy.Service, se
 		}
 		return service.Delay(ctx, args[2], target, timeoutMS)
 	default:
-		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider show|update|healthcheck NAME|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
+		return nil, usage("proxy groups|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider show|healthcheck NAME|node SUBCOMMAND|tailscale SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore")
 	}
 }
 

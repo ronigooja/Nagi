@@ -28311,5 +28311,14 @@
   "help.command.proxy.group.show.summary": {},
   "help.command.proxy.group.summary": {},
   "help.command.proxy.group.order.summary": {},
-  "help.command.proxy.group.order.detail": {}
+  "help.command.proxy.group.order.detail": {},
+  "help.command.proxy.tailscale.status.summary": {},
+  "help.command.proxy.tailscale.status.detail": {},
+  "help.command.proxy.tailscale.status.hint": {},
+  "help.command.proxy.tailscale.probe.summary": {},
+  "help.command.proxy.tailscale.probe.detail": {},
+  "help.command.proxy.tailscale.probe.hint": {},
+  "help.command.proxy.tailscale.summary": {},
+  "help.command.proxy.tailscale.detail": {},
+  "help.command.proxy.tailscale.hint": {}
 }

@@ -4,16 +4,185 @@ import "github.com/ronigooja/Nagi/internal/i18n"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/ronigooja/Nagi/internal/profile"
+	"github.com/ronigooja/Nagi/internal/proxy"
 )
 
 const tailscaleControlURL = "https://controlplane.tailscale.com"
+
+func localizedtailscalePathPage(l i18n.Context, name string) *Page {
+	return &Page{ID: "node.tailscalePath", Title: nodeText(l, "path_status", "Tailscale path status"), Load: func(ctx context.Context, s *Session) (PageView, error) {
+		v := PageView{}
+		var status proxy.TailscalePathStatus
+		if err := localizeddecodeMenuResult(l, s.Fetch(ctx, "proxy", "tailscale", "status", name), &status); err != nil {
+			return v, err
+		}
+		label := func(path string) string { return tailscalePathLabel(l, path) }
+		switch status.State {
+		case "not_started":
+			v.Context = nodeText(l, "instance_not_started", "Instance · NOT STARTED")
+		case "closed":
+			v.Context = nodeText(l, "instance_closed", "Instance · CLOSED")
+		case "error":
+			v.Context = nodeText(l, "instance_unavailable", "Instance · STATUS UNAVAILABLE")
+		case "ok":
+			if status.Available {
+				v.Context = nodeText(l, "instance_ready", "Instance · READY")
+			} else {
+				v.Context = nodeText(l, "instance_not_running", "Instance · NOT RUNNING")
+			}
+		default:
+			v.Context = nodeText(l, "instance_unknown", "Instance · UNKNOWN")
+		}
+		if status.BackendState != "" {
+			v.Context += "\n" + nodeText(l, "backend_state", "Backend") + ": " + tailscaleBackendLabel(l, status.BackendState)
+		}
+		if status.ErrorCode != "" {
+			v.Context += "\n" + nodeText(l, "status_error", "Status") + ": " + status.ErrorCode
+		}
+		if status.SelectedExitNode != nil {
+			p := status.SelectedExitNode
+			v.Context += "\n\n" + nodeText(l, "selected_exit", "Selected exit") + "\n  " + firstPathText(p.Hostname, p.DNSName) + " · " + firstPathTextSlice(p.TailscaleIPs, nodeText(l, "ip_unknown", "IP unknown")) + "\n  " + label(p.Path)
+			if p.Path == "direct" && p.Endpoint != "" {
+				v.Context += " · " + nodeText(l, "endpoint", "Endpoint") + " " + p.Endpoint
+			}
+			if p.Path == "derp" && p.DERPRegion != "" {
+				v.Context += " · " + nodeText(l, "relay", "Relay") + " " + p.DERPRegion
+			}
+			if p.Path == "peer_relay" && p.PeerRelay != "" {
+				v.Context += " · " + p.PeerRelay
+			}
+		} else if status.State == "ok" {
+			v.Context += "\n\n" + nodeText(l, "selected_exit_unknown", "Selected exit · UNKNOWN")
+		}
+		v.Empty = nodeText(l, "no_peers", "No peer status available.")
+		for _, peer := range status.Peers {
+			peer := peer
+			display := label(peer.Path) + " · " + firstPathText(peer.Hostname, peer.DNSName) + " · " + firstPathTextSlice(peer.TailscaleIPs, nodeText(l, "ip_unknown", "IP unknown"))
+			v.Items = append(v.Items, Item{ID: "node.tailscalePeer", Name: firstPathText(peer.Hostname, peer.DNSName), Label: display, Next: func() *Page { return localizedtailscalePeerPage(l, name, peer) }})
+		}
+		return v, nil
+	}}
+}
+
+func firstPathText(value, fallback string) string {
+	if value != "" {
+		return value
+	}
+	return fallback
+}
+func firstPathTextSlice(values []string, fallback string) string {
+	if len(values) > 0 {
+		return values[0]
+	}
+	return fallback
+}
+
+func tailscalePathLabel(l i18n.Context, path string) string {
+	switch path {
+	case "direct":
+		return nodeText(l, "path_direct", "DIRECT")
+	case "derp":
+		return "DERP"
+	case "peer_relay":
+		return nodeText(l, "path_peer_relay", "PEER RELAY")
+	case "idle":
+		return nodeText(l, "path_idle", "IDLE")
+	default:
+		return nodeText(l, "path_unknown", "UNKNOWN")
+	}
+}
+
+func tailscaleBackendLabel(l i18n.Context, state string) string {
+	switch strings.ToLower(state) {
+	case "running":
+		return nodeText(l, "backend_running", "Running")
+	case "needslogin":
+		return nodeText(l, "backend_needs_login", "Needs login")
+	case "needs machine auth":
+		return nodeText(l, "backend_needs_machine_auth", "Needs machine authorization")
+	case "starting":
+		return nodeText(l, "backend_starting", "Starting")
+	case "stopped":
+		return nodeText(l, "backend_stopped", "Stopped")
+	default:
+		return state
+	}
+}
+
+func localizedtailscalePeerPage(l i18n.Context, name string, peer proxy.TailscalePathPeer) *Page {
+	var lastProbe *proxy.TailscalePathProbe
+	var probedAt string
+	return &Page{ID: "node.tailscalePeer", Title: firstPathText(peer.Hostname, peer.DNSName), Load: func(ctx context.Context, s *Session) (PageView, error) {
+		var latest proxy.TailscalePathStatus
+		if err := localizeddecodeMenuResult(l, s.Fetch(ctx, "proxy", "tailscale", "status", name), &latest); err != nil {
+			return PageView{}, err
+		}
+		currentPeer, found := peer, false
+		for _, candidate := range latest.Peers {
+			for _, ip := range candidate.TailscaleIPs {
+				for _, peerIP := range peer.TailscaleIPs {
+					if ip == peerIP {
+						currentPeer, found = candidate, true
+					}
+				}
+			}
+		}
+		contextText := nodeText(l, "peer", "Peer") + " · " + tailscalePathLabel(l, currentPeer.Path) + "\n" + nodeText(l, "address", "Address") + " · " + firstPathTextSlice(currentPeer.TailscaleIPs, nodeText(l, "ip_unknown", "IP unknown"))
+		if !found {
+			contextText = nodeText(l, "peer_unavailable", "Peer unavailable in the latest status snapshot.")
+		}
+		if found && currentPeer.Path == "direct" && currentPeer.Endpoint != "" {
+			contextText += "\n" + nodeText(l, "endpoint", "Endpoint") + " · " + currentPeer.Endpoint
+		}
+		if found && currentPeer.Path == "derp" && currentPeer.DERPRegion != "" {
+			contextText += "\n" + nodeText(l, "relay", "Relay") + " · " + currentPeer.DERPRegion
+		}
+		if found && currentPeer.Path == "peer_relay" && currentPeer.PeerRelay != "" {
+			contextText += "\n" + nodeText(l, "peer_relay_via", "Peer relay") + " · " + currentPeer.PeerRelay
+		}
+		if lastProbe != nil {
+			contextText += "\n\n" + nodeText(l, "last_probe", "Last probe") + " · " + probedAt + "\n  " + tailscalePathLabel(l, lastProbe.Transport)
+			if lastProbe.Transport == "direct" && lastProbe.Endpoint != "" {
+				contextText += " · " + nodeText(l, "endpoint", "Endpoint") + " " + lastProbe.Endpoint
+			}
+			if lastProbe.Transport == "derp" && lastProbe.DERPRegionCode != "" {
+				contextText += " · " + nodeText(l, "relay", "Relay") + " " + lastProbe.DERPRegionCode
+			}
+			if lastProbe.Transport == "peer_relay" && lastProbe.PeerRelay != "" {
+				contextText += " · " + nodeText(l, "peer_relay_via", "Peer relay") + " " + lastProbe.PeerRelay
+			}
+			contextText += " · " + strconv.Itoa(lastProbe.LatencyMS) + " ms"
+		}
+		view := PageView{Context: contextText}
+		if found && len(currentPeer.TailscaleIPs) > 0 {
+			view.Actions = []Item{{ID: "node.tailscaleProbe", Label: nodeText(l, "probe_peer", "Probe this peer"), Action: func(ctx context.Context, s *Session) error {
+				result := s.Fetch(ctx, "proxy", "tailscale", "probe", name, currentPeer.TailscaleIPs[0])
+				if result.Error != nil || result.Code != 0 {
+					return errors.New(result.errorText(l))
+				}
+				var probe proxy.TailscalePathProbe
+				if err := localizeddecodeMenuResult(l, result, &probe); err != nil {
+					return err
+				}
+				lastProbe = &probe
+				probedAt = time.Now().Format("2006-01-02 15:04")
+				s.feedback(feedbackSuccess, nodeText(l, "probe_complete", "Peer probe completed."))
+				return nil
+			}}}
+		}
+		return view, nil
+	}}
+}
 
 type menuTailscaleNode struct {
 	Name              string `json:"name"`

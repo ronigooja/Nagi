@@ -25,6 +25,8 @@ func TestRestrictedControl(t *testing.T) {
 		{Method: "PUT", Path: "/providers/proxies/work"},
 		{Method: "GET", Path: "/providers/proxies/work/Node/healthcheck?timeout=5000&url=https%3A%2F%2Fexample.com"},
 		{Method: "GET", Path: "/group/Auto/delay?timeout=5000&url=https%3A%2F%2Fexample.com"},
+		{Method: "GET", Path: "/proxies/Tail/tailscale/status"},
+		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"100.64.0.2","timeout_ms":5000}`)},
 	}
 	for _, req := range allowed {
 		if err := validateControl(req); err != nil {
@@ -40,6 +42,12 @@ func TestRestrictedControl(t *testing.T) {
 		{Method: "POST", Path: "/configs"},
 		{Method: "PUT", Path: "/providers/proxies/work", Body: []byte(`{"url":"https://evil.test"}`)},
 		{Method: "DELETE", Path: "/providers/proxies/work"},
+		{Method: "GET", Path: "/proxies/Tail/tailscale/status?force=true"},
+		{Method: "POST", Path: "/proxies/Tail/tailscale/status", Body: []byte(`{}`)},
+		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"host.example","timeout_ms":5000}`)},
+		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"100.64.0.2","timeout_ms":5000,"extra":true}`)},
+		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"100.64.0.2","peer_ip":"100.64.0.3","timeout_ms":5000}`)},
+		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"100.64.0.2","timeout_ms":30000}`)},
 	}
 	for _, req := range denied {
 		if err := validateControl(req); err == nil {

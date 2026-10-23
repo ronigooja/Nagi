@@ -858,5 +858,8 @@
   "backend.profile.group.order_duplicate.usage": "显示顺序中存在重复代理组：{arg0}\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "backend.profile.group.order_list.usage": "代理组显示顺序必须为名称列表\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "backend.profile.group.order_complete.usage": "请完整列出当前配置的每个代理组且不重复；运行 nagi proxy group list 后重试\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
-  "backend.profile.group.order_unknown.usage": "当前配置中不存在代理组：{arg0}；运行 nagi proxy group list 后重试\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情"
+  "backend.profile.group.order_unknown.usage": "当前配置中不存在代理组：{arg0}；运行 nagi proxy group list 后重试\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
+  "cli.error.validation.invalid_proxy_node_name": "代理节点名称无效",
+  "cli.error.validation.tailscale_peer_ip_must_be_a_literal_ip_address": "PEER_IP 必须是 IP 字面量",
+  "cli.error.validation.tailscale_probe_timeout_must_be_between_1000_and_15000": "TIMEOUT_MS 必须是 1000 到 15000 之间的整数"
 }

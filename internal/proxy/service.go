@@ -17,6 +17,13 @@ type Client interface {
 	Put(context.Context, string, any, any) error
 }
 
+// TailscalePathClient adds the explicit operation used for embedded Tailscale
+// path inspection. Keeping it optional preserves read-only proxy clients.
+type TailscalePathClient interface {
+	Get(context.Context, string, any) error
+	Post(context.Context, string, any, any) error
+}
+
 type Service struct {
 	ProviderChainSources map[string][]string
 	Client               Client

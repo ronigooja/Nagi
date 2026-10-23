@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -85,7 +86,7 @@ var commandSpecs = []commandSpec{
 	{"dns tun off", "dns tun off", "Disable TUN DNS interception", "Disables TUN in the selected profile override.", "nagi dns tun off", "", 0, 0},
 	{"dns query", "dns query DOMAIN [A|AAAA]", "Query through mihomo DNS", "Queries the running mihomo resolver over the private control socket.", "nagi dns query example.com AAAA", "", 1, 2},
 	{"dns flush", "dns flush", "Clear mihomo DNS cache", "Requests mihomo to clear its DNS cache; requires a running control API.", "nagi dns flush", "", 0, 0},
-	{"proxy", "proxy <groups|group SUBCOMMAND|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|node SUBCOMMAND|chain SUBCOMMAND|test SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
+	{"proxy", "proxy <groups|group SUBCOMMAND|show GROUP|search QUERY|select GROUP NODE|auto GROUP|providers|provider SUBCOMMAND|healthcheck SUBCOMMAND|node SUBCOMMAND|tailscale SUBCOMMAND|chain SUBCOMMAND|test SUBCOMMAND|delay NODE [URL] [TIMEOUT_MS]|delays GROUP [URL] [TIMEOUT_MS]|restore>", "Inspect and select proxies", "Adds persistent providers to the selected profile; reads live proxy groups and providers and measures delay.", "nagi proxy groups", "", 0, -1},
 	{"proxy healthcheck", "proxy healthcheck <show|set|reset|url> group|provider|subscription NAME [SECONDS]", "Manage configured healthcheck intervals and test URLs", "Reads or changes local configuration while offline. Subscription settings can be saved before first apply; associated profiles validate and reload only when selected and running. Provider and group schedulers may differ.", "nagi proxy healthcheck show group Auto", "", 0, -1},
 	{"proxy healthcheck show", "proxy healthcheck show group|provider|subscription NAME [--full-url]", "Show automatic-check settings", "Reports interval, test URL origin, sources, lazy setting, and scheduling caveats without probing nodes. --full-url includes the complete saved test URL and read-only inherited-value previews for editing.", "nagi proxy healthcheck show provider work", "", 2, 3},
 	{"proxy healthcheck set", "proxy healthcheck set group|provider|subscription NAME SECONDS", "Save a healthcheck interval", "SECONDS must be 1..31536000. Changes interval only; provider enable and URL remain unchanged.", "nagi proxy healthcheck set group Auto 600", "", 3, 3},
@@ -122,6 +123,9 @@ var commandSpecs = []commandSpec{
 	{"proxy node groups show", "proxy node groups show NAME", "Show node group membership", "Lists explicit, automatic, excluded, and available groups offline.", "nagi proxy node groups show NAME", "Run `nagi proxy node list` to discover node names.", 1, 1},
 	{"proxy node groups set", "proxy node groups set NAME GROUP [GROUP...]", "Set explicit groups", "Replaces explicit membership atomically; automatic membership is unchanged.", "nagi proxy node groups set Tail Choice", "Run `nagi proxy node list` to discover node names.", 2, -2},
 	{"proxy node groups clear", "proxy node groups clear NAME", "Clear explicit groups", "Clears explicit membership; automatic membership is unchanged.", "nagi proxy node groups clear NAME", "Run `nagi proxy node list` to discover node names.", 1, 1},
+	{"proxy tailscale", "proxy tailscale <status|probe>", "Inspect embedded Tailscale paths", "Status reads are passive; probes are explicit and may start the embedded backend.", "nagi proxy tailscale status Tail", "Run `nagi proxy node list` to discover node names.", 0, -1},
+	{"proxy tailscale status", "proxy tailscale status NODE", "Show embedded Tailscale path status", "Reads a passive local snapshot without starting the Tailscale backend or probing peers.", "nagi proxy tailscale status Tail", "Run `nagi proxy node list` to discover node names.", 1, 1},
+	{"proxy tailscale probe", "proxy tailscale probe NODE PEER_IP [TIMEOUT_MS]", "Probe an embedded Tailscale peer", "Explicitly probes a literal peer IP; timeout defaults to 5000 ms and must be 1000..15000 ms. This operation may start the embedded backend.", "nagi proxy tailscale probe Tail 100.64.0.2", "Run `nagi proxy tailscale status NODE` to inspect peers.", 2, 3},
 	{"proxy chain", "proxy chain <list [KIND]|show KIND TARGET|candidates KIND TARGET...|set KIND TARGET... --via NODE [--via NODE...] [--dry-run]|clear KIND TARGET... [--dry-run]>", "Manage proxy chains", "KIND is node, provider-node, provider, or subscription. provider-node takes PROVIDER NODE. Read local effective configuration without a running engine.", "nagi proxy chain list", "Run `nagi proxy chain list` to discover target names.", 0, -1},
 	{"proxy chain list", "proxy chain list [node|provider-node|provider|subscription]", "List chain targets", "Reports targets and paths in traffic order.", "nagi proxy chain list", "Run `nagi proxy chain list` to discover target names.", 0, 1},
 	{"proxy chain show", "proxy chain show node|provider-node|provider|subscription TARGET", "Show a target chain", "Reports its ordered path without secrets.", "nagi proxy chain show node Target", "Run `nagi proxy chain list` to discover target names.", 2, 3},
@@ -491,6 +495,23 @@ func validateInvocation(args []string) error {
 			timeout, err := strconv.Atoi(args[4])
 			if err != nil || timeout < 1 || timeout > 30000 {
 				return syntaxError(messageError("cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds", "timeout must be an integer from 1 to 30000 milliseconds"), spec)
+			}
+		}
+	}
+	if spec.path == "proxy tailscale status" || spec.path == "proxy tailscale probe" {
+		if err := profile.ValidateTailscaleName(args[3]); err != nil {
+			return syntaxError(messageError("cli.error.validation.invalid_proxy_node_name", "invalid proxy node name"), spec)
+		}
+		if spec.path == "proxy tailscale probe" {
+			addr, err := netip.ParseAddr(args[4])
+			if err != nil || addr.Zone() != "" {
+				return syntaxError(messageError("cli.error.validation.tailscale_peer_ip_must_be_a_literal_ip_address", "PEER_IP must be a literal IP address"), spec)
+			}
+			if n == 3 {
+				timeout, err := strconv.Atoi(args[5])
+				if err != nil || timeout < 1000 || timeout > 15000 {
+					return syntaxError(messageError("cli.error.validation.tailscale_probe_timeout_must_be_between_1000_and_15000", "TIMEOUT_MS must be an integer from 1000 to 15000"), spec)
+				}
 			}
 		}
 	}

@@ -6939,5 +6939,14 @@
   "help.command.proxy.group.show.summary": "Show configured proxy group",
   "help.command.proxy.group.summary": "Manage proxy groups",
   "help.command.proxy.group.order.summary": "Reorder proxy group display",
-  "help.command.proxy.group.order.detail": "Provide every configured group exactly once in display order. Saves local display metadata without reloading or starting mihomo. Subscription updates retain this order and append new groups. Use proxy group list to discover names; generated GLOBAL is excluded."
+  "help.command.proxy.group.order.detail": "Provide every configured group exactly once in display order. Saves local display metadata without reloading or starting mihomo. Subscription updates retain this order and append new groups. Use proxy group list to discover names; generated GLOBAL is excluded.",
+  "help.command.proxy.tailscale.status.summary": "Show embedded Tailscale path status",
+  "help.command.proxy.tailscale.status.detail": "Reads a passive local snapshot without starting the Tailscale backend or probing peers.",
+  "help.command.proxy.tailscale.status.hint": "Run `nagi proxy node list` to discover node names.",
+  "help.command.proxy.tailscale.probe.summary": "Probe an embedded Tailscale peer",
+  "help.command.proxy.tailscale.probe.detail": "Explicitly probes a literal peer IP; timeout defaults to 5000 ms and must be 1000..15000 ms. This operation may start the embedded backend.",
+  "help.command.proxy.tailscale.probe.hint": "Run `nagi proxy tailscale status NODE` to inspect peers.",
+  "help.command.proxy.tailscale.summary": "Inspect embedded Tailscale paths",
+  "help.command.proxy.tailscale.detail": "Status reads are passive; probes are explicit and may start the embedded backend.",
+  "help.command.proxy.tailscale.hint": "Run `nagi proxy node list` to discover node names."
 }

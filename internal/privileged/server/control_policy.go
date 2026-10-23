@@ -33,6 +33,9 @@ func snapshotControl(req privileged.Request) bool {
 		return true
 	}
 	parts := strings.Split(u.Path, "/")
+	if u.RawQuery == "" && len(parts) == 5 && parts[1] == "proxies" && parts[2] != "" && parts[3] == "tailscale" && parts[4] == "status" {
+		return true
+	}
 	return u.RawQuery == "" && (len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" || len(parts) == 4 && parts[1] == "providers" && parts[2] == "proxies" && parts[3] != "")
 }
 
@@ -64,6 +67,9 @@ func sendControl(ctx context.Context, socket string, req privileged.Request) (pr
 	if strings.Contains(req.Path, "/delay?") || strings.Contains(req.Path, "/healthcheck?") {
 		// The validated mihomo measurement may consume its full 30 seconds.
 		timeout = 31 * time.Second
+	}
+	if strings.HasSuffix(req.Path, "/tailscale/ping") {
+		timeout = 20 * time.Second
 	}
 	client := &http.Client{Transport: transport, Timeout: timeout}
 	request, err := http.NewRequestWithContext(ctx, req.Method, "http://nagi.invalid"+req.Path, bytes.NewReader(req.Body))
@@ -155,6 +161,9 @@ func validateControl(req privileged.Request) error {
 		if len(parts) == 3 && parts[1] == "proxies" && parts[2] != "" && u.RawQuery == "" {
 			return nil
 		}
+		if len(parts) == 5 && parts[1] == "proxies" && parts[2] != "" && parts[3] == "tailscale" && parts[4] == "status" && u.RawQuery == "" {
+			return nil
+		}
 		if len(parts) == 4 && parts[1] == "providers" && parts[2] == "proxies" && parts[3] != "" && u.RawQuery == "" {
 			return nil
 		}
@@ -174,6 +183,18 @@ func validateControl(req privileged.Request) error {
 			}
 		}
 	case http.MethodPost:
+		if len(parts) == 5 && parts[1] == "proxies" && parts[2] != "" && parts[3] == "tailscale" && parts[4] == "ping" && u.RawQuery == "" && len(req.Body) <= 1024 {
+			var body struct {
+				PeerIP    string `json:"peer_ip"`
+				TimeoutMS int    `json:"timeout_ms"`
+			}
+			if strictExactObject(req.Body, map[string]bool{"peer_ip": true, "timeout_ms": true}) && strictJSON(req.Body, &body) == nil {
+				addr, addrErr := netip.ParseAddr(body.PeerIP)
+				if addrErr == nil && addr.Zone() == "" && body.TimeoutMS >= 1000 && body.TimeoutMS <= 15000 {
+					return nil
+				}
+			}
+		}
 		if u.Path == "/rules/test" && u.RawQuery == "" && len(req.Body) <= 4096 {
 			var body rules.TestRequest
 			if strictJSON(req.Body, &body) == nil && body.Validate() == nil {
@@ -211,6 +232,36 @@ func validateControl(req privileged.Request) error {
 		}
 	}
 	return i18n.Errorf("system.privileged.controller.operation.is.not.allowed", "controller operation %s %s is not allowed", req.Method, req.Path)
+}
+
+func strictExactObject(data []byte, expected map[string]bool) bool {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	token, err := dec.Token()
+	if err != nil || token != json.Delim('{') {
+		return false
+	}
+	seen := map[string]bool{}
+	for dec.More() {
+		token, err = dec.Token()
+		if err != nil {
+			return false
+		}
+		key, ok := token.(string)
+		if !ok || !expected[key] || seen[key] {
+			return false
+		}
+		seen[key] = true
+		var value json.RawMessage
+		if dec.Decode(&value) != nil {
+			return false
+		}
+	}
+	token, err = dec.Token()
+	if err != nil || token != json.Delim('}') || len(seen) != len(expected) {
+		return false
+	}
+	var extra any
+	return dec.Decode(&extra) == io.EOF
 }
 
 func strictJSON(data []byte, out any) error {

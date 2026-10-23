@@ -6939,5 +6939,14 @@
   "help.command.proxy.group.show.summary": "查看已配置的代理组",
   "help.command.proxy.group.summary": "管理代理组",
   "help.command.proxy.group.order.summary": "调整代理组显示顺序",
-  "help.command.proxy.group.order.detail": "按显示顺序完整列出每个已配置代理组且不重复。保存本地显示顺序，不重载或启动 mihomo。订阅更新后保留排序，新组追加到末尾。使用 proxy group list 查找名称；不包括引擎自动生成的 GLOBAL。"
+  "help.command.proxy.group.order.detail": "按显示顺序完整列出每个已配置代理组且不重复。保存本地显示顺序，不重载或启动 mihomo。订阅更新后保留排序，新组追加到末尾。使用 proxy group list 查找名称；不包括引擎自动生成的 GLOBAL。",
+  "help.command.proxy.tailscale.status.summary": "查看内嵌 Tailscale 路径状态",
+  "help.command.proxy.tailscale.status.detail": "读取本地被动快照，不会启动 Tailscale 后端或探测对端。",
+  "help.command.proxy.tailscale.status.hint": "运行 `nagi proxy node list` 查找节点名称。",
+  "help.command.proxy.tailscale.probe.summary": "探测内嵌 Tailscale 对端",
+  "help.command.proxy.tailscale.probe.detail": "显式探测一个 IP 字面量对端；超时默认为 5000 ms，范围为 1000..15000 ms。此操作可能启动内嵌后端。",
+  "help.command.proxy.tailscale.probe.hint": "运行 `nagi proxy tailscale status NODE` 查看对端。",
+  "help.command.proxy.tailscale.summary": "查看内嵌 Tailscale 路径",
+  "help.command.proxy.tailscale.detail": "状态查询为被动读取；主动探测可能启动内嵌后端。",
+  "help.command.proxy.tailscale.hint": "运行 `nagi proxy node list` 查找节点名称。"
 }
