@@ -32,6 +32,12 @@ CLI 支持 macOS 和 Linux 的 AMD64 与 ARM64 架构。可选的菜单栏应用
 curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
 ```
 
+如果无法访问 GitHub，可使用 `gh-proxy.com` 备用安装命令：
+
+```sh
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
+```
+
 在 macOS 上，可通过 CLI 安装可选的菜单栏应用：
 
 ```sh

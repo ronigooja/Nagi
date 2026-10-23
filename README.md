@@ -34,6 +34,12 @@ Install the CLI from [GitHub Releases](https://github.com/ronigooja/Nagi/release
 curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
 ```
 
+If GitHub is unreachable, use the `gh-proxy.com` backup:
+
+```sh
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
+```
+
 On macOS, install the optional menu bar app through the CLI:
 
 ```sh
@@ -45,7 +51,6 @@ Use `nagi update` to update the CLI, mihomo, and any installed App, `nagi app un
 Release downloads are verified against their archive checksum. The macOS app is unsigned and unnotarized; its first launch may require choosing **Open** from the Finder context menu. See the [installation and update instructions](docs/development/install.md#installed-cli-maintenance) for permissions and update behavior.
 
 Installation and updates fall back to `gh-proxy.com` if GitHub downloads fail.
-If the installation script is unreachable, use the [proxy installation entry point](docs/development/install.md#online-install-and-update).
 
 ## Quick start
 
