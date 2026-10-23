@@ -354,7 +354,7 @@ func runSubscriptionWatch(ctx context.Context, stdout, stderr io.Writer, jsonMod
 					return nil, err
 				}
 			}
-			return newProfileStore(p, binary, client, manager), nil
+			return newProfileStoreWithContext(ctx, p, binary, client, manager), nil
 		})
 	}
 	for {

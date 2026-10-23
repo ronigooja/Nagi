@@ -266,6 +266,12 @@ func (s *Store) Write(ctx context.Context, name string, data []byte) error {
 // Apply writes and selects a profile, then reloads it once. Failed activation
 // restores both the profile file and the previous selection.
 func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
+	return s.apply(ctx, name, data, false)
+}
+
+// apply may skip candidate validation only when ApplySubscription has already
+// validated the complete rebased effective configuration under the same lock.
+func (s *Store) apply(ctx context.Context, name string, data []byte, validated bool) error {
 	path, err := s.path(name)
 	if err != nil {
 		return err
@@ -278,21 +284,26 @@ func (s *Store) Apply(ctx context.Context, name string, data []byte) error {
 	if profileErr != nil && !errors.Is(profileErr, fs.ErrNotExist) {
 		return profileErr
 	}
-	if err := s.validate(name, data); err != nil {
-		return err
-	}
-	policy, err := s.SubscriptionChain(name)
-	if err != nil {
-		return err
-	}
-	if policy != nil {
-		effective, err := s.EffectiveSource(name, data)
+	if !validated {
+		if err := s.validate(name, data); err != nil {
+			return err
+		}
+		policy, err := s.SubscriptionChain(name)
 		if err != nil {
 			return err
 		}
-		if err = s.validate(name, effective); err != nil {
-			return err
+		if policy != nil {
+			effective, err := s.EffectiveSource(name, data)
+			if err != nil {
+				return err
+			}
+			if err = s.validate(name, effective); err != nil {
+				return err
+			}
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	settings := filepath.Join(s.Dir, "settings.yaml")

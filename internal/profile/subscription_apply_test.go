@@ -11,6 +11,48 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func TestSubscriptionValidatesOnlyRebasedCandidate(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)
+	old := []byte("proxies: [{name: Feed, type: direct}]\nrules: ['MATCH,DIRECT']\n")
+	if err := s.Apply(ctx, "work", old); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOverride(ctx, "work", []byte("proxies: [{name: Feed, type: direct}, {name: Manual, type: direct}]\n")); err != nil {
+		t.Fatal(err)
+	}
+	// The new feed references a retained local node: only the effective
+	// candidate can be validated meaningfully, not the source by itself.
+	next := []byte("proxies: [{name: Feed, type: direct}]\nrules: ['MATCH,Manual']\n")
+	want, err := s.EffectiveSubscriptionSource("work", next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	validations, reloads := 0, 0
+	s.Validate = func(data []byte) error {
+		validations++
+		if string(data) != string(want) || !strings.Contains(string(data), "name: Manual") {
+			return errors.New("candidate lost retained local node")
+		}
+		return nil
+	}
+	s.Reload = func(context.Context) error { reloads++; return nil }
+	if err := s.ApplySubscription(ctx, "work", next); err != nil {
+		t.Fatal(err)
+	}
+	if validations != 1 || reloads != 1 {
+		t.Fatalf("validation/activation count: %d/%d", validations, reloads)
+	}
+	effective, err := s.Effective("work")
+	if err != nil || string(effective) != string(want) {
+		t.Fatalf("activated candidate changed: %s %v", effective, err)
+	}
+	saved, err := s.Show("work")
+	if err != nil || string(saved) != string(next) {
+		t.Fatalf("source differs from feed: %s %v", saved, err)
+	}
+}
+
 func TestSubscriptionRebasesLocalNodesAndGroups(t *testing.T) {
 	ctx := context.Background()
 	s := NewStore(t.TempDir(), func([]byte) error { return nil }, nil)

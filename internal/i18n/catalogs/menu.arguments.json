@@ -1441,5 +1441,7 @@
   "menu.node.instance_needs_login": {},
   "menu.node.instance_needs_machine_auth": {},
   "menu.node.instance_stopped": {},
-  "menu.node.instance_status_unavailable": {}
+  "menu.node.instance_status_unavailable": {},
+  "menu.profile.subscription.applying": {},
+  "menu.profile.subscription.downloading": {}
 }

@@ -321,7 +321,7 @@ func (s *Store) ApplySubscription(ctx context.Context, name string, data []byte)
 		}
 		undo = append(undo, func() error { return writeReplace(path, old) })
 	}
-	if err := s.Apply(ctx, name, data); err != nil {
+	if err := s.apply(ctx, name, data, true); err != nil {
 		return rollback(err)
 	}
 	return nil

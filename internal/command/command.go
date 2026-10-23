@@ -742,7 +742,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			return manager, nil
 		}
 		if command == "start" || command == "restart" || (command == "config" && len(args) > 1 && args[1] != "show") {
-			store := newProfileStore(paths, binary, client, nil)
+			store := newProfileStoreWithContext(ctx, paths, binary, client, nil)
 			configPath, err = materializeProfile(store, paths.ConfigDir, profileName)
 			if err != nil {
 				return nil, err
@@ -771,7 +771,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		if err != nil {
 			return nil, err
 		}
-		profiles = newProfileStore(paths, binary, client, m)
+		profiles = newProfileStoreWithContext(ctx, paths, binary, client, m)
 		return profiles, nil
 	}
 	switch command {

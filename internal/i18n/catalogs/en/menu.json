@@ -1305,5 +1305,7 @@
   "menu.node.instance_needs_login": "Sign-in required",
   "menu.node.instance_needs_machine_auth": "Machine authorization required",
   "menu.node.instance_stopped": "Stopped",
-  "menu.node.instance_status_unavailable": "Status unavailable"
+  "menu.node.instance_status_unavailable": "Status unavailable",
+  "menu.profile.subscription.applying": "Validating and applying subscription... First use may download GeoIP/GeoSite data; each validation has a 120-second limit.",
+  "menu.profile.subscription.downloading": "Downloading subscription..."
 }

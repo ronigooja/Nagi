@@ -2713,5 +2713,7 @@
   },
   "cli.error.validation.invalid_proxy_node_name": {},
   "cli.error.validation.tailscale_peer_ip_must_be_a_literal_ip_address": {},
-  "cli.error.validation.tailscale_probe_timeout_must_be_between_1000_and_15000": {}
+  "cli.error.validation.tailscale_probe_timeout_must_be_between_1000_and_15000": {},
+  "cli.error.profile.validation_canceled": {},
+  "cli.error.profile.validation_timeout": {}
 }

@@ -353,6 +353,7 @@ const subscriptionApplyImpact = "Updates subscription; retains local settings an
 // only add; download/apply failures return to the saved subscription's details.
 func updateAndApplySubscription(ctx context.Context, s *Session, name string, added bool) {
 	defer s.discardInterrupts()
+	fmt.Fprintln(s.out, menuText(s.language, "menu.profile.subscription.downloading", "Downloading subscription..."))
 	result := s.Fetch(ctx, "subscription", "update", name)
 	if result.Code != 0 || result.Error != nil {
 		state := menuText(s.language, "menu.profile.update_and_apply_subscription.download_failed_apply_was_not_attempted", "Download failed; apply was not attempted.")
@@ -365,6 +366,7 @@ func updateAndApplySubscription(ctx context.Context, s *Session, name string, ad
 		s.ShowResult([]string{"subscription", "update", name}, result)
 		return
 	}
+	fmt.Fprintln(s.out, menuText(s.language, "menu.profile.subscription.applying", "Validating and applying subscription... First use may download GeoIP/GeoSite data; each validation has a 120-second limit."))
 	result = s.Fetch(ctx, "subscription", "apply", name)
 	if result.Code != 0 || result.Error != nil {
 		s.feedback(feedbackWarning, menuText(s.language, "menu.profile.update_and_apply_subscription.downloaded_but_apply_failed_cache_retained_retry", "Downloaded, but apply failed. Cache retained; retry with `nagi subscription apply NAME`."))

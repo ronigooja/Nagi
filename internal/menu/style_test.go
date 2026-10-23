@@ -284,9 +284,17 @@ func TestMenuStyledSubscriptionCompletionAndPartialFailure(t *testing.T) {
 			s := NewSession(runner, strings.NewReader(""), &out)
 			s.styles, s.active = true, true
 			updateAndApplySubscription(context.Background(), s, "feed", true)
-			if out.Len() != 0 {
-				t.Fatal("active operation rendered feedback before page refresh")
+			progress := out.String()
+			if !strings.Contains(progress, "Downloading subscription...") ||
+				strings.Contains(progress, "Subscription updated and applied.") ||
+				strings.Contains(progress, "Error:") || strings.Contains(progress, "Cache retained") ||
+				strings.Contains(progress, "\x1b[") {
+				t.Fatalf("progress missing or completion feedback rendered before page refresh: %q", progress)
 			}
+			if strings.Contains(progress, "Validating and applying subscription...") != (stage != "update") {
+				t.Fatalf("incorrect immediate apply stage: %q", progress)
+			}
+			out.Reset()
 			s.flushResult()
 			if stage == "success" {
 				assertMenuStyled(t, out.String(), "Subscription updated and applied.", "32")

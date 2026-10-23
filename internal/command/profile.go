@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/profile"
@@ -83,6 +84,12 @@ func ensureDefaultProfile(path, selected string) error {
 }
 
 func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Client, manager lifecycleBackend) *profile.Store {
+	return newProfileStoreWithContext(context.Background(), paths, binary, client, manager)
+}
+
+const profileValidationTimeout = 120 * time.Second
+
+func newProfileStoreWithContext(ctx context.Context, paths nagiruntime.Paths, binary string, client *control.Client, manager lifecycleBackend) *profile.Store {
 	validate := func(data []byte) error {
 		current, e := profile.NewStore(paths.ConfigDir, nil, nil).Current()
 		if e != nil {
@@ -118,10 +125,19 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		if err := file.Close(); err != nil {
 			return err
 		}
-		cmd := exec.Command(resolved, "-t", "--check-json", "-f", file.Name(), "-d", filepath.Dir(file.Name()))
+		validationCtx, cancel := context.WithTimeout(ctx, profileValidationTimeout)
+		defer cancel()
+		cmd := exec.CommandContext(validationCtx, resolved, "-t", "--check-json", "-f", file.Name(), "-d", filepath.Dir(file.Name()))
+		cmd.WaitDelay = time.Second
 		cmd.Env = nagiruntime.TailscaleEnv(os.Environ(), paths.ConfigDir)
 		out, err := cmd.Output()
 		if err != nil {
+			if errors.Is(validationCtx.Err(), context.DeadlineExceeded) {
+				return messageError("cli.error.profile.validation_timeout", "profile validation timed out; mihomo may be downloading GeoIP/GeoSite data; check connectivity and retry")
+			}
+			if validationCtx.Err() != nil {
+				return messageError("cli.error.profile.validation_canceled", "profile validation canceled; retry when ready")
+			}
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
 				var result struct {
@@ -174,7 +190,7 @@ func newProfileStore(paths nagiruntime.Paths, binary string, client *control.Cli
 		return nil
 	}
 	store = profile.NewStore(paths.ConfigDir, validate, reload)
-	configureProviderChainNodes(context.Background(), store, paths, client)
+	configureProviderChainNodes(ctx, store, paths, client)
 	store.RemoveChainOutlets = func(name string, outlets []string) (func() error, error) {
 		path := filepath.Join(paths.ConfigDir, "proxy-selections.json")
 		old, err := os.ReadFile(path)

@@ -878,6 +878,8 @@
 "cli.error.profile.profile_validation_failed_tailscale_diagnostics_are_private_validate.usage" = "配置方案验证失败；Tailscale 诊断为私有内容；请使用 mihomo -t --check-json 验证本地副本\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
 "cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_" = "配置方案验证失败；请使用 mihomo -t --check-json -f FILE -d DIRECTORY 验证本地副本";
 "cli.error.profile.profile_validation_failed_validate_a_local_copy_with_mihomo_t_check_.usage" = "配置方案验证失败；请使用 mihomo -t --check-json -f FILE -d DIRECTORY 验证本地副本\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
+"cli.error.profile.validation_canceled" = "配置校验已取消；可稍后重试";
+"cli.error.profile.validation_timeout" = "配置校验超时；mihomo 可能正在下载 GeoIP/GeoSite 数据；请检查网络连接后重试";
 "cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w" = "比较配置方案不是有效 YAML：%1$@";
 "cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w.usage" = "比较配置方案不是有效 YAML：%1$@\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
 "cli.error.profile_diff.current_profile_is_not_valid_yaml_w" = "当前配置方案不是有效 YAML：%1$@";

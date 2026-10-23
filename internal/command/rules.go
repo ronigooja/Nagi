@@ -124,7 +124,7 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		lifecycle = helperBackend{profile: name, binary: binary, configPath: path, paths: paths}
 	}
 	var profileStore *profile.Store
-	profileStore = newProfileStore(paths, binary, client, lifecycle)
+	profileStore = newProfileStoreWithContext(ctx, paths, binary, client, lifecycle)
 	validationRejected := false
 	check := func(ctx context.Context) error {
 		effective, err := profileStore.Effective(name)

@@ -65,6 +65,12 @@ The tag-triggered [release workflow](../../.github/workflows/release.yml) runs r
 
 The current lock points at a commit available on the configured fork's `main` branch and includes the `--check-json`, restricted configuration policy, activation ID, age decryption, `dns.resolve-proxy-destinations`, destination rule testing, restricted Tailscale state/lifecycle, request-rewrite v2 and capture protocol 1 interfaces used by Nagi. Follow the [engine maintenance workflow](engine-maintenance.md) to integrate changes into the fork's `main`, publish and verify the source, and update the lock. A successful build with `MIHOMO_DIR` alone does not establish remote availability.
 
+## Subscription application validation
+
+The October 2026 validation-wait change passed `go test -p=1 ./...`, race checks for `internal/profile`, `internal/menu`, `internal/command`, and `internal/i18n`, the installer integration script, and `make build cli`. Regression checks cover effective-candidate validation with retained local nodes, earlier context deadlines and cancellation, unchanged source/selection after failure, temporary-file cleanup, and immediate English/Chinese stage messages with deferred completion feedback. Native descriptor resources were regenerated with the existing catalog tool.
+
+An isolated Linux check against the commit in `engine.lock` used a local HTTP subscription fixture and a stopped engine. Initial application, cached application targeting a retained local SOCKS node, and invalid-target rejection with source/override/selection retained passed, including JSON error-code and temporary-file checks. This does not measure real subscription or GeoIP download performance or establish native macOS interactive acceptance. Modified documentation paths, command syntax, and links were reviewed.
+
 ## Rule test acceptance
 
 Run `go test ./...` in Nagi and `go test -race -tags with_gvisor ./tunnel ./hub/route -run 'TestRule(API|TestEndpoint)'` in the matching engine checkout. Command tests verify runtime-independent help and invalid input, text/JSON output, default metadata, old-engine errors, and exclusion from configuration transactions. Menu tests cover numeric navigation, input validation, retained values after failure, explicit retry, and EOF without submission. Helper tests check the strict request allowlist.

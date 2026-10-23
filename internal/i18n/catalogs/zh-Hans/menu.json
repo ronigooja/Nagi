@@ -1305,5 +1305,7 @@
   "menu.node.instance_needs_login": "需要登录",
   "menu.node.instance_needs_machine_auth": "需要设备授权",
   "menu.node.instance_stopped": "已停止",
-  "menu.node.instance_status_unavailable": "状态不可用"
+  "menu.node.instance_status_unavailable": "状态不可用",
+  "menu.profile.subscription.applying": "正在校验并应用订阅……首次使用可能下载 GeoIP/GeoSite 数据；每次校验最多等待 120 秒。",
+  "menu.profile.subscription.downloading": "正在下载订阅……"
 }

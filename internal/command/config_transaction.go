@@ -314,7 +314,7 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 				}
 			}
 			if oldErr == nil {
-				oldErr = newProfileStore(paths, binary, client, nil).Validate(oldEffective)
+				oldErr = newProfileStoreWithContext(ctx, paths, binary, client, nil).Validate(oldEffective)
 			}
 		}
 	}

@@ -8,7 +8,49 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
+
+type subscriptionStageRunner func(context.Context, []string) Result
+
+func (r subscriptionStageRunner) Run(ctx context.Context, args []string) Result {
+	return r(ctx, args)
+}
+
+func TestSubscriptionStagesAreVisibleBeforeDispatch(t *testing.T) {
+	for _, lang := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+		for _, downloadFails := range []bool{false, true} {
+			var out bytes.Buffer
+			language := i18n.New(lang)
+			downloadLabel := menuText(language, "menu.profile.subscription.downloading", "Downloading subscription...")
+			applyLabel := menuText(language, "menu.profile.subscription.applying", "Validating and applying subscription...")
+			calls := 0
+			runner := subscriptionStageRunner(func(_ context.Context, args []string) Result {
+				calls++
+				if !strings.Contains(out.String(), downloadLabel) {
+					t.Fatal("download stage was deferred until after dispatch")
+				}
+				if args[1] == "update" {
+					if strings.Contains(out.String(), applyLabel) {
+						t.Fatal("apply stage shown before download succeeded")
+					}
+					if downloadFails {
+						return Result{Code: 1, Error: &CLIError{Message: "download failed"}}
+					}
+				} else if args[1] != "apply" || !strings.Contains(out.String(), applyLabel) || !strings.Contains(applyLabel, "120") {
+					t.Fatalf("apply stage missing before dispatch: %v %s", args, &out)
+				}
+				return Result{}
+			})
+			s := NewSessionWithLanguage(runner, strings.NewReader(""), &out, language)
+			updateAndApplySubscription(context.Background(), s, "feed", false)
+			if downloadFails && (calls != 1 || strings.Contains(out.String(), applyLabel)) || !downloadFails && calls != 2 {
+				t.Fatalf("incorrect stages after download: %d %s", calls, &out)
+			}
+		}
+	}
+}
 
 func profileAction(t *testing.T, view PageView, label string) Item {
 	t.Helper()

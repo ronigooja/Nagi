@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ronigooja/Nagi/internal/control"
 	"github.com/ronigooja/Nagi/internal/engine"
@@ -16,6 +17,11 @@ import (
 )
 
 func validationStore(t *testing.T, binary string) (*profile.Store, string) {
+	t.Helper()
+	return validationStoreContext(t, context.Background(), binary)
+}
+
+func validationStoreContext(t *testing.T, ctx context.Context, binary string) (*profile.Store, string) {
 	t.Helper()
 	root := t.TempDir()
 	paths := nagiruntime.Paths{
@@ -27,7 +33,47 @@ func validationStore(t *testing.T, binary string) (*profile.Store, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return newProfileStore(paths, binary, control.New(paths.SocketPath), manager), root
+	return newProfileStoreWithContext(ctx, paths, binary, control.New(paths.SocketPath), manager), root
+}
+
+func TestProfileValidationStopsOnContextAndRetainsFiles(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "deadline", true: "canceled"}[canceled], func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			want := "validation timed out"
+			if canceled {
+				cancel()
+				want = "validation canceled"
+			}
+			binary := writeFakeMihomo(t, t.TempDir(), "mihomo", "#!/bin/sh\nexec sleep 30\n")
+			store, root := validationStoreContext(t, ctx, binary)
+			old := []byte("rules: [MATCH,DIRECT]\n")
+			if err := os.MkdirAll(filepath.Join(root, "profiles"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			source := filepath.Join(root, "profiles", "work.yaml")
+			if err := os.WriteFile(source, old, 0600); err != nil {
+				t.Fatal(err)
+			}
+			reloaded := false
+			store.Reload = func(context.Context) error { reloaded = true; return nil }
+			started := time.Now()
+			err := store.ApplySubscription(ctx, "work", []byte("rules: ['MATCH,REJECT']\n"))
+			if err == nil || !strings.Contains(err.Error(), want) || time.Since(started) > 3*time.Second {
+				t.Fatalf("unbounded or unclear validation: %v (%s)", err, time.Since(started))
+			}
+			saved, readErr := os.ReadFile(source)
+			current, currentErr := store.Current()
+			if readErr != nil || string(saved) != string(old) || reloaded || currentErr != nil || current != "default" {
+				t.Fatalf("failed validation changed state: %q %v %v %s %v", saved, readErr, reloaded, current, currentErr)
+			}
+			files, err := filepath.Glob(filepath.Join(root, "profiles", ".nagi-validate-*"))
+			if err != nil || len(files) != 0 {
+				t.Fatalf("temporary validation files remain: %v %v", files, err)
+			}
+		})
+	}
 }
 
 func writeFakeMihomo(t *testing.T, directory, name, body string) string {
