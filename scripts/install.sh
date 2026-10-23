@@ -97,8 +97,12 @@ base=${NAGI_RELEASE_BASE:-$base}
 
 download() {
     local url=$1 destination=$2
-    curl --fail --location --silent --show-error --retry 3 --retry-delay 1 \
+    curl --fail --location --silent --show-error --connect-timeout 15 --retry 3 --retry-delay 1 \
         --output "$destination" "$url"
+}
+
+download_release() {
+    download "$1/$asset" "$archive" && download "$1/SHA256SUMS" "$checksums"
 }
 
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/nagi-online.XXXXXXXX")
@@ -108,8 +112,16 @@ trap cleanup EXIT
 archive="$temp_dir/$asset"
 checksums="$temp_dir/SHA256SUMS"
 printf 'Downloading Nagi %s for %s...\n' "${version:-latest}" "$target"
-download "$base/$asset" "$archive" || fail "release asset not found: $asset"
-download "$base/SHA256SUMS" "$checksums" || fail 'release is missing SHA256SUMS'
+if ! download_release "$base"; then
+    # Explicit download sources remain exclusive. Retry the whole release pair
+    # so an interrupted download cannot leave a partial file for verification.
+    if [[ -z ${NAGI_RELEASE_BASE:-} && "$base" == https://github.com/* ]]; then
+        printf 'GitHub download failed; retrying through gh-proxy.com...\n' >&2
+        download_release "https://gh-proxy.com/$base" || fail 'release download failed through GitHub and gh-proxy.com'
+    else
+        fail 'release download failed'
+    fi
+fi
 expected=$(awk -v file="$asset" '$2 == file || $2 == "*" file { print $1; exit }' "$checksums")
 [[ "$expected" =~ ^[0-9a-fA-F]{64}$ ]] || fail "SHA256SUMS has no entry for $asset"
 actual=$(shasum -a 256 "$archive" | awk '{print $1}')

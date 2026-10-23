@@ -7,8 +7,9 @@ This document defines the end-user GitHub Releases workflow and the local artifa
 Published releases use fixed GitHub asset names. The online wrapper selects the
 matching operating system and architecture, downloads the archive and
 `SHA256SUMS` from the latest release, verifies the archive, and invokes the
-local installer. GitHub is the distribution service; no Nagi download server is
-required.
+local installer. GitHub is the primary distribution service; if a download
+fails, the wrapper retries the archive and checksum file through the third-party
+`https://gh-proxy.com/` proxy. No Nagi download server is required.
 
 The online wrapper supports the system Bash 3.2 on macOS and newer Bash
 versions on Linux. It compares SHA256 digests case-insensitively without
@@ -19,6 +20,16 @@ Install the CLI with the repository's raw script:
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
 ```
+
+If the script itself is unreachable, use the proxy entry point:
+
+```sh
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/ronigooja/Nagi/main/scripts/install.sh | bash
+```
+
+The wrapper's `NAGI_RELEASE_BASE` environment variable overrides the complete
+release download directory (containing the archive and `SHA256SUMS`). An explicit
+override is used exclusively, without automatic fallback to the public proxy.
 
 After installing the CLI on macOS, add the optional unsigned menu bar App:
 
@@ -69,6 +80,14 @@ removes an installed engine login service, and restores its installed/enabled
 preferences afterward. A previously running engine is restarted after success.
 OS settings managed by Nagi are restored when the engine stops; runtime TUN,
 system proxy, and other temporary settings must be enabled again as needed.
+
+CLI release downloads, including App installation and background updates, try
+GitHub first and retry the entire archive/checksum pair through `gh-proxy.com`
+after a network, HTTP-status, or response-read failure. Cancellation, checksum
+mismatches, invalid archives, and local filesystem failures do not trigger a
+source switch. Both sources retain SHA256 verification against the downloaded
+checksum file; this is an integrity check, not independent publisher authentication.
+The proxy's availability and cache freshness are outside Nagi's control.
 
 An already-open terminal menu retains access to the installed mihomo after a
 successful update. Exit and reopen the menu to run the new CLI version. See the

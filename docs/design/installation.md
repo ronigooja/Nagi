@@ -37,7 +37,17 @@ The lock serializes CLI maintenance for that user; direct shell installation
 and other users are outside this lock.
 
 A private temporary directory holds `SHA256SUMS`, the platform archive, and
-extracted artifacts. Checksum verification precedes extraction and execution.
+extracted artifacts. GitHub Releases is tried first. Network errors, non-200
+responses, and response-read failures trigger one attempt through
+`https://gh-proxy.com/` with the original GitHub URL appended. The failed attempt's
+temporary directory is removed before the entire checksum/archive pair is
+downloaded again. Cancellation, local filesystem failures, size limits, invalid
+checksums, checksum mismatches, and extraction failures do not switch sources.
+Non-GitHub release sources are used exclusively. The same HTTP client (including
+the running-engine proxy used for background preparation) handles both sources.
+Checksum verification precedes extraction and execution. The checksum comes
+from the selected download source; it does not independently authenticate the
+publisher.
 Extraction bounds total bytes and entry count, refuses escape paths, duplicate
 files, links, and special files, and requires regular executable CLI, engine,
 and installer files. The package App must exist when requested or already

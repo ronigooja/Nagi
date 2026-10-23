@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -29,6 +30,22 @@ func Fetch(ctx context.Context, base, target, tag string) (string, func(), error
 }
 
 func fetchWithClient(ctx context.Context, base, target, tag string, client *http.Client) (string, func(), error) {
+	artifact, cleanup, err := fetchFromSource(ctx, base, target, tag, client)
+	var downloadErr *releaseDownloadError
+	if err != nil && ctx.Err() == nil && strings.HasPrefix(base, "https://github.com/") &&
+		strings.HasSuffix(base, "/releases") && errors.As(err, &downloadErr) {
+		return fetchFromSource(ctx, "https://gh-proxy.com/"+base, target, tag, client)
+	}
+	return artifact, cleanup, err
+}
+
+// Only download failures can switch sources. Invalid content and local failures
+// remain errors, including a checksum mismatch from either source.
+type releaseDownloadError struct{ error }
+
+func (e *releaseDownloadError) Unwrap() error { return e.error }
+
+func fetchFromSource(ctx context.Context, base, target, tag string, client *http.Client) (string, func(), error) {
 	if tag != "" && !ValidTag(tag) {
 		return "", nil, i18n.Errorf("system.installation.invalid.release.tag.use.vx.y.z", "invalid release tag; use vX.Y.Z")
 	}
@@ -73,11 +90,11 @@ func fetchWithClient(ctx context.Context, base, target, tag string, client *http
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return "", nil, i18n.Errorf("system.installation.download", "download %s: %w", asset, err)
+		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", asset, err)}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return "", nil, i18n.Errorf("system.installation.download.http", "download %s: HTTP %d", asset, response.StatusCode)
+		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download.http", "download %s: HTTP %d", asset, response.StatusCode)}
 	}
 	archive, err := os.Create(filepath.Join(dir, asset))
 	if err != nil {
@@ -87,7 +104,11 @@ func fetchWithClient(ctx context.Context, base, target, tag string, client *http
 	n, copyErr := io.Copy(io.MultiWriter(archive, hash), io.LimitReader(response.Body, archiveLimit+1))
 	closeErr := archive.Close()
 	if copyErr != nil {
-		return "", nil, copyErr
+		var localErr *os.PathError
+		if errors.As(copyErr, &localErr) {
+			return "", nil, copyErr
+		}
+		return "", nil, &releaseDownloadError{copyErr}
 	}
 	if closeErr != nil {
 		return "", nil, closeErr
@@ -119,14 +140,17 @@ func get(ctx context.Context, client *http.Client, url string, limit int64) ([]b
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, &releaseDownloadError{err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, i18n.Errorf("system.installation.release.checksum.download.http", "release checksum download: HTTP %d", response.StatusCode)
+		return nil, &releaseDownloadError{i18n.Errorf("system.installation.release.checksum.download.http", "release checksum download: HTTP %d", response.StatusCode)}
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
-	if err == nil && int64(len(data)) > limit {
+	if err != nil {
+		return nil, &releaseDownloadError{err}
+	}
+	if int64(len(data)) > limit {
 		err = i18n.Errorf("system.installation.checksum.file.is.too.large", "checksum file is too large")
 	}
 	return data, err

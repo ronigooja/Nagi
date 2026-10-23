@@ -44,6 +44,9 @@ Use `nagi update` to update the CLI, mihomo, and any installed App, `nagi app un
 
 Release downloads are verified against their archive checksum. The macOS app is unsigned and unnotarized; its first launch may require choosing **Open** from the Finder context menu. See the [installation and update instructions](docs/development/install.md#installed-cli-maintenance) for permissions and update behavior.
 
+Installation and updates fall back to `gh-proxy.com` if GitHub downloads fail.
+If the installation script is unreachable, use the [proxy installation entry point](docs/development/install.md#online-install-and-update).
+
 ## Quick start
 
 After installation, start the engine, check its status, and open the terminal menu:

@@ -778,6 +778,10 @@ TAG accepts `vX.Y.Z` or `X.Y.Z`, with an optional alphanumeric/dot/hyphen releas
 suffix introduced by `-` or `+`. Invalid arguments exit `2` with `usage`.
 Downloads use `nagi-OS-ARCH.tar.gz` (`OS` is `linux` or `macos`; `ARCH` is
 `amd64` or `arm64`) and `SHA256SUMS` from `ronigooja/Nagi` GitHub Releases.
+Network, HTTP-status, and response-read failures retry the entire release through
+the third-party `https://gh-proxy.com/` proxy. Both sources require SHA256
+verification; cancellation, invalid content, and local filesystem failures do not
+switch sources. This applies to App installation and background updates as well.
 An installed/requested App requires an App in that release archive. Archive
 paths escaping extraction, duplicate files, links, and special files are
 rejected. Compressed and extracted archives are each limited to 512 MiB.
