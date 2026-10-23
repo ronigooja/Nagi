@@ -769,5 +769,7 @@
   "system.installation.progress.stop": {},
   "system.installation.progress.install": {},
   "system.installation.progress.restore": {},
-  "system.installation.download.too.slow": {}
+  "system.installation.download.too.slow": {},
+  "system.installation.progress.transfer": {"arg0": "string", "arg1": "string", "arg2": "string"},
+  "system.installation.progress.transfer.total": {"arg0": "string", "arg1": "string", "arg2": "string", "arg3": "string", "arg4": "string"}
 }

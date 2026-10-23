@@ -387,5 +387,7 @@
   "system.installation.progress.stop": "正在停止 Nagi 以进行维护……",
   "system.installation.progress.install": "正在应用安装变更……",
   "system.installation.progress.restore": "正在恢复服务设置和引擎状态……",
-  "system.installation.download.too.slow": "下载速度连续 10 秒低于 100 KiB/s"
+  "system.installation.download.too.slow": "最近 10 秒的平均下载速度低于 256 KiB/s",
+  "system.installation.progress.transfer": "正在下载 {arg0}：{arg1}，{arg2}",
+  "system.installation.progress.transfer.total": "正在下载 {arg0}：{arg1} / {arg2}（{arg3}%），{arg4}"
 }

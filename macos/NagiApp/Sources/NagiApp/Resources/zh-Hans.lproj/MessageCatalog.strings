@@ -8520,7 +8520,7 @@
 "system.installation.checksum.file.is.too.large" = "校验和文件过大";
 "system.installation.download" = "下载 %1$@：%2$@";
 "system.installation.download.http" = "下载 %1$@：HTTP %2$@";
-"system.installation.download.too.slow" = "下载速度连续 10 秒低于 100 KiB/s";
+"system.installation.download.too.slow" = "最近 10 秒的平均下载速度低于 256 KiB/s";
 "system.installation.extracted.release.exceeds.512.mib" = "解压后的发布内容超过 512 MiB";
 "system.installation.failed" = "%1$@ 失败：%2$@：%3$@";
 "system.installation.files.updated.but.engine.restart.failed.run.nagi.status.and" = "文件已更新，但引擎重启失败；请运行 nagi status 和 nagi logs：%1$@";
@@ -8550,6 +8550,8 @@
 "system.installation.progress.preflight" = "正在进行安装前检查……";
 "system.installation.progress.restore" = "正在恢复服务设置和引擎状态……";
 "system.installation.progress.stop" = "正在停止 Nagi 以进行维护……";
+"system.installation.progress.transfer" = "正在下载 %1$@：%2$@，%3$@";
+"system.installation.progress.transfer.total" = "正在下载 %1$@：%2$@ / %3$@（%4$@%%），%5$@";
 "system.installation.purge.data.is.only.valid.with.uninstall" = "--purge-data 仅适用于 uninstall";
 "system.installation.quit.nagi.app.before.updating.or.uninstalling.its.update.option" = "更新或卸载前请退出 Nagi.app；App 的“更新”选项会自动完成此操作";
 "system.installation.release.archive.checksum.mismatch" = "发布归档校验和不匹配";

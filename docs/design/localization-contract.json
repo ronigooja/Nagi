@@ -32316,6 +32316,18 @@
     "system.installation.progress.preflight": {},
     "system.installation.progress.restore": {},
     "system.installation.progress.stop": {},
+    "system.installation.progress.transfer": {
+      "arg0": "string",
+      "arg1": "string",
+      "arg2": "string"
+    },
+    "system.installation.progress.transfer.total": {
+      "arg0": "string",
+      "arg1": "string",
+      "arg2": "string",
+      "arg3": "string",
+      "arg4": "string"
+    },
     "system.installation.purge.data.is.only.valid.with.uninstall": {},
     "system.installation.quit.nagi.app.before.updating.or.uninstalling.its.update.option": {},
     "system.installation.release.archive.checksum.mismatch": {},

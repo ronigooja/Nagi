@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -30,7 +31,7 @@ const archiveLimit = 512 << 20
 
 const releaseConnectionTimeout = 10 * time.Second
 
-const releaseMinimumSpeed = 100 * 1024 // bytes per second
+const releaseMinimumSpeed = 256 * 1024 // bytes per second
 
 // Watch a rolling ten-sample window, including reads blocked by a stalled
 // server. Closing the HTTP response body interrupts any pending Read.
@@ -41,10 +42,20 @@ type speedCheckedBody struct {
 	done    chan struct{}
 	stopped chan struct{}
 	once    sync.Once
+	report  func(int64, time.Time)
 }
 
 func watchReleaseBody(body io.ReadCloser, minimum int64, interval time.Duration) *speedCheckedBody {
-	b := &speedCheckedBody{ReadCloser: body, done: make(chan struct{}), stopped: make(chan struct{})}
+	return watchReleaseBodyWithProgress(body, minimum, interval, nil)
+}
+
+// report runs serially: initially, on each sample (even during blocked reads),
+// and after the monitor has been joined by Close.
+func watchReleaseBodyWithProgress(body io.ReadCloser, minimum int64, interval time.Duration, report func(int64, time.Time)) *speedCheckedBody {
+	b := &speedCheckedBody{ReadCloser: body, done: make(chan struct{}), stopped: make(chan struct{}), report: report}
+	if report != nil {
+		report(0, time.Now())
+	}
 	go func() {
 		defer close(b.stopped)
 		ticker := time.NewTicker(interval)
@@ -63,6 +74,9 @@ func watchReleaseBody(body io.ReadCloser, minimum int64, interval time.Duration)
 			case now := <-ticker.C:
 				index := ticks % len(history)
 				current := b.bytes.Load()
+				if report != nil {
+					report(current, now)
+				}
 				ticks++
 				if ticks >= len(history) && float64(current-history[index]) < float64(minimum)*now.Sub(times[index]).Seconds() {
 					b.slow.Store(true)
@@ -80,7 +94,7 @@ func (b *speedCheckedBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	b.bytes.Add(int64(n))
 	if b.slow.Load() {
-		return n, i18n.Errorf("system.installation.download.too.slow", "download stayed below 100 KiB/s for 10 seconds")
+		return n, i18n.Errorf("system.installation.download.too.slow", "10-second average download speed fell below 256 KiB/s")
 	}
 	return n, err
 }
@@ -91,8 +105,36 @@ func (b *speedCheckedBody) Close() error {
 		close(b.done)
 		err = b.ReadCloser.Close()
 		<-b.stopped
+		if b.report != nil {
+			b.report(b.bytes.Load(), time.Now())
+		}
 	})
 	return err
+}
+
+// Speed is measured since the previous report, rather than averaged over the
+// entire download, so a later slowdown remains visible.
+func releaseProgress(asset string, total int64, progress func(*i18n.Message)) func(int64, time.Time) {
+	if progress == nil {
+		return nil
+	}
+	var previous int64
+	var sampled time.Time
+	return func(downloaded int64, now time.Time) {
+		speed := float64(0)
+		if !sampled.IsZero() && now.After(sampled) {
+			speed = float64(downloaded-previous) / now.Sub(sampled).Seconds()
+		}
+		previous, sampled = downloaded, now
+		size := fmt.Sprintf("%.2f MiB", float64(downloaded)/(1<<20))
+		rate := fmt.Sprintf("%.1f KiB/s", speed/1024)
+		if total > 0 {
+			progress(i18n.Errorf("system.installation.progress.transfer.total", "Downloading %s: %s / %s (%s%%), %s", asset, size,
+				fmt.Sprintf("%.2f MiB", float64(total)/(1<<20)), fmt.Sprintf("%.1f", 100*float64(downloaded)/float64(total)), rate))
+		} else {
+			progress(i18n.Errorf("system.installation.progress.transfer", "Downloading %s: %s, %s", asset, size, rate))
+		}
+	}
 }
 
 func releaseHTTPClient(client *http.Client) *http.Client {
@@ -201,7 +243,7 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 	if err != nil {
 		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", asset, err)}
 	}
-	response.Body = watchReleaseBody(response.Body, releaseMinimumSpeed, time.Second)
+	response.Body = watchReleaseBodyWithProgress(response.Body, releaseMinimumSpeed, time.Second, releaseProgress(asset, response.ContentLength, progress))
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download.http", "download %s: HTTP %d", asset, response.StatusCode)}
@@ -213,6 +255,7 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 	hash := sha256.New()
 	n, copyErr := io.Copy(io.MultiWriter(archive, hash), io.LimitReader(response.Body, archiveLimit+1))
 	closeErr := archive.Close()
+	response.Body.Close() // Join progress reporting before emitting the next stage.
 	if copyErr != nil {
 		var localErr *os.PathError
 		if errors.As(copyErr, &localErr) {

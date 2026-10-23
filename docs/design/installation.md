@@ -48,10 +48,11 @@ the running-engine proxy used for background preparation) handles both sources.
 The client bounds dialing, TLS handshake, and response headers to 10 seconds
 each, while leaving body transfer free of a whole-request timeout. Each source
 has a separate rolling ten-second throughput check sampled every second. A
-window averaging below 100 KiB/s closes the response body, interrupts blocked
+window averaging below 256 KiB/s closes the response body, interrupts blocked
 reads, and produces a download failure eligible for fallback. Both the checksum
 file and archive use this check; small files completed before the first window
-are accepted normally. A slow backup produces an operation failure. The monitor
+are accepted normally. A slow backup produces an operation failure. The check
+continues throughout the transfer, including after a fast start. The monitor
 is stopped and joined when a response body is closed.
 Each source receives one application-level attempt. Ordinary terminal maintenance has no
 overall two-minute context deadline; background preparation retains its
@@ -61,7 +62,11 @@ from the selected download source; it does not independently authenticate the
 publisher.
 
 The installation manager emits optional localized stage callbacks for download,
-fallback, validation, and maintenance. Text CLI commands render them immediately
+fallback, validation, and maintenance. Archive callbacks also report downloaded size,
+latest interval speed, and (when content length is known) total size and percentage,
+initially, every second even during blocked reads, and at closure. Progress reporting
+is joined before subsequent stages or source fallback. Text CLI commands render
+them immediately
 to stderr. The menu's in-process CLI dispatcher supplies a separate live writer,
 so progress bypasses its JSON stdout/stderr buffers. Ordinary JSON invocations
 do not install this callback and retain their existing envelope. The native App

@@ -387,5 +387,7 @@
   "system.installation.progress.stop": "Stopping Nagi for maintenance...",
   "system.installation.progress.install": "Applying installation changes...",
   "system.installation.progress.restore": "Restoring service settings and engine state...",
-  "system.installation.download.too.slow": "download stayed below 100 KiB/s for 10 seconds"
+  "system.installation.download.too.slow": "10-second average download speed fell below 256 KiB/s",
+  "system.installation.progress.transfer": "Downloading {arg0}: {arg1}, {arg2}",
+  "system.installation.progress.transfer.total": "Downloading {arg0}: {arg1} / {arg2} ({arg3}%), {arg4}"
 }

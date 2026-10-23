@@ -89,7 +89,7 @@ func TestReleaseDownloadFallback(t *testing.T) {
 						return nil, context.Canceled
 					}
 				}
-				return &http.Response{StatusCode: status, Body: body, Header: make(http.Header)}, nil
+				return &http.Response{StatusCode: status, Body: body, ContentLength: int64(len(archive)), Header: make(http.Header)}, nil
 			})}
 			var stages []string
 			artifact, cleanup, err := fetchWithProgress(ctx, base, "linux-amd64", tc.tag, client, func(message *i18n.Message) {
@@ -104,6 +104,20 @@ func TestReleaseDownloadFallback(t *testing.T) {
 			if err == nil {
 				if _, err := os.Stat(artifact + "/nagi"); err != nil {
 					t.Fatal(err)
+				}
+			}
+			if err == nil {
+				lastTransfer, verification := -1, -1
+				for index, stage := range stages {
+					if stage == "system.installation.progress.transfer.total" {
+						lastTransfer = index
+					}
+					if stage == "system.installation.progress.checksum" {
+						verification = index
+					}
+				}
+				if lastTransfer < 0 || verification <= lastTransfer {
+					t.Fatalf("missing transfer reports before verification: %v", stages)
 				}
 			}
 			var proxyRequests []string
@@ -195,7 +209,7 @@ func TestReleaseSpeedMonitorStopsStalledAndSlowBodies(t *testing.T) {
 			go func() { _, err := io.Copy(io.Discard, body); result <- err }()
 			select {
 			case err := <-result:
-				if err == nil || !strings.Contains(err.Error(), "below 100 KiB/s") {
+				if err == nil || !strings.Contains(err.Error(), "below 256 KiB/s") {
 					t.Fatalf("unexpected read error: %v", err)
 				}
 			case <-time.After(2 * time.Second):
@@ -233,5 +247,95 @@ func TestReleaseCustomSourceDoesNotUsePublicProxy(t *testing.T) {
 	_, _, err := fetchWithClient(context.Background(), "https://releases.example.invalid", "linux-amd64", "", client)
 	if err == nil || requests != 1 {
 		t.Fatalf("requests = %d, error = %v", requests, err)
+	}
+}
+
+// A fast first window must not disable checks for the rest of the transfer.
+func TestReleaseSpeedMonitorDetectsLaterSlowdown(t *testing.T) {
+	reader, writer := io.Pipe()
+	body := watchReleaseBody(reader, releaseMinimumSpeed, 10*time.Millisecond)
+	defer body.Close()
+	defer writer.Close()
+	go func() {
+		until := time.Now().Add(200 * time.Millisecond)
+		chunk := make([]byte, 64*1024)
+		for time.Now().Before(until) {
+			if _, err := writer.Write(chunk); err != nil {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		// Leave the body open and blocked after a fast start.
+	}()
+	started := time.Now()
+	result := make(chan error, 1)
+	go func() { _, err := io.Copy(io.Discard, body); result <- err }()
+	select {
+	case err := <-result:
+		if err == nil || !strings.Contains(err.Error(), "below 256 KiB/s") {
+			t.Fatalf("unexpected read error: %v", err)
+		}
+		if time.Since(started) < 200*time.Millisecond {
+			t.Fatal("fast initial transfer was rejected")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("later stall did not stop")
+	}
+}
+
+func TestReleaseProgressKnownAndUnknownLength(t *testing.T) {
+	for _, total := range []int64{0, -1, 2 << 20} {
+		var messages []*i18n.Message
+		report := releaseProgress("nagi-linux-amd64.tar.gz", total, func(m *i18n.Message) { messages = append(messages, m) })
+		start := time.Now()
+		report(0, start)
+		report(1<<20, start.Add(time.Second))
+		report(1<<20, start.Add(2*time.Second))
+		for _, message := range messages {
+			if !i18n.ValidDescriptor(message.Descriptor()) {
+				t.Fatalf("invalid descriptor: %+v", message.Descriptor())
+			}
+			for _, lang := range []i18n.Language{i18n.English, i18n.SimplifiedChinese} {
+				if got := i18n.New(lang).Render(message); !strings.Contains(got, "nagi-linux-amd64.tar.gz") {
+					t.Fatalf("missing asset: %s", got)
+				}
+			}
+		}
+		if got := messages[1].Error(); !strings.Contains(got, "1.00 MiB") || !strings.Contains(got, "1024.0 KiB/s") {
+			t.Fatalf("transfer report: %s", got)
+		}
+		if got := messages[2].Error(); !strings.Contains(got, "0.0 KiB/s") {
+			t.Fatalf("stall report: %s", got)
+		}
+		if got := messages[1].Error(); strings.Contains(got, "50.0%") != (total > 0) {
+			t.Fatalf("percentage: %s", got)
+		}
+	}
+}
+
+func TestReleaseProgressReportsWhileReadBlockedAndStopsOnClose(t *testing.T) {
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	var reports []int64
+	body := watchReleaseBodyWithProgress(reader, releaseMinimumSpeed, 5*time.Millisecond, func(n int64, _ time.Time) {
+		reports = append(reports, n)
+	})
+	_, err := io.ReadAll(body)
+	if err == nil {
+		t.Fatal("expected stalled transfer failure")
+	}
+	body.Close()
+	count := len(reports)
+	if count < 3 {
+		t.Fatalf("missing live stalled reports: %v", reports)
+	}
+	body.Close()
+	if len(reports) != count {
+		t.Fatal("close reported twice")
+	}
+	for _, n := range reports {
+		if n != 0 {
+			t.Fatalf("unexpected bytes: %d", n)
+		}
 	}
 }
