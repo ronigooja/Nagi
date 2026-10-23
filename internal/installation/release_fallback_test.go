@@ -174,6 +174,53 @@ func TestReleaseHeaderTimeoutDoesNotLimitBodyTransfer(t *testing.T) {
 	}
 }
 
+func TestReleaseSpeedMonitorStopsStalledAndSlowBodies(t *testing.T) {
+	for _, trickle := range []bool{false, true} {
+		t.Run(fmt.Sprintf("trickle=%t", trickle), func(t *testing.T) {
+			reader, writer := io.Pipe()
+			body := watchReleaseBody(reader, releaseMinimumSpeed, 10*time.Millisecond)
+			defer body.Close()
+			defer writer.Close()
+			if trickle {
+				go func() {
+					for {
+						time.Sleep(5 * time.Millisecond)
+						if _, err := writer.Write([]byte("a")); err != nil {
+							return
+						}
+					}
+				}()
+			}
+			result := make(chan error, 1)
+			go func() { _, err := io.Copy(io.Discard, body); result <- err }()
+			select {
+			case err := <-result:
+				if err == nil || !strings.Contains(err.Error(), "below 100 KiB/s") {
+					t.Fatalf("unexpected read error: %v", err)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("slow body did not stop")
+			}
+		})
+	}
+}
+
+func TestReleaseSpeedMonitorAllowsCompletedSmallFile(t *testing.T) {
+	body := watchReleaseBody(io.NopCloser(strings.NewReader("checksum")), releaseMinimumSpeed, time.Millisecond)
+	data, err := io.ReadAll(body)
+	if err != nil || string(data) != "checksum" {
+		t.Fatalf("small response: %q, %v", data, err)
+	}
+	if err := body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-body.stopped:
+	default:
+		t.Fatal("monitor was not joined")
+	}
+}
+
 func TestReleaseCustomSourceDoesNotUsePublicProxy(t *testing.T) {
 	requests := 0
 	client := &http.Client{Transport: releaseTransport(func(r *http.Request) (*http.Response, error) {

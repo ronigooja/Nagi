@@ -8520,6 +8520,7 @@
 "system.installation.checksum.file.is.too.large" = "checksum file is too large";
 "system.installation.download" = "download %1$@: %2$@";
 "system.installation.download.http" = "download %1$@: HTTP %2$@";
+"system.installation.download.too.slow" = "download stayed below 100 KiB/s for 10 seconds";
 "system.installation.extracted.release.exceeds.512.mib" = "extracted release exceeds 512 MiB";
 "system.installation.failed" = "%1$@ failed: %2$@: %3$@";
 "system.installation.files.updated.but.engine.restart.failed.run.nagi.status.and" = "files updated, but engine restart failed; run nagi status and nagi logs: %1$@";

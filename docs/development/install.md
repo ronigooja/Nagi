@@ -32,7 +32,7 @@ release download directory (containing the archive and `SHA256SUMS`). An explici
 override is used exclusively, without automatic fallback to the public proxy.
 
 Each source is attempted once. The shell wrapper uses a 10-second connection
-timeout and aborts a transfer that stays below one byte per second for 10 seconds;
+timeout and aborts a transfer that stays below 100 KiB/s (102,400 bytes per second) for 10 seconds;
 there is no total download time limit. It prints download, fallback, checksum,
 extraction, and installation stages. CLI and menu update timing and live stage
 output are defined in the [CLI reference](../reference/cli.md#installation-maintenance).

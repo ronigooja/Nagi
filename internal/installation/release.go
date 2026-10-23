@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ronigooja/Nagi/internal/i18n"
@@ -27,6 +29,71 @@ func ValidTag(tag string) bool { return releaseTag.MatchString(tag) }
 const archiveLimit = 512 << 20
 
 const releaseConnectionTimeout = 10 * time.Second
+
+const releaseMinimumSpeed = 100 * 1024 // bytes per second
+
+// Watch a rolling ten-sample window, including reads blocked by a stalled
+// server. Closing the HTTP response body interrupts any pending Read.
+type speedCheckedBody struct {
+	io.ReadCloser
+	bytes   atomic.Int64
+	slow    atomic.Bool
+	done    chan struct{}
+	stopped chan struct{}
+	once    sync.Once
+}
+
+func watchReleaseBody(body io.ReadCloser, minimum int64, interval time.Duration) *speedCheckedBody {
+	b := &speedCheckedBody{ReadCloser: body, done: make(chan struct{}), stopped: make(chan struct{})}
+	go func() {
+		defer close(b.stopped)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		var history [10]int64
+		var times [10]time.Time
+		start := time.Now()
+		for i := range times {
+			times[i] = start
+		}
+		ticks := 0
+		for {
+			select {
+			case <-b.done:
+				return
+			case now := <-ticker.C:
+				index := ticks % len(history)
+				current := b.bytes.Load()
+				ticks++
+				if ticks >= len(history) && float64(current-history[index]) < float64(minimum)*now.Sub(times[index]).Seconds() {
+					b.slow.Store(true)
+					body.Close()
+					return
+				}
+				history[index], times[index] = current, now
+			}
+		}
+	}()
+	return b
+}
+
+func (b *speedCheckedBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	b.bytes.Add(int64(n))
+	if b.slow.Load() {
+		return n, i18n.Errorf("system.installation.download.too.slow", "download stayed below 100 KiB/s for 10 seconds")
+	}
+	return n, err
+}
+
+func (b *speedCheckedBody) Close() error {
+	var err error
+	b.once.Do(func() {
+		close(b.done)
+		err = b.ReadCloser.Close()
+		<-b.stopped
+	})
+	return err
+}
 
 func releaseHTTPClient(client *http.Client) *http.Client {
 	var copy http.Client
@@ -134,6 +201,7 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 	if err != nil {
 		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", asset, err)}
 	}
+	response.Body = watchReleaseBody(response.Body, releaseMinimumSpeed, time.Second)
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download.http", "download %s: HTTP %d", asset, response.StatusCode)}
@@ -190,6 +258,7 @@ func get(ctx context.Context, client *http.Client, url string, limit int64) ([]b
 	if err != nil {
 		return nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", "SHA256SUMS", err)}
 	}
+	response.Body = watchReleaseBody(response.Body, releaseMinimumSpeed, time.Second)
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		return nil, &releaseDownloadError{i18n.Errorf("system.installation.release.checksum.download.http", "release checksum download: HTTP %d", response.StatusCode)}

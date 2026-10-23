@@ -32254,6 +32254,7 @@
       "arg0": "string",
       "arg1": "string"
     },
+    "system.installation.download.too.slow": {},
     "system.installation.extracted.release.exceeds.512.mib": {},
     "system.installation.failed": {
       "arg0": "string",

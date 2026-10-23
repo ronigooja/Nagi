@@ -386,5 +386,6 @@
   "system.installation.progress.preflight": "Checking installation before making changes...",
   "system.installation.progress.stop": "Stopping Nagi for maintenance...",
   "system.installation.progress.install": "Applying installation changes...",
-  "system.installation.progress.restore": "Restoring service settings and engine state..."
+  "system.installation.progress.restore": "Restoring service settings and engine state...",
+  "system.installation.download.too.slow": "download stayed below 100 KiB/s for 10 seconds"
 }

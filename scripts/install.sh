@@ -97,7 +97,7 @@ base=${NAGI_RELEASE_BASE:-$base}
 
 download() {
     local url=$1 destination=$2
-    curl --fail --location --silent --show-error --connect-timeout 10 --speed-time 10 --speed-limit 1 \
+    curl --fail --location --silent --show-error --connect-timeout 10 --speed-time 10 --speed-limit 102400 \
         --output "$destination" "$url"
 }
 

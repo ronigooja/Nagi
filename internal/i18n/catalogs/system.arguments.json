@@ -768,5 +768,6 @@
   "system.installation.progress.preflight": {},
   "system.installation.progress.stop": {},
   "system.installation.progress.install": {},
-  "system.installation.progress.restore": {}
+  "system.installation.progress.restore": {},
+  "system.installation.download.too.slow": {}
 }

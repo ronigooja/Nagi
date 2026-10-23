@@ -62,6 +62,8 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --output) destination=$2; shift 2 ;;
         --connect-timeout) [ "$2" = 10 ] || exit 99; shift 2 ;;
+        --speed-time) [ "$2" = 10 ] || exit 99; shift 2 ;;
+        --speed-limit) [ "$2" = 102400 ] || exit 99; shift 2 ;;
         --retry*) exit 99 ;;
         *) url=$1; shift ;;
     esac

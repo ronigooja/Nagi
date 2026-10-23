@@ -785,6 +785,10 @@ switch sources. This applies to App installation and background updates as well.
 Each source is attempted once, without application-level retries. Connection
 establishment, TLS handshake, and waiting for response headers each have a
 10-second timeout. Archive body transfer is not subject to that timeout.
+During body transfer, a rolling 10-second window averaging less than 100 KiB/s
+(102,400 bytes per second), including a complete stall, aborts that source and
+triggers fallback when available. The backup source uses the same threshold;
+if it is also too slow, the operation fails without installing partial files.
 Ordinary terminal updates have no overall two-minute deadline; cancellation
 remains available. Text commands and the terminal menu display download source,
 fallback reason, checksum verification, extraction, preflight, installation,

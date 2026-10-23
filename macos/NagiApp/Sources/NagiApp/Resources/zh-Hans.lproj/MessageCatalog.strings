@@ -8520,6 +8520,7 @@
 "system.installation.checksum.file.is.too.large" = "校验和文件过大";
 "system.installation.download" = "下载 %1$@：%2$@";
 "system.installation.download.http" = "下载 %1$@：HTTP %2$@";
+"system.installation.download.too.slow" = "下载速度连续 10 秒低于 100 KiB/s";
 "system.installation.extracted.release.exceeds.512.mib" = "解压后的发布内容超过 512 MiB";
 "system.installation.failed" = "%1$@ 失败：%2$@：%3$@";
 "system.installation.files.updated.but.engine.restart.failed.run.nagi.status.and" = "文件已更新，但引擎重启失败；请运行 nagi status 和 nagi logs：%1$@";

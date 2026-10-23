@@ -47,7 +47,13 @@ Non-GitHub release sources are used exclusively. The same HTTP client (including
 the running-engine proxy used for background preparation) handles both sources.
 The client bounds dialing, TLS handshake, and response headers to 10 seconds
 each, while leaving body transfer free of a whole-request timeout. Each source
-receives one application-level attempt. Ordinary terminal maintenance has no
+has a separate rolling ten-second throughput check sampled every second. A
+window averaging below 100 KiB/s closes the response body, interrupts blocked
+reads, and produces a download failure eligible for fallback. Both the checksum
+file and archive use this check; small files completed before the first window
+are accepted normally. A slow backup produces an operation failure. The monitor
+is stopped and joined when a response body is closed.
+Each source receives one application-level attempt. Ordinary terminal maintenance has no
 overall two-minute context deadline; background preparation retains its
 documented overall deadline.
 Checksum verification precedes extraction and execution. The checksum comes
