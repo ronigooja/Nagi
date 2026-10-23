@@ -200,6 +200,7 @@
   "cli.error.profile.mihomo_executable_unavailable_set_nagi_mihomo_bin_to_a_mihomo_execut.usage": "mihomo executable unavailable; set NAGI_MIHOMO_BIN to a mihomo executable: {arg0}\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "cli.error.profile.mihomo_reloaded_but_saved_proxy_selections_were_not_fully_restored_w": "mihomo reloaded, but saved proxy selections were not fully restored: {arg0}",
   "cli.error.profile.mihomo_reloaded_but_saved_proxy_selections_were_not_fully_restored_w.usage": "mihomo reloaded, but saved proxy selections were not fully restored: {arg0}\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
+  "cli.error.profile.startup_activation_unconfirmed": "mihomo startup configuration was not confirmed; shutdown attempted; inspect `nagi status` and `nagi logs`: {arg0}",
   "cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l": "profile {arg0} requested mixed port {arg1}, but mihomo reports {arg2}; inspect nagi logs",
   "cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l.usage": "profile {arg0} requested mixed port {arg1}, but mihomo reports {arg2}; inspect nagi logs\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "cli.error.profile.profile_validation_failed_tailscale_diagnostics_are_private_validate": "profile validation failed; Tailscale diagnostics are private; validate a local copy with mihomo -t --check-json",

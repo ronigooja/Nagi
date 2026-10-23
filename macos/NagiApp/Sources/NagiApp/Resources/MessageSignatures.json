@@ -1962,6 +1962,9 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.profile.startup_activation_unconfirmed": {
+    "arg0": "string"
+  },
   "cli.error.profile.validation_canceled": {},
   "cli.error.profile.validation_timeout": {},
   "cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w": {

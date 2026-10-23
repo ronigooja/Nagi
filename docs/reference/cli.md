@@ -38,6 +38,8 @@ language-independent raw content.
 
 ## Commands
 
+Startup waits up to 30 seconds after control-socket readiness for mihomo to confirm configuration activation, respecting earlier cancellation or deadlines, before checking the mixed port and TUN. If activation remains unconfirmed or the completed configuration reports a different requested mixed port, Nagi attempts shutdown and returns `startup_error` (exit code 1), including any shutdown failure. Inspect `nagi status` and `nagi logs` after a failure.
+
 | Command | Result or effect |
 | --- | --- |
 | `rewrite <command>` (also `request-rewrite`) | Manage TUN content rewrite rules, scripts, activation, sensitive preview/export and local CA; see [TUN request rewrite](#tun-request-rewrite). |

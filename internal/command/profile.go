@@ -343,22 +343,48 @@ func startAndVerify(ctx context.Context, manager lifecycleBackend, client *contr
 		return status, nil
 	}
 	match := mixedPortPattern.FindSubmatch(data)
-	if len(match) != 2 {
-		return status, nil
+	var expected int
+	if len(match) == 2 {
+		expected, _ = strconv.Atoi(string(match[1]))
 	}
-	expected, err := strconv.Atoi(string(match[1]))
-	if err != nil || expected == 0 {
-		return status, nil
+	stopAfterFailure := func(cause error) (any, error) {
+		recovery, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancel()
+		_, stopErr := manager.Stop(recovery)
+		return nil, fail("startup_error", errors.Join(cause, stopErr))
 	}
-	var actual struct {
-		MixedPort int `json:"mixed-port"`
+	actual, err := waitStartupActivation(ctx, client)
+	if err != nil {
+		return stopAfterFailure(messageError("cli.error.profile.startup_activation_unconfirmed", "mihomo startup configuration was not confirmed; shutdown attempted; inspect `nagi status` and `nagi logs`: %w", err))
 	}
-	if err := client.Get(ctx, "/configs", &actual); err != nil {
-		return status, nil
-	}
-	if actual.MixedPort != expected {
-		_, _ = manager.Stop(ctx)
-		return nil, fail("startup_error", messageError("cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l", "profile %s requested mixed port %d, but mihomo reports %d; inspect nagi logs", profileName, expected, actual.MixedPort))
+	if expected != 0 && actual.MixedPort != expected {
+		return stopAfterFailure(messageError("cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l", "profile %s requested mixed port %d, but mihomo reports %d; inspect nagi logs", profileName, expected, actual.MixedPort))
 	}
 	return status, nil
+}
+
+type startupConfig struct {
+	MixedPort    int    `json:"mixed-port"`
+	ActivationID string `json:"activation_id"`
+}
+
+func waitStartupActivation(ctx context.Context, client *control.Client) (startupConfig, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var current startupConfig
+		err := client.Get(ctx, "/configs", &current)
+		// The controller accepts requests before listeners, TUN and providers
+		// finish initializing. Only the activation marker confirms completion.
+		if err == nil && current.ActivationID != "" && ctx.Err() == nil {
+			return current, nil
+		}
+		select {
+		case <-ctx.Done():
+			return startupConfig{}, errors.Join(errActivationUnconfirmed, ctx.Err(), err)
+		case <-ticker.C:
+		}
+	}
 }

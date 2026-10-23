@@ -781,6 +781,9 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.profile.startup_activation_unconfirmed": {
+    "arg0": "string"
+  },
   "cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l": {
     "arg0": "string",
     "arg1": "string",
