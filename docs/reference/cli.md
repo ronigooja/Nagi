@@ -789,8 +789,10 @@ establishment, TLS handshake, and waiting for response headers each have a
 10-second timeout. Archive body transfer is not subject to that timeout.
 Throughout body transfer, a rolling 10-second window averaging less than 256 KiB/s
 (262,144 bytes per second), including a complete stall, aborts that source and
-triggers fallback when available. The backup source uses the same threshold;
-if it is also too slow, the operation fails without installing partial files.
+triggers fallback only when another source is available. The final source,
+including an exclusive custom source, continues downloading without a minimum
+speed cutoff, even when slow or stalled. Network/read errors, cancellation,
+and applicable operation deadlines still apply.
 Ordinary terminal updates have no overall two-minute deadline; cancellation
 remains available. Text commands and the terminal menu display download source,
 fallback reason, checksum verification, extraction, preflight, installation,
@@ -798,7 +800,10 @@ and runtime restoration stages as they occur. Archive transfers also report down
 MiB and the latest sampling interval speed in KiB/s every second, including while stalled,
 and once more when the transfer ends. When the server supplies a positive content
 length, total MiB and percentage are included; otherwise only downloaded size and
-speed are shown. Text CLI stages go to stderr;
+speed are shown. On capable terminals, transfer updates refresh a single compact
+line below the archive name, ending with a newline before the next stage or
+result. Redirected output and empty/`dumb` terminals keep plain progress lines.
+Text CLI stages go to stderr;
 menu stages go directly to the menu output, separately from the buffered JSON
 command result. Ordinary `--json` output retains its single-result contract.
 An installed/requested App requires an App in that release archive. Archive

@@ -78,7 +78,7 @@ func watchReleaseBodyWithProgress(body io.ReadCloser, minimum int64, interval ti
 					report(current, now)
 				}
 				ticks++
-				if ticks >= len(history) && float64(current-history[index]) < float64(minimum)*now.Sub(times[index]).Seconds() {
+				if minimum > 0 && ticks >= len(history) && float64(current-history[index]) < float64(minimum)*now.Sub(times[index]).Seconds() {
 					b.slow.Store(true)
 					body.Close()
 					return
@@ -171,14 +171,18 @@ func fetchWithClient(ctx context.Context, base, target, tag string, client *http
 func fetchWithProgress(ctx context.Context, base, target, tag string, client *http.Client, progress func(*i18n.Message)) (string, func(), error) {
 	client = releaseHTTPClient(client)
 	defer client.CloseIdleConnections()
-	artifact, cleanup, err := fetchFromSource(ctx, base, target, tag, client, progress)
+	hasFallback := strings.HasPrefix(base, "https://github.com/") && strings.HasSuffix(base, "/releases")
+	minimum := int64(0)
+	if hasFallback {
+		minimum = releaseMinimumSpeed
+	}
+	artifact, cleanup, err := fetchFromSource(ctx, base, target, tag, client, progress, minimum)
 	var downloadErr *releaseDownloadError
-	if err != nil && ctx.Err() == nil && strings.HasPrefix(base, "https://github.com/") &&
-		strings.HasSuffix(base, "/releases") && errors.As(err, &downloadErr) {
+	if err != nil && ctx.Err() == nil && hasFallback && errors.As(err, &downloadErr) {
 		if progress != nil {
 			progress(i18n.Errorf("system.installation.progress.fallback", "GitHub download failed: %s; switching to gh-proxy.com...", err))
 		}
-		return fetchFromSource(ctx, "https://gh-proxy.com/"+base, target, tag, client, progress)
+		return fetchFromSource(ctx, "https://gh-proxy.com/"+base, target, tag, client, progress, 0)
 	}
 	return artifact, cleanup, err
 }
@@ -189,7 +193,7 @@ type releaseDownloadError struct{ error }
 
 func (e *releaseDownloadError) Unwrap() error { return e.error }
 
-func fetchFromSource(ctx context.Context, base, target, tag string, client *http.Client, progress func(*i18n.Message)) (string, func(), error) {
+func fetchFromSource(ctx context.Context, base, target, tag string, client *http.Client, progress func(*i18n.Message), minimum int64) (string, func(), error) {
 	if tag != "" && !ValidTag(tag) {
 		return "", nil, i18n.Errorf("system.installation.invalid.release.tag.use.vx.y.z", "invalid release tag; use vX.Y.Z")
 	}
@@ -217,7 +221,7 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 		}
 		progress(i18n.Errorf("system.installation.progress.checksums", "Downloading checksums from %s...", source))
 	}
-	sums, err := get(ctx, client, base+"/SHA256SUMS", 1<<20)
+	sums, err := get(ctx, client, base+"/SHA256SUMS", 1<<20, minimum)
 	if err != nil {
 		return "", nil, err
 	}
@@ -243,7 +247,7 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 	if err != nil {
 		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", asset, err)}
 	}
-	response.Body = watchReleaseBodyWithProgress(response.Body, releaseMinimumSpeed, time.Second, releaseProgress(asset, response.ContentLength, progress))
+	response.Body = watchReleaseBodyWithProgress(response.Body, minimum, time.Second, releaseProgress(asset, response.ContentLength, progress))
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download.http", "download %s: HTTP %d", asset, response.StatusCode)}
@@ -292,7 +296,7 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 	return artifact, cleanup, nil
 }
 
-func get(ctx context.Context, client *http.Client, url string, limit int64) ([]byte, error) {
+func get(ctx context.Context, client *http.Client, url string, limit, minimum int64) ([]byte, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -301,7 +305,7 @@ func get(ctx context.Context, client *http.Client, url string, limit int64) ([]b
 	if err != nil {
 		return nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", "SHA256SUMS", err)}
 	}
-	response.Body = watchReleaseBody(response.Body, releaseMinimumSpeed, time.Second)
+	response.Body = watchReleaseBody(response.Body, minimum, time.Second)
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		return nil, &releaseDownloadError{i18n.Errorf("system.installation.release.checksum.download.http", "release checksum download: HTTP %d", response.StatusCode)}

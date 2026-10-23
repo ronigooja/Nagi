@@ -46,14 +46,16 @@ checksums, checksum mismatches, and extraction failures do not switch sources.
 Non-GitHub release sources are used exclusively. The same HTTP client (including
 the running-engine proxy used for background preparation) handles both sources.
 The client bounds dialing, TLS handshake, and response headers to 10 seconds
-each, while leaving body transfer free of a whole-request timeout. Each source
-has a separate rolling ten-second throughput check sampled every second. A
-window averaging below 256 KiB/s closes the response body, interrupts blocked
-reads, and produces a download failure eligible for fallback. Both the checksum
-file and archive use this check; small files completed before the first window
-are accepted normally. A slow backup produces an operation failure. The check
-continues throughout the transfer, including after a fast start. The monitor
-is stopped and joined when a response body is closed.
+each, while leaving body transfer free of a whole-request timeout. When another
+source is available, a rolling ten-second throughput check sampled every second
+closes a response averaging below 256 KiB/s, interrupts blocked reads, and
+produces a download failure eligible for fallback. Both the checksum file and
+archive use this check; small files completed before the first window are
+accepted normally. The check continues throughout the transfer, including after
+a fast start. The final source (including an exclusive custom source) has no
+minimum-speed cutoff and continues downloading even when slow or stalled;
+network/read errors, cancellation, and applicable operation deadlines still apply.
+The monitor is stopped and joined when a response body is closed.
 Each source receives one application-level attempt. Ordinary terminal maintenance has no
 overall two-minute context deadline; background preparation retains its
 documented overall deadline.
@@ -66,8 +68,10 @@ fallback, validation, and maintenance. Archive callbacks also report downloaded 
 latest interval speed, and (when content length is known) total size and percentage,
 initially, every second even during blocked reads, and at closure. Progress reporting
 is joined before subsequent stages or source fallback. Text CLI commands render
-them immediately
-to stderr. The menu's in-process CLI dispatcher supplies a separate live writer,
+them immediately to stderr. On capable terminals, transfer updates refresh one
+compact line beneath the archive name; a newline ends it before the next stage
+or operation result. Redirected output and empty/`dumb` terminals retain plain
+lines. The menu's in-process CLI dispatcher supplies a separate live writer,
 so progress bypasses its JSON stdout/stderr buffers. Ordinary JSON invocations
 do not install this callback and retain their existing envelope. The native App
 continues to use the JSON preparation interface without live stage display.

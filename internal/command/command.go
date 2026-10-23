@@ -357,12 +357,15 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			defer timeoutCancel()
 		}
 		manager.Locale = LanguageContext(ctx)
+		var progress *maintenanceProgress
 		if writer, ok := ctx.Value(maintenanceProgressKey{}).(io.Writer); ok {
-			manager.Progress = func(message *i18n.Message) {
-				fmt.Fprintln(writer, manager.Locale.Render(message))
-			}
+			progress = newMaintenanceProgress(writer, manager.Locale)
+			manager.Progress = progress.Show
 		}
 		result, err := manager.ManageWithMessages(ctx, action, tag, purgeData)
+		if progress != nil {
+			progress.Finish()
+		}
 		if manager.PreparedArtifact != "" && err != nil {
 			_ = installation.SaveUpdateError(err)
 		}

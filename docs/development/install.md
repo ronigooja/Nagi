@@ -93,9 +93,12 @@ after a network, HTTP-status, or response-read failure. Cancellation, checksum
 mismatches, invalid archives, and local filesystem failures do not trigger a
 source switch. Both sources retain SHA256 verification against the downloaded
 checksum file; this is an integrity check, not independent publisher authentication.
-Text CLI and terminal menu archive downloads report size and speed every second,
-with total size and percentage when supplied by the server. Throughout each transfer,
-a rolling 10-second average below 256 KiB/s triggers fallback when available.
+Text CLI and terminal menu archive downloads refresh size and speed on one line
+every second on capable terminals, with total size and percentage when supplied
+by the server. Redirected output remains line-oriented. Throughout a transfer,
+a rolling 10-second average below 256 KiB/s triggers fallback when another source
+is available. The final source continues downloading without a minimum-speed
+cutoff; network errors and cancellation still apply.
 The proxy's availability and cache freshness are outside Nagi's control.
 
 An already-open terminal menu retains access to the installed mihomo after a

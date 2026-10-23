@@ -339,3 +339,20 @@ func TestReleaseProgressReportsWhileReadBlockedAndStopsOnClose(t *testing.T) {
 		}
 	}
 }
+
+func TestFinalReleaseSourceAllowsSlowTransfer(t *testing.T) {
+	reader, writer := io.Pipe()
+	body := watchReleaseBodyWithProgress(reader, 0, time.Millisecond, nil)
+	defer body.Close()
+	defer writer.Close()
+	go func() {
+		// Outlast several complete monitoring windows before providing any bytes.
+		time.Sleep(40 * time.Millisecond)
+		_, _ = writer.Write([]byte("slow final source"))
+		_ = writer.Close()
+	}()
+	data, err := io.ReadAll(body)
+	if err != nil || string(data) != "slow final source" || body.slow.Load() {
+		t.Fatalf("final source rejected for low speed: %q, %v", data, err)
+	}
+}
