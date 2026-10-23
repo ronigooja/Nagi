@@ -4,6 +4,10 @@ Apply this rule when adding or changing Nagi's native macOS interface or interac
 
 Make operations self-explanatory through clear naming, layout, and interaction. Do not fill interfaces with purpose explanations or tutorials by default; provide necessary help on demand.
 
+Terminal menu actions should identify the operation and its target. The Tailscale
+path page includes an explicit **Refresh path status** action for rereading its
+current engine snapshot; see the [terminal menu design](../design/terminal-menu.md#node-and-chain-flows).
+
 ## Local output and sensitive content
 
 These presentation rules also apply to ordinary CLI output and errors. Local
