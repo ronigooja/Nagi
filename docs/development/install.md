@@ -117,7 +117,8 @@ does not download a release.
 Run maintenance as the intended user, not with `sudo`; the installer requests
 administrator authorization for protected files and the macOS helper. Terminal
 access is required when authorization is needed. Whole updates replace modified
-recorded files; removal deletes them. A failed download or preflight leaves
+recorded files; removal deletes them. A failed download, cancellation, or the
+2-minute update deadline leaves
 the running engine and services untouched. A failed installation reports
 installer rollback details and leaves the engine stopped; login service
 preferences are restored when possible.

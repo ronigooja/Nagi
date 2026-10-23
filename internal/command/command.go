@@ -137,7 +137,12 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 			filtered = append(filtered, arg)
 		}
 	}
-	ctx := context.WithValue(context.Background(), languageContextKey{}, locale)
+	// Keep interactive and menu-dispatched commands cancellable. Without a
+	// signal-aware context, an update can remain blocked in a network request
+	// until the HTTP client's long timeout expires.
+	commandCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	ctx := context.WithValue(commandCtx, languageContextKey{}, locale)
 	helpLanguage := locale
 	if jsonMode {
 		helpLanguage = i18n.New(i18n.English)
@@ -337,6 +342,11 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			defer cancel()
 			var timeoutCancel context.CancelFunc
 			ctx, timeoutCancel = context.WithTimeout(ctx, 14*time.Minute)
+			defer timeoutCancel()
+		}
+		if action == "update" || action == "app-install" || action == "app-update" {
+			var timeoutCancel context.CancelFunc
+			ctx, timeoutCancel = context.WithTimeout(ctx, 2*time.Minute)
 			defer timeoutCancel()
 		}
 		manager.Locale = LanguageContext(ctx)

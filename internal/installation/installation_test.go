@@ -168,6 +168,20 @@ func standardArchive(t *testing.T) []byte {
 	return archiveBytes(t, map[string]string{"nagi": cliArtifact("v2.0.0"), "mihomo": "#!/bin/sh\necho 'mihomo new'\n", "installer.sh": scripts.Installer}, "")
 }
 
+func TestFetchStopsWhenContextIsCanceled(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_, _, err := Fetch(ctx, server.URL, "linux-amd64", "")
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Fetch error = %v, want context deadline exceeded", err)
+	}
+}
+
 func TestVerifiedUpdateRestoresServicePreferenceAndRestarts(t *testing.T) {
 	m, prefix := fixture(t)
 	if err := os.WriteFile(filepath.Join(prefix, "share/nagi/install-state"), []byte("nagi-installer-v4\napp=\n"), 0644); err != nil {
