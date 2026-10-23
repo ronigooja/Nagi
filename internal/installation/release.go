@@ -8,7 +8,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,17 +26,50 @@ func ValidTag(tag string) bool { return releaseTag.MatchString(tag) }
 
 const archiveLimit = 512 << 20
 
+const releaseConnectionTimeout = 10 * time.Second
+
+func releaseHTTPClient(client *http.Client) *http.Client {
+	var copy http.Client
+	if client != nil {
+		copy = *client
+	}
+	// A responsive download has no whole-request deadline. Bound connection
+	// establishment and response headers independently of archive transfer time.
+	copy.Timeout = 0
+	transport := copy.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	if original, ok := transport.(*http.Transport); ok {
+		bounded := original.Clone()
+		bounded.DialContext = (&net.Dialer{Timeout: releaseConnectionTimeout, KeepAlive: 30 * time.Second}).DialContext
+		bounded.TLSHandshakeTimeout = releaseConnectionTimeout
+		bounded.ResponseHeaderTimeout = releaseConnectionTimeout
+		copy.Transport = bounded
+	}
+	return &copy
+}
+
 // Fetch verifies the release checksum before extracting anything executable.
 func Fetch(ctx context.Context, base, target, tag string) (string, func(), error) {
 	return fetchWithClient(ctx, base, target, tag, nil)
 }
 
 func fetchWithClient(ctx context.Context, base, target, tag string, client *http.Client) (string, func(), error) {
-	artifact, cleanup, err := fetchFromSource(ctx, base, target, tag, client)
+	return fetchWithProgress(ctx, base, target, tag, client, nil)
+}
+
+func fetchWithProgress(ctx context.Context, base, target, tag string, client *http.Client, progress func(*i18n.Message)) (string, func(), error) {
+	client = releaseHTTPClient(client)
+	defer client.CloseIdleConnections()
+	artifact, cleanup, err := fetchFromSource(ctx, base, target, tag, client, progress)
 	var downloadErr *releaseDownloadError
 	if err != nil && ctx.Err() == nil && strings.HasPrefix(base, "https://github.com/") &&
 		strings.HasSuffix(base, "/releases") && errors.As(err, &downloadErr) {
-		return fetchFromSource(ctx, "https://gh-proxy.com/"+base, target, tag, client)
+		if progress != nil {
+			progress(i18n.Errorf("system.installation.progress.fallback", "GitHub download failed: %s; switching to gh-proxy.com...", err))
+		}
+		return fetchFromSource(ctx, "https://gh-proxy.com/"+base, target, tag, client, progress)
 	}
 	return artifact, cleanup, err
 }
@@ -45,7 +80,7 @@ type releaseDownloadError struct{ error }
 
 func (e *releaseDownloadError) Unwrap() error { return e.error }
 
-func fetchFromSource(ctx context.Context, base, target, tag string, client *http.Client) (string, func(), error) {
+func fetchFromSource(ctx context.Context, base, target, tag string, client *http.Client, progress func(*i18n.Message)) (string, func(), error) {
 	if tag != "" && !ValidTag(tag) {
 		return "", nil, i18n.Errorf("system.installation.invalid.release.tag.use.vx.y.z", "invalid release tag; use vX.Y.Z")
 	}
@@ -65,10 +100,14 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 			cleanup()
 		}
 	}()
-	if client == nil {
-		client = &http.Client{Timeout: 5 * time.Minute}
-	}
 	asset := "nagi-" + target + ".tar.gz"
+	if progress != nil {
+		source := "GitHub"
+		if location, err := url.Parse(base); err == nil && location.Hostname() != "" {
+			source = location.Hostname()
+		}
+		progress(i18n.Errorf("system.installation.progress.checksums", "Downloading checksums from %s...", source))
+	}
 	sums, err := get(ctx, client, base+"/SHA256SUMS", 1<<20)
 	if err != nil {
 		return "", nil, err
@@ -83,6 +122,9 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 	}
 	if digest, err := hex.DecodeString(expected); err != nil || len(digest) != sha256.Size {
 		return "", nil, i18n.Errorf("system.installation.sha256sums.has.no.valid.entry.for", "SHA256SUMS has no valid entry for %s", asset)
+	}
+	if progress != nil {
+		progress(i18n.Errorf("system.installation.progress.archive", "Downloading %s...", asset))
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/"+asset, nil)
 	if err != nil {
@@ -108,7 +150,7 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 		if errors.As(copyErr, &localErr) {
 			return "", nil, copyErr
 		}
-		return "", nil, &releaseDownloadError{copyErr}
+		return "", nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", asset, copyErr)}
 	}
 	if closeErr != nil {
 		return "", nil, closeErr
@@ -116,10 +158,16 @@ func fetchFromSource(ctx context.Context, base, target, tag string, client *http
 	if n > archiveLimit {
 		return "", nil, i18n.Errorf("system.installation.release.archive.exceeds.512.mib", "release archive exceeds 512 MiB")
 	}
+	if progress != nil {
+		progress(i18n.Errorf("system.installation.progress.checksum", "Verifying archive checksum..."))
+	}
 	if hex.EncodeToString(hash.Sum(nil)) != expected {
 		return "", nil, i18n.Errorf("system.installation.release.archive.checksum.mismatch", "release archive checksum mismatch")
 	}
 	artifact := filepath.Join(dir, "artifact")
+	if progress != nil {
+		progress(i18n.Errorf("system.installation.progress.extract", "Extracting release archive..."))
+	}
 	if err := extract(archive.Name(), artifact); err != nil {
 		return "", nil, err
 	}
@@ -140,7 +188,7 @@ func get(ctx context.Context, client *http.Client, url string, limit int64) ([]b
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, &releaseDownloadError{err}
+		return nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", "SHA256SUMS", err)}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
@@ -148,7 +196,7 @@ func get(ctx context.Context, client *http.Client, url string, limit int64) ([]b
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
 	if err != nil {
-		return nil, &releaseDownloadError{err}
+		return nil, &releaseDownloadError{i18n.Errorf("system.installation.download", "download %s: %w", "SHA256SUMS", err)}
 	}
 	if int64(len(data)) > limit {
 		err = i18n.Errorf("system.installation.checksum.file.is.too.large", "checksum file is too large")

@@ -752,5 +752,21 @@
   "system.installation.update.permission": {},
   "system.installation.update.cancelled": {},
   "system.installation.update.failed": {},
-  "cli.subscription.healthcheck.inherited": {}
+  "cli.subscription.healthcheck.inherited": {},
+  "system.installation.progress.fallback": {
+    "arg0": "string"
+  },
+  "system.installation.progress.checksums": {
+    "arg0": "string"
+  },
+  "system.installation.progress.archive": {
+    "arg0": "string"
+  },
+  "system.installation.progress.checksum": {},
+  "system.installation.progress.extract": {},
+  "system.installation.progress.app": {},
+  "system.installation.progress.preflight": {},
+  "system.installation.progress.stop": {},
+  "system.installation.progress.install": {},
+  "system.installation.progress.restore": {}
 }

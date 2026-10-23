@@ -782,6 +782,15 @@ Network, HTTP-status, and response-read failures retry the entire release throug
 the third-party `https://gh-proxy.com/` proxy. Both sources require SHA256
 verification; cancellation, invalid content, and local filesystem failures do not
 switch sources. This applies to App installation and background updates as well.
+Each source is attempted once, without application-level retries. Connection
+establishment, TLS handshake, and waiting for response headers each have a
+10-second timeout. Archive body transfer is not subject to that timeout.
+Ordinary terminal updates have no overall two-minute deadline; cancellation
+remains available. Text commands and the terminal menu display download source,
+fallback reason, checksum verification, extraction, preflight, installation,
+and runtime restoration stages as they occur. Text CLI stages go to stderr;
+menu stages go directly to the menu output, separately from the buffered JSON
+command result. Ordinary `--json` output retains its single-result contract.
 An installed/requested App requires an App in that release archive. Archive
 paths escaping extraction, duplicate files, links, and special files are
 rejected. Compressed and extracted archives are each limited to 512 MiB.

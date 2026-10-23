@@ -376,5 +376,15 @@
   "system.installation.update.permission": "Nagi needs permission to update.",
   "system.installation.update.cancelled": "Update cancelled: Nagi.app did not quit.",
   "system.installation.update.failed": "Update failed. Inspect the Nagi update log and retry the update.",
-  "cli.subscription.healthcheck.inherited": "Follows the subscription configuration and mihomo defaults. Provider and group local intervals take precedence in their native schedulers; provider enablement and separate local settings are retained."
+  "cli.subscription.healthcheck.inherited": "Follows the subscription configuration and mihomo defaults. Provider and group local intervals take precedence in their native schedulers; provider enablement and separate local settings are retained.",
+  "system.installation.progress.fallback": "GitHub download failed: {arg0}; switching to gh-proxy.com...",
+  "system.installation.progress.checksums": "Downloading checksums from {arg0}...",
+  "system.installation.progress.archive": "Downloading {arg0}...",
+  "system.installation.progress.checksum": "Verifying archive checksum...",
+  "system.installation.progress.extract": "Extracting release archive...",
+  "system.installation.progress.app": "Applying App installation changes...",
+  "system.installation.progress.preflight": "Checking installation before making changes...",
+  "system.installation.progress.stop": "Stopping Nagi for maintenance...",
+  "system.installation.progress.install": "Applying installation changes...",
+  "system.installation.progress.restore": "Restoring service settings and engine state..."
 }

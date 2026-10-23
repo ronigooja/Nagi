@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/ronigooja/Nagi/scripts"
 
@@ -28,6 +27,7 @@ type Manager struct {
 	Locale                                     i18n.Context
 	OS, Arch, Executable, Version, ReleaseBase string
 	Run                                        Runner
+	Progress                                   func(*i18n.Message)
 	PreparedArtifact                           string
 	EngineWasRunning                           bool
 	StartBackground                            func(*exec.Cmd) error
@@ -245,7 +245,7 @@ func (m *Manager) manage(ctx context.Context, action, tag string, messages *map[
 				}
 				transport := http.DefaultTransport.(*http.Transport).Clone()
 				transport.Proxy = http.ProxyURL(proxyURL)
-				client = &http.Client{Transport: transport, Timeout: 5 * time.Minute}
+				client = &http.Client{Transport: transport}
 				defer transport.CloseIdleConnections()
 			}
 		}
@@ -256,7 +256,7 @@ func (m *Manager) manage(ctx context.Context, action, tag string, messages *map[
 			targetOS = "macos"
 		}
 		var cleanup func()
-		artifact, cleanup, err = fetchWithClient(ctx, m.ReleaseBase, targetOS+"-"+m.Arch, tag, client)
+		artifact, cleanup, err = fetchWithProgress(ctx, m.ReleaseBase, targetOS+"-"+m.Arch, tag, client, m.Progress)
 		if err != nil {
 			return nil, err
 		}
@@ -303,6 +303,9 @@ func (m *Manager) manage(ctx context.Context, action, tag string, messages *map[
 	}
 	// App-only transactions preserve the engine, service, binaries, and profiles.
 	if action == "app-install" || action == "app-uninstall" {
+		if m.Progress != nil {
+			m.Progress(i18n.Errorf("system.installation.progress.app", "Applying App installation changes..."))
+		}
 		if _, err := m.Run(ctx, "bash", argv...); err != nil {
 			return nil, err
 		}
@@ -318,6 +321,9 @@ func (m *Manager) manage(ctx context.Context, action, tag string, messages *map[
 	verify := append([]string{filepath.Join(dir, "installer.sh"), installerAction, "--prefix", r.Prefix}, "--verify")
 	if artifact != "" {
 		verify = append(verify, "--artifact-dir", artifact)
+	}
+	if m.Progress != nil {
+		m.Progress(i18n.Errorf("system.installation.progress.preflight", "Checking installation before making changes..."))
 	}
 	if _, err := m.Run(ctx, "bash", verify...); err != nil {
 		return nil, err
@@ -348,6 +354,9 @@ func (m *Manager) manage(ctx context.Context, action, tag string, messages *map[
 	if m.PreparedArtifact != "" {
 		engineState.Running = m.EngineWasRunning
 	}
+	if m.Progress != nil {
+		m.Progress(i18n.Errorf("system.installation.progress.stop", "Stopping Nagi for maintenance..."))
+	}
 	if _, err := m.Run(ctx, m.Executable, "--json", "quit"); err != nil {
 		return nil, i18n.Errorf("system.installation.cannot.stop.nagi.before.maintenance", "cannot stop Nagi before maintenance: %w", err)
 	}
@@ -363,6 +372,9 @@ func (m *Manager) manage(ctx context.Context, action, tag string, messages *map[
 		if _, err := m.Run(ctx, m.Executable, "--json", "service", "uninstall"); err != nil {
 			return nil, i18n.Errorf("system.installation.nagi.is.stopped.cannot.remove.login.service", "Nagi is stopped; cannot remove login service: %w", err)
 		}
+	}
+	if m.Progress != nil {
+		m.Progress(i18n.Errorf("system.installation.progress.install", "Applying installation changes..."))
 	}
 	transactionOutput, transactionErr := m.Run(ctx, "bash", argv...)
 	if action == "uninstall" && transactionErr == nil {
@@ -381,6 +393,9 @@ func (m *Manager) manage(ctx context.Context, action, tag string, messages *map[
 	// Restore login preferences after success or a rolled-back failure. A failed
 	// transaction leaves mihomo stopped so recovery remains an explicit action.
 	var restoreErr error
+	if m.Progress != nil && (serviceState.Installed || engineState.Running) {
+		m.Progress(i18n.Errorf("system.installation.progress.restore", "Restoring service settings and engine state..."))
+	}
 	if serviceState.Installed {
 		_, restoreErr = m.Run(ctx, m.Executable, "--json", "service", "install")
 		if restoreErr == nil && !serviceState.Enabled {

@@ -8539,6 +8539,16 @@
 "system.installation.nagi.is.stopped.cannot.remove.login.service" = "Nagi is stopped; cannot remove login service: %1$@";
 "system.installation.nagi.was.removed.but.user.data.cleanup.was.incomplete.some" = "Nagi was removed, but user data cleanup was incomplete; some user data may remain: %1$@";
 "system.installation.no.readable.installer.record.install.nagi.using.the.release.installer" = "no readable installer record; install Nagi using the release installer first: %1$@";
+"system.installation.progress.app" = "Applying App installation changes...";
+"system.installation.progress.archive" = "Downloading %1$@...";
+"system.installation.progress.checksum" = "Verifying archive checksum...";
+"system.installation.progress.checksums" = "Downloading checksums from %1$@...";
+"system.installation.progress.extract" = "Extracting release archive...";
+"system.installation.progress.fallback" = "GitHub download failed: %1$@; switching to gh-proxy.com...";
+"system.installation.progress.install" = "Applying installation changes...";
+"system.installation.progress.preflight" = "Checking installation before making changes...";
+"system.installation.progress.restore" = "Restoring service settings and engine state...";
+"system.installation.progress.stop" = "Stopping Nagi for maintenance...";
 "system.installation.purge.data.is.only.valid.with.uninstall" = "--purge-data is only valid with uninstall";
 "system.installation.quit.nagi.app.before.updating.or.uninstalling.its.update.option" = "quit Nagi.app before updating or uninstalling; its Update option does this automatically";
 "system.installation.release.archive.checksum.mismatch" = "release archive checksum mismatch";

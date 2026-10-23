@@ -149,7 +149,9 @@ by Update Nagi, on macOS Install menu bar App and Uninstall menu bar App, then
 Uninstall Nagi and Uninstall Nagi and clear user data. Nagi uninstall offers
 data-preserving removal and `uninstall --purge-data` to remove user data; effects
 disclose what is removed. The menu does not download or install files itself;
-the [maintenance design](installation.md) defines those operations.
+the [maintenance design](installation.md) defines those operations. Maintenance
+stage messages from the CLI are rendered live through a separate writer while
+the final JSON result remains buffered for normal success/error feedback.
 
 Failed reads replace old resources, preventing selection of stale targets. Views can retain fixed recovery actions and state unknown/unavailable explicitly. Command failures display existing messages and known resulting state; the menu never infers successful saving, activation, or rollback. Errors, page context, and list labels retain useful URL details while the formatter removes URL userinfo and common credential query or fragment values. Raw requested configuration and log content retain their ordinary command content.
 

@@ -8,9 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/ronigooja/Nagi/internal/i18n"
 )
 
 type releaseTransport func(*http.Request) (*http.Response, error)
@@ -87,7 +91,10 @@ func TestReleaseDownloadFallback(t *testing.T) {
 				}
 				return &http.Response{StatusCode: status, Body: body, Header: make(http.Header)}, nil
 			})}
-			artifact, cleanup, err := fetchWithClient(ctx, base, "linux-amd64", tc.tag, client)
+			var stages []string
+			artifact, cleanup, err := fetchWithProgress(ctx, base, "linux-amd64", tc.tag, client, func(message *i18n.Message) {
+				stages = append(stages, message.Descriptor().ID)
+			})
 			if cleanup != nil {
 				defer cleanup()
 			}
@@ -100,13 +107,27 @@ func TestReleaseDownloadFallback(t *testing.T) {
 				}
 			}
 			var proxyRequests []string
+			counts := make(map[string]int)
 			for _, request := range requests {
+				counts[request]++
+				if counts[request] != 1 {
+					t.Fatalf("retried the same source request: %v", requests)
+				}
 				if strings.HasPrefix(request, "https://gh-proxy.com/") {
 					proxyRequests = append(proxyRequests, request)
 				}
 			}
 			if (len(proxyRequests) > 0) != tc.wantProxy {
 				t.Fatalf("unexpected requests: %v", requests)
+			}
+			fallbackCount := 0
+			for _, stage := range stages {
+				if stage == "system.installation.progress.fallback" {
+					fallbackCount++
+				}
+			}
+			if (fallbackCount == 1) != tc.wantProxy {
+				t.Fatalf("unexpected fallback stages: %v", stages)
 			}
 			if tc.wantProxy {
 				suffix := "/latest/download/SHA256SUMS"
@@ -118,6 +139,38 @@ func TestReleaseDownloadFallback(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReleaseHeaderTimeoutDoesNotLimitBodyTransfer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		for range 3 {
+			time.Sleep(30 * time.Millisecond)
+			fmt.Fprint(w, "part")
+			w.(http.Flusher).Flush()
+		}
+	}))
+	defer server.Close()
+	client := releaseHTTPClient(&http.Client{Timeout: time.Millisecond})
+	defer client.CloseIdleConnections()
+	// Shrink only the header deadline; the body must be allowed to outlast it.
+	client.Transport.(*http.Transport).ResponseHeaderTimeout = 20 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil || string(body) != "partpartpart" {
+		t.Fatalf("body transfer was cut short: %q, %v", body, err)
 	}
 }
 

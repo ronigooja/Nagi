@@ -55,6 +55,12 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 
 // RunWithInput keeps command input separate from argv, including pasted keys.
 func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, version, commit string) int {
+	return runWithInputProgress(args, stdin, stdout, stderr, version, commit, nil)
+}
+
+type maintenanceProgressKey struct{}
+
+func runWithInputProgress(args []string, stdin io.Reader, stdout, stderr io.Writer, version, commit string, progress io.Writer) int {
 	if len(args) == 1 && args[0] == "__nagi-capture-service" {
 		return runCaptureService()
 	}
@@ -143,6 +149,12 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 	commandCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	ctx := context.WithValue(commandCtx, languageContextKey{}, locale)
+	if progress == nil && !jsonMode {
+		progress = stderr
+	}
+	if progress != nil {
+		ctx = context.WithValue(ctx, maintenanceProgressKey{}, progress)
+	}
 	helpLanguage := locale
 	if jsonMode {
 		helpLanguage = i18n.New(i18n.English)
@@ -180,7 +192,7 @@ func RunWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, vers
 			return 2
 		}
 		runner := menu.NewInputCommandRunner(func(argv []string, input io.Reader, out, errOut io.Writer) int {
-			return RunWithInput(argv, input, out, errOut, version, commit)
+			return runWithInputProgress(argv, input, out, errOut, version, commit, stdout)
 		})
 		return menu.Run(ctx, menu.NewSessionWithLanguage(runner, stdin, stdout, locale))
 	}
@@ -344,12 +356,12 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			ctx, timeoutCancel = context.WithTimeout(ctx, 14*time.Minute)
 			defer timeoutCancel()
 		}
-		if action == "update" || action == "app-install" || action == "app-update" {
-			var timeoutCancel context.CancelFunc
-			ctx, timeoutCancel = context.WithTimeout(ctx, 2*time.Minute)
-			defer timeoutCancel()
-		}
 		manager.Locale = LanguageContext(ctx)
+		if writer, ok := ctx.Value(maintenanceProgressKey{}).(io.Writer); ok {
+			manager.Progress = func(message *i18n.Message) {
+				fmt.Fprintln(writer, manager.Locale.Render(message))
+			}
+		}
 		result, err := manager.ManageWithMessages(ctx, action, tag, purgeData)
 		if manager.PreparedArtifact != "" && err != nil {
 			_ = installation.SaveUpdateError(err)

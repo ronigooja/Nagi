@@ -97,12 +97,15 @@ base=${NAGI_RELEASE_BASE:-$base}
 
 download() {
     local url=$1 destination=$2
-    curl --fail --location --silent --show-error --connect-timeout 15 --retry 3 --retry-delay 1 \
+    curl --fail --location --silent --show-error --connect-timeout 10 --speed-time 10 --speed-limit 1 \
         --output "$destination" "$url"
 }
 
 download_release() {
-    download "$1/$asset" "$archive" && download "$1/SHA256SUMS" "$checksums"
+    printf 'Downloading %s from %s...\n' "$asset" "$1" >&2
+    download "$1/$asset" "$archive" || return $?
+    printf 'Downloading SHA256SUMS...\n' >&2
+    download "$1/SHA256SUMS" "$checksums"
 }
 
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/nagi-online.XXXXXXXX")
@@ -122,6 +125,7 @@ if ! download_release "$base"; then
         fail 'release download failed'
     fi
 fi
+printf 'Verifying archive checksum...\n' >&2
 expected=$(awk -v file="$asset" '$2 == file || $2 == "*" file { print $1; exit }' "$checksums")
 [[ "$expected" =~ ^[0-9a-fA-F]{64}$ ]] || fail "SHA256SUMS has no entry for $asset"
 actual=$(shasum -a 256 "$archive" | awk '{print $1}')
@@ -131,6 +135,7 @@ expected=$(printf '%s' "$expected" | tr 'A-F' 'a-f')
 [[ "$actual" == "$expected" ]] || fail 'release archive checksum mismatch'
 
 artifact_dir="$temp_dir/artifact"
+printf 'Extracting release archive...\n' >&2
 mkdir -p "$artifact_dir"
 tar -xzf "$archive" -C "$artifact_dir"
 [[ -f "$artifact_dir/nagi" && -x "$artifact_dir/nagi" ]] || fail 'release archive has no executable nagi'
@@ -162,4 +167,5 @@ elif [[ "$app_mode" == app ]]; then
     fail 'the selected macOS release does not contain Nagi.app'
 fi
 
+printf 'Applying installation changes...\n' >&2
 exec "$artifact_dir/installer.sh" "$action" --artifact-dir "$artifact_dir" --prefix "$prefix"

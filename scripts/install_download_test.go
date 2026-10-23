@@ -61,6 +61,8 @@ func TestOnlineInstallerDownloadFallback(t *testing.T) {
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --output) destination=$2; shift 2 ;;
+        --connect-timeout) [ "$2" = 10 ] || exit 99; shift 2 ;;
+        --retry*) exit 99 ;;
         *) url=$1; shift ;;
     esac
 done
@@ -95,6 +97,13 @@ esac
 			wantErr := mode == "both" || mode == "corrupt" || mode == "proxy-corrupt" || mode == "custom"
 			if (err != nil) != wantErr {
 				t.Fatalf("error = %v, output: %s", err, out)
+			}
+			if !wantErr {
+				for _, stage := range []string{"Downloading SHA256SUMS", "Verifying archive checksum", "Extracting release archive", "Applying installation changes"} {
+					if !strings.Contains(string(out), stage) {
+						t.Fatalf("missing live stage %q: %s", stage, out)
+					}
+				}
 			}
 			requests, readErr := os.ReadFile(filepath.Join(root, "requests"))
 			if readErr != nil {

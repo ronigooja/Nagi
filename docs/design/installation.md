@@ -45,9 +45,22 @@ downloaded again. Cancellation, local filesystem failures, size limits, invalid
 checksums, checksum mismatches, and extraction failures do not switch sources.
 Non-GitHub release sources are used exclusively. The same HTTP client (including
 the running-engine proxy used for background preparation) handles both sources.
+The client bounds dialing, TLS handshake, and response headers to 10 seconds
+each, while leaving body transfer free of a whole-request timeout. Each source
+receives one application-level attempt. Ordinary terminal maintenance has no
+overall two-minute context deadline; background preparation retains its
+documented overall deadline.
 Checksum verification precedes extraction and execution. The checksum comes
 from the selected download source; it does not independently authenticate the
 publisher.
+
+The installation manager emits optional localized stage callbacks for download,
+fallback, validation, and maintenance. Text CLI commands render them immediately
+to stderr. The menu's in-process CLI dispatcher supplies a separate live writer,
+so progress bypasses its JSON stdout/stderr buffers. Ordinary JSON invocations
+do not install this callback and retain their existing envelope. The native App
+continues to use the JSON preparation interface without live stage display.
+
 Extraction bounds total bytes and entry count, refuses escape paths, duplicate
 files, links, and special files, and requires regular executable CLI, engine,
 and installer files. The package App must exist when requested or already
