@@ -72,6 +72,41 @@ serially. This reduces competition with the bounded script throughput fixture;
 it does not skip tests or change production deadlines. See the
 [diagnostic comparison](build-and-test.md) for the measured results.
 
+## Build caches
+
+The [build and release workflow](../../.github/workflows/release.yml) also runs
+on pushes to `main`. A main-branch run tests and builds all four archives and
+the macOS App, verifies their checksums and source version, and saves Go and
+Swift build caches. It does not create a tag or publish a GitHub Release.
+New main-branch push runs cancel superseded runs for that branch; tag releases
+are not cancelled by newer main pushes.
+
+Manual dispatch without `release_tag` also performs a build without publishing;
+run it on `main` to refresh that branch's shared caches. Supplying an existing
+tag retains the tagged release publication path.
+
+GitHub cache access is scoped to the workflow ref and the default branch.
+Separate release tags cannot restore each other's tag-scoped caches, so only
+successful `main` builds save the shared snapshots. Tag and manually dispatched
+release runs restore those snapshots without uploading another copy. The first
+main build after this configuration is introduced is expected to be cold.
+
+Go cache keys include the runner OS/architecture, Go version, `go.sum`,
+`engine.lock`, and checked-out source commit. Restore prefixes allow reuse of
+earlier main snapshots, including compilation for all four targets and module
+downloads for the pinned engine. Swift keys include the runner OS/architecture,
+Xcode/Swift/SDK fingerprint, package manifests, and source commit; only snapshots
+with matching toolchain and manifests are eligible for fallback restoration.
+Snapshots are immutable; source commits produce new keys, allowing successful
+main builds to refresh cached compiler work. `actions/setup-go` automatic caching
+is disabled to avoid duplicate tag-scoped uploads.
+
+Caches accelerate compilation and dependency downloads. Every run still invokes
+the build tools and verifies the resulting versions and archives. Release
+archives and the generated App bundle are not cache entries. An absent or
+evicted cache causes a normal cold build. Inspect the restore/save steps for the
+matched key, cache size, and hit/miss before comparing build times.
+
 ## Preparing a release
 
 1. Confirm that the working tree is clean and that the intended version follows
