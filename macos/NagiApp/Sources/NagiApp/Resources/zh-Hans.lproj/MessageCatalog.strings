@@ -1,4 +1,10 @@
 /* Named CLI/backend descriptors. Refresh with Tools/update-message-catalog.py. */
+"backend.browserprefs.command_failed" = "无法读取或修改 Chrome 偏好；请检查 macOS 偏好访问权限。";
+"backend.browserprefs.conflict" = "Chrome WebRTC 偏好已在 Nagi 外部修改；未继续应用更改。请刷新状态后重试。";
+"backend.browserprefs.forced" = "Chrome WebRTC 偏好由管理员管理，Nagi 无法修改。";
+"backend.browserprefs.invalid_journal" = "Chrome WebRTC 恢复记录无效；请保留记录并解决问题后重试。";
+"backend.browserprefs.invalid_value" = "Chrome WebRTC 偏好的值不受支持；请通过原管理方式修改。";
+"backend.browserprefs.unsupported" = "Chrome WebRTC 偏好仅支持 macOS。";
 "backend.capture.readiness.a_valid_capture_ca_is_missing_generate_the_rewrite_ca_before_starting_" = "缺少有效的捕获 CA。请先生成改写 CA，再开始捕获。";
 "backend.capture.readiness.cannot_confirm_engine_state_check_engine_status_before_capturing" = "无法确认引擎状态。请检查引擎状态后再捕获。";
 "backend.capture.readiness.cannot_reach_the_engine_start_nagi_and_check_engine_status_before_capt" = "无法连接引擎。请启动 Nagi 并检查引擎状态后再捕获。";
@@ -1229,6 +1235,10 @@
 "cli.language.duplicate" = "--lang 只能指定一次。";
 "cli.language.invalid" = "不支持语言 %1$@；请使用 en 或 zh-Hans。";
 "cli.language.missing" = "--lang 需要语言参数；请使用 en 或 zh-Hans。";
+"cli.output.browserprefs.current" = "Chrome WebRTC 偏好：%1$@";
+"cli.output.browserprefs.forced" = "管理员策略：%1$@";
+"cli.output.browserprefs.managed" = "Nagi 恢复记录：%1$@";
+"cli.output.browserprefs.restart" = "请完全退出并重新打开 Chrome 以应用更改。";
 "cli.output.group.empty" = "没有已配置的代理组。";
 "cli.output.group.interval" = "检查间隔（秒）";
 "cli.output.group.nodes" = "节点和代理组";
@@ -1530,6 +1540,16 @@
 "help.command.app.update-error.summary" = "读取并清除上次后台更新失败";
 "help.command.app.update.detail" = "包含 App 的安装可使用此 update 别名。未提供 TAG 时下载最新发行版。请先退出 App。";
 "help.command.app.update.summary" = "更新 Nagi 及已安装的 App";
+"help.command.browser.chrome-webrtc.detail" = "读取或修改 Chrome WebRtcIPHandling。设置在 Nagi 退出后仍然保留，需要完全重启 Chrome。此状态不能证明代理路由或 Chrome 已加载策略。";
+"help.command.browser.chrome-webrtc.enable.detail" = "保存原偏好并设置 disable_non_proxied_udp。已有限制保持不变，不能修改管理员策略。修改后请完全重启 Chrome。";
+"help.command.browser.chrome-webrtc.enable.summary" = "限制 Chrome WebRTC 直连 UDP";
+"help.command.browser.chrome-webrtc.restore.detail" = "仅恢复 Nagi 保存的偏好。不会删除非 Nagi 设置的偏好，保留有冲突的外部修改。修改后请完全重启 Chrome。";
+"help.command.browser.chrome-webrtc.restore.summary" = "恢复 Chrome WebRTC 偏好";
+"help.command.browser.chrome-webrtc.status.detail" = "报告当前偏好、管理员策略和 Nagi 恢复记录状态。不会修改 Chrome 偏好，无需引擎运行。";
+"help.command.browser.chrome-webrtc.status.summary" = "显示 Chrome WebRTC 偏好";
+"help.command.browser.chrome-webrtc.summary" = "管理 Chrome WebRTC UDP 限制";
+"help.command.browser.detail" = "管理 macOS 当前用户的浏览器偏好，无需引擎运行。";
+"help.command.browser.summary" = "管理浏览器偏好";
 "help.command.completion.bash.detail" = "打印 Bash 补全脚本。";
 "help.command.completion.bash.summary" = "生成 Bash 补全";
 "help.command.completion.candidates.detail" = "列出本地名称（规则属于当前配置方案）、指定配置方案中符合条件的代理组，或实时代理及提供方名称；不包含 URL。";

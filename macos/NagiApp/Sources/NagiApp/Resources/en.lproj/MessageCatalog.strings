@@ -1,4 +1,10 @@
 /* Named CLI/backend descriptors. Refresh with Tools/update-message-catalog.py. */
+"backend.browserprefs.command_failed" = "Cannot read or update Chrome preferences; check macOS preference access.";
+"backend.browserprefs.conflict" = "Chrome WebRTC preference changed outside Nagi; no further changes were applied. Refresh its state before retrying.";
+"backend.browserprefs.forced" = "Chrome WebRTC preference is managed by an administrator and cannot be changed by Nagi.";
+"backend.browserprefs.invalid_journal" = "Chrome WebRTC recovery record is invalid; preserve the record and resolve it before retrying.";
+"backend.browserprefs.invalid_value" = "Chrome WebRTC preference has an unsupported value; change it through its original management source.";
+"backend.browserprefs.unsupported" = "Chrome WebRTC preferences are supported only on macOS.";
 "backend.capture.readiness.a_valid_capture_ca_is_missing_generate_the_rewrite_ca_before_starting_" = "A valid capture CA is missing. Generate the rewrite CA before starting capture.";
 "backend.capture.readiness.cannot_confirm_engine_state_check_engine_status_before_capturing" = "Cannot confirm engine state. Check engine status before capturing.";
 "backend.capture.readiness.cannot_reach_the_engine_start_nagi_and_check_engine_status_before_capt" = "Cannot reach the engine. Start Nagi and check engine status before capturing.";
@@ -1229,6 +1235,10 @@
 "cli.language.duplicate" = "--lang may be specified only once.";
 "cli.language.invalid" = "Unsupported language %1$@; use en or zh-Hans.";
 "cli.language.missing" = "--lang requires a language; use en or zh-Hans.";
+"cli.output.browserprefs.current" = "Chrome WebRTC preference: %1$@";
+"cli.output.browserprefs.forced" = "Administrator policy: %1$@";
+"cli.output.browserprefs.managed" = "Nagi recovery record: %1$@";
+"cli.output.browserprefs.restart" = "Completely quit and reopen Chrome to apply the change.";
 "cli.output.group.empty" = "No configured proxy groups.";
 "cli.output.group.interval" = "Check interval (seconds)";
 "cli.output.group.nodes" = "Nodes and groups";
@@ -1530,6 +1540,16 @@
 "help.command.app.update-error.summary" = "Read and clear the last background update failure";
 "help.command.app.update.detail" = "Alias of update for an installation that includes the App. Downloads the latest release unless TAG is supplied. Quit the App first.";
 "help.command.app.update.summary" = "Update Nagi including the installed App";
+"help.command.browser.chrome-webrtc.detail" = "Reads or changes Chrome WebRtcIPHandling. Changes persist after Nagi quits and require completely restarting Chrome. This does not prove proxy routing or active Chrome policy.";
+"help.command.browser.chrome-webrtc.enable.detail" = "Saves the previous preference and sets disable_non_proxied_udp. Already restricted preferences are left unchanged. Administrator policies cannot be changed. Completely restart Chrome after a change.";
+"help.command.browser.chrome-webrtc.enable.summary" = "Restrict Chrome WebRTC direct UDP";
+"help.command.browser.chrome-webrtc.restore.detail" = "Restores only the preference saved by Nagi. Preferences set outside Nagi are not deleted; conflicting external changes are preserved. Completely restart Chrome after a change.";
+"help.command.browser.chrome-webrtc.restore.summary" = "Restore Chrome WebRTC preference";
+"help.command.browser.chrome-webrtc.status.detail" = "Reports the current preference, administrator policy and Nagi recovery ownership. Does not change Chrome preferences or require a running engine.";
+"help.command.browser.chrome-webrtc.status.summary" = "Show Chrome WebRTC preference";
+"help.command.browser.chrome-webrtc.summary" = "Manage Chrome WebRTC UDP restrictions";
+"help.command.browser.detail" = "Manages per-user browser preferences on macOS without requiring a running engine.";
+"help.command.browser.summary" = "Manage browser preferences";
 "help.command.completion.bash.detail" = "Prints a Bash completion script.";
 "help.command.completion.bash.summary" = "Generate Bash completion";
 "help.command.completion.candidates.detail" = "Lists local names (rules belong to the selected profile), eligible proxy groups in a named profile, or live proxy and provider names; URLs are excluded.";

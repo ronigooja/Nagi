@@ -127,6 +127,12 @@
   "fallback": "Preserve original English target; optional metadata failure must not reject valid base response.",
   "ownership": "Go owns internal/i18n catalogs. App owns native interface and CLI message catalogs. Go and native App Phase A tests consume this shared fixture.",
   "producer_ids": {
+    "backend.browserprefs.command_failed": {},
+    "backend.browserprefs.conflict": {},
+    "backend.browserprefs.forced": {},
+    "backend.browserprefs.invalid_journal": {},
+    "backend.browserprefs.invalid_value": {},
+    "backend.browserprefs.unsupported": {},
     "backend.capture.readiness.a_valid_capture_ca_is_missing_generate_the_rewrite_ca_before_starting_": {},
     "backend.capture.readiness.cannot_confirm_engine_state_check_engine_status_before_capturing": {},
     "backend.capture.readiness.cannot_reach_the_engine_start_nagi_and_check_engine_status_before_capt": {},
@@ -3230,6 +3236,16 @@
       "value": "string"
     },
     "cli.language.missing": {},
+    "cli.output.browserprefs.current": {
+      "value": "string"
+    },
+    "cli.output.browserprefs.forced": {
+      "value": "string"
+    },
+    "cli.output.browserprefs.managed": {
+      "value": "string"
+    },
+    "cli.output.browserprefs.restart": {},
     "cli.output.group.empty": {},
     "cli.output.group.interval": {},
     "cli.output.group.nodes": {},
@@ -3854,6 +3870,16 @@
     "help.command.app.update-error.summary": {},
     "help.command.app.update.detail": {},
     "help.command.app.update.summary": {},
+    "help.command.browser.chrome-webrtc.detail": {},
+    "help.command.browser.chrome-webrtc.enable.detail": {},
+    "help.command.browser.chrome-webrtc.enable.summary": {},
+    "help.command.browser.chrome-webrtc.restore.detail": {},
+    "help.command.browser.chrome-webrtc.restore.summary": {},
+    "help.command.browser.chrome-webrtc.status.detail": {},
+    "help.command.browser.chrome-webrtc.status.summary": {},
+    "help.command.browser.chrome-webrtc.summary": {},
+    "help.command.browser.detail": {},
+    "help.command.browser.summary": {},
     "help.command.completion.bash.detail": {},
     "help.command.completion.bash.summary": {},
     "help.command.completion.candidates.detail": {},
