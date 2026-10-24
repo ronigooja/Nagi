@@ -11,7 +11,7 @@ import (
 
 func TestBrowserInvocationValidationAndHelpWithoutEngine(t *testing.T) {
 	invalidTestConfigDir(t, t.TempDir())
-	for _, args := range [][]string{{"browser"}, {"browser", "chrome-webrtc"}, {"browser", "chrome-webrtc", "disable"}, {"browser", "chrome-webrtc", "status", "extra"}} {
+	for _, args := range [][]string{{"browser"}, {"browser", "chrome-webrtc"}, {"browser", "chrome-webrtc", "reset"}, {"browser", "chrome-webrtc", "status", "extra"}} {
 		var out, errs bytes.Buffer
 		if code := Run(append([]string{"--json"}, args...), &out, &errs, "test", "commit"); code != 2 || out.Len() != 0 || !strings.Contains(errs.String(), `"code":"usage"`) {
 			t.Fatalf("%v: stdout=%s stderr=%s exit=%d", args, out.String(), errs.String(), code)
@@ -29,7 +29,7 @@ func TestBrowserUnsupportedPlatformIsLocalizedAndDoesNotReadProfile(t *testing.T
 		t.Skip("unsupported-platform contract")
 	}
 	invalidTestConfigDir(t, t.TempDir())
-	for _, op := range []string{"status", "enable", "restore"} {
+	for _, op := range []string{"status", "enable", "disable", "restore"} {
 		var out, errs bytes.Buffer
 		code := Run([]string{"--json", "browser", "chrome-webrtc", op}, &out, &errs, "test", "commit")
 		var failure struct {
@@ -44,12 +44,12 @@ func TestBrowserBashCompletionThirdLevel(t *testing.T) {
 	script, _ := completion("bash")
 	probe := script + "\n" + `COMP_WORDS=(nagi browser chrome-webrtc ''); COMP_CWORD=3; _nagi_complete; printf '%s\n' "${COMPREPLY[*]}"`
 	out, err := exec.Command("bash", "-c", probe).CombinedOutput()
-	if err != nil || string(out) != "status enable restore\n" {
+	if err != nil || string(out) != "status enable disable restore\n" {
 		t.Fatalf("completion: %s %v", out, err)
 	}
 	for _, shell := range []string{"zsh", "fish"} {
 		script, _ := completion(shell)
-		if !strings.Contains(script, "chrome-webrtc") || !strings.Contains(script, "status enable restore") {
+		if !strings.Contains(script, "chrome-webrtc") || !strings.Contains(script, "status enable disable restore") {
 			t.Fatalf("missing browser completion for %s", shell)
 		}
 	}

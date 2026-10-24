@@ -222,7 +222,7 @@ func TestStatusDoesNotChangePreferenceAndJSONFieldsAreStable(t *testing.T) {
 	b, _ := json.Marshal(s)
 	var fields map[string]any
 	_ = json.Unmarshal(b, &fields)
-	want := map[string]any{"available": true, "current_value": nil, "restricted": false, "managed": false, "forced": false, "can_enable": true, "can_restore": false, "requires_restart": false}
+	want := map[string]any{"available": true, "current_value": nil, "restricted": false, "managed": false, "forced": false, "can_enable": true, "can_disable": false, "can_restore": false, "requires_restart": false}
 	if !reflect.DeepEqual(fields, want) {
 		t.Fatalf("got %s", b)
 	}
@@ -231,5 +231,108 @@ func TestStatusDoesNotChangePreferenceAndJSONFieldsAreStable(t *testing.T) {
 	}
 	if !strings.Contains(chromeScript, "current.value!==expected") {
 		t.Fatal("lost native compare guard")
+	}
+}
+
+func TestDisableRemovesManualRestrictionAndCanEnableAgain(t *testing.T) {
+	m, f := manager(t, ptr(RestrictedValue))
+	ctx := context.Background()
+	s, err := m.Status(ctx)
+	if err != nil || !s.CanDisable || s.Managed {
+		t.Fatalf("manual status: %+v %v", s, err)
+	}
+	s, err = m.Disable(ctx)
+	if err != nil || s.CurrentValue != nil || s.Restricted || s.Managed || !s.CanEnable || s.CanDisable || !s.RequiresRestart {
+		t.Fatalf("disable manual: %+v %v", s, err)
+	}
+	if _, err = m.Enable(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if f.p.Value == nil || *f.p.Value != RestrictedValue {
+		t.Fatal("could not enable after manual restriction was disabled")
+	}
+}
+func TestDisableDiscardsSavedValueInsteadOfRestoringIt(t *testing.T) {
+	m, _ := manager(t, ptr("default_public_interface_only"))
+	ctx := context.Background()
+	if _, err := m.Enable(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s, err := m.Disable(ctx)
+	if err != nil || s.CurrentValue != nil || s.Managed || !s.CanEnable {
+		t.Fatalf("disable: %+v %v", s, err)
+	}
+	if _, err := os.Stat(m.path()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("journal not cleared: %v", err)
+	}
+	if _, err = m.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s, err = m.Enable(ctx)
+	if err != nil || !s.Restricted {
+		t.Fatalf("re-enable: %+v %v", s, err)
+	}
+	j, err := m.saved()
+	if err != nil || j.Before != nil {
+		t.Fatalf("new baseline reused discarded preference: %+v %v", j, err)
+	}
+}
+func TestDisableClearsStaleJournalAndIsIdempotent(t *testing.T) {
+	m, f := manager(t, nil)
+	ctx := context.Background()
+	if _, err := m.Enable(ctx); err != nil {
+		t.Fatal(err)
+	}
+	f.p.Value = ptr("default_public_interface_only")
+	s, err := m.Disable(ctx)
+	if err != nil || s.Managed || s.CurrentValue != nil || !s.CanEnable {
+		t.Fatalf("disable stale: %+v %v", s, err)
+	}
+	writes := f.writes
+	s, err = m.Disable(ctx)
+	if err != nil || s.RequiresRestart || f.writes != writes {
+		t.Fatalf("idempotent disable: %+v %v", s, err)
+	}
+}
+func TestDisableHonorsForcedAndConcurrentChanges(t *testing.T) {
+	m, f := manager(t, ptr(RestrictedValue))
+	ctx := context.Background()
+	f.p.Forced = true
+	s, err := m.Status(ctx)
+	if err != nil || s.CanDisable {
+		t.Fatalf("forced status: %+v %v", s, err)
+	}
+	if _, err = m.Disable(ctx); err == nil || f.writes != 0 {
+		t.Fatal("forced value was deleted")
+	}
+	f.p.Forced = false
+	f.race = true
+	if _, err = m.Disable(ctx); err == nil {
+		t.Fatal("concurrent change accepted")
+	}
+	if !equal(f.p.Value, ptr("default_public_interface_only")) {
+		t.Fatal("concurrent change overwritten")
+	}
+}
+func TestFailedDisableKeepsRestrictionAndRecoveryRecord(t *testing.T) {
+	m, f := manager(t, nil)
+	ctx := context.Background()
+	if _, err := m.Enable(ctx); err != nil {
+		t.Fatal(err)
+	}
+	f.failWrite = true
+	if _, err := m.Disable(ctx); err == nil {
+		t.Fatal("failed disable accepted")
+	}
+	if !equal(f.p.Value, ptr(RestrictedValue)) {
+		t.Fatal("failed disable changed preference")
+	}
+	if _, err := os.Stat(m.path()); err != nil {
+		t.Fatal("lost recovery record")
+	}
+	f.failWrite = false
+	s, err := m.Disable(ctx)
+	if err != nil || s.Managed || !s.CanEnable {
+		t.Fatalf("retry disable: %+v %v", s, err)
 	}
 }

@@ -6958,5 +6958,7 @@
   "help.command.browser.chrome-webrtc.status.summary": "Show Chrome WebRTC preference",
   "help.command.browser.chrome-webrtc.summary": "Manage Chrome WebRTC UDP restrictions",
   "help.command.browser.detail": "Manages per-user browser preferences on macOS without requiring a running engine.",
-  "help.command.browser.summary": "Manage browser preferences"
+  "help.command.browser.summary": "Manage browser preferences",
+  "help.command.browser.chrome-webrtc.disable.summary": "Allow Chrome WebRTC direct UDP",
+  "help.command.browser.chrome-webrtc.disable.detail": "Deletes the current user Chrome WebRtcIPHandling preference, including a manually configured restriction, and discards the Nagi recovery record. Chrome returns to its default behavior after a complete restart. Administrator policies cannot be changed."
 }

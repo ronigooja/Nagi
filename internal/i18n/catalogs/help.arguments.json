@@ -28330,5 +28330,7 @@
   "help.command.browser.chrome-webrtc.status.summary": {},
   "help.command.browser.chrome-webrtc.summary": {},
   "help.command.browser.detail": {},
-  "help.command.browser.summary": {}
+  "help.command.browser.summary": {},
+  "help.command.browser.chrome-webrtc.disable.summary": {},
+  "help.command.browser.chrome-webrtc.disable.detail": {}
 }

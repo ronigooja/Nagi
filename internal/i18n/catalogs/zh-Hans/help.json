@@ -6958,5 +6958,7 @@
   "help.command.browser.chrome-webrtc.status.summary": "显示 Chrome WebRTC 偏好",
   "help.command.browser.chrome-webrtc.summary": "管理 Chrome WebRTC UDP 限制",
   "help.command.browser.detail": "管理 macOS 当前用户的浏览器偏好，无需引擎运行。",
-  "help.command.browser.summary": "管理浏览器偏好"
+  "help.command.browser.summary": "管理浏览器偏好",
+  "help.command.browser.chrome-webrtc.disable.summary": "允许 Chrome WebRTC 直连 UDP",
+  "help.command.browser.chrome-webrtc.disable.detail": "删除当前用户的 Chrome WebRtcIPHandling 偏好（包括手动设置的限制），并丢弃 Nagi 恢复记录。完全重启 Chrome 后恢复默认行为。不能修改管理员策略。"
 }

@@ -18,6 +18,8 @@ func browserCommand(ctx context.Context, args []string) (any, error) {
 		state, err = manager.Status(ctx)
 	case "enable":
 		state, err = manager.Enable(ctx)
+	case "disable":
+		state, err = manager.Disable(ctx)
 	case "restore":
 		state, err = manager.Restore(ctx)
 	}

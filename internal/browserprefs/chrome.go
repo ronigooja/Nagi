@@ -25,6 +25,7 @@ type State struct {
 	Managed         bool    `json:"managed"`
 	Forced          bool    `json:"forced"`
 	CanEnable       bool    `json:"can_enable"`
+	CanDisable      bool    `json:"can_disable"`
 	CanRestore      bool    `json:"can_restore"`
 	RequiresRestart bool    `json:"requires_restart"`
 }
@@ -126,7 +127,7 @@ func (m *Manager) save(j journal) error {
 }
 func state(p preference, j *journal) State {
 	restricted := p.Value != nil && *p.Value == RestrictedValue
-	return State{Available: true, CurrentValue: p.Value, Restricted: restricted, Managed: j != nil, Forced: p.Forced, CanEnable: !p.Forced && !restricted && (j == nil || equal(p.Value, j.Before)), CanRestore: !p.Forced && j != nil && (restricted || equal(p.Value, j.Before))}
+	return State{Available: true, CurrentValue: p.Value, Restricted: restricted, Managed: j != nil, Forced: p.Forced, CanEnable: !p.Forced && !restricted && (j == nil || equal(p.Value, j.Before)), CanDisable: !p.Forced && (p.Value != nil || j != nil), CanRestore: !p.Forced && j != nil && (restricted || equal(p.Value, j.Before))}
 }
 func (m *Manager) locked(fn func() (State, error)) (State, error) {
 	if m.OS != "darwin" {
@@ -194,6 +195,38 @@ func (m *Manager) Enable(ctx context.Context) (State, error) {
 		return result, nil
 	})
 }
+
+// Disable restores Chrome's default preference behavior, including when the
+// restriction was originally configured outside Nagi. Unlike Restore, it does
+// not reapply the saved preference; successful removal discards that backup.
+func (m *Manager) Disable(ctx context.Context) (State, error) {
+	return m.locked(func() (State, error) {
+		p, err := m.read(ctx)
+		if err != nil {
+			return State{}, err
+		}
+		if p.Forced {
+			return State{}, i18n.Errorf("backend.browserprefs.forced", "Chrome WebRTC preference is managed by an administrator and cannot be changed by Nagi.")
+		}
+		changed := p.Value != nil
+		if changed {
+			p, err = m.call(ctx, "write", p.Value, nil)
+			if err != nil {
+				return State{}, err
+			}
+			if p.Forced || p.Value != nil {
+				return State{}, conflict()
+			}
+		}
+		if err = os.Remove(m.path()); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return State{}, err
+		}
+		result := state(p, nil)
+		result.RequiresRestart = changed
+		return result, nil
+	})
+}
+
 func conflict() error {
 	return i18n.Errorf("backend.browserprefs.conflict", "Chrome WebRTC preference changed outside Nagi; no further changes were applied. Refresh its state before retrying.")
 }
