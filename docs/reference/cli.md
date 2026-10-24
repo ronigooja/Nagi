@@ -716,7 +716,7 @@ nagi --json rules test service.example --network udp --process Browser
 | Command | Result or effect |
 | --- | --- |
 | `traffic watch` | Stream live transfer rates and cumulative byte counters from mihomo once per second until interrupted. |
-| `browser chrome-webrtc status`, `browser chrome-webrtc enable`, `browser chrome-webrtc restore` | Inspect, restrict, or restore the current macOS user's Google Chrome WebRTC UDP policy; see [browser settings](#browser-webrtc-settings). |
+| `browser chrome-webrtc status`, `browser chrome-webrtc enable`, `browser chrome-webrtc disable`, `browser chrome-webrtc restore` | Inspect, restrict, disable, or restore the current macOS user's Google Chrome WebRTC UDP policy; see [browser settings](#browser-webrtc-settings). |
 | `system-proxy status` | On macOS, read active OS HTTP, HTTPS, and SOCKS proxy settings. |
 | `system-proxy enable` | On macOS, save current OS settings and point HTTP and HTTPS proxy settings at mihomo's local mixed port (or HTTP port). Requires a running engine. |
 | `system-proxy disable` | On macOS, restore settings saved by Nagi; when no restore record exists, report the current settings without changing them. |
@@ -745,6 +745,7 @@ On macOS, JSON payloads for `system-proxy status|enable|disable` include `enable
 ```sh
 nagi browser chrome-webrtc status
 nagi browser chrome-webrtc enable
+nagi browser chrome-webrtc disable
 nagi browser chrome-webrtc restore
 nagi --json browser chrome-webrtc status
 ```
@@ -758,22 +759,32 @@ Chromium browser preference domains are not changed.
 `enable` sets `disable_non_proxied_udp`: Chrome WebRTC uses a configured proxy or
 falls back to TCP instead of direct UDP. TCP still follows system proxy settings
 and routing; enabling this policy does not force all WebRTC traffic through
-Nagi. This applies to all sites and can increase voice/video call latency. Completely quit and reopen Chrome after a
-change; check `chrome://policy` to confirm Chrome loaded the policy. Reading or
-saving the preference does not prove that a particular connection uses a proxy.
+Nagi. This applies to all sites and can increase voice/video call latency.
+Completely quit and reopen Chrome after a change; check `chrome://policy` to
+confirm Chrome loaded the policy. Reading or saving the preference does not prove that a particular connection uses a proxy.
 The preference persists after Nagi quits, stops, or changes profiles.
 
-Before Nagi changes the preference, it saves the original string or records that
-the preference was absent. `restore` restores that value, or removes the key when
-it was originally absent, and clears Nagi's restore record after success. An
-existing `disable_non_proxied_udp` value configured outside Nagi is preserved;
-Nagi does not adopt it or offer a restore operation without its own saved
-baseline. With no restore record, `restore` returns the current state without
-changing the preference. A policy forced by an administrator is read-only.
+`disable` removes the current user's `WebRtcIPHandling` key and discards Nagi's
+restore record, including a stale or invalid record. It can turn off
+`disable_non_proxied_udp` set manually before using Nagi. It does not set
+`default` or restore the previously saved value.
+Administrator-forced policies remain read-only. If no key or restore record
+exists, the command returns the current state without changing anything.
+
+Before `enable` changes the preference, it saves the original string or records
+that the preference was absent. `restore` restores that value, or removes the key
+when it was originally absent, and clears Nagi's restore record after success. An
+existing `disable_non_proxied_udp` value configured outside Nagi is preserved
+by `enable`; it does not adopt that value or create a restore baseline. Use
+`disable` to remove such a manually set key. `restore` remains an advanced
+operation for recovering a baseline saved by `enable`. With no restore record,
+`restore` returns the current state without changing the preference. A policy
+forced by an administrator is read-only.
 A current value different from both Nagi's applied value and saved baseline is
 a conflict and is not overwritten. If the value already equals the baseline,
-`restore` clears the restore record without rewriting the preference. A failed operation retains the restore information needed for an
-explicit retry. Supported existing strings are `default`,
+`restore` clears the restore record without rewriting the preference. A failed
+operation retains the restore information needed for an explicit retry. Supported
+existing strings are `default`,
 `default_public_and_private_interfaces`, `default_public_interface_only`, and
 `disable_non_proxied_udp`. Unknown policy strings and non-string preference
 values are rejected without conversion or overwrite.
@@ -795,8 +806,9 @@ Successful JSON `data` includes:
 | `managed` | Whether Nagi has a saved restore baseline; this does not mean administrator management. |
 | `forced` | Whether macOS reports the policy as administrator-forced. |
 | `can_enable` | Whether Nagi can currently enable the restriction. |
+| `can_disable` | Whether Nagi can remove the current preference or discard a restore record. Administrator-forced policies report `false`. |
 | `can_restore` | Whether Nagi can currently restore its saved baseline. |
-| `requires_restart` | `true` after an enable writes the preference or a restore processes its record; `false` for status and unchanged idempotent operations. This is a restart reminder, not evidence that Chrome has loaded the policy. |
+| `requires_restart` | `true` after an enable writes the preference, a disable removes an existing preference, or a restore processes its record. Status, unchanged idempotent operations, and disable that only clears a record report `false`. This is a restart reminder, not evidence that Chrome has loaded the policy. |
 
 `can_enable` and `can_restore` are false for administrator-forced policies or
 conflicting external changes. On platforms other than macOS, every subcommand
@@ -805,8 +817,8 @@ unsupported-value, conflict, and recovery failures use the same code and retain
 a useful cause. Invalid syntax uses exit status `2`; successful operations use
 exit status `0`, with the ordinary JSON success envelope when requested.
 
-The native App's **Browser / WebRTC…** window uses these same CLI operations;
-see the [App guide](../../macos/NagiApp/README.md#browser--webrtc-settings).
+The native App's **Settings… → Chrome WebRTC** switch uses `status`, `enable`,
+and `disable`; see the [App guide](../../macos/NagiApp/README.md#settings-window).
 
 ## Installation maintenance
 

@@ -95,21 +95,20 @@ final class LocalizationCoverageTests: XCTestCase {
         XCTAssertEqual(CaptureDetailSection.overview.rawValue, "overview")
     }
 
-    func testBrowserSettingsResourcesExplainScopeAndRestartInBothLanguages() throws {
-        let expected: [String: (menu: String, enable: String)] = [
-            "en": ("Browser / WebRTC…", "Disable Non-Proxied UDP"),
-            "zh-Hans": ("浏览器 / WebRTC…", "禁用非代理 UDP")
+    func testSettingsWindowResourcesNameControlsAndRestartInBothLanguages() throws {
+        let expected: [String: (menu: String, toggle: String, restart: String)] = [
+            "en": ("Settings…", "Block Direct WebRTC UDP", "Completely quit and reopen Chrome after making changes."),
+            "zh-Hans": ("设置…", "禁止 WebRTC 直连 UDP", "更改后，请完全退出并重新打开 Chrome。")
         ]
         for (language, text) in expected {
             let resources = try bundle(language)
-            XCTAssertEqual(L10n.text("app.browser.menu", bundle: resources), text.menu)
-            XCTAssertEqual(L10n.text("app.browser.enable", bundle: resources), text.enable)
-            for key in ["app.browser.help", "app.browser.restart", "app.browser.forced", "app.browser.saved"] {
-                XCTAssertNotEqual(L10n.text(key, bundle: resources), key)
-            }
-            for key in ["app.browser.load_failed", "app.browser.save_failed", "app.browser.other_policy"] {
-                let rendered = L10n.format(key, "fictitious-policy", bundle: resources)
-                XCTAssertTrue(rendered.contains("fictitious-policy"))
+            XCTAssertEqual(L10n.text("app.settings.menu", bundle: resources), text.menu)
+            XCTAssertEqual(L10n.text("app.settings.chrome_toggle", bundle: resources), text.toggle)
+            XCTAssertEqual(L10n.text("app.settings.chrome_restart", bundle: resources), text.restart)
+            XCTAssertNotEqual(L10n.text("app.browser.forced", bundle: resources), "app.browser.forced")
+            for key in ["app.browser.load_failed", "app.browser.save_failed", "app.settings.login_failed"] {
+                let rendered = L10n.format(key, "fictitious-cause", bundle: resources)
+                XCTAssertTrue(rendered.contains("fictitious-cause"))
                 XCTAssertFalse(rendered.contains("%1$@"))
             }
         }
