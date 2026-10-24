@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ronigooja/Nagi/internal/browserprefs"
 	"github.com/ronigooja/Nagi/internal/diagnostic"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/i18n"
@@ -212,6 +213,25 @@ func Write(w io.Writer, jsonMode bool, data any) error {
 		return line(w, renderText(w, "cli.output.write.run_nagi_subscription_apply_s_to_select_its_profile", map[string]any{"name": fmt.Sprint(v.Name)}, fmt.Sprintf("Run `nagi subscription apply %s` to select its profile.", v.Name)))
 	case subscription.Preview:
 		return writePreview(w, v)
+	case browserprefs.State:
+		preference := "unset"
+		if v.CurrentValue != nil {
+			preference = *v.CurrentValue
+		}
+		fields := []struct{ id, fallback, value string }{
+			{"cli.output.browserprefs.current", "Chrome WebRTC preference: {value}", preference},
+			{"cli.output.browserprefs.managed", "Nagi recovery record: {value}", stateValue(w, fmt.Sprint(v.Managed))},
+			{"cli.output.browserprefs.forced", "Administrator policy: {value}", stateValue(w, fmt.Sprint(v.Forced))},
+		}
+		for _, field := range fields {
+			if err := line(w, renderText(w, field.id, map[string]any{"value": field.value}, strings.ReplaceAll(field.fallback, "{value}", field.value))); err != nil {
+				return err
+			}
+		}
+		if v.RequiresRestart {
+			return line(w, renderText(w, "cli.output.browserprefs.restart", nil, "Completely quit and reopen Chrome to apply the change."))
+		}
+		return nil
 	case traffic.State:
 		state := "disabled"
 		if v.Enabled {

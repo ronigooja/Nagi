@@ -1,4 +1,10 @@
 {
+  "backend.browserprefs.command_failed": {},
+  "backend.browserprefs.conflict": {},
+  "backend.browserprefs.forced": {},
+  "backend.browserprefs.invalid_journal": {},
+  "backend.browserprefs.invalid_value": {},
+  "backend.browserprefs.unsupported": {},
   "backend.capture.readiness.a_valid_capture_ca_is_missing_generate_the_rewrite_ca_before_starting_": {},
   "backend.capture.readiness.cannot_confirm_engine_state_check_engine_status_before_capturing": {},
   "backend.capture.readiness.cannot_reach_the_engine_start_nagi_and_check_engine_status_before_capt": {},
@@ -156,6 +162,63 @@
     "arg0": "string",
     "arg1": "string"
   },
+  "backend.profile.chain_chain_contains_a_repeated_hop": {},
+  "backend.profile.chain_chain_contains_repeated_targets": {},
+  "backend.profile.chain_chain_hops_must_be_compatible_static_top_level_nodes": {},
+  "backend.profile.chain_chain_kind_must_be_node_provider_or_subscription": {},
+  "backend.profile.chain_chain_requires_a_target": {},
+  "backend.profile.chain_chain_requires_ordered_via_nodes_or_clear_without_via": {},
+  "backend.profile.chain_chain_target_cannot_be_its_own_hop": {},
+  "backend.profile.chain_chain_target_not_found": {},
+  "backend.profile.chain_clear_requires_no_via_nodes": {},
+  "backend.profile.chain_duplicate_or_invalid_proxy_name": {},
+  "backend.profile.chain_invalid_chain_hop": {},
+  "backend.profile.chain_invalid_effective_profile": {},
+  "backend.profile.chain_invalid_subscription_chain_definitions": {},
+  "backend.profile.chain_invalid_subscription_name": {},
+  "backend.profile.chain_invalid_subscription_source": {},
+  "backend.profile.chain_legacy_subscription_tailscale_policy_is_unsupported_remove_the_legacy_policy_explicitly_before_configuring_a_chain": {},
+  "backend.profile.chain_local_override_must_be_a_yaml_mapping": {},
+  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": {},
+  "backend.profile.chain_managed_chain_node_not_found": {},
+  "backend.profile.chain_missing_outbound_reference": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "backend.profile.chain_missing_provider_reference": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "backend.profile.chain_node_belongs_to_a_subscription_chain_clear_the_subscription_chain_first": {},
+  "backend.profile.chain_policy_owns_edge": {},
+  "backend.profile.chain_profile_must_be_a_yaml_mapping": {},
+  "backend.profile.chain_provider_node_unavailable": {},
+  "backend.profile.chain_provider_payload_external": {},
+  "backend.profile.chain_provider_policy_incompatible": {},
+  "backend.profile.chain_provider_protocol_unsupported": {},
+  "backend.profile.chain_provider_target_not_found": {},
+  "backend.profile.chain_proxies_must_be_a_list": {},
+  "backend.profile.chain_proxy_chain_creates_a_dependency_cycle": {},
+  "backend.profile.chain_proxy_dependency_references_a_missing_node_or_group": {},
+  "backend.profile.chain_proxy_group_references_a_missing_provider": {},
+  "backend.profile.chain_subscription_chain_conflicts_with_an_external_front_proxy": {},
+  "backend.profile.chain_subscription_chain_policy_must_be_a_regular_file": {},
+  "backend.profile.chain_subscription_chain_requires_one_subscription_name": {},
+  "backend.profile.chain_subscription_group_conflicts_with_a_managed_chain_node": {},
+  "backend.profile.chain_subscription_has_no_persistent_chain": {},
+  "backend.profile.chain_subscription_node_conflicts_with_a_managed_chain_definition": {},
+  "backend.profile.chain_subscription_policy_owns_this_node_edge_clear_the_subscription_chain_first": {},
+  "backend.profile.chain_subscription_profile_must_be_a_yaml_mapping": {},
+  "backend.profile.chain_subscription_provider_conflicts_with_a_managed_chain_node": {},
+  "backend.profile.chain_subscription_source_conflicts_with_a_managed_chain_definition": {},
+  "backend.profile.chain_subscription_source_group_conflicts_with_a_managed_chain_node": {},
+  "backend.profile.chain_subscription_source_provider_conflicts_with_a_managed_chain_node": {},
+  "backend.profile.chain_target_external": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "backend.profile.chain_unsupported_or_invalid_subscription_chain_policy": {},
+  "backend.profile.chain_unsupported_or_missing_chain_target": {},
   "backend.profile.choose_a_dns_proxy_group_for_a_profile_with_proxy_nodes_or_providers": {},
   "backend.profile.choose_one_auth_key_input_method": {},
   "backend.profile.control_url_must_be_an_absolute_https_url_without_credentials_query_or_fragment": {},
@@ -195,6 +258,50 @@
   "backend.profile.exit_node_and_hostname_must_be_nonempty_and_at_most_253_bytes": {},
   "backend.profile.exit_node_and_hostname_must_be_printable": {},
   "backend.profile.expected_a_list_of_named_mappings": {},
+  "backend.profile.group.conflict": {
+    "arg0": "string"
+  },
+  "backend.profile.group.cycle": {},
+  "backend.profile.group.empty": {},
+  "backend.profile.group.exists": {
+    "arg0": "string"
+  },
+  "backend.profile.group.members": {},
+  "backend.profile.group.missing": {
+    "arg0": "string"
+  },
+  "backend.profile.group.node_missing": {
+    "arg0": "string"
+  },
+  "backend.profile.group.number": {
+    "arg0": "string",
+    "arg1": "string",
+    "arg2": "string"
+  },
+  "backend.profile.group.option": {
+    "arg0": "string"
+  },
+  "backend.profile.group.order_complete": {},
+  "backend.profile.group.order_duplicate": {
+    "arg0": "string"
+  },
+  "backend.profile.group.order_list": {},
+  "backend.profile.group.order_name": {},
+  "backend.profile.group.order_unknown": {
+    "arg0": "string"
+  },
+  "backend.profile.group.provider_missing": {
+    "arg0": "string"
+  },
+  "backend.profile.group.referenced": {
+    "arg0": "string",
+    "arg1": "string"
+  },
+  "backend.profile.group.strategy": {},
+  "backend.profile.group.strategy_type": {},
+  "backend.profile.group.tolerance_type": {},
+  "backend.profile.group.type": {},
+  "backend.profile.group.url": {},
   "backend.profile.group_conflicts_with_a_reserved_mihomo_proxy_name": {},
   "backend.profile.group_conflicts_with_an_existing_provider_name": {},
   "backend.profile.group_conflicts_with_an_existing_proxy_node": {},
@@ -221,6 +328,9 @@
   "backend.profile.invalid_subscription_name": {},
   "backend.profile.kind_must_be_group_or_provider": {},
   "backend.profile.kind_must_be_node_or_provider": {},
+  "backend.profile.list.failed": {
+    "arg0": "string"
+  },
   "backend.profile.local_default_settings_are_not_active_current_override_was_changed_or_no_restore_point_exists": {},
   "backend.profile.local_group_healthcheck_interval_must_be_1_31536000": {},
   "backend.profile.local_group_healthcheck_intervals_must_be_a_mapping": {},
@@ -249,6 +359,21 @@
   "backend.profile.name_must_contain_1_128_bytes_without_surrounding_whitespace_and_must_not_be_compatible": {},
   "backend.profile.name_must_contain_1_128_printable_bytes_without_surrounding_whitespace": {},
   "backend.profile.name_must_contain_printable_characters": {},
+  "backend.profile.node_add_requires_exit_node_and_an_auth_key": {},
+  "backend.profile.node_could_not_prepare_proxy_node_override": {},
+  "backend.profile.node_duplicate_proxy_group": {},
+  "backend.profile.node_editing_this_proxy_type_is_not_supported": {},
+  "backend.profile.node_local_override_must_be_a_yaml_mapping": {},
+  "backend.profile.node_name_conflicts_with_an_existing_group": {},
+  "backend.profile.node_name_conflicts_with_an_existing_provider": {},
+  "backend.profile.node_proxy_group_contains_an_invalid_filter": {},
+  "backend.profile.node_proxy_group_filter_could_not_be_evaluated": {},
+  "backend.profile.node_proxy_group_membership_would_create_a_dependency_cycle": {},
+  "backend.profile.node_proxy_group_not_found": {},
+  "backend.profile.node_proxy_name_already_exists": {},
+  "backend.profile.node_proxy_node_is_still_referenced_remove_its_group_chain_rule_dns_or_provider_references_first": {},
+  "backend.profile.node_proxy_node_not_found": {},
+  "backend.profile.node_removing_this_proxy_type_is_not_supported": {},
   "backend.profile.override_is_invalid_yaml": {},
   "backend.profile.override_is_not_a_regular_file": {},
   "backend.profile.override_must_be_a_yaml_mapping": {},
@@ -271,6 +396,10 @@
   "backend.profile.proxy_groups_must_contain_mappings": {},
   "backend.profile.proxy_name_already_exists": {},
   "backend.profile.proxy_providers_must_be_a_mapping": {},
+  "backend.profile.read.failed": {
+    "arg0": "string",
+    "arg1": "string"
+  },
   "backend.profile.saved_default_override_state_is_invalid_inspect_the_local_default_settings_before_retrying": {},
   "backend.profile.saved_default_override_state_is_invalid_w": {
     "arg0": "string"
@@ -280,6 +409,9 @@
   "backend.profile.seconds_must_be_off_or_an_integer_from_1_to_31536000": {},
   "backend.profile.selected_profile_has_no_proxy_providers": {},
   "backend.profile.selected_profile_must_be_a_yaml_mapping": {},
+  "backend.profile.settings.failed": {
+    "arg0": "string"
+  },
   "backend.profile.subscription_binding_action_must_be_bind_or_unbind": {},
   "backend.profile.subscription_binding_would_create_a_proxy_dependency_cycle": {},
   "backend.profile.subscription_group_conflicts_with_the_managed_tailscale_node": {},
@@ -354,6 +486,7 @@
   "backend.proxy.node_ownership_unavailable_or_ambiguous": {},
   "backend.proxy.node_unavailable_or_ownership_ambiguous_inspect_the_group_or_provider_before_tes": {},
   "backend.proxy.profile_group_and_node_required": {},
+  "backend.proxy.provider_chain_refresh_failed": {},
   "backend.proxy.provider_missing_from_effective_profile": {},
   "backend.proxy.proxy_control_client_unavailable": {},
   "backend.proxy.proxy_group_and_node_required": {},
@@ -385,7 +518,11 @@
   "backend.rules.download_rule_import_w": {
     "arg0": "string"
   },
+  "backend.rules.duplicate_list_field": {
+    "arg0": "string"
+  },
   "backend.rules.duplicate_rules_field": {},
+  "backend.rules.edit_single_only": {},
   "backend.rules.imported_rules_preserve_each_rule_target_and_cannot_have_a_shared_target": {},
   "backend.rules.invalid_domain_target": {},
   "backend.rules.invalid_profile_name": {},
@@ -394,6 +531,9 @@
   },
   "backend.rules.ip_can_only_accompany_a_domain_target": {},
   "backend.rules.ip_must_be_an_ipv4_or_ipv6_address_without_a_zone": {},
+  "backend.rules.list_mapping_required": {
+    "arg0": "string"
+  },
   "backend.rules.match_has_no_payload": {},
   "backend.rules.network_must_be_tcp_or_udp": {},
   "backend.rules.parse_rule_import_w": {
@@ -447,6 +587,8 @@
   "backend.rules.target_must_be_direct_reject_or_a_proxy_group_name_without_commas": {},
   "backend.rules.unknown_rule_kind": {},
   "backend.rules.unsupported_rule_type": {},
+  "backend.rules.update_import_only": {},
+  "backend.rules.update_source_required": {},
   "backend.runtime.could_not_create_tailscale_state_directory": {},
   "backend.runtime.could_not_open_tailscale_state_root": {},
   "backend.runtime.could_not_secure_tailscale_state_directory": {},
@@ -783,146 +925,10 @@
     "arg0": "string",
     "arg1": "string"
   },
-  "backend.profile.list.failed": {
-    "arg0": "string"
-  },
-  "backend.profile.settings.failed": {
-    "arg0": "string"
-  },
-  "backend.profile.read.failed": {
-    "arg0": "string",
-    "arg1": "string"
-  },
-  "cli.profile.import.failed": {
-    "arg0": "string"
-  },
   "cli.profile.export.failed": {
     "arg0": "string"
   },
-  "backend.profile.node_proxy_node_not_found": {},
-  "backend.profile.node_local_override_must_be_a_yaml_mapping": {},
-  "backend.profile.node_could_not_prepare_proxy_node_override": {},
-  "backend.profile.node_add_requires_exit_node_and_an_auth_key": {},
-  "backend.profile.node_proxy_name_already_exists": {},
-  "backend.profile.node_name_conflicts_with_an_existing_provider": {},
-  "backend.profile.node_name_conflicts_with_an_existing_group": {},
-  "backend.profile.node_editing_this_proxy_type_is_not_supported": {},
-  "backend.profile.node_removing_this_proxy_type_is_not_supported": {},
-  "backend.profile.node_proxy_node_is_still_referenced_remove_its_group_chain_rule_dns_or_provider_references_first": {},
-  "backend.profile.node_proxy_group_contains_an_invalid_filter": {},
-  "backend.profile.node_proxy_group_filter_could_not_be_evaluated": {},
-  "backend.profile.node_proxy_group_not_found": {},
-  "backend.profile.node_duplicate_proxy_group": {},
-  "backend.profile.node_proxy_group_membership_would_create_a_dependency_cycle": {},
-  "backend.profile.chain_profile_must_be_a_yaml_mapping": {},
-  "backend.profile.chain_chain_target_not_found": {},
-  "backend.profile.chain_duplicate_or_invalid_proxy_name": {},
-  "backend.profile.chain_proxy_group_references_a_missing_provider": {},
-  "backend.profile.chain_proxy_dependency_references_a_missing_node_or_group": {},
-  "backend.profile.chain_proxy_chain_creates_a_dependency_cycle": {},
-  "backend.profile.chain_chain_kind_must_be_node_provider_or_subscription": {},
-  "backend.profile.chain_chain_requires_a_target": {},
-  "backend.profile.chain_chain_requires_ordered_via_nodes_or_clear_without_via": {},
-  "backend.profile.chain_chain_contains_a_repeated_hop": {},
-  "backend.profile.chain_chain_hops_must_be_compatible_static_top_level_nodes": {},
-  "backend.profile.chain_chain_contains_repeated_targets": {},
-  "backend.profile.chain_chain_target_cannot_be_its_own_hop": {},
-  "backend.profile.chain_subscription_chain_requires_one_subscription_name": {},
-  "backend.profile.chain_unsupported_or_missing_chain_target": {},
-  "backend.profile.chain_provider_target_not_found": {},
-  "backend.profile.chain_local_override_must_be_a_yaml_mapping": {},
-  "backend.profile.chain_legacy_subscription_tailscale_policy_is_unsupported_remove_the_legacy_policy_explicitly_before_configuring_a_chain": {},
-  "backend.profile.chain_subscription_chain_policy_must_be_a_regular_file": {},
-  "backend.profile.chain_unsupported_or_invalid_subscription_chain_policy": {},
-  "backend.profile.chain_invalid_subscription_chain_definitions": {},
-  "backend.profile.chain_subscription_provider_conflicts_with_a_managed_chain_node": {},
-  "backend.profile.chain_subscription_group_conflicts_with_a_managed_chain_node": {},
-  "backend.profile.chain_subscription_node_conflicts_with_a_managed_chain_definition": {},
-  "backend.profile.chain_subscription_chain_conflicts_with_an_external_front_proxy": {},
-  "backend.profile.chain_subscription_profile_must_be_a_yaml_mapping": {},
-  "backend.profile.chain_invalid_subscription_name": {},
-  "backend.profile.chain_subscription_has_no_persistent_chain": {},
-  "backend.profile.chain_invalid_subscription_source": {},
-  "backend.profile.chain_invalid_chain_hop": {},
-  "backend.profile.chain_node_belongs_to_a_subscription_chain_clear_the_subscription_chain_first": {},
-  "backend.profile.chain_managed_chain_node_not_found": {},
-  "backend.profile.chain_subscription_source_conflicts_with_a_managed_chain_definition": {},
-  "backend.profile.chain_subscription_source_provider_conflicts_with_a_managed_chain_node": {},
-  "backend.profile.chain_subscription_source_group_conflicts_with_a_managed_chain_node": {},
-  "backend.profile.chain_proxies_must_be_a_list": {},
-  "backend.profile.chain_subscription_policy_owns_this_node_edge_clear_the_subscription_chain_first": {},
-  "backend.profile.chain_invalid_effective_profile": {},
-  "backend.profile.chain_clear_requires_no_via_nodes": {},
-  "backend.profile.chain_provider_payload_external": {},
-  "backend.profile.chain_target_external": {
-    "arg0": "string",
-    "arg1": "string"
-  },
-  "backend.profile.chain_policy_owns_edge": {},
-  "backend.profile.chain_local_proxy_additions_must_contain_named_compatible_nodes": {},
-  "backend.profile.chain_provider_protocol_unsupported": {},
-  "backend.profile.chain_provider_node_unavailable": {},
-  "backend.profile.chain_provider_policy_incompatible": {},
-  "backend.proxy.provider_chain_refresh_failed": {},
-  "backend.profile.chain_missing_outbound_reference": {
-    "arg0": "string",
-    "arg1": "string"
-  },
-  "backend.profile.chain_missing_provider_reference": {
-    "arg0": "string",
-    "arg1": "string"
-  },
-  "backend.rules.duplicate_list_field": {
-    "arg0": "string"
-  },
-  "backend.rules.edit_single_only": {},
-  "backend.rules.list_mapping_required": {
-    "arg0": "string"
-  },
-  "backend.rules.update_import_only": {},
-  "backend.rules.update_source_required": {},
-  "backend.profile.group.conflict": {
-    "arg0": "string"
-  },
-  "backend.profile.group.cycle": {},
-  "backend.profile.group.empty": {},
-  "backend.profile.group.exists": {
-    "arg0": "string"
-  },
-  "backend.profile.group.members": {},
-  "backend.profile.group.missing": {
-    "arg0": "string"
-  },
-  "backend.profile.group.node_missing": {
-    "arg0": "string"
-  },
-  "backend.profile.group.number": {
-    "arg0": "string",
-    "arg1": "string",
-    "arg2": "string"
-  },
-  "backend.profile.group.option": {
-    "arg0": "string"
-  },
-  "backend.profile.group.provider_missing": {
-    "arg0": "string"
-  },
-  "backend.profile.group.referenced": {
-    "arg0": "string",
-    "arg1": "string"
-  },
-  "backend.profile.group.strategy": {},
-  "backend.profile.group.strategy_type": {},
-  "backend.profile.group.tolerance_type": {},
-  "backend.profile.group.type": {},
-  "backend.profile.group.url": {},
-  "backend.profile.group.order_name": {},
-  "backend.profile.group.order_duplicate": {
-    "arg0": "string"
-  },
-  "backend.profile.group.order_list": {},
-  "backend.profile.group.order_complete": {},
-  "backend.profile.group.order_unknown": {
+  "cli.profile.import.failed": {
     "arg0": "string"
   }
 }

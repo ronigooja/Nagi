@@ -64,6 +64,9 @@ func bashCompletion(roots []string, children map[string][]string) string {
     fi
     semantic+=("$w")
   done
+  if [[ ${#semantic[@]} -eq 2 && ${semantic[0]} == browser && ${semantic[1]} == chrome-webrtc ]]; then
+    COMPREPLY=( $(compgen -W 'status enable restore' -- "$cur") ); return 0
+  fi
   if (( skip_lang )); then COMPREPLY=( $(compgen -W 'en zh-Hans' -- "$cur") ); return 0; fi
   if [[ ${#semantic[@]} -eq 0 && "$cur" == --lang=* ]]; then
     local language_prefix="${cur#--lang=}" option
@@ -260,6 +263,9 @@ _nagi() {
     fi
     semantic+=("$word")
   done
+  if (( ${#semantic} == 2 )) && [[ ${semantic[1]} == browser && ${semantic[2]} == chrome-webrtc ]]; then
+    compadd -- status enable restore; return
+  fi
   if (( skip_lang )); then compadd -- en zh-Hans; return; fi
   if (( ${#semantic} == 0 )) && [[ ${words[CURRENT]} == --lang=* ]]; then
     compset -P '--lang='; compadd -- en zh-Hans; return
@@ -411,7 +417,8 @@ function __nagi_semantic
   end
 end
 `)
-	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = group' -a 'list show add edit remove order'
+	b.WriteString(`complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = browser; and test "$s[2]" = chrome-webrtc' -a 'status enable restore'
+complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 2; and test "$s[1]" = proxy; and test "$s[2]" = group' -a 'list show add edit remove order'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -ge 3; and test "$s[1]" = proxy; and test "$s[2]" = group; and test "$s[3]" = order' -a '(nagi completion candidates node-groups 2>/dev/null)'
 complete -c nagi -f -n 'set -l s (__nagi_semantic); test (count $s) -eq 3; and test "$s[1]" = proxy; and test "$s[2]" = group; and contains -- $s[3] show edit remove' -a '(nagi completion candidates node-groups 2>/dev/null)'
 `)

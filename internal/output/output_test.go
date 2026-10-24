@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ronigooja/Nagi/internal/browserprefs"
 	"github.com/ronigooja/Nagi/internal/engine"
 	"github.com/ronigooja/Nagi/internal/proxy"
 	"github.com/ronigooja/Nagi/internal/rules"
@@ -24,6 +25,7 @@ func TestHumanSuccessShapes(t *testing.T) {
 		want []string
 		not  []string
 	}{
+		{"browser preference", browserprefs.State{Available: true, Managed: true, RequiresRestart: true}, []string{"Chrome WebRTC preference: unset", "Nagi recovery record: true", "Completely quit and reopen Chrome"}, nil},
 		{"start", engine.Status{Running: true, PID: 42, SocketPath: "/tmp/mihomo.sock", LogPath: "/tmp/mihomo.log"}, []string{"Mihomo: running", "PID: 42", "Socket: /tmp/mihomo.sock"}, nil},
 		{"stop", engine.Status{SocketPath: "/tmp/mihomo.sock"}, []string{"Mihomo: stopped"}, nil},
 		{"unexpected exit", engine.Status{StalePID: 42, UnexpectedExit: true}, []string{"Previous PID: 42", "nagi logs"}, nil},

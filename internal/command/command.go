@@ -318,6 +318,9 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		binary = filepath.Join(filepath.Dir(exe), "mihomo")
 	}
 	command := args[0]
+	if command == "browser" {
+		return browserCommand(ctx, args)
+	}
 	if command == "request-rewrite" {
 		paths, e := nagiruntime.Resolve()
 		if e != nil {

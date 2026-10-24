@@ -1,4 +1,122 @@
 {
+  "backend.profile.group.conflict.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.cycle.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.empty.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.exists.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.members.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.missing.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.node_missing.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.number.usage": {
+    "arg0": "string",
+    "arg1": "string",
+    "arg2": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.option.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_complete.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_duplicate.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_list.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_name.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.order_unknown.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.provider_missing.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.referenced.usage": {
+    "arg0": "string",
+    "arg1": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.strategy.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.strategy_type.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.tolerance_type.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.type.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "backend.profile.group.url.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
   "cli.error.activation.mihomo_configuration_activation_is_unconfirmed": {},
   "cli.error.activation.mihomo_configuration_activation_is_unconfirmed.usage": {
     "hint": "string",
@@ -614,6 +732,75 @@
     "syntax": "string"
   },
   "cli.error.export.json_unsupported": {},
+  "cli.error.group.action": {},
+  "cli.error.group.action.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.clear": {},
+  "cli.error.group.clear.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.duplicate": {
+    "arg0": "string"
+  },
+  "cli.error.group.duplicate.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.edit": {},
+  "cli.error.group.edit.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.integer": {
+    "arg0": "string"
+  },
+  "cli.error.group.integer.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.missing": {
+    "arg0": "string"
+  },
+  "cli.error.group.missing.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.name": {},
+  "cli.error.group.name.usage": {
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.option": {
+    "arg0": "string"
+  },
+  "cli.error.group.option.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
+  "cli.error.group.value": {
+    "arg0": "string"
+  },
+  "cli.error.group.value.usage": {
+    "arg0": "string",
+    "syntax": "string",
+    "hint": "string",
+    "path": "string"
+  },
   "cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel": {
     "arg0": "string"
   },
@@ -781,9 +968,6 @@
     "path": "string",
     "syntax": "string"
   },
-  "cli.error.profile.startup_activation_unconfirmed": {
-    "arg0": "string"
-  },
   "cli.error.profile.profile_s_requested_mixed_port_d_but_mihomo_reports_d_inspect_nagi_l": {
     "arg0": "string",
     "arg1": "string",
@@ -809,6 +993,11 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.profile.startup_activation_unconfirmed": {
+    "arg0": "string"
+  },
+  "cli.error.profile.validation_canceled": {},
+  "cli.error.profile.validation_timeout": {},
   "cli.error.profile_diff.comparison_profile_is_not_valid_yaml_w": {
     "arg0": "string"
   },
@@ -1174,6 +1363,12 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.rules.change_restored": {
+    "arg0": "string"
+  },
+  "cli.error.rules.change_validation_rejected": {
+    "arg0": "string"
+  },
   "cli.error.rules.connection_s_is_no_longer_active_run_nagi_connections_list": {
     "arg0": "string"
   },
@@ -1182,6 +1377,16 @@
     "hint": "string",
     "path": "string",
     "syntax": "string"
+  },
+  "cli.error.rules.import_missing_proxy": {
+    "name": "string",
+    "rule": "string",
+    "target": "string"
+  },
+  "cli.error.rules.import_validation_rejected": {
+    "arg0": "string",
+    "arg1": "string",
+    "arg2": "string"
   },
   "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or": {},
   "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.usage": {
@@ -1329,6 +1534,9 @@
     "hint": "string",
     "path": "string",
     "syntax": "string"
+  },
+  "cli.error.subscription_apply.configuration_failed": {
+    "arg0": "string"
   },
   "cli.error.subscription_apply.effective_profile_is_invalid": {},
   "cli.error.subscription_apply.effective_profile_is_invalid.usage": {
@@ -1784,6 +1992,7 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.validation.invalid_proxy_node_name": {},
   "cli.error.validation.kind_must_be_group_provider_or_subscription": {},
   "cli.error.validation.kind_must_be_group_provider_or_subscription.usage": {
     "hint": "string",
@@ -1850,6 +2059,7 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.validation.provider_chain_completion": {},
   "cli.error.validation.provider_nodes_requires_provider": {},
   "cli.error.validation.provider_nodes_requires_provider.usage": {
     "hint": "string",
@@ -1892,6 +2102,8 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.error.validation.tailscale_peer_ip_must_be_a_literal_ip_address": {},
+  "cli.error.validation.tailscale_probe_timeout_must_be_between_1000_and_15000": {},
   "cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds": {},
   "cli.error.validation.timeout_must_be_an_integer_from_1_to_30000_milliseconds.usage": {
     "hint": "string",
@@ -1916,6 +2128,24 @@
     "path": "string",
     "syntax": "string"
   },
+  "cli.output.browserprefs.current": {
+    "value": "string"
+  },
+  "cli.output.browserprefs.forced": {
+    "value": "string"
+  },
+  "cli.output.browserprefs.managed": {
+    "value": "string"
+  },
+  "cli.output.browserprefs.restart": {},
+  "cli.output.group.empty": {},
+  "cli.output.group.interval": {},
+  "cli.output.group.nodes": {},
+  "cli.output.group.ordered": {},
+  "cli.output.group.providers": {},
+  "cli.output.group.strategy": {},
+  "cli.output.group.tolerance": {},
+  "cli.output.group.url": {},
   "cli.output.printsystemdns.dns_targets.message": {
     "targets": "string"
   },
@@ -2498,225 +2728,5 @@
     "arg2": "string",
     "arg3": "string",
     "arg4": "string"
-  },
-  "cli.error.validation.provider_chain_completion": {},
-  "cli.error.rules.import_validation_rejected": {
-    "arg0": "string",
-    "arg1": "string",
-    "arg2": "string"
-  },
-  "cli.error.rules.import_missing_proxy": {
-    "name": "string",
-    "rule": "string",
-    "target": "string"
-  },
-  "cli.error.subscription_apply.configuration_failed": {
-    "arg0": "string"
-  },
-  "cli.error.rules.change_validation_rejected": {
-    "arg0": "string"
-  },
-  "cli.error.rules.change_restored": {
-    "arg0": "string"
-  },
-  "backend.profile.group.conflict.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.cycle.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.empty.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.exists.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.members.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.missing.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.node_missing.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.number.usage": {
-    "arg0": "string",
-    "arg1": "string",
-    "arg2": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.option.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.provider_missing.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.referenced.usage": {
-    "arg0": "string",
-    "arg1": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.strategy.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.strategy_type.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.tolerance_type.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.type.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.url.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.action": {},
-  "cli.error.group.action.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.clear": {},
-  "cli.error.group.clear.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.duplicate": {
-    "arg0": "string"
-  },
-  "cli.error.group.duplicate.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.edit": {},
-  "cli.error.group.edit.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.integer": {
-    "arg0": "string"
-  },
-  "cli.error.group.integer.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.missing": {
-    "arg0": "string"
-  },
-  "cli.error.group.missing.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.name": {},
-  "cli.error.group.name.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.option": {
-    "arg0": "string"
-  },
-  "cli.error.group.option.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.group.value": {
-    "arg0": "string"
-  },
-  "cli.error.group.value.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.output.group.empty": {},
-  "cli.output.group.interval": {},
-  "cli.output.group.nodes": {},
-  "cli.output.group.providers": {},
-  "cli.output.group.strategy": {},
-  "cli.output.group.tolerance": {},
-  "cli.output.group.url": {},
-  "cli.output.group.ordered": {},
-  "backend.profile.group.order_name.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.order_duplicate.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.order_list.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.order_complete.usage": {
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "backend.profile.group.order_unknown.usage": {
-    "arg0": "string",
-    "syntax": "string",
-    "hint": "string",
-    "path": "string"
-  },
-  "cli.error.validation.invalid_proxy_node_name": {},
-  "cli.error.validation.tailscale_peer_ip_must_be_a_literal_ip_address": {},
-  "cli.error.validation.tailscale_probe_timeout_must_be_between_1000_and_15000": {},
-  "cli.error.profile.validation_canceled": {},
-  "cli.error.profile.validation_timeout": {}
+  }
 }
