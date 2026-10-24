@@ -1541,6 +1541,8 @@
 "help.command.app.update.detail" = "Alias of update for an installation that includes the App. Downloads the latest release unless TAG is supplied. Quit the App first.";
 "help.command.app.update.summary" = "Update Nagi including the installed App";
 "help.command.browser.chrome-webrtc.detail" = "Reads or changes Chrome WebRtcIPHandling. Changes persist after Nagi quits and require completely restarting Chrome. This does not prove proxy routing or active Chrome policy.";
+"help.command.browser.chrome-webrtc.disable.detail" = "Deletes the current user Chrome WebRtcIPHandling preference, including a manually configured restriction, and discards the Nagi recovery record. Chrome returns to its default behavior after a complete restart. Administrator policies cannot be changed.";
+"help.command.browser.chrome-webrtc.disable.summary" = "Allow Chrome WebRTC direct UDP";
 "help.command.browser.chrome-webrtc.enable.detail" = "Saves the previous preference and sets disable_non_proxied_udp. Already restricted preferences are left unchanged. Administrator policies cannot be changed. Completely restart Chrome after a change.";
 "help.command.browser.chrome-webrtc.enable.summary" = "Restrict Chrome WebRTC direct UDP";
 "help.command.browser.chrome-webrtc.restore.detail" = "Restores only the preference saved by Nagi. Preferences set outside Nagi are not deleted; conflicting external changes are preserved. Completely restart Chrome after a change.";

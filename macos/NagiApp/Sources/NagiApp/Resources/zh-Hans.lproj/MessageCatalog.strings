@@ -1541,6 +1541,8 @@
 "help.command.app.update.detail" = "包含 App 的安装可使用此 update 别名。未提供 TAG 时下载最新发行版。请先退出 App。";
 "help.command.app.update.summary" = "更新 Nagi 及已安装的 App";
 "help.command.browser.chrome-webrtc.detail" = "读取或修改 Chrome WebRtcIPHandling。设置在 Nagi 退出后仍然保留，需要完全重启 Chrome。此状态不能证明代理路由或 Chrome 已加载策略。";
+"help.command.browser.chrome-webrtc.disable.detail" = "删除当前用户的 Chrome WebRtcIPHandling 偏好（包括手动设置的限制），并丢弃 Nagi 恢复记录。完全重启 Chrome 后恢复默认行为。不能修改管理员策略。";
+"help.command.browser.chrome-webrtc.disable.summary" = "允许 Chrome WebRTC 直连 UDP";
 "help.command.browser.chrome-webrtc.enable.detail" = "保存原偏好并设置 disable_non_proxied_udp。已有限制保持不变，不能修改管理员策略。修改后请完全重启 Chrome。";
 "help.command.browser.chrome-webrtc.enable.summary" = "限制 Chrome WebRTC 直连 UDP";
 "help.command.browser.chrome-webrtc.restore.detail" = "仅恢复 Nagi 保存的偏好。不会删除非 Nagi 设置的偏好，保留有冲突的外部修改。修改后请完全重启 Chrome。";

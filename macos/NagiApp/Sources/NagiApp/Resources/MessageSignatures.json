@@ -3743,6 +3743,8 @@
   "help.command.app.update.detail": {},
   "help.command.app.update.summary": {},
   "help.command.browser.chrome-webrtc.detail": {},
+  "help.command.browser.chrome-webrtc.disable.detail": {},
+  "help.command.browser.chrome-webrtc.disable.summary": {},
   "help.command.browser.chrome-webrtc.enable.detail": {},
   "help.command.browser.chrome-webrtc.enable.summary": {},
   "help.command.browser.chrome-webrtc.restore.detail": {},
