@@ -56,7 +56,7 @@ import AppKit
     private lazy var captureWindow = CaptureWindowController(model: model.capture)
     private lazy var connectionsWindow = ConnectionsWindowController(model: model.connections)
     private lazy var requestRewriteWindow = RequestRewriteWindowController(model: model.requestRewrite)
-    private lazy var browserSettingsWindow = BrowserSettingsWindowController(model: model.browserSettings)
+    private lazy var settingsWindow = SettingsWindowController(model: model.settings)
     private var statusItem: NSStatusItem!
     let menu = NSMenu()
     private var pulse: Timer?
@@ -339,11 +339,6 @@ import AppKit
         addSubmenu(L10n.text("app.ui.proxy_providers"), providersMenu, enabled: !model.busy)
         menu.addItem(.separator())
 
-        let displayMenu = NSMenu()
-        for option in TrafficDisplay.allCases {
-            let item = add(option.title, action: #selector(setDisplay(_:)), checked: model.display == option, to: displayMenu)
-            item.representedObject = option.rawValue
-        }
         add(L10n.text("app.ui.connections_2"), action: #selector(showConnections))
         add(L10n.text("app.ui.request_capture"), action: #selector(showCapture))
         if let capture = model.capture.status, ["recording", "paused"].contains(capture.state) {
@@ -360,15 +355,7 @@ import AppKit
         add(L10n.text("app.ui.request_rewrite_2"), action: #selector(showRequestRewrite), to: rewriteMenu)
         addSubmenu(L10n.text("app.ui.request_rewrite_3"), rewriteMenu)
         menu.addItem(.separator())
-        addSubmenu(L10n.text("app.ui.display"), displayMenu)
-        add(L10n.text("app.browser.menu"), action: #selector(showBrowserSettings))
-        let startupMenu = NSMenu()
-        add(L10n.text("app.ui.open_menu_bar_app_at_login"), action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
-        let startupCommand = model.serviceInstalled == true ? ["service", "uninstall"] : ["service", "install"]
-        add(L10n.text("app.ui.run_engine_at_login"), command: startupCommand,
-            checked: model.serviceInstalled == true, enabled: model.serviceInstalled != nil && !model.busy, to: startupMenu)
-        if model.serviceInstalled == nil { disabled(L10n.text("app.ui.engine_service_status_unavailable"), to: startupMenu) }
-        addSubmenu(L10n.text("app.ui.login"), startupMenu)
+        add(L10n.text("app.settings.menu"), action: #selector(showSettings))
         menu.addItem(.separator())
         add(L10n.text("app.ui.help"), action: #selector(openHelp))
         add(L10n.text("app.ui.about_nagi"), action: #selector(showAbout))
@@ -767,10 +754,6 @@ import AppKit
         if alert.runModal() == .alertFirstButtonReturn { model.removeSubscription(name) }
     }
     @objc private func retryStart() { model.retryStart() }
-    @objc private func setDisplay(_ sender: NSMenuItem) {
-        if let value = sender.representedObject as? String, let display = TrafficDisplay(rawValue: value) { model.display = display }
-    }
-    @objc private func toggleAppLogin() { model.setAppLogin(!model.appLoginEnabled) }
     @objc private func openHelp() {
         NSWorkspace.shared.open(URL(string: "https://github.com/ronigooja/Nagi#documentation")!)
     }
@@ -791,7 +774,7 @@ import AppKit
     }
     @objc private func showCapture() { captureWindow.present() }
     @objc private func stopCapture() { Task { await model.capture.mutate("stop") } }
-    @objc private func showBrowserSettings() { browserSettingsWindow.present() }
+    @objc private func showSettings() { settingsWindow.present() }
     @objc private func showConnections() { connectionsWindow.present() }
     @objc private func showRequestRewrite() { requestRewriteWindow.present() }
     @objc private func toggleRequestRewrite() {

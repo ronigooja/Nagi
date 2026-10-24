@@ -9,6 +9,7 @@ struct BrowserWebRTCState {
     let managed: Bool
     let forced: Bool
     let canEnable: Bool
+    let canDisable: Bool
     let canRestore: Bool
     let requiresRestart: Bool
 
@@ -18,12 +19,13 @@ struct BrowserWebRTCState {
               let managed = value["managed"]?.bool,
               let forced = value["forced"]?.bool,
               let canEnable = value["can_enable"]?.bool,
-              let canRestore = value["can_restore"]?.bool else {
+              let canRestore = value["can_restore"]?.bool,
+              let canDisable = value["can_disable"]?.bool else {
             throw CLIError.invalidJSON(L10n.text("app.browser.invalid_status"))
         }
         self.available = available; currentValue = value["current_value"]?.string
         self.restricted = restricted; self.managed = managed; self.forced = forced
-        self.canEnable = canEnable; self.canRestore = canRestore
+        self.canEnable = canEnable; self.canRestore = canRestore; self.canDisable = canDisable
         requiresRestart = value["requires_restart"]?.bool ?? false
     }
 }
@@ -33,7 +35,6 @@ struct BrowserWebRTCState {
     @Published private(set) var isReading = false
     @Published private(set) var isSaving = false
     @Published private(set) var error: String?
-    @Published private(set) var saved = false
     @Published private(set) var stale = true
     private let run: ([String]) async throws -> JSONValue
 
@@ -43,7 +44,8 @@ struct BrowserWebRTCState {
 
     var busy: Bool { isReading || isSaving }
     var canEnable: Bool { !busy && !stale && state?.available == true && state?.forced == false && state?.canEnable == true }
-    var canRestore: Bool { !busy && !stale && state?.available == true && state?.forced == false && state?.canRestore == true }
+    var canDisable: Bool { !busy && !stale && state?.available == true && state?.forced == false && state?.canDisable == true }
+    var canToggle: Bool { state?.restricted == true ? canDisable : canEnable }
 
     func refresh() async {
         guard !busy else { return }
@@ -59,20 +61,28 @@ struct BrowserWebRTCState {
     }
 
     func enable() async { await apply("enable", allowed: canEnable) }
-    func restore() async { await apply("restore", allowed: canRestore) }
+    func disable() async { await apply("disable", allowed: canDisable) }
+    func setRestricted(_ restricted: Bool) async {
+        if restricted { await enable() } else { await disable() }
+    }
 
     private func apply(_ action: String, allowed: Bool) async {
         guard allowed else { return }
-        isSaving = true; error = nil; saved = false
+        isSaving = true; error = nil
         defer { isSaving = false }
         do {
             state = try BrowserWebRTCState(await run(["browser", "chrome-webrtc", action]))
-            stale = false; saved = state?.requiresRestart == true
+            stale = false
         } catch {
-            // A command can fail after changing the preference. Require a read
-            // before another mutation rather than blindly retrying the write.
+            let failure = L10n.format("app.browser.save_failed", error.localizedDescription)
+            // A failed command may have changed the preference. Reconcile the
+            // actual value without repeating the write or hiding its error.
             stale = true
-            self.error = L10n.format("app.browser.save_failed", error.localizedDescription)
+            do {
+                state = try BrowserWebRTCState(await run(["browser", "chrome-webrtc", "status"]))
+                stale = false
+            } catch { }
+            self.error = failure
         }
     }
 }

@@ -144,6 +144,24 @@ enum EngineState { case starting, running, stopped, unavailable }
     var onTrafficChange: (() -> Void)?
     private let cli: NagiCLIClient
     let connections: ConnectionsModel
+    lazy var settings: SettingsModel = {
+        SettingsModel(browser: browserSettings,
+            readDisplay: { [weak self] in self?.display ?? .both },
+            writeDisplay: { [weak self] in self?.setSettingsDisplay($0) },
+            readAppLogin: { [weak self] in self?.appLoginEnabled ?? false },
+            writeAppLogin: { [weak self] enabled in
+                guard let self else { throw CancellationError() }
+                try await self.changeSettingsAppLogin(enabled)
+            },
+            readEngineLogin: { [weak self] in
+                guard let self else { throw CancellationError() }
+                return try await self.readSettingsEngineLogin()
+            },
+            writeEngineLogin: { [weak self] enabled in
+                guard let self else { throw CancellationError() }
+                try await self.changeSettingsEngineLogin(enabled)
+            })
+    }()
     lazy var browserSettings: BrowserSettingsModel = {
         BrowserSettingsModel(run: { [weak self] arguments in
             guard let self else { throw CancellationError() }
@@ -886,6 +904,9 @@ enum EngineState { case starting, running, stopped, unavailable }
     func clearSubscriptionKey(_ name: String) { perform(["subscription", "key", name, "clear"]) }
     func setSubscriptionKey(_ name: String, file: String) { perform(["subscription", "key", name, file]) }
     private func executeBrowserSettings(_ arguments: [String]) async throws -> JSONValue {
+        try await executeSettingsCommand(arguments)
+    }
+    private func executeSettingsCommand(_ arguments: [String]) async throws -> JSONValue {
         guard !busy && !quitting else { throw CLIError.command("busy", L10n.text("app.ui.another_operation_is_in_progress")) }
         busy = true
         let mutation = arguments.last != "status"
@@ -893,6 +914,30 @@ enum EngineState { case starting, running, stopped, unavailable }
         defer { if mutation { applyingSetting = false }; busy = false }
         await waitForConnectionsOperation()
         return try await runCommand(arguments)
+    }
+    private func readSettingsEngineLogin() async throws -> Bool {
+        let value = try await executeSettingsCommand(["service", "status"])
+        guard let installed = value["installed"]?.bool else {
+            throw CLIError.invalidJSON(L10n.text("app.ui.engine_service_status_unavailable"))
+        }
+        serviceInstalled = installed
+        return installed
+    }
+    private func changeSettingsEngineLogin(_ enabled: Bool) async throws {
+        _ = try await executeSettingsCommand(["service", enabled ? "install" : "uninstall"])
+        serviceInstalled = enabled
+    }
+    private func setSettingsDisplay(_ value: TrafficDisplay) {
+        guard !busy && !quitting else { return }
+        display = value
+    }
+    private func changeSettingsAppLogin(_ enabled: Bool) async throws {
+        guard !busy && !quitting else { throw CLIError.command("busy", L10n.text("app.ui.another_operation_is_in_progress")) }
+        busy = true
+        defer { busy = false }
+        if enabled { try SMAppService.mainApp.register() }
+        else { try await SMAppService.mainApp.unregister() }
+        notify()
     }
     func executeRewrite(_ arguments: [String], input: Data?) async throws -> JSONValue {
         guard !busy && !quitting else { throw RewriteFormError.invalid(L10n.text("app.ui.another_operation_is_in_progress")) }
