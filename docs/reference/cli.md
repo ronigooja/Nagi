@@ -756,8 +756,9 @@ proxy access. They are independent of the selected profile. Safari and other
 Chromium browser preference domains are not changed.
 
 `enable` sets `disable_non_proxied_udp`: Chrome WebRTC uses a configured proxy or
-falls back to TCP instead of direct UDP. This applies to all sites and can
-increase voice/video call latency. Completely quit and reopen Chrome after a
+falls back to TCP instead of direct UDP. TCP still follows system proxy settings
+and routing; enabling this policy does not force all WebRTC traffic through
+Nagi. This applies to all sites and can increase voice/video call latency. Completely quit and reopen Chrome after a
 change; check `chrome://policy` to confirm Chrome loaded the policy. Reading or
 saving the preference does not prove that a particular connection uses a proxy.
 The preference persists after Nagi quits, stops, or changes profiles.

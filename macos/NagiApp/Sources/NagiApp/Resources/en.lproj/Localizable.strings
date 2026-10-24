@@ -828,9 +828,9 @@
 /* Browser WebRTC settings. */
 "app.browser.menu" = "Browser / WebRTC…";
 "app.browser.title" = "Browser / WebRTC";
-"app.browser.chrome" = "Google Chrome WebRTC";
-"app.browser.restrict_udp" = "Restrict non-proxied UDP";
-"app.browser.help" = "Chrome WebRTC uses a configured proxy or falls back to TCP instead of direct UDP. This affects all websites and may increase call latency. The setting remains in effect after Nagi quits.";
+"app.browser.chrome" = "Chrome WebRTC";
+"app.browser.restrict_udp" = "WebRTC Network Policy";
+"app.browser.help" = "Disables non-proxied UDP for Chrome WebRTC. TCP still follows system proxy settings and routing; this setting does not force all WebRTC traffic through Nagi. It affects all websites, may increase call latency, and persists after Nagi quits.";
 "app.browser.restart" = "Completely quit and reopen Chrome to apply changes.";
 "app.browser.enabled" = "Restricted";
 "app.browser.disabled" = "Not restricted";
@@ -840,7 +840,7 @@
 "app.browser.load_failed" = "Could not read the Chrome policy: %1$@";
 "app.browser.save_failed" = "Could not save the Chrome policy: %1$@";
 "app.browser.other_policy" = "Other policy: %1$@";
-"app.browser.enable" = "Block Direct UDP";
+"app.browser.enable" = "Disable Non-Proxied UDP";
 "app.browser.restore" = "Restore Original Settings";
 "app.browser.external" = "Restricted outside Nagi";
 "app.browser.external_help" = "This restriction was configured outside Nagi. Change it using the original configuration method.";

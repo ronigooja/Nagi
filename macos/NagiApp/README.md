@@ -187,9 +187,11 @@ shows whether direct UDP is restricted, whether Nagi owns a restore record, and
 whether an administrator forces the policy. **Refresh** rereads the state without
 changing it. Failures remain visible in the window for an explicit retry.
 
-**Block Direct UDP** sets `disable_non_proxied_udp`. Chrome WebRTC then uses a
-configured proxy or falls back to TCP instead of direct UDP; this affects all
-websites and can increase call latency. Completely quit and reopen Chrome after
+**Disable Non-Proxied UDP** sets `disable_non_proxied_udp`. Chrome WebRTC then uses a
+configured proxy or falls back to TCP instead of direct UDP. TCP still follows
+system proxy settings and routing; enabling this policy does not force all
+WebRTC traffic through Nagi. This affects all websites and can increase call
+latency. Completely quit and reopen Chrome after
 changing the setting. The setting persists after Nagi quits and is independent
 of profiles, TUN intent, and system-proxy settings; enabling it does not start
 mihomo or turn on either traffic-access mode.

@@ -828,9 +828,9 @@
 /* Browser WebRTC settings. */
 "app.browser.menu" = "浏览器 / WebRTC…";
 "app.browser.title" = "浏览器 / WebRTC";
-"app.browser.chrome" = "Chrome WebRTC 设置";
-"app.browser.restrict_udp" = "限制未经代理的 UDP";
-"app.browser.help" = "Chrome WebRTC 使用已配置的代理或回退到 TCP，避免直接发送 UDP。此设置影响所有网站，可能增加通话延迟。退出 Nagi 后仍然生效。";
+"app.browser.chrome" = "Chrome WebRTC";
+"app.browser.restrict_udp" = "WebRTC 网络策略";
+"app.browser.help" = "禁用 Chrome WebRTC 的非代理 UDP。TCP 仍遵循系统代理设置和路由；此设置不强制所有 WebRTC 流量经过 Nagi。它影响所有网站，可能增加通话延迟，退出 Nagi 后仍然生效。";
 "app.browser.restart" = "请完全退出并重新打开 Chrome，使更改生效。";
 "app.browser.enabled" = "已限制";
 "app.browser.disabled" = "未限制";
@@ -840,7 +840,7 @@
 "app.browser.load_failed" = "无法读取 Chrome 策略：%1$@";
 "app.browser.save_failed" = "无法保存 Chrome 策略：%1$@";
 "app.browser.other_policy" = "其他策略：%1$@";
-"app.browser.enable" = "禁止直连 UDP";
+"app.browser.enable" = "禁用非代理 UDP";
 "app.browser.restore" = "还原原有设置";
 "app.browser.external" = "由 Nagi 之外的方式限制";
 "app.browser.external_help" = "此限制由 Nagi 之外的方式配置，请使用原来的配置方式更改。";

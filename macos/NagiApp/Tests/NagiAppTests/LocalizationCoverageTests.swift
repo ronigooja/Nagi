@@ -39,7 +39,7 @@ final class LocalizationCoverageTests: XCTestCase {
 
     func testChineseResourcesTranslateAllNagiProseWithExplicitProtocolExceptions() throws {
         let exceptions: [String: Set<String>] = [
-            "Localizable": ["app.ui.http", "app.ui.nagi_2"], // HTTP/product plus placeholders only.
+            "Localizable": ["app.ui.http", "app.ui.nagi_2", "app.browser.chrome"], // HTTP/product plus placeholders only.
             "MessageCatalog": ["cli.error.validation.external", "cli.output.writerewrite.ca"] // External cause only; CA acronym.
         ]
         for table in ["Localizable", "MessageCatalog"] {
@@ -97,8 +97,8 @@ final class LocalizationCoverageTests: XCTestCase {
 
     func testBrowserSettingsResourcesExplainScopeAndRestartInBothLanguages() throws {
         let expected: [String: (menu: String, enable: String)] = [
-            "en": ("Browser / WebRTC…", "Block Direct UDP"),
-            "zh-Hans": ("浏览器 / WebRTC…", "禁止直连 UDP")
+            "en": ("Browser / WebRTC…", "Disable Non-Proxied UDP"),
+            "zh-Hans": ("浏览器 / WebRTC…", "禁用非代理 UDP")
         ]
         for (language, text) in expected {
             let resources = try bundle(language)
