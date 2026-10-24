@@ -95,6 +95,26 @@ final class LocalizationCoverageTests: XCTestCase {
         XCTAssertEqual(CaptureDetailSection.overview.rawValue, "overview")
     }
 
+    func testBrowserSettingsResourcesExplainScopeAndRestartInBothLanguages() throws {
+        let expected: [String: (menu: String, enable: String)] = [
+            "en": ("Browser / WebRTC…", "Block Direct UDP"),
+            "zh-Hans": ("浏览器 / WebRTC…", "禁止直连 UDP")
+        ]
+        for (language, text) in expected {
+            let resources = try bundle(language)
+            XCTAssertEqual(L10n.text("app.browser.menu", bundle: resources), text.menu)
+            XCTAssertEqual(L10n.text("app.browser.enable", bundle: resources), text.enable)
+            for key in ["app.browser.help", "app.browser.restart", "app.browser.forced", "app.browser.saved"] {
+                XCTAssertNotEqual(L10n.text(key, bundle: resources), key)
+            }
+            for key in ["app.browser.load_failed", "app.browser.save_failed", "app.browser.other_policy"] {
+                let rendered = L10n.format(key, "fictitious-policy", bundle: resources)
+                XCTAssertTrue(rendered.contains("fictitious-policy"))
+                XCTAssertFalse(rendered.contains("%1$@"))
+            }
+        }
+    }
+
     func testOriginalNamesAndCapturedBodiesAreNeverLocalizationKeys() throws {
         let raw = "Start\n运行中\napp.ui.start\nAuthorization: Bearer fictitious-example%@"
         XCTAssertEqual(captureBodyText(Data(raw.utf8), format: .raw), raw)

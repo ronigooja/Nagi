@@ -716,6 +716,7 @@ nagi --json rules test service.example --network udp --process Browser
 | Command | Result or effect |
 | --- | --- |
 | `traffic watch` | Stream live transfer rates and cumulative byte counters from mihomo once per second until interrupted. |
+| `browser chrome-webrtc status`, `browser chrome-webrtc enable`, `browser chrome-webrtc restore` | Inspect, restrict, or restore the current macOS user's Google Chrome WebRTC UDP policy; see [browser settings](#browser-webrtc-settings). |
 | `system-proxy status` | On macOS, read active OS HTTP, HTTPS, and SOCKS proxy settings. |
 | `system-proxy enable` | On macOS, save current OS settings and point HTTP and HTTPS proxy settings at mihomo's local mixed port (or HTTP port). Requires a running engine. |
 | `system-proxy disable` | On macOS, restore settings saved by Nagi; when no restore record exists, report the current settings without changing them. |
@@ -738,6 +739,73 @@ On macOS, an installed privileged helper can run mihomo with permission to creat
 Helper protocol version 1 adds optional `not_forwarded` to failed configuration reload responses. `true` means the helper rejected the request before controller forwarding; it requires `ok: false`, a nonempty `error`, and no HTTP `status`. Nagi reports this rejection directly and attempts disk restoration without warning that this PUT may apply later. Omitted or false values provide no such evidence; transport failures and failures after forwarding retain activation-ID recovery. Older helpers remain supported with that conservative behavior. The updated CLI, matching engine, and restarted helper must be installed together; the [installation workflow](../development/install.md) updates an existing macOS helper as part of replacing the binaries.
 
 On macOS, JSON payloads for `system-proxy status|enable|disable` include `enabled` (boolean), `backend`, and `http`, `https`, and `socks` objects with `enabled`, optional `host`, and optional `port`. `tun status|enable|disable` include `enabled` (boolean), `settings` (mihomo TUN object), `adapter_status` (string), and optional `adapter_name` (string). `lan status|enable|disable` include `enabled` and `bind_address`. `ports status` includes integer `http`, `https`, `socks`, and `mixed`, plus `bind_address` and `allow_lan`. The `http` and `https` values are the same because mihomo uses one HTTP proxy listener for both schemes. On macOS, TUN results also include `system_dns` and an optional `system_dns_error` when inspection fails. `system_dns` contains `supported` and `managed` booleans, `status` (`unmanaged`, `managed`, `attention`, or `stale`), optional `targets` (DNS address list), `services` (service names mapped to their static DNS lists; an empty list means DHCP), and optional `conflicts` (service names). Non-macOS DNS management reports `unsupported`. All use the usual success/error envelope and exit codes. `system_proxy_error` and `tun_error` indicate failed traffic operations. macOS `status` and `startup check` also expose `system_dns` and optional `system_dns_error`; `status` can report `system_dns_recovery_error` from an unsuccessful user-mode exit watcher. These errors do not replace the process's `running` state or PID.
+
+## Browser WebRTC settings
+
+```sh
+nagi browser chrome-webrtc status
+nagi browser chrome-webrtc enable
+nagi browser chrome-webrtc restore
+nagi --json browser chrome-webrtc status
+```
+
+These commands manage only the current macOS user's Google Chrome
+`WebRtcIPHandling` preference in the `com.google.Chrome` domain. They do not
+configure mihomo, change proxy groups, start the engine, or enable TUN or system
+proxy access. They are independent of the selected profile. Safari and other
+Chromium browser preference domains are not changed.
+
+`enable` sets `disable_non_proxied_udp`: Chrome WebRTC uses a configured proxy or
+falls back to TCP instead of direct UDP. This applies to all sites and can
+increase voice/video call latency. Completely quit and reopen Chrome after a
+change; check `chrome://policy` to confirm Chrome loaded the policy. Reading or
+saving the preference does not prove that a particular connection uses a proxy.
+The preference persists after Nagi quits, stops, or changes profiles.
+
+Before Nagi changes the preference, it saves the original string or records that
+the preference was absent. `restore` restores that value, or removes the key when
+it was originally absent, and clears Nagi's restore record after success. An
+existing `disable_non_proxied_udp` value configured outside Nagi is preserved;
+Nagi does not adopt it or offer a restore operation without its own saved
+baseline. With no restore record, `restore` returns the current state without
+changing the preference. A policy forced by an administrator is read-only.
+A current value different from both Nagi's applied value and saved baseline is
+a conflict and is not overwritten. If the value already equals the baseline,
+`restore` clears the restore record without rewriting the preference. A failed operation retains the restore information needed for an
+explicit retry. Supported existing strings are `default`,
+`default_public_and_private_interfaces`, `default_public_interface_only`, and
+`disable_non_proxied_udp`. Unknown policy strings and non-string preference
+values are rejected without conversion or overwrite.
+
+The private restore record is
+`~/Library/Application Support/Nagi/state/chrome-webrtc-restore.json` (mode
+`0600`), alongside the mode `0600` `chrome-webrtc.lock`. A newly created state
+directory has mode `0700`. The record contains `version: 1`, `before` (the
+original string or `null`), and `applied: "disable_non_proxied_udp"`. Do not remove
+the record before restoring if you need Nagi to recover the original value.
+
+Successful JSON `data` includes:
+
+| Field | Meaning |
+| --- | --- |
+| `available` | Whether Chrome preference management is available on this platform. |
+| `current_value` | Current preference string, or `null` when absent. |
+| `restricted` | Whether the effective value is `disable_non_proxied_udp`. |
+| `managed` | Whether Nagi has a saved restore baseline; this does not mean administrator management. |
+| `forced` | Whether macOS reports the policy as administrator-forced. |
+| `can_enable` | Whether Nagi can currently enable the restriction. |
+| `can_restore` | Whether Nagi can currently restore its saved baseline. |
+| `requires_restart` | `true` after an enable writes the preference or a restore processes its record; `false` for status and unchanged idempotent operations. This is a restart reminder, not evidence that Chrome has loaded the policy. |
+
+`can_enable` and `can_restore` are false for administrator-forced policies or
+conflicting external changes. On platforms other than macOS, every subcommand
+returns `browser_preference_error` with exit status `1`. Preference read/write,
+unsupported-value, conflict, and recovery failures use the same code and retain
+a useful cause. Invalid syntax uses exit status `2`; successful operations use
+exit status `0`, with the ordinary JSON success envelope when requested.
+
+The native App's **Browser / WebRTC…** window uses these same CLI operations;
+see the [App guide](../../macos/NagiApp/README.md#browser--webrtc-settings).
 
 ## Installation maintenance
 

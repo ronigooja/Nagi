@@ -1,6 +1,6 @@
 # Nagi macOS menu app
 
-The macOS 13+ app lives only in the menu bar. It has no Dock icon. **Connections…** opens an independent, resizable window; reopening it brings the existing window to the front. The status menu separates engine status and recovery; daily controls (**System Proxy**, **TUN**, **Mode**, **Proxy Groups**); configuration management (**Profiles**, **Subscriptions**, **Proxy Providers**); traffic tools (**Connections…**, **Request Capture…**, **Request Rewrite**); App settings (**Display**, **Login**); and **Help**, **About Nagi**, and **Quit Nagi** with separators. Under **Proxy Groups**, selectable groups show their current selection beside the group name when available, without starting a latency test. Other group types retain their names without implying a single selected node.
+The macOS 13+ app lives only in the menu bar. It has no Dock icon. **Connections…** opens an independent, resizable window; reopening it brings the existing window to the front. The status menu separates engine status and recovery; daily controls (**System Proxy**, **TUN**, **Mode**, **Proxy Groups**); configuration management (**Profiles**, **Subscriptions**, **Proxy Providers**); traffic tools (**Connections…**, **Request Capture…**, **Request Rewrite**); App settings (**Display**, **Browser / WebRTC…**, **Login**); and **Help**, **About Nagi**, and **Quit Nagi** with separators. Under **Proxy Groups**, selectable groups show their current selection beside the group name when available, without starting a latency test. Other group types retain their names without implying a single selected node.
 
 Selecting a profile name directly under **Profiles** switches to that profile; the current profile is checked, including `default`. **Profiles → Manage Profiles** contains a **Delete “NAME”…** action for each personal profile. The current profile's deletion item is disabled and says to switch profiles first. The `default` template cannot be deleted. Each deletion action opens one confirmation naming the profile and explaining its cleanup scope; **Cancel** has the default Return key and initial focus. Canceling dispatches no CLI operation. If the current profile is unknown, deletion remains disabled. It calls `profile remove NAME` and refreshes profiles and subscriptions after success. Configuration, backups, local overrides and settings, and saved proxy choices are deleted. Subscription associations are cleared; subscription records and caches are kept. The CLI owns cleanup, association removal, selected-profile protection, and transaction recovery; see [profile removal](../../docs/reference/cli.md#profile-removal). **Apply Default Runtime Settings to Current Profile** appears in the shared Profiles menu after a separator below the profile list. It toggles safe default runtime settings for the current profile through the CLI. The item is checked when `profile override default-status NAME` reports the applied settings active. Selecting a checked item calls `profile override restore-default NAME` to restore the previous local override; proxy nodes, groups, rules, and Nagi-managed fields are excluded from the applied settings. It starts Nagi on launch, accepts an already running engine, and keeps the menu available if startup fails so Retry Start can be used. Quit runs the CLI cleanup command before the app terminates; a failed cleanup leaves the menu open with the CLI error.
 
@@ -177,6 +177,34 @@ The top of the status menu contains one summary row. Errors, including an enable
 Subscription expiry and next-update times use the system's local time zone and `YYYY-MM-DD HH:mm`, without seconds or a zone suffix. Invalid timestamps display `unknown`; a missing next-update time displays `pending`, and a missing expiry is omitted. Quota shows available/total plus uploaded/downloaded amounts in binary units (`B`, `KiB`, `MiB`, `GiB`, `TiB`, `PiB`, `EiB`) with up to two decimal places. Available quota is clamped to zero; an absent or nonpositive total displays `unknown`. These values come from the provider's latest subscription metadata, not live traffic. This display formatting does not change CLI JSON fields or stored metadata.
 
 Proxy node measurement tooltips show the measurement time in the system's local time zone as `YYYY-MM-DD HH:mm`. Invalid or absent times display `unknown`.
+
+## Browser / WebRTC settings
+
+Choose **Browser / WebRTC…** to open a separate native settings window. Opening it
+again brings the existing window forward and preserves its size. The window
+reads the current Google Chrome `WebRtcIPHandling` policy through the CLI and
+shows whether direct UDP is restricted, whether Nagi owns a restore record, and
+whether an administrator forces the policy. **Refresh** rereads the state without
+changing it. Failures remain visible in the window for an explicit retry.
+
+**Block Direct UDP** sets `disable_non_proxied_udp`. Chrome WebRTC then uses a
+configured proxy or falls back to TCP instead of direct UDP; this affects all
+websites and can increase call latency. Completely quit and reopen Chrome after
+changing the setting. The setting persists after Nagi quits and is independent
+of profiles, TUN intent, and system-proxy settings; enabling it does not start
+mihomo or turn on either traffic-access mode.
+
+**Restore Original Settings** is available only when Nagi has saved the previous
+value. It restores that value, or removes the preference if it was originally
+absent. An existing restriction configured outside Nagi is displayed without a
+restore action; Nagi does not delete it. Administrator-forced policies are
+read-only. If an external change differs from both Nagi's applied value and the saved
+baseline, restoration reports the conflict rather than overwriting the new value. The
+window's help button explains policy scope and the restart requirement. Safari
+and other browsers are not changed. The [CLI browser reference](../../docs/reference/cli.md#browser-webrtc-settings)
+defines commands, state fields, and failures.
+
+## Build and package
 
 Build and package on macOS with Xcode command line tools:
 
