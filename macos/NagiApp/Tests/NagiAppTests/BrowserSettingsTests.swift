@@ -121,13 +121,13 @@ import AppKit
         let delegate = MenuAppDelegate(model: model)
         delegate.menuWillOpen(delegate.menu)
         let titles = delegate.menu.items.map(\.title)
-        let display = titles.firstIndex(of: "Display")
-        let browser = titles.firstIndex(of: "Browser / WebRTC…")
-        let login = titles.firstIndex(of: "Login")
+        let display = titles.firstIndex(of: L10n.text("app.ui.display"))
+        let browser = titles.firstIndex(of: L10n.text("app.browser.menu"))
+        let login = titles.firstIndex(of: L10n.text("app.ui.login"))
         XCTAssertNotNil(display); XCTAssertNotNil(browser); XCTAssertNotNil(login)
         if let display, let browser, let login { XCTAssertLessThan(display, browser); XCTAssertLessThan(browser, login) }
-        XCTAssertNil(delegate.menu.item(withTitle: "Browser / WebRTC…")?.submenu)
-        XCTAssertNotNil(delegate.menu.item(withTitle: "Browser / WebRTC…")?.action)
+        XCTAssertNil(delegate.menu.item(withTitle: L10n.text("app.browser.menu"))?.submenu)
+        XCTAssertNotNil(delegate.menu.item(withTitle: L10n.text("app.browser.menu"))?.action)
         delegate.menuDidClose(delegate.menu)
     }
 }
