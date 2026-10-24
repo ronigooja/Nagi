@@ -56,6 +56,7 @@ import AppKit
     private lazy var captureWindow = CaptureWindowController(model: model.capture)
     private lazy var connectionsWindow = ConnectionsWindowController(model: model.connections)
     private lazy var requestRewriteWindow = RequestRewriteWindowController(model: model.requestRewrite)
+    private lazy var browserSettingsWindow = BrowserSettingsWindowController(model: model.browserSettings)
     private var statusItem: NSStatusItem!
     let menu = NSMenu()
     private var pulse: Timer?
@@ -360,6 +361,7 @@ import AppKit
         addSubmenu(L10n.text("app.ui.request_rewrite_3"), rewriteMenu)
         menu.addItem(.separator())
         addSubmenu(L10n.text("app.ui.display"), displayMenu)
+        add(L10n.text("app.browser.menu"), action: #selector(showBrowserSettings))
         let startupMenu = NSMenu()
         add(L10n.text("app.ui.open_menu_bar_app_at_login"), action: #selector(toggleAppLogin), checked: model.appLoginEnabled, to: startupMenu)
         let startupCommand = model.serviceInstalled == true ? ["service", "uninstall"] : ["service", "install"]
@@ -789,6 +791,7 @@ import AppKit
     }
     @objc private func showCapture() { captureWindow.present() }
     @objc private func stopCapture() { Task { await model.capture.mutate("stop") } }
+    @objc private func showBrowserSettings() { browserSettingsWindow.present() }
     @objc private func showConnections() { connectionsWindow.present() }
     @objc private func showRequestRewrite() { requestRewriteWindow.present() }
     @objc private func toggleRequestRewrite() {

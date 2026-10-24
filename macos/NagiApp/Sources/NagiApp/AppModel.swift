@@ -144,6 +144,12 @@ enum EngineState { case starting, running, stopped, unavailable }
     var onTrafficChange: (() -> Void)?
     private let cli: NagiCLIClient
     let connections: ConnectionsModel
+    lazy var browserSettings: BrowserSettingsModel = {
+        BrowserSettingsModel(run: { [weak self] arguments in
+            guard let self else { throw CancellationError() }
+            return try await self.executeBrowserSettings(arguments)
+        })
+    }()
     lazy var requestRewrite: RequestRewriteModel = {
         let rewrite = RequestRewriteModel(cli: cli)
         rewrite.submit = { [weak self] arguments, input in
@@ -879,6 +885,15 @@ enum EngineState { case starting, running, stopped, unavailable }
     }
     func clearSubscriptionKey(_ name: String) { perform(["subscription", "key", name, "clear"]) }
     func setSubscriptionKey(_ name: String, file: String) { perform(["subscription", "key", name, file]) }
+    private func executeBrowserSettings(_ arguments: [String]) async throws -> JSONValue {
+        guard !busy && !quitting else { throw CLIError.command("busy", L10n.text("app.ui.another_operation_is_in_progress")) }
+        busy = true
+        let mutation = arguments.last != "status"
+        if mutation { applyingSetting = true }
+        defer { if mutation { applyingSetting = false }; busy = false }
+        await waitForConnectionsOperation()
+        return try await runCommand(arguments)
+    }
     func executeRewrite(_ arguments: [String], input: Data?) async throws -> JSONValue {
         guard !busy && !quitting else { throw RewriteFormError.invalid(L10n.text("app.ui.another_operation_is_in_progress")) }
         busy = true; applyingSetting = true; settingsGeneration += 1
