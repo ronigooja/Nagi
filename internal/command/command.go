@@ -194,7 +194,11 @@ func runWithInputProgress(args []string, stdin io.Reader, stdout, stderr io.Writ
 		runner := menu.NewInputCommandRunner(func(argv []string, input io.Reader, out, errOut io.Writer) int {
 			return runWithInputProgress(argv, input, out, errOut, version, commit, stdout)
 		})
-		return menu.Run(ctx, menu.NewSessionWithLanguage(runner, stdin, stdout, locale))
+		// The menu handles Ctrl-C at the input layer so it can cancel the
+		// current prompt and continue serving the menu. Do not pass the
+		// command's signal-cancelled context into the menu itself: after one
+		// Ctrl-C, a later menu operation must still be able to run.
+		return menu.Run(menuContext(ctx), menu.NewSessionWithLanguage(runner, stdin, stdout, locale))
 	}
 	if len(filtered) == 2 && filtered[0] == "subscription" && filtered[1] == "watch" {
 		return runForegroundSubscriptionWatch(ctx, stdout, stderr, jsonMode, version, commit)
@@ -292,6 +296,10 @@ func runWithInputProgress(args []string, stdin io.Reader, stdout, stderr io.Writ
 	}
 	return 0
 }
+
+// menuContext keeps values available to menu-dispatched operations while
+// preventing a Ctrl-C handled by the menu from poisoning later operations.
+func menuContext(ctx context.Context) context.Context { return context.WithoutCancel(ctx) }
 
 func runJSONFollow(stdout, stderr io.Writer, follow engine.FollowResult) int {
 	encoder := json.NewEncoder(stdout)
