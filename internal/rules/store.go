@@ -338,7 +338,7 @@ func validateItems(items []string, kind string) error {
 	if kind == "set" {
 		label = "rule set"
 	}
-	if len(items) == 0 {
+	if len(items) == 0 && kind != "rules" {
 		return i18n.NewMessage("backend.rules.collection."+kind+".empty", nil, label+" is empty", nil)
 	}
 	if len(items) > 100000 {

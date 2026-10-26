@@ -222,12 +222,15 @@ func TestRulesImportRemoteSnapshotAndBound(t *testing.T) {
 }
 
 func TestRulesImportInvalidSourcesAndData(t *testing.T) {
-	for _, data := range []string{"", "rules: []", "payload: ['MATCH,DIRECT']", "rules: ['MATCH,DIRECT']\n---\nrules: ['MATCH,REJECT']", "rules: [true]", "rules: [123]", "rules: ['']", "rules: [\"a\\nb\"]", "rules: ['MATCH,DIRECT']\nrules: ['MATCH,REJECT']", "["} {
+	for _, data := range []string{"", "payload: ['MATCH,DIRECT']", "rules: ['MATCH,DIRECT']\n---\nrules: ['MATCH,REJECT']", "rules: [true]", "rules: [123]", "rules: ['']", "rules: [\"a\\nb\"]", "rules: ['MATCH,DIRECT']\nrules: ['MATCH,REJECT']", "["} {
 		t.Run(data, func(t *testing.T) {
 			if _, err := ParseRules([]byte(data)); err == nil {
 				t.Fatalf("accepted %q", data)
 			}
 		})
+	}
+	if items, err := ParseRules([]byte("rules: []")); err != nil || items == nil || len(items) != 0 {
+		t.Fatalf("empty rule list: %#v %v", items, err)
 	}
 	for _, source := range []string{"", "http:/broken", "ftp://example.invalid/rules", "https://user:secret@example.invalid/rules", filepath.Join(t.TempDir(), "missing")} {
 		if err := New(t.TempDir(), "work", nil).Import(context.Background(), "bad", source); err == nil {

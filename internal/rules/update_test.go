@@ -112,6 +112,29 @@ func TestUpdateLocalLegacySetAndRollback(t *testing.T) {
 	}
 }
 
+func TestUpdateAllowsEmptyImportedRules(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	file := filepath.Join(dir, "source.yaml")
+	if err := os.WriteFile(file, []byte("rules: ['DOMAIN,old.example,DIRECT']"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s := New(dir, "work", nil)
+	if err := s.Import(ctx, "bundle", file); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("rules: []\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Update(ctx, "bundle", ""); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := s.List()
+	if err != nil || len(doc.Entries) != 1 || len(doc.Entries[0].Items) != 0 {
+		t.Fatalf("empty update: %+v %v", doc, err)
+	}
+}
+
 func TestEditSingleRulePreservesPositionAndRollback(t *testing.T) {
 	ctx := context.Background()
 	s := New(t.TempDir(), "work", nil)
