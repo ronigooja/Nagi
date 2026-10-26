@@ -1022,7 +1022,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         trafficGeneration += 1
         let generation = trafficGeneration
         streamStartedAt = Date()
-        trafficTask = Task {
+        trafficTask = Task { [self] in
             while !Task.isCancelled && state == .running && generation == trafficGeneration {
                 do {
                     let stream = try cli.trafficStream { [weak self] value in

@@ -32,7 +32,7 @@ struct NagiCLIClient {
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
-                    do { continuation.resume(returning: try runBlocking(arguments, holder: holder, stdoutLimit: stdoutLimit, as: type)) }
+                    do { continuation.resume(returning: try runBlocking(arguments, holder: holder, stdoutLimit: stdoutLimit, as: Value.self)) }
                     catch { continuation.resume(throwing: error) }
                 }
             }
