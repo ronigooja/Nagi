@@ -167,15 +167,15 @@ func TestDNSInterruptedTransactionRecovery(t *testing.T) {
 		t.Fatal("interrupted update was not restored")
 	}
 }
-func TestDNSMissingServiceAndCorruptJournalFail(t *testing.T) {
+func TestDNSMissingServiceIsDroppedAndCorruptJournalFails(t *testing.T) {
 	m, f := dnsFixture(t)
 	ctx := context.Background()
 	if _, err := m.Sync(ctx, 1, []string{"198.19.0.2"}); err != nil {
 		t.Fatal(err)
 	}
 	delete(f.values, "Ethernet")
-	if _, err := m.Disable(ctx); err == nil || !m.Managed() {
-		t.Fatal("missing service silently dropped")
+	if _, err := m.Disable(ctx); err != nil || m.Managed() {
+		t.Fatalf("missing service blocked recovery: %v", err)
 	}
 	if err := os.WriteFile(m.path(), []byte("{}"), 0600); err != nil {
 		t.Fatal(err)

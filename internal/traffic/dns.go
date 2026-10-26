@@ -417,10 +417,12 @@ func (m *DNSManager) restore(ctx context.Context, j dnsJournal) error {
 		return err
 	}
 	var problems []error
+	remaining := dnsJournal{PID: j.PID, Services: map[string]dnsEntry{}}
 	for name, e := range j.Services {
 		a, ok := actual[name]
 		if !ok {
-			problems = append(problems, i18n.Errorf("backend.traffic.dns_service_q_missing_restore_journal_retained", "DNS service %q missing; restore journal retained", name))
+			// The service may have been removed externally. There is no
+			// setting left to restore, so discard this journal entry.
 			continue
 		}
 		if dnsEqual(a, e.Before) {
@@ -428,13 +430,21 @@ func (m *DNSManager) restore(ctx context.Context, j dnsJournal) error {
 		}
 		if !dnsEqual(a, e.Applied) && !(len(e.Pending) > 0 && dnsEqual(a, e.Pending)) {
 			problems = append(problems, i18n.Errorf("backend.traffic.dns_conflict_on_q_settings_changed_externally_left_untouched", "DNS conflict on %q: settings changed externally; left untouched", name))
+			remaining.Services[name] = e
 			continue
 		}
 		if err = m.set(ctx, name, e.Before); err != nil {
 			problems = append(problems, err)
+			remaining.Services[name] = e
 		}
 	}
 	if err = errors.Join(problems...); err != nil {
+		if len(remaining.Services) == 0 {
+			return err
+		}
+		if saveErr := m.save(remaining); saveErr != nil {
+			return errors.Join(err, saveErr)
+		}
 		return err
 	}
 	return m.remove()
