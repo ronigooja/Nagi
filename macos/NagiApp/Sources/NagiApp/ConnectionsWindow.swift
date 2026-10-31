@@ -151,26 +151,36 @@ import AppKit
         table.allowsMultipleSelection = false
         table.allowsEmptySelection = true
         table.rowHeight = 25
-        table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         table.setAccessibilityLabel(L10n.text("app.ui.active_connections"))
-        let columns: [(ConnectionSortColumn, String, CGFloat)] = [
-            (.status, L10n.text("app.connections.status"), 100), (.destination, L10n.text("app.ui.destination_2"), 250), (.process, L10n.text("app.ui.process"), 150), (.network, L10n.text("app.ui.protocol"), 75),
-            (.chains, L10n.text("app.ui.proxy_chain"), 235), (.upload, L10n.text("app.ui.uploaded_cumulative"), 140),
-            (.download, L10n.text("app.ui.downloaded_cumulative"), 150)
+        // Preferred widths total about 960 points, which fits the default 1040-point window.
+        // Only destination and proxy chain absorb window resizing; other columns keep their width.
+        let columns: [(ConnectionSortColumn, String, CGFloat, CGFloat, Bool)] = [
+            (.status, L10n.text("app.connections.status"), 70, 55, false),
+            (.destination, L10n.text("app.ui.destination_2"), 260, 120, true),
+            (.process, L10n.text("app.ui.process"), 130, 70, false),
+            (.network, L10n.text("app.ui.protocol"), 60, 50, false),
+            (.chains, L10n.text("app.ui.proxy_chain"), 200, 100, true),
+            (.upload, L10n.text("app.ui.uploaded_cumulative"), 120, 80, false),
+            (.download, L10n.text("app.ui.downloaded_cumulative"), 120, 80, false)
         ]
-        for (key, title, width) in columns {
+        for (key, title, width, minWidth, flexible) in columns {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(key.rawValue))
-            column.title = title; column.width = width; column.minWidth = 65
+            column.title = title; column.width = width; column.minWidth = minWidth
+            column.resizingMask = flexible ? [.userResizingMask, .autoresizingMask] : .userResizingMask
             column.sortDescriptorPrototype = NSSortDescriptor(key: key.rawValue, ascending: true)
             table.addTableColumn(column)
         }
+        table.autosaveName = "NagiConnectionsTable"
+        table.autosaveTableColumns = true
         // The initial order is supplied by ConnectionRecords: newest active
         // observation first. A column descriptor is added only after the user
         // chooses a column, so live samples do not replace that ordering.
         table.sortDescriptors = []
         scroll.documentView = table
         scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
-        scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .legacy
+        scroll.autohidesScrollers = false
         scroll.borderType = .bezelBorder
         scroll.setContentHuggingPriority(.defaultLow, for: .vertical)
 
