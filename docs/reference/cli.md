@@ -116,7 +116,7 @@ Startup waits up to 30 seconds after control-socket readiness for mihomo to conf
 | `connections failures` | Stream structured connection-failure events until interrupted. |
 | `mode [rule\|global\|direct\|save MODE\|saved]` | Read or change temporary runtime mode, or explicitly persist/read the selected profile's mode. |
 | `service install`, `service uninstall` | Manage a per-user launchd Agent or systemd service. |
-| `privileged-helper status\|install\|uninstall\|enable\|disable` | Inspect or manage the macOS privileged TUN helper and selected engine backend. |
+| `privileged-helper status\|install\|activate\|uninstall\|enable\|disable` | Inspect or manage the macOS privileged TUN helper and selected engine backend. |
 | `app status\|install [TAG]\|update [TAG]\|uninstall` | Inspect, install, or remove the macOS App; App update updates the whole managed installation. |
 | `update [TAG\|--terminal\|--app]` | Update the managed CLI, mihomo, and any installed App; macOS `--terminal` opens Terminal, while `--app` schedules a detached update for the menu App. |
 | `uninstall` | Stop Nagi and remove its managed executables and services, preserving user data. |
@@ -723,7 +723,7 @@ nagi --json rules test service.example --network udp --process Browser
 | `system-proxy status` | On macOS, read active OS HTTP, HTTPS, and SOCKS proxy settings. |
 | `system-proxy enable` | On macOS, save current OS settings and point HTTP and HTTPS proxy settings at mihomo's local mixed port (or HTTP port). Requires a running engine. |
 | `system-proxy disable` | On macOS, restore settings saved by Nagi; when no restore record exists, report the current settings without changing them. |
-| `tun status`, `tun enable`, `tun disable` | Read or change mihomo TUN at runtime. Enable requests automatic routes, interface detection, strict routing, and UDP/TCP port 53 interception; macOS also manages network-service DNS. Status inspects a named adapter when available. |
+| `tun status`, `tun enable [--privileged-helper]`, `tun disable` | Read or change mihomo TUN at runtime. Enable requests automatic routes, interface detection, strict routing, and UDP/TCP port 53 interception; macOS also manages network-service DNS. Status inspects a named adapter when available. |
 | `ports status` | Show HTTP/HTTPS, SOCKS, and mixed listener ports, bind address, and LAN flag. Port `0` means the listener is disabled. HTTPS here means an HTTP CONNECT proxy, not TLS termination. |
 | `lan status`, `lan enable [ADDRESS]`, `lan disable` | Read or change runtime LAN access and bind address. `lan enable` defaults to all interfaces (`*`); ADDRESS must be an IPv4 or IPv6 address. Disable binds to `127.0.0.1`. |
 
@@ -962,6 +962,7 @@ setting implications.
 | `service status` | Report definition path, manager, installed, enabled, and active state. |
 | `privileged-helper status` | Report system helper installation, activity, and selected engine backend. |
 | `privileged-helper install` | Install the system helper; requires administrator privileges and the root-owned installed executable. |
+| `privileged-helper activate` | Activate an existing installed system helper without changing its definition; requires administrator privileges. |
 | `privileged-helper uninstall` | Stop and remove the system helper; requires administrator privileges. Stop privileged mihomo and select the user backend first. |
 | `privileged-helper enable` | Select the privileged backend for subsequent starts; requires an active helper and a stopped user mihomo process. |
 | `privileged-helper disable` | Select the user backend for subsequent starts; requires privileged mihomo to be stopped. |

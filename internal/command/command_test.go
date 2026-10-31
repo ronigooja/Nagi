@@ -352,6 +352,15 @@ func TestTrafficCommandHelpAndUsage(t *testing.T) {
 	}
 }
 
+func TestPrivilegedTUNFlagValidation(t *testing.T) {
+	if err := validateInvocation([]string{"tun", "enable", "--privileged-helper"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateInvocation([]string{"tun", "enable", "--other"}); err == nil {
+		t.Fatal("accepted an unrelated tun enable flag")
+	}
+}
+
 func TestLinuxSystemProxyCommandsAreUnsupported(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux only")

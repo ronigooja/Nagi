@@ -139,6 +139,28 @@ func Status() (Result, error) {
 	return r, nil
 }
 
+// Activate starts an installed helper without rewriting its definition.
+// Administrator authorization is still required because launchd system jobs
+// are managed by root.
+func Activate() (Result, error) {
+	r := result()
+	if err := requireRoot(os.Geteuid()); err != nil {
+		return r, err
+	}
+	if _, err := os.Lstat(r.Path); err != nil {
+		return r, i18n.Errorf("system.privileged.helper.definition.not.installed", "helper definition is not installed at %s", r.Path)
+	}
+	if run(launchctlPath, "print", "system/"+Label) == nil {
+		if err := run(launchctlPath, "kickstart", "-k", "system/"+Label); err != nil {
+			return r, i18n.Errorf("system.privileged.launchctl.kickstart.existing.definition", "activate helper: %w", err)
+		}
+	} else if err := run(launchctlPath, "bootstrap", "system", r.Path); err != nil {
+		return r, i18n.Errorf("system.privileged.launchctl.bootstrap.existing.definition", "activate helper: %w", err)
+	}
+	r.Installed, r.Active = true, true
+	return r, nil
+}
+
 func sudoSessionUID() (int, error) {
 	value := os.Getenv("SUDO_UID")
 	uid, err := strconv.Atoi(value)

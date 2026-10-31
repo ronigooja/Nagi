@@ -178,7 +178,7 @@ var commandSpecs = []commandSpec{
 	{"system-proxy disable", "system-proxy disable", "Restore OS proxy settings", "Restores settings saved by system-proxy enable.", "nagi system-proxy disable", "", 0, 0},
 	{"tun", "tun <status|enable|disable>", "Manage TUN mode", "Reads or changes runtime mihomo TUN mode; requires OS TUN permissions.", "nagi tun status", "", 0, -1},
 	{"tun status", "tun status", "Show TUN mode", "Reports runtime TUN configuration and checks a named OS adapter when available; an up adapter does not prove route capture.", "nagi tun status", "", 0, 0},
-	{"tun enable", "tun enable", "Enable TUN mode", "Enables runtime TUN with auto-route and interface detection; macOS takes over system DNS after the adapter is up and restores it when TUN or mihomo stops. Administrator DNS access is required.", "nagi tun enable", "", 0, 0},
+	{"tun enable", "tun enable [--privileged-helper]", "Enable TUN mode", "Enables runtime TUN with auto-route and interface detection; macOS takes over system DNS after the adapter is up and restores it when TUN or mihomo stops. Administrator DNS access is required. On macOS, --privileged-helper explicitly installs/activates/selects the existing privileged helper, stops user mihomo if needed, and then performs the same TUN/DNS operation through it.", "nagi tun enable", "", 0, 1},
 	{"tun disable", "tun disable", "Disable TUN mode", "Disables runtime TUN and restores Nagi-managed macOS system DNS; profile reload may re-enable it.", "nagi tun disable", "", 0, 0},
 	{"ports", "ports <status>", "Show listener ports", "Reports HTTP, HTTPS, SOCKS, and mixed listener ports from the running engine.", "nagi ports status", "", 0, -1},
 	{"ports status", "ports status", "Show listener ports", "HTTP and HTTPS share mihomo's HTTP proxy port; mixed accepts both HTTP and SOCKS.", "nagi ports status", "", 0, 0},
@@ -197,9 +197,10 @@ var commandSpecs = []commandSpec{
 	{"service install", "service install", "Install the user service", "Installs a per-user launchd Agent or systemd service.", "nagi service install", "", 0, 0},
 	{"service uninstall", "service uninstall", "Remove the user service", "Removes the per-user launchd Agent or systemd service.", "nagi service uninstall", "", 0, 0},
 	{"service status", "service status", "Show service status", "Reports definition, enabled, and active states.", "nagi service status", "", 0, 0},
-	{"privileged-helper", "privileged-helper <status|install|uninstall|enable|disable>", "Manage privileged TUN helper", "Installs a system helper with administrator privileges and selects whether Nagi uses it for mihomo lifecycle and control.", "nagi privileged-helper status", "", 0, -1},
+	{"privileged-helper", "privileged-helper <status|install|activate|uninstall|enable|disable>", "Manage privileged TUN helper", "Installs or activates a system helper with administrator privileges and selects whether Nagi uses it for mihomo lifecycle and control.", "nagi privileged-helper status", "", 0, -1},
 	{"privileged-helper status", "privileged-helper status", "Show privileged helper state", "Reports system helper installation and the selected engine backend.", "nagi privileged-helper status", "", 0, 0},
 	{"privileged-helper install", "privileged-helper install", "Install privileged helper", "Requires sudo and a root-owned installed Nagi executable at /usr/local/bin/nagi.", "sudo /usr/local/bin/nagi privileged-helper install", "", 0, 0},
+	{"privileged-helper activate", "privileged-helper activate", "Activate privileged helper", "Requires sudo; starts the existing installed helper without changing its definition.", "sudo /usr/local/bin/nagi privileged-helper activate", "", 0, 0},
 	{"privileged-helper uninstall", "privileged-helper uninstall", "Remove privileged helper", "Requires sudo; stop mihomo and disable the privileged backend first.", "sudo /usr/local/bin/nagi privileged-helper uninstall", "", 0, 0},
 	{"privileged-helper enable", "privileged-helper enable", "Select privileged backend", "Requires an active helper and a stopped user mihomo process; then use nagi start.", "nagi privileged-helper enable", "", 0, 0},
 	{"privileged-helper disable", "privileged-helper disable", "Select user backend", "Requires the privileged mihomo process to be stopped; then use nagi start.", "nagi privileged-helper disable", "", 0, 0},
@@ -348,6 +349,9 @@ func validateInvocation(args []string) error {
 	}
 	if spec.path == "profile override apply-default" && n != 1 && (n != 3 || args[consumed+1] != "--dns-proxy" || strings.TrimSpace(args[consumed+2]) == "") {
 		return syntaxError(messageError("cli.error.validation.expected_dns_proxy_group", "expected --dns-proxy GROUP"), spec)
+	}
+	if spec.path == "tun enable" && n == 1 && args[consumed] != "--privileged-helper" {
+		return syntaxError(messageError("cli.error.validation.expected_privileged_helper_flag", "expected --privileged-helper"), spec)
 	}
 	if n == 1 && (spec.path == "update" || spec.path == "app install" || spec.path == "app update") {
 		value := args[consumed]

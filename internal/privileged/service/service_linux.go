@@ -159,6 +159,10 @@ func Status() (Result, error) {
 	return result, nil
 }
 
+func Activate() (Result, error) {
+	return linuxResult(), i18n.Errorf("system.privileged.helper.activation.unsupported", "privileged helper activation is unsupported on Linux")
+}
+
 func rootControlledExecutable(path string) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || strings.ContainsAny(path, "\n\r\x00") {
 		return i18n.Errorf("system.privileged.path.must.be.absolute.clean.and.contain.no.control.characters", "path must be absolute, clean, and contain no control characters")

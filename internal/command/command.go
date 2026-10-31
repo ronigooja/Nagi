@@ -630,6 +630,12 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 				return nil, fail("privileged_helper_error", err)
 			}
 			return status, nil
+		case "activate":
+			status, err := privilegedservice.Activate()
+			if err != nil {
+				return nil, fail("privileged_helper_error", err)
+			}
+			return status, nil
 		case "uninstall":
 			status, err := privilegedservice.Uninstall()
 			if err != nil {
@@ -695,6 +701,16 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 	backendMode, err := readBackend(paths)
 	if err != nil {
 		return nil, err
+	}
+	privilegedTUN := command == "tun" && len(args) == 3 && args[1] == "enable" && args[2] == "--privileged-helper"
+	if privilegedTUN {
+		if _, err := preparePrivilegedTUN(ctx, paths, binary); err != nil {
+			return nil, err
+		}
+		backendMode, err = readBackend(paths)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if command == "doctor" {
 		if backendMode == privilegedBackend {
@@ -1380,6 +1396,16 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 		}
 		return state, nil
 	case "tun":
+		if privilegedTUN {
+			args = args[:2]
+			m, startErr := getLifecycle()
+			if startErr != nil {
+				return nil, startErr
+			}
+			if _, startErr := startWithTUNDNS(ctx, paths, m, client, configPath, profileName); startErr != nil && !errors.Is(startErr, engine.ErrAlreadyRunning) {
+				return nil, fail("tun_error", startErr)
+			}
+		}
 		cfg, e := trafficConfig(ctx, client)
 		if e != nil {
 			return nil, e
