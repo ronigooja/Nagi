@@ -49,6 +49,16 @@ final class ConnectionsTests: XCTestCase {
         XCTAssertTrue(records[1].matches("/opt/未知"))
     }
 
+    func testUnifiedWatchEnvelopeDecodesFailureEventsAndGaps() throws {
+        let envelope = try JSONDecoder().decode(ConnectionWatchEnvelope.self, from: Data("""
+        {"connections":[],"failure_events":[{"id":"failed-1","reason":"timeout"}],"gaps":[{"reason":"sample dropped"}]}
+        """.utf8))
+        XCTAssertEqual(envelope.connections, [])
+        XCTAssertEqual(envelope.failures.map(\.id), ["failed-1"])
+        XCTAssertEqual(envelope.failures.first?.reason, "timeout")
+        XCTAssertEqual(envelope.gaps.map(\.reason), ["sample dropped"])
+    }
+
     func testSearchAndSortingUseStableIDsAndNumericCounters() throws {
         let records = try decode("""
         {"connections":[
@@ -483,6 +493,20 @@ final class ConnectionsTests: XCTestCase {
         XCTAssertTrue(records.ended.isEmpty)
         records.merge(brief, at: date)
         XCTAssertEqual(records.active.count, 1, "history budgets must not truncate active snapshots")
+    }
+
+    func testFailedRecordsAreDeduplicatedBoundedAndNeverActive() throws {
+        let date = Date(timeIntervalSince1970: 1000)
+        let failure = ConnectionFailure(id: "x", reason: "timeout", connection: nil)
+        var records = ConnectionRecords()
+        records.maximumCount = 1
+        records.merge([], failures: [failure], at: date)
+        records.merge([], failures: [ConnectionFailure(id: "x", reason: "refused", connection: nil)], at: date.addingTimeInterval(1))
+        XCTAssertEqual(records.failed.count, 1)
+        XCTAssertEqual(records.failed["x"]?.connection.failureReason, "refused")
+        XCTAssertTrue(records.active.isEmpty)
+        records.merge([], failures: [ConnectionFailure(id: "y", reason: "timeout", connection: nil)], at: date.addingTimeInterval(2))
+        XCTAssertEqual(Set(records.failed.keys), ["y"])
     }
 
     func testFreezeCollectsBriefConnectionAndRetainsEvictedSelection() async throws {

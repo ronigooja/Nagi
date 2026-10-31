@@ -1,24 +1,26 @@
 import Foundation
 
-enum ConnectionFilter: Int { case all, active, ended }
+enum ConnectionFilter: Int { case all, active, ended, failed }
 
 /// In-memory observations only. A failed or cancelled read never calls merge.
 struct ConnectionRecords: Sendable {
     private var activeOrder: [String] = []
     private(set) var active: [String: Connection] = [:]
     private(set) var ended: [String: (connection: Connection, disappeared: Date)] = [:]
+    private(set) var failed: [String: (connection: Connection, occurred: Date)] = [:]
     var retention: TimeInterval = 300
     var maximumCount = 1000
     var byteBudget = 32 * 1024 * 1024
     /// Active IDs are kept newest-first. Existing active observations retain
     /// their relative order; a new or revived ID is inserted at the front.
-    var values: [Connection] { activeOrder.compactMap { active[$0] } + ended.sorted { $0.key < $1.key }.map { $0.value.connection } }
+    var values: [Connection] { activeOrder.compactMap { active[$0] } + ended.sorted { $0.key < $1.key }.map { $0.value.connection } + failed.sorted { $0.value.occurred == $1.value.occurred ? $0.key < $1.key : $0.value.occurred > $1.value.occurred }.map { $0.value.connection } }
 
     mutating func interrupt() {
         for id in active.keys { active[id]?.observationInterrupted = true }
         for id in ended.keys { ended[id]?.connection.observationInterrupted = true }
+        for id in failed.keys { failed[id]?.connection.observationInterrupted = true }
     }
-    mutating func merge(_ snapshot: [Connection], at date: Date) {
+    mutating func merge(_ snapshot: [Connection], failures: [ConnectionFailure] = [], gaps: [ConnectionGap] = [], at date: Date) {
         var next: [String: Connection] = [:]
         var revived = Set<String>()
         for var connection in snapshot {
@@ -27,6 +29,7 @@ struct ConnectionRecords: Sendable {
                 ?? ended[connection.id]?.connection.observationInterrupted ?? false
             next[connection.id] = connection
             ended.removeValue(forKey: connection.id)
+            failed.removeValue(forKey: connection.id)
         }
         for (id, var connection) in active where next[id] == nil {
             connection.ended = true
@@ -38,6 +41,15 @@ struct ConnectionRecords: Sendable {
         let stillActive = activeOrder.filter { next[$0] != nil }
         activeOrder = newest + stillActive
         active = next
+        for failure in failures {
+            var connection = Connection.failed(id: failure.id, reason: failure.reason, connection: failure.connection)
+            connection.observationInterrupted = false
+            failed[failure.id] = (connection, date)
+            active.removeValue(forKey: failure.id)
+            activeOrder.removeAll { $0 == failure.id }
+            ended.removeValue(forKey: failure.id)
+        }
+        if !gaps.isEmpty { interrupt() }
         prune(at: date)
     }
     mutating func prune(at date: Date) {
@@ -50,6 +62,12 @@ struct ConnectionRecords: Sendable {
                 ended.removeValue(forKey: id)
                 bytes -= record.connection.encodedBytes
             }
+        }
+        let failedOldest = failed.sorted {
+            $0.value.occurred == $1.value.occurred ? $0.key < $1.key : $0.value.occurred < $1.value.occurred
+        }
+        for (id, record) in failedOldest where date.timeIntervalSince(record.occurred) >= retention || failed.count > maximumCount {
+            failed.removeValue(forKey: id)
         }
     }
 }

@@ -32,9 +32,10 @@ enum ConnectionsState: Equatable {
     private var lastPublished = Date.distantPast
     private var retryAttempt = 0
     private var retryAfter = Date.distantPast
-    private var stream: ((@escaping ([Connection]) async -> Void) async throws -> Void)?
-    var activeCount: Int { connections.filter { !$0.ended }.count }
+    private var stream: ((@escaping (ConnectionWatchEnvelope) async -> Void) async throws -> Void)?
+    var activeCount: Int { connections.filter { !$0.ended && !$0.failed }.count }
     var endedCount: Int { connections.filter(\.ended).count }
+    var failedCount: Int { connections.filter(\.failed).count }
     var isRefreshing: Bool { readTask != nil }
     var selectedConnection: Connection? { selectedDetail }
     var canClose: Bool {
@@ -66,8 +67,13 @@ enum ConnectionsState: Equatable {
     /// Request injection allows deterministic lifecycle tests without an API,
     /// while integration tests use the real CLI Process cancellation path.
     init(fetch: @escaping () async throws -> [Connection], execute: @escaping ([String]) async throws -> Void,
-         interval: UInt64 = 250_000_000, watch: ((@escaping ([Connection]) async -> Void) async throws -> Void)? = nil, now: @escaping () -> Date = Date.init) {
+         interval: UInt64 = 250_000_000, watch: ((@escaping (ConnectionWatchEnvelope) async -> Void) async throws -> Void)? = nil, now: @escaping () -> Date = Date.init) {
         self.fetch = fetch; self.execute = execute; self.interval = interval; self.now = now; self.stream = watch
+    }
+    init(fetch: @escaping () async throws -> [Connection], execute: @escaping ([String]) async throws -> Void,
+         interval: UInt64 = 250_000_000, watch: @escaping (@escaping ([Connection]) async -> Void) async throws -> Void, now: @escaping () -> Date = Date.init) {
+        self.fetch = fetch; self.execute = execute; self.interval = interval; self.now = now
+        self.stream = { receive in try await watch { snapshot in await receive(ConnectionWatchEnvelope(connections: snapshot, failures: [], gaps: [])) } }
     }
 
     func setVisible(_ value: Bool) {
@@ -198,7 +204,7 @@ enum ConnectionsState: Equatable {
                 if let stream = self?.stream {
                     try await stream { [weak self] snapshot in
                         guard let self, !Task.isCancelled, generation == self.generation, self.active else { return }
-                        try? await self.accept(snapshot, readGeneration: generation)
+                         try? await self.accept(snapshot, readGeneration: generation)
                     }
                     throw CLIError.invalidJSON(L10n.text("app.connections.stream_ended"))
                 }
@@ -236,10 +242,13 @@ enum ConnectionsState: Equatable {
         else { notify() }
     }
     private func accept(_ snapshot: [Connection], readGeneration: UInt64) async throws {
+        try await accept(ConnectionWatchEnvelope(connections: snapshot, failures: [], gaps: []), readGeneration: readGeneration)
+    }
+    private func accept(_ envelope: ConnectionWatchEnvelope, readGeneration: UInt64) async throws {
         let current = records, date = now()
         let merging = Task.detached(priority: .userInitiated) {
             var result = current
-            result.merge(snapshot, at: date)
+            result.merge(envelope.connections, failures: envelope.failures, gaps: envelope.gaps, at: date)
             return result
         }
         let merged = await merging.value
@@ -304,7 +313,14 @@ enum ConnectionsState: Equatable {
     }
     private func projectRows() {
         projectionGeneration &+= 1
-        let generation = projectionGeneration, snapshot = connections.filter { filter == .all || (filter == .ended ? $0.ended : !$0.ended) }
+        let generation = projectionGeneration, snapshot = connections.filter {
+            switch filter {
+            case .all: return true
+            case .active: return !$0.ended && !$0.failed
+            case .ended: return $0.ended
+            case .failed: return $0.failed
+            }
+        }
         let query = self.query, column = sortColumn, ascending = sortAscending
         projectionTask?.cancel()
         projectionTask = Task { [weak self] in

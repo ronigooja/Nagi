@@ -125,7 +125,7 @@ import AppKit
         guard let content = window?.contentView else { return }
         NativeControlStyle.configure(search)
         for button in [refreshButton, freezeButton, closeButton, closeAllButton] { NativeControlStyle.configure(button) }
-        filterControl.addItems(withTitles: [L10n.text("app.connections.all"), L10n.text("app.connections.active"), L10n.text("app.connections.ended")])
+        filterControl.addItems(withTitles: [L10n.text("app.connections.all"), L10n.text("app.connections.active"), L10n.text("app.connections.ended"), L10n.text("app.connections.failed")])
         filterControl.target = self; filterControl.action = #selector(changeFilter)
         freezeButton.target = self; freezeButton.action = #selector(freeze)
         search.placeholderString = L10n.text("app.ui.search_domain_ip_process_proxy_chain_or")
@@ -279,13 +279,13 @@ import AppKit
             }
         }
         updatingTable = false
-        countLabel.stringValue = L10n.format("app.connections.record_count", Int64(rows.count), Int64(model.activeCount), Int64(model.endedCount))
+        countLabel.stringValue = L10n.format("app.connections.record_count", Int64(rows.count), Int64(model.activeCount), Int64(model.endedCount), Int64(model.failedCount))
         freezeButton.title = L10n.text(model.frozen ? "app.connections.resume" : "app.connections.freeze")
         filterControl.selectItem(at: model.filter.rawValue)
         updatedLabel.stringValue = model.lastUpdated.map { L10n.format("app.ui.updated", String(describing: Self.timeFormatter.string(from: $0))) } ?? L10n.text("app.ui.not_updated_yet")
         refreshButton.isEnabled = !model.frozen && !model.operationInProgress
         freezeButton.isEnabled = model.state == .fresh || model.frozen
-        closeButton.isEnabled = model.canClose && model.selectedConnection?.ended == false
+        closeButton.isEnabled = model.canClose && model.selectedConnection?.ended == false && model.selectedConnection?.failed == false
         closeAllButton.isEnabled = model.canClose && model.activeCount > 0
         renderDetails()
         let stateMessage: String
@@ -327,7 +327,9 @@ import AppKit
             String(describing: Self.bytes(connection.upload)),
             String(describing: Self.bytes(connection.download)),
             String(describing: connection.id))
-        if connection.ended { detail.string += "\n\n" + L10n.text("app.connections.ended_detail") }
+        if connection.failed {
+            detail.string += "\n\n" + L10n.format("app.connections.failed_detail", connection.failureReason ?? L10n.text("app.state.unknown"))
+        } else if connection.ended { detail.string += "\n\n" + L10n.text("app.connections.ended_detail") }
         if connection.observationInterrupted { detail.string += "\n\n" + L10n.text("app.connections.interrupted") }
     }
 
@@ -360,7 +362,7 @@ import AppKit
         let text: String
         switch key {
         case .appearance: text = connection.destination
-        case .status: text = L10n.text(connection.ended ? "app.connections.ended" : "app.connections.active")
+        case .status: text = L10n.text(connection.failed ? "app.connections.failed" : connection.ended ? "app.connections.ended" : "app.connections.active")
         case .destination: text = connection.destination
         case .process: text = connection.process
         case .network: text = connection.network

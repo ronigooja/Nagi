@@ -4,6 +4,8 @@ import Foundation
 /// decoding on the CLI worker queue; counters are cumulative byte counts.
 struct Connection: Decodable, Equatable, Sendable {
     var ended = false
+    var failed = false
+    var failureReason: String?
     var observationInterrupted = false
     var encodedBytes = 0
     let id: String
@@ -61,6 +63,20 @@ struct Connection: Decodable, Equatable, Sendable {
         searchText = [id, destination, destinationIP, source, process, processPath, chain].joined(separator: "\n").lowercased()
     }
 
+    private init(id: String, reason: String) {
+        self.id = id; self.destination = "unknown"; self.destinationIP = "unknown"; self.source = "unknown"
+        self.process = "unknown"; self.processPath = "unknown"; self.network = "unknown"; self.inbound = "unknown"
+        self.chains = []; self.chain = "unknown"; self.rule = "unknown"; self.rulePayload = "unknown"
+        self.upload = nil; self.download = nil; self.searchText = [id, reason].joined(separator: "\n").lowercased()
+        self.failed = true; self.failureReason = reason
+    }
+
+    static func failed(id: String, reason: String, connection: Connection? = nil) -> Connection {
+        var value = connection ?? Connection(id: id, reason: reason)
+        value.failed = true; value.ended = false; value.failureReason = reason
+        return value
+    }
+
     private static func known(_ value: String?) -> String? {
         guard let value, !value.isEmpty else { return nil }
         return value
@@ -75,6 +91,49 @@ struct Connection: Decodable, Equatable, Sendable {
 
 struct ConnectionList: Decodable { let connections: [Connection] }
 
+struct ConnectionFailure: Decodable, Sendable {
+    let id: String
+    let reason: String
+    let connection: Connection?
+    private enum CodingKeys: String, CodingKey { case id, reason, message, error, connection }
+    init(id: String, reason: String, connection: Connection?) { self.id = id; self.reason = reason; self.connection = connection }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? "unknown"
+        reason = try c.decodeIfPresent(String.self, forKey: .reason)
+            ?? c.decodeIfPresent(String.self, forKey: .message)
+            ?? c.decodeIfPresent(String.self, forKey: .error) ?? "unknown"
+        connection = try c.decodeIfPresent(Connection.self, forKey: .connection)
+    }
+}
+
+struct ConnectionGap: Decodable, Sendable {
+    let reason: String
+    private enum CodingKeys: String, CodingKey { case reason, message }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        reason = try c.decodeIfPresent(String.self, forKey: .reason) ?? c.decodeIfPresent(String.self, forKey: .message) ?? "unknown"
+    }
+}
+
+struct ConnectionWatchEnvelope: Decodable, Sendable {
+    let connections: [Connection]
+    let failures: [ConnectionFailure]
+    let gaps: [ConnectionGap]
+    private enum CodingKeys: String, CodingKey { case connections, failures, failureEvents = "failure_events", gaps, sampledAt = "sampled_at" }
+    init(connections: [Connection], failures: [ConnectionFailure], gaps: [ConnectionGap]) {
+        self.connections = connections; self.failures = failures; self.gaps = gaps
+    }
+    func map<T>(_ transform: (Connection) throws -> T) rethrows -> [T] { try connections.map(transform) }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        connections = try c.decodeIfPresent([Connection].self, forKey: .connections) ?? []
+        failures = try c.decodeIfPresent([ConnectionFailure].self, forKey: .failures)
+            ?? c.decodeIfPresent([ConnectionFailure].self, forKey: .failureEvents) ?? []
+        gaps = try c.decodeIfPresent([ConnectionGap].self, forKey: .gaps) ?? []
+    }
+}
+
 enum ConnectionSortColumn: String, Sendable {
     case appearance, status, destination, process, network, chains, upload, download
 }
@@ -84,7 +143,7 @@ func connectionRows(_ connections: [Connection], query: String, column: Connecti
     let query = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     let filtered = try connections.filter {
         try Task.checkCancellation()
-        return $0.matches(query)
+            return $0.matches(query)
     }
     guard column != .appearance else { return filtered }
     return try filtered.sorted { lhs, rhs in
@@ -97,7 +156,7 @@ func connectionRows(_ connections: [Connection], query: String, column: Connecti
         default:
             let strings: (String, String)
             switch column {
-            case .status: strings = (lhs.ended ? "ended" : "active", rhs.ended ? "ended" : "active")
+            case .status: strings = (lhs.failed ? "failed" : lhs.ended ? "ended" : "active", rhs.failed ? "failed" : rhs.ended ? "ended" : "active")
             case .destination: strings = (lhs.destination, rhs.destination)
             case .process: strings = (lhs.process, rhs.process)
             case .network: strings = (lhs.network, rhs.network)

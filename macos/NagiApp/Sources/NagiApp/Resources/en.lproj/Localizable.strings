@@ -237,6 +237,8 @@
 "app.ui.export_public_certificate" = "Export Public Certificate…";
 "app.ui.export_rules" = "Export Rules…";
 "app.ui.failed" = "Failed";
+"app.connections.failed" = "Failed";
+"app.connections.failed_detail" = "This connection failed before it became active. Reason: %@. Failed records cannot be closed.";
 "app.ui.find" = "Find";
 "app.ui.find_applications" = "Find Applications";
 "app.ui.fingerprint" = "Fingerprint";
@@ -818,7 +820,7 @@
 "app.connections.active" = "Active";
 "app.connections.ended" = "Recently Ended";
 "app.connections.status" = "Status";
-"app.connections.record_count" = "%lld shown · %lld active · %lld ended";
+"app.connections.record_count" = "%lld shown · %lld active · %lld ended · %lld failed";
 "app.connections.frozen" = "Display frozen; collection continues.";
 "app.connections.ended_detail" = "Ended, inferred from snapshots. Counters are the last observed values; exact end time and final traffic are unavailable.";
 "app.connections.interrupted" = "Observation was interrupted; activity during the gap is unavailable.";

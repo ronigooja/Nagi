@@ -237,6 +237,10 @@
 "app.ui.export_public_certificate" = "导出公共证书…";
 "app.ui.export_rules" = "导出规则…";
 "app.ui.failed" = "失败";
+"app.connections.failed" = "失败";
+"app.connections.failed_detail" = "此连接在变为活动状态前失败。原因：%@。失败记录无法关闭。";
+"app.connections.failed" = "失败";
+"app.connections.failed_detail" = "此连接在变为活动状态前失败。原因：%@。失败记录无法关闭。";
 "app.ui.find" = "查找";
 "app.ui.find_applications" = "查找应用";
 "app.ui.fingerprint" = "指纹";
@@ -818,7 +822,7 @@
 "app.connections.active" = "活动";
 "app.connections.ended" = "最近结束";
 "app.connections.status" = "状态";
-"app.connections.record_count" = "显示 %lld 条 · 活动 %lld 条 · 已结束 %lld 条";
+"app.connections.record_count" = "显示 %lld 条 · 活动 %lld 条 · 已结束 %lld 条 · 失败 %lld 条";
 "app.connections.frozen" = "显示已冻结；后台继续采集。";
 "app.connections.ended_detail" = "已结束（根据快照推断）。流量为最后观测值，无法提供精确结束时间和最终流量。";
 "app.connections.interrupted" = "观测曾中断；无法补回中断期间的活动。";

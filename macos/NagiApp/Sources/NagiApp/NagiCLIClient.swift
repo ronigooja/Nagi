@@ -133,7 +133,7 @@ struct NagiCLIClient {
         return try TrafficStream(executable: executable, sample: sample)
     }
 
-    func watchConnections(_ sample: @escaping ([Connection]) async -> Void) async throws {
+    func watchConnections(_ sample: @escaping (ConnectionWatchEnvelope) async -> Void) async throws {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw CLIError.missingCLI(executable.path) }
         let stream = try ConnectionsStream(executable: executable, sample: sample)
         try await stream.wait()
@@ -508,7 +508,7 @@ final class ConnectionsStream: @unchecked Sendable {
     private let lock = NSLock()
     private var stopped = false
     private var failure: Error?
-    init(executable: URL, sample: @escaping ([Connection]) async -> Void) throws {
+    init(executable: URL, sample: @escaping (ConnectionWatchEnvelope) async -> Void) throws {
         process.executableURL = executable
         process.arguments = ["--json", "connections", "watch"]
         let stdout = Pipe(), stderr = Pipe()
@@ -542,13 +542,13 @@ final class ConnectionsStream: @unchecked Sendable {
                     pending.removeSubrange(...newline)
                     searched = 0
                     guard !line.isEmpty else { continue }
-                    guard let envelope = try? JSONDecoder().decode(CLIEnvelope<ConnectionList>.self, from: line),
+                    guard let envelope = try? JSONDecoder().decode(CLIEnvelope<ConnectionWatchEnvelope>.self, from: line),
                           envelope.ok, let data = envelope.data else {
                         setFailure(CLIError.invalidJSON(L10n.text("app.connections.invalid_sample")))
                         invalid = true; stop(); break
                     }
                     let consumed = DispatchSemaphore(value: 0)
-                    Task { await sample(data.connections); consumed.signal() }
+                    Task { await sample(data); consumed.signal() }
                     consumed.wait()
                 }
                 searched = pending.count
