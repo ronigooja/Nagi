@@ -728,7 +728,7 @@ func liveHeader(language i18n.Context, filter, query string, frozen bool, active
 	summary := fmt.Sprintf("%s: %s  %s: %d  %s: %d  %s: %d  %s: %s",
 		menuText(language, "menu.traffic.live.filter", "Filter"), filterLabel,
 		menuText(language, "menu.traffic.live.active", "Active"), activeCount,
-		menuText(language, "menu.traffic.live.ended", "Recently ended"), endedCount,
+		menuText(language, "menu.traffic.live.ended", "Ended"), endedCount,
 		menuText(language, "menu.traffic.live.failed", "Failed"), failedCount,
 		menuText(language, "menu.traffic.live.sampled", "Sampled"), timeLabel)
 	lines = append(lines, liveWrapItems(summary, width)...)
