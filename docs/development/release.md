@@ -177,6 +177,18 @@ Changes since [vPREVIOUS]:
 - ...
 ```
 
+The publish workflow drafts these notes from commit subjects in
+`PREVIOUS..TAG`. `feat:` commits become **Added**, `fix:` commits **Fixed**, and
+`refactor`, `perf`, `ci`, `build`, `chore`, `ui` and `design` commits
+**Changed**. Subjects without a conventional prefix appear under **Other
+changes**. `docs`, `test` and `wip` commits are only counted. A `!` after the
+prefix or a `BREAKING CHANGE:` footer is listed under **Compatibility and
+upgrade notes**. Commit subjects are not a substitute for review: the release
+author must still compare the generated text with the reviewed changes and edit
+the published release (`gh release edit TAG --notes-file FILE`) to add
+behavior changes, such as a relaxed limit or a changed minimum toolchain, that
+the subjects do not state.
+
 Remove empty sections, but keep the comparison range and include all
 user-visible changes. Mention breaking changes and required migration steps in
 **Compatibility and upgrade notes**. If there were no entries in a category,

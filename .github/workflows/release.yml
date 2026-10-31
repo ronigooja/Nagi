@@ -198,18 +198,50 @@ jobs:
         run: |
           set -euo pipefail
           previous=$(git tag --list 'v*' --sort=-version:refname | awk -v tag="$RELEASE_TAG" '$0 != tag { print; exit }')
+          if [[ -n "$previous" ]]; then range="$previous..$RELEASE_TAG"; else range="$RELEASE_TAG"; fi
+          git log --no-merges --format='%s' "$range" > commit-subjects.txt
+          git log --no-merges --format='%B%x00' "$range" | tr '\0' '\n' | grep -E '^BREAKING[ -]CHANGE:' > breaking-footers.txt || true
+
+          # Conventional prefixes decide the section; unprefixed history stays
+          # visible under Other changes instead of being dropped.
+          section() {
+            local title=$1 pattern=$2
+            local lines
+            lines=$(grep -E "$pattern" commit-subjects.txt | sed -E 's/^[a-zA-Z]+(\([^)]*\))?!?:[[:space:]]*//' || true)
+            if [[ -n "$lines" ]]; then
+              printf '## %s\n\n' "$title"
+              printf '%s\n' "$lines" | sed 's/^/- /'
+              printf '\n'
+            fi
+          }
+
           {
             printf '# Nagi %s\n\n' "$RELEASE_TAG"
             if [[ -n "$previous" ]]; then
               printf 'Changes since [%s]:\n`%s..%s`\n\n' "$previous" "$previous" "$RELEASE_TAG"
-              printf '## Changed\n\n'
-              git log --format='- %s' "$previous..$RELEASE_TAG"
             else
-              printf 'Changes in the first published release.\n\n## Changed\n\n'
-              git log --format='- %s' "$RELEASE_TAG"
+              printf 'Changes in the first published release.\n\n'
             fi
-            printf '\n## Artifacts\n\n- Linux and macOS archives\n- SHA256SUMS\n'
+            section Added '^feat(\([^)]*\))?!?:'
+            section Fixed '^fix(\([^)]*\))?!?:'
+            section Changed '^(refactor|perf|ci|build|chore|ui|design)(\([^)]*\))?!?:'
+            lines=$(grep -vE '^[a-zA-Z]+(\([^)]*\))?!?:' commit-subjects.txt | sed 's/^/- /' || true)
+            if [[ -n "$lines" ]]; then printf '## Other changes\n\n%s\n\n' "$lines"; fi
+            docs=$(grep -cE '^(docs|test|wip)(\([^)]*\))?!?:' commit-subjects.txt || true)
+            if [[ "${docs:-0}" -gt 0 ]]; then
+              printf '## Documentation and tests\n\n- %s documentation, test, or work-in-progress commits are omitted from the lists above; see the commit range.\n\n' "$docs"
+            fi
+            breaking=$(grep -E '^[a-zA-Z]+(\([^)]*\))?!:' commit-subjects.txt | sed -E 's/^[a-zA-Z]+(\([^)]*\))?!:[[:space:]]*//; s/^/- /' || true)
+            footers=$(sed -E 's/^BREAKING[ -]CHANGE:[[:space:]]*/- /' breaking-footers.txt)
+            if [[ -n "$breaking$footers" ]]; then
+              printf '## Compatibility and upgrade notes\n\n'
+              [[ -n "$breaking" ]] && printf '%s\n' "$breaking"
+              [[ -n "$footers" ]] && printf '%s\n' "$footers"
+              printf '\n'
+            fi
+            printf '## Artifacts\n\n- Linux and macOS archives\n- SHA256SUMS\n'
           } > release-notes.md
+          rm -f commit-subjects.txt breaking-footers.txt
 
       - name: Create GitHub Release
         if: env.RELEASE_TAG != ''
