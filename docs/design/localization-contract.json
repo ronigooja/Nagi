@@ -3966,6 +3966,8 @@
     "help.command.ports.status.detail": {},
     "help.command.ports.status.summary": {},
     "help.command.ports.summary": {},
+    "help.command.privileged-helper.activate.detail": {},
+    "help.command.privileged-helper.activate.summary": {},
     "help.command.privileged-helper.detail": {},
     "help.command.privileged-helper.disable.detail": {},
     "help.command.privileged-helper.disable.summary": {},

@@ -102,6 +102,8 @@
   "help.command.privileged-helper.enable.summary": {},
   "help.command.privileged-helper.install.detail": {},
   "help.command.privileged-helper.install.summary": {},
+  "help.command.privileged-helper.activate.detail": {},
+  "help.command.privileged-helper.activate.summary": {},
   "help.command.privileged-helper.status.detail": {},
   "help.command.privileged-helper.status.summary": {},
   "help.command.privileged-helper.summary": {},

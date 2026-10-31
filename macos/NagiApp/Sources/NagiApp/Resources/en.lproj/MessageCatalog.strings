@@ -1636,7 +1636,9 @@
 "help.command.ports.status.detail" = "HTTP and HTTPS share mihomo's HTTP proxy port; mixed accepts both HTTP and SOCKS.";
 "help.command.ports.status.summary" = "Show listener ports";
 "help.command.ports.summary" = "Show listener ports";
-"help.command.privileged-helper.detail" = "Installs a system helper with administrator privileges and selects whether Nagi uses it for mihomo lifecycle and control.";
+"help.command.privileged-helper.activate.detail" = "Requires sudo; starts the existing installed helper without changing its definition.";
+"help.command.privileged-helper.activate.summary" = "Activate privileged helper";
+"help.command.privileged-helper.detail" = "Installs or activates a system helper with administrator privileges and selects whether Nagi uses it for mihomo lifecycle and control.";
 "help.command.privileged-helper.disable.detail" = "Requires the privileged mihomo process to be stopped; then use nagi start.";
 "help.command.privileged-helper.disable.summary" = "Select user backend";
 "help.command.privileged-helper.enable.detail" = "Requires an active helper and a stopped user mihomo process; then use nagi start.";
@@ -2234,7 +2236,7 @@
 "help.command.tun.detail" = "Reads or changes runtime mihomo TUN mode; requires OS TUN permissions.";
 "help.command.tun.disable.detail" = "Disables runtime TUN and restores Nagi-managed macOS system DNS; profile reload may re-enable it.";
 "help.command.tun.disable.summary" = "Disable TUN mode";
-"help.command.tun.enable.detail" = "Enables runtime TUN with auto-route and interface detection; macOS takes over system DNS after the adapter is up and restores it when TUN or mihomo stops. Administrator DNS access is required.";
+"help.command.tun.enable.detail" = "Enables runtime TUN with auto-route and interface detection; macOS takes over system DNS after the adapter is up and restores it when TUN or mihomo stops. Administrator DNS access is required. On macOS, --privileged-helper explicitly installs/activates/selects the existing privileged helper, stops user mihomo if needed, and then performs the same TUN/DNS operation through it.";
 "help.command.tun.enable.summary" = "Enable TUN mode";
 "help.command.tun.status.detail" = "Reports runtime TUN configuration and checks a named OS adapter when available; an up adapter does not prove route capture.";
 "help.command.tun.status.summary" = "Show TUN mode";

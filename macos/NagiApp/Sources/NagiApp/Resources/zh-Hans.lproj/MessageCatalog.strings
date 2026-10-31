@@ -1636,7 +1636,9 @@
 "help.command.ports.status.detail" = "HTTP 和 HTTPS 共用 mihomo 的 HTTP 代理端口；mixed 同时接受 HTTP 和 SOCKS。";
 "help.command.ports.status.summary" = "显示监听端口";
 "help.command.ports.summary" = "显示监听端口";
-"help.command.privileged-helper.detail" = "使用管理员权限安装系统辅助程序，并选择 Nagi 是否通过其管理 mihomo 生命周期和控制。";
+"help.command.privileged-helper.activate.detail" = "需要 sudo；启动已有的辅助程序定义而不修改它。";
+"help.command.privileged-helper.activate.summary" = "激活特权辅助程序";
+"help.command.privileged-helper.detail" = "使用管理员权限安装或激活系统辅助程序，并选择 Nagi 是否通过其管理 mihomo 生命周期和控制。";
 "help.command.privileged-helper.disable.detail" = "需要停止特权 mihomo 进程；之后运行 nagi start。";
 "help.command.privileged-helper.disable.summary" = "选择用户后端";
 "help.command.privileged-helper.enable.detail" = "需要活动的辅助程序和已停止的用户 mihomo 进程；之后运行 nagi start。";
@@ -2234,7 +2236,7 @@
 "help.command.tun.detail" = "读取或更改 mihomo 运行时 TUN 模式；需要系统 TUN 权限。";
 "help.command.tun.disable.detail" = "停用运行时 TUN，并恢复 Nagi 管理的 macOS 系统 DNS；重新加载配置方案可能再次启用 TUN。";
 "help.command.tun.disable.summary" = "停用 TUN 模式";
-"help.command.tun.enable.detail" = "启用带自动路由和接口检测的运行时 TUN；macOS 在适配器启动后接管系统 DNS，并在 TUN 或 mihomo 停止时恢复。需要管理员 DNS 权限。";
+"help.command.tun.enable.detail" = "启用带自动路由和接口检测的运行时 TUN；macOS 在适配器启动后接管系统 DNS，并在 TUN 或 mihomo 停止时恢复。需要管理员 DNS 权限。在 macOS 上，--privileged-helper 会明确安装/激活/选择现有特权辅助程序，必要时停止用户 mihomo，然后通过它执行相同的 TUN/DNS 操作。";
 "help.command.tun.enable.summary" = "启用 TUN 模式";
 "help.command.tun.status.detail" = "报告运行时 TUN 配置，并在可用时检查指定系统适配器；适配器已启动不代表路由已被接管。";
 "help.command.tun.status.summary" = "显示 TUN 模式";
