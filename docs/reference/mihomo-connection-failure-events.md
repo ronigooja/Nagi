@@ -1,143 +1,109 @@
 # Mihomo connection failure events
 
-This document defines the versioned connection-failure event contract for the
-Nagi integration. **Status: foundation only.** The current pinned mihomo
-source (`ronigooja/mihomo`, commit
-`8e139d44bc86d1107042edc95514ec7733dd2d94`) does not yet expose this endpoint
-or publish these events. The Go package
-[`internal/connectionevents`](../../internal/connectionevents/) provides the
-wire types and bounded-history semantics so the engine and Nagi clients can be
-implemented against one contract without changing `/connections`.
+This document defines the connection-failure event contract used by Nagi.
+**Status: implemented in mihomo commit
+`3aaa47ec730b121ee58b7b2000f60fbd1dc2c14f`.** The engine exposes the endpoint
+and publishes failures from the supported tunnel connection paths.
 
 ## Endpoint and compatibility
 
-The future endpoint is a dedicated WebSocket at `GET /connection-events` on
-the existing mihomo controller. It must not change `GET /connections`, its
-WebSocket snapshot mode, or the close operations under `/connections`.
+The authenticated controller exposes an HTTP NDJSON stream:
 
-The stream sends JSON text messages. The first message is `hello`; subsequent
-messages are `connection_failure` or `gap`. Clients must validate `version`
-and `kind`, ignore unknown fields, and reject unknown versions or kinds. The
-stream is process-local: a restart creates a new `stream_id` and resets the
-sequence namespace.
-
-## Messages
-
-### Hello
-
-```json
-{
-  "version": 1,
-  "kind": "hello",
-  "stream_id": "opaque-process-id",
-  "capacity": 1024,
-  "oldest_sequence": 42,
-  "latest_sequence": 1065
-}
+```text
+GET /connection-events?kind=failure
 ```
 
-`oldest_sequence` and `latest_sequence` are zero when no event exists. The
-queue capacity is fixed by the engine and is informational; clients cannot
-change it through the endpoint.
+Each successful event is one JSON object followed by a newline. Privileged
+callers may request one event with:
 
-### Connection failure
+```text
+GET /connection-events?kind=failure&once=true&wait_ms=25000
+```
+
+The one-shot form returns `204 No Content` when the wait expires. The endpoint
+does not change `/connections`, its WebSocket snapshot mode, or close actions.
+
+## Event format
 
 ```json
 {
-  "version": 1,
-  "kind": "connection_failure",
-  "event_id": "opaque-process-id/1066",
-  "sequence": 1066,
-  "timestamp": "2026-10-31T12:34:56.789Z",
-  "stage": "dial",
-  "code": "connection_refused",
+  "type": "connection_failure",
+  "occurred_at": "2026-10-31T12:34:56.789Z",
+  "connection_id": "failure-1",
+  "target": "example.test:443",
+  "network": "tcp",
+  "proxy": "Proxy A",
   "metadata": {
-    "network": "tcp",
-    "source": "192.0.2.10:50000",
-    "destination": "example.test:443",
-    "destination_host": "example.test",
-    "destination_port": 443,
-    "rule": "MATCH",
-    "proxy": "Proxy A",
-    "chains": ["Proxy A"]
+    "host": "example.test",
+    "process": "curl",
+    "processPath": "/usr/bin/curl",
+    "destinationPort": "443",
+    "type": "HTTPS"
+  },
+  "error": {
+    "code": "connect_timeout",
+    "message": "connection attempt timed out"
   }
 }
 ```
 
-`event_id` is `stream_id/sequence`. It is opaque and stable for the life of
-the event stream. `timestamp` is the occurrence time in UTC RFC 3339 format;
-it is not the WebSocket delivery time. Metadata is best effort and every
-field is optional. `connection_id` may be absent because many failures occur
-before a connection tracker is created.
+`occurred_at` is the UTC occurrence time. Metadata is best effort. The event
+contains a stable process-local failure ID, but it is not an active connection
+ID and cannot be closed. Error messages are fixed safe summaries; raw errors
+and credentials are not sent by the event publisher.
 
-The stable stages are `resolve`, `route`, `dial`, `handshake`, and `forward`.
-The stable codes are `dns_failed`, `route_failed`, `proxy_dial_failed`,
-`proxy_handshake_failed`, `connect_timeout`, `connection_refused`,
-`network_unreachable`, `tls_failed`, `canceled`, and `unknown`. The engine may
-add codes only in a later protocol version; clients must not branch on raw
-error text. Raw error strings and credentials are not sent by this contract.
+The current stable codes are:
 
-### Gap
-
-```json
-{
-  "version": 1,
-  "kind": "gap",
-  "from_sequence": 100,
-  "to_sequence": 141,
-  "dropped": 42,
-  "reason": "overflow"
-}
+```text
+resolve_failed
+route_failed
+proxy_dial_failed
+connect_timeout
 ```
 
-The queue is bounded to 1024 failure events by default and producers never
-block. When full, mihomo drops the oldest events. A subscriber whose cursor is
-older than retained history receives one gap before the retained events. The
-range is inclusive and `dropped` equals `to_sequence-from_sequence+1`.
-Consumers must advance their cursor to `to_sequence` and mark the interval as
-unavailable; they must not infer individual failures from it. A gap is not a
-failure event and has no `event_id` or timestamp.
+## Delivery and retention
 
-The initial implementation may start a subscriber at the current latest
-sequence. If a future `since` query is added, it must use the same inclusive
-gap rules and must not silently replay an incomplete history.
+The engine uses a bounded per-subscriber channel with a default capacity of
+128. Publishing never blocks tunnel processing. A slow subscriber can lose
+events; the current implementation does not replay history or emit a
+synthetic gap record. Nagi treats stream termination or unavailable engine
+support as an observation interruption and never invents individual failure
+records.
 
-## Required engine insertion points
+## Implemented coverage
 
-The pinned source currently has these relevant pieces:
+The engine publishes events for:
 
-- `hub/route/connections.go` exposes snapshots and periodic WebSocket
-  snapshots through `statistic.DefaultManager`.
-- `tunnel/tunnel.go` resolves routing and calls `proxy.DialContext` in the TCP
-  path, then logs failures in `logMetadataErr`.
-- `adapter/adapter.go` delegates to proxy adapters, but protocol adapters and
-  DNS dialers make additional nested calls outside one shared failure hook.
+- TCP metadata preprocessing failures;
+- TCP route selection failures;
+- TCP proxy dialing and handshake failures;
+- UDP route selection failures;
+- UDP packet-dial failures.
 
-The source has no event hub, process stream ID, sequence cursor, or centralized
-failure classifier. A complete engine implementation must therefore:
+Successful connections continue to be added to the ordinary connection
+tracker only after the outbound connection succeeds. Existing `/connections`
+snapshots and closure behavior are unchanged.
 
-1. Create one process-lifetime event log with the bounded semantics above.
-2. Add a non-blocking publication hook at the routed TCP and UDP failure
-   boundaries, preserving the existing return errors and `/connections`
-   tracker behavior.
-3. Classify errors at the operation boundary into the stable stage/code pair;
-   do not classify by controller or client log parsing.
-4. Add the dedicated authenticated controller route and WebSocket writer.
-5. Cover DNS resolution, route selection, proxy dialing, protocol handshake,
-   and forwarding failures separately. A hook only around
-   `tunnel/tunnel.go`'s TCP `retry` callback is not complete coverage.
+Failures that occur before an inbound connection reaches the routed tunnel
+boundary, and failures deep inside protocol adapters that do not return through
+the routed dial boundary, are not yet published as separate events.
 
-Those engine changes are intentionally not represented as completed here:
-the Nagi repository contains no mihomo source, and the inspected pinned source
-has no existing failure-event insertion points. `/connections` remains the
-authoritative active-connection snapshot API until the engine endpoint is
-published and pinned.
+## Nagi integration
 
-## Validation
+The Go CLI exposes the stream through `nagi connections failures`. The same
+event source is merged into `nagi connections watch` as optional
+`failure_events` records. The macOS Connections window retains these records
+in memory for five minutes, deduplicates them by ID, displays them under the
+Failed filter, and never offers a close action.
 
-The protocol package tests cover monotonic process-local IDs, UTC occurrence
-timestamps, metadata ownership, bounded retention, explicit overflow gaps,
-JSON validation, and invalid queue configuration. They do not claim runtime
-mihomo coverage. Once the engine endpoint exists, add engine tests for each
-insertion point above, controller authentication, slow subscribers, restart
-stream IDs, and preservation of existing `/connections` behavior.
+The Go protocol package at
+[`internal/connectionevents`](../../internal/connectionevents/) documents the
+planned versioned replay/gap protocol. The current engine endpoint is the
+minimal live NDJSON implementation and does not yet expose that replay cursor.
+
+## Verification
+
+Mihomo tests cover safe metadata publication, bounded subscriber behavior, the
+controller route, one-shot timeout compatibility, and preservation of the
+existing statistic/route packages. A platform-specific tunnel test may require
+an operating system with UID-routing support.
