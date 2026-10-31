@@ -164,7 +164,10 @@ import AppKit
             column.sortDescriptorPrototype = NSSortDescriptor(key: key.rawValue, ascending: true)
             table.addTableColumn(column)
         }
-        table.sortDescriptors = [NSSortDescriptor(key: ConnectionSortColumn.destination.rawValue, ascending: true)]
+        // The initial order is supplied by ConnectionRecords: newest active
+        // observation first. A column descriptor is added only after the user
+        // chooses a column, so live samples do not replace that ordering.
+        table.sortDescriptors = []
         scroll.documentView = table
         scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
@@ -356,6 +359,7 @@ import AppKit
         let connection = rows[row]
         let text: String
         switch key {
+        case .appearance: text = connection.destination
         case .status: text = L10n.text(connection.ended ? "app.connections.ended" : "app.connections.active")
         case .destination: text = connection.destination
         case .process: text = connection.process

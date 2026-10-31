@@ -70,6 +70,45 @@ final class ConnectionsTests: XCTestCase {
         XCTAssertEqual(try rows("z"), ["z"])
     }
 
+    @MainActor func testDefaultAppearanceOrderPutsNewAndRevivedConnectionsFirstAndKeepsExistingOrder() async throws {
+        let requests = ConnectionRequests(), model = model(requests)
+        activate(model)
+        await settle(model, requests: requests, records: try snapshot(["a", "b"]))
+        XCTAssertEqual(model.rows.map(\.id), ["a", "b"])
+
+        model.refresh()
+        await waitUntil { requests.readCount == 2 }
+        requests.finishRead(2, try snapshot(["a", "b", "c"]))
+        await waitUntil { !model.isRefreshing && model.rows.map(\.id) == ["c", "a", "b"] }
+
+        model.refresh()
+        await waitUntil { requests.readCount == 3 }
+        requests.finishRead(3, try snapshot(["a", "c"]))
+        await waitUntil { !model.isRefreshing && model.rows.map(\.id) == ["c", "a", "b"] }
+
+        model.refresh()
+        await waitUntil { requests.readCount == 4 }
+        requests.finishRead(4, try snapshot(["a", "b", "c"]))
+        await waitUntil { !model.isRefreshing && model.rows.map(\.id) == ["b", "c", "a"] }
+        model.setVisible(false)
+    }
+
+    @MainActor func testManualColumnSortingRemainsInEffectAcrossNewObservations() async throws {
+        let requests = ConnectionRequests(), model = model(requests)
+        activate(model)
+        await settle(model, requests: requests, records: try snapshot(["a", "b"]))
+        model.setSort(column: .destination, ascending: true)
+        await waitUntil { model.rows.map(\.id) == ["a", "b"] }
+
+        model.refresh()
+        await waitUntil { requests.readCount == 2 }
+        requests.finishRead(2, try snapshot(["a", "b", "c"]))
+        await waitUntil { !model.isRefreshing && model.rows.map(\.id) == ["a", "b", "c"] }
+        XCTAssertEqual(model.sortColumn, .destination)
+        XCTAssertTrue(model.sortAscending)
+        model.setVisible(false)
+    }
+
     private func fixture(_ body: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("nagi-connections-\(UUID().uuidString).py")
         try ("#!/usr/bin/env python3\n" + body + "\n").write(to: url, atomically: true, encoding: .utf8)

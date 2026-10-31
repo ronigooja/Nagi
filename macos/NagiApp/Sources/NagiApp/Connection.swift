@@ -76,19 +76,22 @@ struct Connection: Decodable, Equatable, Sendable {
 struct ConnectionList: Decodable { let connections: [Connection] }
 
 enum ConnectionSortColumn: String, Sendable {
-    case status, destination, process, network, chains, upload, download
+    case appearance, status, destination, process, network, chains, upload, download
 }
 
 /// This function runs in detached tasks, including every search and sort.
 func connectionRows(_ connections: [Connection], query: String, column: ConnectionSortColumn, ascending: Bool) throws -> [Connection] {
     let query = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    return try connections.filter {
+    let filtered = try connections.filter {
         try Task.checkCancellation()
         return $0.matches(query)
-    }.sorted { lhs, rhs in
+    }
+    guard column != .appearance else { return filtered }
+    return try filtered.sorted { lhs, rhs in
         try Task.checkCancellation()
         let order: ComparisonResult
         switch column {
+        case .appearance: order = .orderedSame
         case .upload: order = compareConnectionBytes(lhs.upload, rhs.upload)
         case .download: order = compareConnectionBytes(lhs.download, rhs.download)
         default:

@@ -18,7 +18,7 @@ enum ConnectionsState: Equatable {
     private(set) var selectionDisappearMessage: String?
     private(set) var selectedID: String?
     private(set) var query = ""
-    private(set) var sortColumn: ConnectionSortColumn = .destination
+    private(set) var sortColumn: ConnectionSortColumn = .appearance
     private(set) var sortAscending = true
     private(set) var operationInProgress = false
     private(set) var automaticRefreshPaused = false

@@ -10,6 +10,8 @@ struct ConnectionRecords: Sendable {
     var retention: TimeInterval = 300
     var maximumCount = 1000
     var byteBudget = 32 * 1024 * 1024
+    /// Active IDs are kept newest-first. Existing active observations retain
+    /// their relative order; a new or revived ID is inserted at the front.
     var values: [Connection] { activeOrder.compactMap { active[$0] } + ended.sorted { $0.key < $1.key }.map { $0.value.connection } }
 
     mutating func interrupt() {
@@ -18,7 +20,9 @@ struct ConnectionRecords: Sendable {
     }
     mutating func merge(_ snapshot: [Connection], at date: Date) {
         var next: [String: Connection] = [:]
+        var revived = Set<String>()
         for var connection in snapshot {
+            if ended[connection.id] != nil { revived.insert(connection.id) }
             connection.observationInterrupted = active[connection.id]?.observationInterrupted
                 ?? ended[connection.id]?.connection.observationInterrupted ?? false
             next[connection.id] = connection
@@ -29,7 +33,10 @@ struct ConnectionRecords: Sendable {
             ended[id] = (connection, date)
         }
         var seen = Set<String>()
-        activeOrder = snapshot.map(\.id).filter { seen.insert($0).inserted }
+        let observedIDs = snapshot.map(\.id).filter { seen.insert($0).inserted }
+        let newest = observedIDs.filter { active[$0] == nil || revived.contains($0) }
+        let stillActive = activeOrder.filter { next[$0] != nil }
+        activeOrder = newest + stillActive
         active = next
         prune(at: date)
     }
