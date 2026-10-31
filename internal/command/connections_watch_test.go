@@ -19,6 +19,10 @@ import (
 func TestConnectionsWatchWebSocketSnapshotsAndLimit(t *testing.T) {
 	for _, size := range []int{32, control.MaxResponseBytes, control.MaxResponseBytes + 1} {
 		path := trafficServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/connection-events" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			if r.URL.Path != "/connections" || r.URL.Query().Get("interval") != "250" {
 				t.Error(r.URL)
 			}

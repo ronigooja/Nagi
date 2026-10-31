@@ -1576,7 +1576,10 @@
 "help.command.connections.close.detail" = "Closes one connection by its mihomo ID.";
 "help.command.connections.close.hint" = "Run `nagi connections list` to find IDs.";
 "help.command.connections.close.summary" = "Close a connection";
-"help.command.connections.detail" = "Reads or closes active connections from a running engine.";
+"help.command.connections.detail" = "Reads, watches, or closes active connections and can stream structured connection failures from a running engine.";
+"help.command.connections.failures.detail" = "Streams structured connection failure events until interrupted. Events come from mihomo's dedicated connection event stream and include the target, proxy context, timestamp, and structured error.";
+"help.command.connections.failures.hint" = "Requires the matching mihomo connection-event endpoint.";
+"help.command.connections.failures.summary" = "Watch connection failures";
 "help.command.connections.list.detail" = "Shows a snapshot of active connections.";
 "help.command.connections.list.summary" = "List active connections";
 "help.command.connections.show.detail" = "Shows one active connection, metadata, counters, and proxy chain.";
