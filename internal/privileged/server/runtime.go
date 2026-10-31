@@ -71,6 +71,19 @@ func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged
 		}
 		return response, err
 	}
+	if req.Operation == privileged.ConnectionEvents {
+		if !h.status().Running || h.orphaned {
+			return privileged.Response{}, i18n.Errorf("system.privileged.privileged.mihomo.is.not.running", "privileged mihomo is not running")
+		}
+		child, generation, socket := h.child, h.generation, h.controllerPath()
+		h.mu.Unlock()
+		response, err := controlRequest(ctx, socket, privileged.Request{Method: "GET", Path: "/connection-events?kind=failure&once=true&wait_ms=" + strconv.Itoa(req.WaitMS)})
+		h.mu.Lock()
+		if h.child != child || h.generation != generation || !h.status().Running {
+			return privileged.Response{}, i18n.Errorf("system.privileged.stale.controller.response.privileged.engine.changed.during.request", "stale_controller_response: privileged engine changed during request")
+		}
+		return response, err
+	}
 	switch req.Operation {
 	case privileged.ProviderChainNodes:
 		if peerUID != h.SessionUID || peerUID <= 0 {

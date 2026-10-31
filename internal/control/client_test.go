@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -115,5 +116,66 @@ func TestPatchAndDeleteMethods(t *testing.T) {
 	}
 	if err := client.Delete(context.Background(), "/connections/abc", nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestConnectionFailureEventJSONContract(t *testing.T) {
+	input := `{"type":"connection_failure","occurred_at":"2026-10-31T12:34:56Z","connection_id":"abc","target":"example.test:443","network":"tcp","proxy":"Node A","chains":["Group","Node A"],"metadata":{"process":"curl"},"error":{"code":"dial_timeout","message":"dial tcp: i/o timeout","detail":"upstream timed out"}}`
+	var event ConnectionFailureEvent
+	if err := json.Unmarshal([]byte(input), &event); err != nil {
+		t.Fatal(err)
+	}
+	if err := event.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(encoded, &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"type", "occurred_at", "connection_id", "target", "network", "proxy", "chains", "metadata", "error"} {
+		if _, ok := got[key]; !ok {
+			t.Fatalf("missing JSON field %q: %s", key, encoded)
+		}
+	}
+	if _, ok := got["occurredAt"]; ok {
+		t.Fatal("camelCase timestamp leaked into contract")
+	}
+}
+
+func TestWatchConnectionFailuresReadsNDJSON(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "nce-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "mihomo.sock")
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/connection-events" || r.URL.Query().Get("kind") != "failure" {
+			t.Fatalf("unexpected request: %s", r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = io.WriteString(w, `{"type":"connection_failure","occurred_at":"2026-10-31T12:34:56Z","target":"example.test:443","error":{"code":"refused","message":"connection refused"}}`+"\n")
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var events []ConnectionFailureEvent
+	err = New(path).WatchConnectionFailures(ctx, func(event ConnectionFailureEvent) error {
+		events = append(events, event)
+		cancel()
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) || len(events) != 1 || events[0].Error.Code != "refused" {
+		t.Fatalf("events=%+v err=%v", events, err)
 	}
 }

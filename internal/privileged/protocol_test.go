@@ -114,6 +114,26 @@ func TestDNSOperationsAreParameterFree(t *testing.T) {
 	}
 }
 
+func TestConnectionEventsRequestContract(t *testing.T) {
+	_, policy := fixture(t)
+	valid := Request{Version: ProtocolVersion, Operation: ConnectionEvents, EventKind: "failure", WaitMS: 25000}
+	if err := valid.Validate(policy); err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func(*Request){
+		func(r *Request) { r.EventKind = "all" },
+		func(r *Request) { r.WaitMS = 30001 },
+		func(r *Request) { r.Path = "/connection-events" },
+		func(r *Request) { r.Body = []byte(`{}`) },
+	} {
+		copy := valid
+		mutate(&copy)
+		if err := copy.Validate(policy); err == nil {
+			t.Fatalf("invalid event request accepted: %+v", copy)
+		}
+	}
+}
+
 func TestPreForwardFailureResponseContract(t *testing.T) {
 	response := Response{Version: ProtocolVersion, Error: "restricted validation rejected", NotForwarded: true}
 	if err := response.Validate(); err != nil {

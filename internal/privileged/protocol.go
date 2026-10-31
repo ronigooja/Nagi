@@ -50,6 +50,7 @@ const (
 	TUNDNSSync         Operation = "tun_dns_sync"
 	TUNDNSRestore      Operation = "tun_dns_restore"
 	TUNDNSStatus       Operation = "tun_dns_status"
+	ConnectionEvents   Operation = "connection_events"
 )
 
 // Request is one complete helper operation. A request is encoded as one JSON
@@ -72,6 +73,8 @@ type Request struct {
 	Body       json.RawMessage `json:"body,omitempty"`
 	Lines      int             `json:"lines,omitempty"`
 	Offset     int64           `json:"offset,omitempty"`
+	EventKind  string          `json:"event_kind,omitempty"`
+	WaitMS     int             `json:"wait_ms,omitempty"`
 }
 
 type Response struct {
@@ -195,6 +198,10 @@ func (r Request) Validate(p Policy) error {
 	case Logs:
 		if r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines < 0 || r.Lines > 10000 || r.Offset < -1 {
 			return i18n.Errorf("system.privileged.invalid.log.request", "invalid log request")
+		}
+	case ConnectionEvents:
+		if r.Profile != "" || r.BinaryPath != "" || r.ConfigPath != "" || r.WorkDir != "" || r.SocketPath != "" || r.LogPath != "" || r.PIDPath != "" || r.Method != "" || r.Path != "" || len(r.Body) != 0 || r.Lines != 0 || r.Offset != 0 || r.EventKind != "failure" || r.WaitMS < 0 || r.WaitMS > 30000 {
+			return i18n.Errorf("system.privileged.invalid.connection.events.request", "invalid connection events request")
 		}
 	default:
 		return i18n.Errorf("system.privileged.unsupported.operation", "unsupported operation %q", r.Operation)

@@ -27,6 +27,7 @@ func TestRestrictedControl(t *testing.T) {
 		{Method: "GET", Path: "/group/Auto/delay?timeout=5000&url=https%3A%2F%2Fexample.com"},
 		{Method: "GET", Path: "/proxies/Tail/tailscale/status"},
 		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"100.64.0.2","timeout_ms":5000}`)},
+		{Method: "GET", Path: "/connection-events?kind=failure&once=true&wait_ms=25000"},
 	}
 	for _, req := range allowed {
 		if err := validateControl(req); err != nil {
@@ -48,6 +49,7 @@ func TestRestrictedControl(t *testing.T) {
 		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"100.64.0.2","timeout_ms":5000,"extra":true}`)},
 		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"100.64.0.2","peer_ip":"100.64.0.3","timeout_ms":5000}`)},
 		{Method: "POST", Path: "/proxies/Tail/tailscale/ping", Body: []byte(`{"peer_ip":"100.64.0.2","timeout_ms":30000}`)},
+		{Method: "GET", Path: "/connection-events?kind=all&once=true&wait_ms=25000"},
 	}
 	for _, req := range denied {
 		if err := validateControl(req); err == nil {

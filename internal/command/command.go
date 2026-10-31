@@ -206,6 +206,9 @@ func runWithInputProgress(args []string, stdin io.Reader, stdout, stderr io.Writ
 	if len(filtered) >= 2 && filtered[0] == "connections" && filtered[1] == "watch" {
 		return runConnectionsWatch(ctx, filtered, stdout, stderr, jsonMode)
 	}
+	if len(filtered) == 2 && filtered[0] == "connections" && filtered[1] == "failures" {
+		return runConnectionFailures(ctx, stdout, stderr, jsonMode)
+	}
 	if len(filtered) == 2 && filtered[0] == "traffic" && filtered[1] == "watch" {
 		return runTrafficWatch(ctx, stdout, stderr, jsonMode)
 	}
@@ -1325,7 +1328,7 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			}
 			return map[string]any{"closed": true}, nil
 		default:
-			return nil, usage("connections list|show ID|close ID|close-all")
+			return nil, usage("connections list|watch|failures|show ID|close ID|close-all")
 		}
 	case "system-proxy":
 		if runtime.GOOS == "linux" {

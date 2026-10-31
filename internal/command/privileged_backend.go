@@ -240,5 +240,26 @@ func (b helperBackend) controlClient() *control.Client {
 			}
 		}
 	}
-	return control.NewWithBridge(request, traffic)
+	events := func(ctx context.Context, receive func(control.ConnectionFailureEvent) error) error {
+		for {
+			resp, err := b.call(ctx, privileged.Request{Operation: privileged.ConnectionEvents, EventKind: "failure", WaitMS: 25000})
+			if err != nil {
+				return err
+			}
+			if len(resp.Body) == 0 {
+				continue
+			}
+			var event control.ConnectionFailureEvent
+			if err := json.Unmarshal(resp.Body, &event); err != nil {
+				return messageError("cli.error.privileged_backend.decode_connection_failure_event_w", "decode connection failure event: %w", err)
+			}
+			if err := event.Validate(); err != nil {
+				return err
+			}
+			if err := receive(event); err != nil {
+				return err
+			}
+		}
+	}
+	return control.NewWithBridgeAndEvents(request, traffic, events)
 }

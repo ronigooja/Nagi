@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -68,6 +69,9 @@ func sendControl(ctx context.Context, socket string, req privileged.Request) (pr
 		// The validated mihomo measurement may consume its full 30 seconds.
 		timeout = 31 * time.Second
 	}
+	if strings.HasPrefix(req.Path, "/connection-events?") {
+		timeout = 31 * time.Second
+	}
 	if strings.HasSuffix(req.Path, "/tailscale/ping") {
 		timeout = 20 * time.Second
 	}
@@ -89,6 +93,8 @@ func sendControl(ctx context.Context, socket string, req privileged.Request) (pr
 	var body []byte
 	if req.Path == "/traffic" {
 		body, err = readTrafficSample(response.Body)
+	} else if strings.HasPrefix(req.Path, "/connection-events?") {
+		body, err = readEventSample(response.Body)
 	} else {
 		body, err = io.ReadAll(io.LimitReader(response.Body, control.MaxResponseBytes+1))
 	}
@@ -128,6 +134,30 @@ func readTrafficSample(r io.Reader) ([]byte, error) {
 	return line, nil
 }
 
+func readEventSample(r io.Reader) ([]byte, error) {
+	line := make([]byte, 0, 512)
+	var one [1]byte
+	for len(line) <= control.MaxResponseBytes {
+		n, err := r.Read(one[:])
+		if n == 1 {
+			if one[0] == '\n' {
+				break
+			}
+			line = append(line, one[0])
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) && len(line) == 0 {
+				return nil, nil
+			}
+			return nil, err
+		}
+	}
+	if len(line) > control.MaxResponseBytes || len(bytes.TrimSpace(line)) != 0 && !json.Valid(line) {
+		return nil, i18n.Errorf("system.privileged.invalid.connection.failure.event", "invalid connection failure event")
+	}
+	return line, nil
+}
+
 func validateControl(req privileged.Request) error {
 	u, err := url.ParseRequestURI(req.Path)
 	if err != nil || u.Scheme != "" || u.Host != "" || u.Fragment != "" || strings.Contains(req.Path, "\\") || strings.Contains(strings.ToLower(u.EscapedPath()), "%2f") || strings.Contains(strings.ToLower(u.EscapedPath()), "%5c") {
@@ -155,6 +185,11 @@ func validateControl(req privileged.Request) error {
 		case "/dns/query":
 			q := u.Query()
 			if len(q) == 2 && q.Get("name") != "" && (q.Get("type") == "A" || q.Get("type") == "AAAA") {
+				return nil
+			}
+		case "/connection-events":
+			q := u.Query()
+			if len(q) == 3 && q.Get("kind") == "failure" && len(q["kind"]) == 1 && len(q["once"]) == 1 && q.Get("once") == "true" && len(q["wait_ms"]) == 1 && validEventWait(q.Get("wait_ms")) {
 				return nil
 			}
 		}
@@ -232,6 +267,11 @@ func validateControl(req privileged.Request) error {
 		}
 	}
 	return i18n.Errorf("system.privileged.controller.operation.is.not.allowed", "controller operation %s %s is not allowed", req.Method, req.Path)
+}
+
+func validEventWait(value string) bool {
+	n, err := strconv.Atoi(value)
+	return err == nil && n >= 0 && n <= 30000
 }
 
 func strictExactObject(data []byte, expected map[string]bool) bool {

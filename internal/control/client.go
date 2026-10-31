@@ -18,12 +18,17 @@ type Client struct {
 	http        *http.Client
 	requestFunc func(context.Context, string, string, any, any) error
 	trafficFunc func(context.Context, func(TrafficSample) error) error
+	eventsFunc  func(context.Context, func(ConnectionFailureEvent) error) error
 }
 
 // NewWithBridge sends control operations through an authenticated local
 // helper. The bridge enforces its own allowlist before forwarding to mihomo.
 func NewWithBridge(request func(context.Context, string, string, any, any) error, traffic func(context.Context, func(TrafficSample) error) error) *Client {
 	return &Client{requestFunc: request, trafficFunc: traffic}
+}
+
+func NewWithBridgeAndEvents(request func(context.Context, string, string, any, any) error, traffic func(context.Context, func(TrafficSample) error) error, events func(context.Context, func(ConnectionFailureEvent) error) error) *Client {
+	return &Client{requestFunc: request, trafficFunc: traffic, eventsFunc: events}
 }
 
 type APIError struct {

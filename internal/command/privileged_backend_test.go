@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -129,6 +130,43 @@ func TestHelperBackendLargeConnectionLists(t *testing.T) {
 				t.Fatal("helper connection data was truncated or changed")
 			}
 		})
+	}
+}
+
+func TestHelperBackendConnectionFailureEvents(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "nce-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "helper.sock")
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		req, err := privileged.ReadRequest(conn)
+		if err != nil || req.Operation != privileged.ConnectionEvents || req.EventKind != "failure" || req.WaitMS != 25000 {
+			return
+		}
+		_ = privileged.WriteResponse(conn, privileged.Response{Version: privileged.ProtocolVersion, OK: true, Status: 200, Body: json.RawMessage(`{"type":"connection_failure","occurred_at":"2026-10-31T12:34:56Z","target":"example.test:443","error":{"code":"refused","message":"connection refused"}}`)})
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var got control.ConnectionFailureEvent
+	err = (helperBackend{socketPath: path}).controlClient().WatchConnectionFailures(ctx, func(event control.ConnectionFailureEvent) error {
+		got = event
+		cancel()
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) || got.Error.Code != "refused" {
+		t.Fatalf("event=%+v err=%v", got, err)
 	}
 }
 
