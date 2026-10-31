@@ -15,7 +15,7 @@ instance and returns JSON. The result must contain `action` equal to `unchanged`
 are not awaited, module imports have no loader, and no asynchronous jobs run.
 
 The process admits at most two executions, immediately returning `script_busy`
-when both slots are occupied. Each execution has a one-second deadline constrained
+when both slots are occupied. Each execution has a two-second deadline constrained
 by its parent's deadline. That deadline covers compilation (on a cold cache),
 instantiation, evaluation, copying, and output validation. Prepare during service
 startup to avoid charging cold compilation to the first request. Cancellation
@@ -103,7 +103,7 @@ Tests exercise a real 8 MiB binary base64 roundtrip, deterministic repeated
 invocations, absence of host APIs, fixed capability-denying imports, invalid and oversized
 outputs, allocation exhaustion, source/input bounds, timeout, parent cancellation,
 concurrent admission, and recovery after failure. The 8 MiB throughput acceptance runs without race instrumentation: instrumented
-execution can exceed the unchanged one-second production deadline, so that one
+execution can exceed the two-second production deadline, so that one
 test is explicitly skipped in race builds. All isolation, cancellation, memory,
 and admission tests also run under the race detector. Artifact digest and the WASM
 import/memory boundaries are asserted separately. The pinned build was reproduced

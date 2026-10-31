@@ -19,7 +19,7 @@ const (
 	MaxInputBytes  = 12 << 20
 	MaxOutputBytes = 12 << 20
 	MemoryPages    = 2048 // 128 MiB guest linear memory, not a process RSS limit.
-	Timeout        = time.Second
+	Timeout        = 2 * time.Second
 )
 
 var (
@@ -36,7 +36,7 @@ var (
 )
 
 // Prepare compiles the immutable guest before admitting requests. Execution's
-// one-second deadline includes instantiation, copying, evaluation, and output.
+// two-second deadline includes instantiation, copying, evaluation, and output.
 func Prepare(ctx context.Context) error {
 	r := wazero.NewRuntimeWithConfig(ctx, runtimeConfig())
 	defer r.Close(context.Background())

@@ -79,7 +79,7 @@ func TestTimeoutCancellationAndRecovery(t *testing.T) {
 	}
 	start := time.Now()
 	_, err := Execute(context.Background(), `function transform(){for(;;){}}`, json.RawMessage(`{}`))
-	if !errors.Is(err, ErrTimeout) || time.Since(start) > 3*time.Second {
+	if !errors.Is(err, ErrTimeout) || time.Since(start) > 4*time.Second {
 		t.Fatalf("%v %s", err, time.Since(start))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -140,7 +140,7 @@ func TestConcurrentAdmission(t *testing.T) {
 }
 func TestLargestBinarySample(t *testing.T) {
 	if raceInstrumentation {
-		t.Skip("8MiB throughput acceptance runs without race instrumentation; the one-second production deadline is unchanged")
+		t.Skip("8MiB throughput acceptance runs without race instrumentation; the production deadline is not relaxed for instrumented builds")
 	}
 	data := bytes.Repeat([]byte{0, 255, 65, 128}, (8<<20)/4)
 	encoded := base64.StdEncoding.EncodeToString(data)

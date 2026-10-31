@@ -83,7 +83,7 @@ IDs contain 1–128 ASCII letters, digits, `_` or `-`.
 | Logical body conversion workspace | 64 MiB |
 | Body read and stage conversion | 5 seconds combined |
 | Preview input | 24 MiB, including both bodies' base64 expansion |
-| WASM instance linear memory / execution | 128 MiB / 1 second |
+| WASM instance linear memory / execution | 128 MiB / 2 seconds |
 | Parallel script instances | 2, with immediate resource failure when full |
 
 The conversion workspace accounts for original bytes, working copies, codecs

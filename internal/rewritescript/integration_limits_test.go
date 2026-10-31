@@ -11,7 +11,7 @@ import (
 
 func TestIntegrationMaximumSourceAndInputGuest(t *testing.T) {
 	if raceInstrumentation {
-		t.Skip("real guest one-second execution limit excludes race-instrumented maximum-input host copies")
+		t.Skip("real guest two-second execution limit excludes race-instrumented maximum-input host copies")
 	}
 	if e := Prepare(context.Background()); e != nil {
 		t.Fatal(e)
