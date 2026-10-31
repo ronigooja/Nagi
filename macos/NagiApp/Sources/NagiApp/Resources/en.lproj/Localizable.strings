@@ -822,7 +822,7 @@
 "app.connections.resume" = "Resume Live";
 "app.connections.all" = "All";
 "app.connections.active" = "Active";
-"app.connections.ended" = "Recently Ended";
+"app.connections.ended" = "Ended";
 "app.connections.status" = "Status";
 "app.connections.record_count" = "%lld shown · %lld active · %lld ended · %lld failed";
 "app.connections.frozen" = "Display frozen; collection continues.";

@@ -824,7 +824,7 @@
 "app.connections.resume" = "恢复实时";
 "app.connections.all" = "全部";
 "app.connections.active" = "活动";
-"app.connections.ended" = "最近结束";
+"app.connections.ended" = "已结束";
 "app.connections.status" = "状态";
 "app.connections.record_count" = "显示 %lld 条 · 活动 %lld 条 · 已结束 %lld 条 · 失败 %lld 条";
 "app.connections.frozen" = "显示已冻结；后台继续采集。";

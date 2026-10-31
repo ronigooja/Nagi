@@ -427,7 +427,7 @@ func liveCommand(command string, s *Session, ctx context.Context, active map[str
 func liveDetail(out io.Writer, language i18n.Context, row liveRow) {
 	status := menuText(language, "menu.traffic.live.detail_active", "Active")
 	if row.ended {
-		status = menuText(language, "menu.traffic.live.detail_ended", "Recently ended; end time and final counters are unavailable.")
+		status = menuText(language, "menu.traffic.live.detail_ended", "Ended; end time and final counters are unavailable.")
 	}
 	c := row.connection
 	fmt.Fprintf(out, "\n%s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n[x] %s\n", status,
@@ -561,7 +561,7 @@ func liveHeader(language i18n.Context, filter, query string, frozen bool, active
 		filterLabel = menuText(language, "menu.traffic.live.filter_active", "Active")
 	}
 	if filter == "ended" {
-		filterLabel = menuText(language, "menu.traffic.live.filter_ended", "Recently ended")
+		filterLabel = menuText(language, "menu.traffic.live.filter_ended", "Ended")
 	}
 	timeLabel := "—"
 	if !sampled.IsZero() {
@@ -570,7 +570,7 @@ func liveHeader(language i18n.Context, filter, query string, frozen bool, active
 	summary := fmt.Sprintf("%s: %s  %s: %d  %s: %d  %s: %s",
 		menuText(language, "menu.traffic.live.filter", "Filter"), filterLabel,
 		menuText(language, "menu.traffic.live.active", "Active"), activeCount,
-		menuText(language, "menu.traffic.live.ended", "Recently ended"), endedCount,
+		menuText(language, "menu.traffic.live.ended", "Ended"), endedCount,
 		menuText(language, "menu.traffic.live.sampled", "Sampled"), timeLabel)
 	lines = append(lines, liveWrapItems(summary, width)...)
 	if frozen {
