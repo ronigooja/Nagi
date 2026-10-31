@@ -98,6 +98,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 ### Reference and design
 
 - [CLI reference](docs/reference/cli.md): commands, output, and exit codes.
+- [Mihomo connection failure events](docs/reference/mihomo-connection-failure-events.md): the versioned engine event contract and current implementation gap.
 - [DNS configuration](docs/reference/cli.md#dns-policy-and-checks): DoH policy, domain exceptions, and configuration checks.
 - [macOS privileged TUN helper](docs/reference/cli.md#traffic-access): installation and backend selection for TUN access.
 - [Architecture](ARCHITECTURE.md): system boundaries and module relationships.
