@@ -131,7 +131,7 @@ final class ConnectionsTests: XCTestCase {
         do {
             _ = try await client.run(["status"])
             XCTFail("ordinary command output limit was raised")
-        } catch CLIError.invalidJSON(let message) { XCTAssertEqual(message, "CLI output exceeded 1 MiB.") }
+        } catch CLIError.invalidJSON(let message) { XCTAssertEqual(message, L10n.text("app.ui.cli_output_exceeded_1_mib")) }
     }
 
     func testConnectionOutputBoundaryAndStderrLimit() async throws {
@@ -160,7 +160,7 @@ final class ConnectionsTests: XCTestCase {
         do {
             _ = try await NagiCLIClient(executable: cli).connections()
             XCTFail("connection stderr limit was raised")
-        } catch CLIError.invalidJSON(let message) { XCTAssertTrue(message.contains("stderr exceeded 1 MiB")) }
+        } catch CLIError.invalidJSON(let message) { XCTAssertTrue(message.contains(L10n.text("app.ui.cli_stderr_exceeded_1_mib"))) }
     }
 }
 
@@ -262,7 +262,7 @@ final class ConnectionsTests: XCTestCase {
         await waitUntil { model.state == .stale }
         XCTAssertEqual(model.connections.map(\.id), ["a"])
         XCTAssertFalse(model.canClose)
-        XCTAssertTrue(model.errorMessage?.contains("stale") == true)
+        XCTAssertTrue(model.errorMessage?.contains(L10n.text("app.protocol.stale")) == true)
         await waitUntil { requests.readCount == 3 }
         requests.failRead(3, CLIError.command("response_too_large", "large"))
         await waitUntil { model.automaticRefreshPaused }
@@ -332,7 +332,7 @@ final class ConnectionsTests: XCTestCase {
         XCTAssertEqual(model.connections.map(\.id), ["a", "b"])
         requests.finishClose()
         await waitUntil { requests.readCount == 3 }
-        XCTAssertTrue(model.operationMessage?.contains("accepted") == true)
+        XCTAssertEqual(model.operationMessage, L10n.text("app.ui.close_request_accepted_applications_may_reconnect_automatically"))
         XCTAssertFalse(model.operationInProgress)
         requests.finishRead(3, try snapshot(["b"]))
         await waitUntil { model.state == .fresh }
@@ -343,7 +343,9 @@ final class ConnectionsTests: XCTestCase {
         XCTAssertEqual(requests.commands[1], ["connections", "close-all"])
         requests.finishClose(CLIError.timeout)
         await waitUntil { requests.readCount == 4 }
-        XCTAssertTrue(model.operationMessage?.contains("not retried") == true)
+        XCTAssertEqual(model.operationMessage, L10n.format(
+            "app.ui.close_request_failed_the_request_was_not",
+            String(describing: CLIError.timeout.localizedDescription)))
         XCTAssertEqual(requests.commands.count, 2)
         requests.finishRead(4, [])
         await waitUntil { !model.isRefreshing }
