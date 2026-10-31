@@ -22,10 +22,9 @@ permissions:
 
 jobs:
   publish:
-    runs-on: macos-15
+    runs-on: macos-latest
     env:
       RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
-      DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
     steps:
       - name: Check out source
         uses: actions/checkout@v4
