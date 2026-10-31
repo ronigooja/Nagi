@@ -301,5 +301,11 @@ private struct WindowLifecycleTimeout: Error {
         filter.sendAction(filter.action, to: filter.target)
         for _ in 0..<200 where model.rows.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(model.rows.first?.id, "brief")
+        for index in [ConnectionFilter.failed, .all, .active, .ended, .all].map(\.rawValue) {
+            filter.selectItem(at: index)
+            filter.sendAction(filter.action, to: filter.target)
+            XCTAssertEqual(filter.itemArray.filter { $0.state == .on }.count, 1)
+            XCTAssertEqual(filter.itemArray[index].state, .on)
+        }
     }
 }

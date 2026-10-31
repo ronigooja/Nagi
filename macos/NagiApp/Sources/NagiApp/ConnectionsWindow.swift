@@ -291,7 +291,7 @@ import AppKit
         updatingTable = false
         countLabel.stringValue = L10n.format("app.connections.record_count", Int64(rows.count), Int64(model.activeCount), Int64(model.endedCount), Int64(model.failedCount))
         freezeButton.title = L10n.text(model.frozen ? "app.connections.resume" : "app.connections.freeze")
-        filterControl.selectItem(at: model.filter.rawValue)
+        syncFilterControl()
         updatedLabel.stringValue = model.lastUpdated.map { L10n.format("app.ui.updated", String(describing: Self.timeFormatter.string(from: $0))) } ?? L10n.text("app.ui.not_updated_yet")
         refreshButton.isEnabled = !model.frozen && !model.operationInProgress
         freezeButton.isEnabled = model.state == .fresh || model.frozen
@@ -345,6 +345,15 @@ import AppKit
 
     @objc private func freeze() { model.toggleFreeze() }
     @objc private func changeFilter() { model.setFilter(ConnectionFilter(rawValue: filterControl.indexOfSelectedItem) ?? .all) }
+
+    private func syncFilterControl() {
+        let selected = model.filter.rawValue
+        if filterControl.indexOfSelectedItem != selected { filterControl.selectItem(at: selected) }
+        for (index, item) in filterControl.itemArray.enumerated() {
+            let state: NSControl.StateValue = index == selected ? .on : .off
+            if item.state != state { item.state = state }
+        }
+    }
 
     private static func bytes(_ value: Int64?) -> String {
         guard let value else { return "unknown" }
