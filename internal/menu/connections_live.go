@@ -23,6 +23,8 @@ import (
 const liveLineLimit = 8 << 20
 const liveEndedLimit = 1000
 const liveEndedBytes = 32 << 20
+const liveFailedLimit = 1000
+const liveFailedBytes = 32 << 20
 
 // liveConnections consumes the existing mihomo-backed watch stream. The view
 // keeps only display history; mihomo remains authoritative for live snapshots
@@ -74,12 +76,13 @@ func liveConnections(ctx context.Context, s *Session) error {
 
 	active := map[string]proxy.Connection{}
 	ended := map[string]liveEnded{}
+	failed := map[string]liveFailure{}
 	closing := map[string]bool{}
 	filter, search, sortBy := "all", "", "target"
 	page := 0
 	frozen := false
 	var frozenRows []liveRow
-	var frozenActive, frozenEnded int
+	var frozenActive, frozenEnded, frozenFailed int
 	var sampledAt time.Time
 	var frozenSampledAt time.Time
 	var detail *liveRow
@@ -95,7 +98,7 @@ func liveConnections(ctx context.Context, s *Session) error {
 			if sample.err != nil {
 				return sample.err
 			}
-			mergeLiveSample(active, ended, sample.connections, time.Now())
+			mergeLiveObservation(active, ended, failed, sample.connections, sample.failures, len(sample.gaps) != 0, time.Now())
 			for id := range closing {
 				if _, exists := active[id]; !exists {
 					delete(closing, id)
@@ -112,12 +115,12 @@ func liveConnections(ctx context.Context, s *Session) error {
 				dirty, urgent = true, true
 			}
 			if dirty && (urgent || time.Since(lastDraw) >= 500*time.Millisecond) {
-				rows, ac, ec, shownAt := liveRows(active, ended), len(active), len(ended), sampledAt
+				rows, ac, ec, fc, shownAt := liveRowsWithFailures(active, ended, failed), len(active), len(ended), len(failed), sampledAt
 				if frozen {
-					rows, ac, ec, shownAt = frozenRows, frozenActive, frozenEnded, frozenSampledAt
+					rows, ac, ec, fc, shownAt = frozenRows, frozenActive, frozenEnded, frozenFailed, frozenSampledAt
 				}
 				var frame strings.Builder
-				liveRender(&frame, s.language, rows, filter, search, sortBy, frozen, ac, ec, shownAt, input.String(), page, detail, screen.width, screen.height)
+				liveRender(&frame, s.language, rows, filter, search, sortBy, frozen, ac, ec, fc, shownAt, input.String(), page, detail, screen.width, screen.height)
 				if err := screen.draw(frame.String()); err != nil {
 					return err
 				}
@@ -149,13 +152,13 @@ func liveConnections(ctx context.Context, s *Session) error {
 					if input.Len() > 0 {
 						command := input.String()
 						input.Reset()
-						ac, ec, shownAt := len(active), len(ended), sampledAt
+						ac, ec, fc, shownAt := len(active), len(ended), len(failed), sampledAt
 						if frozen {
-							ac, ec, shownAt = frozenActive, frozenEnded, frozenSampledAt
+							ac, ec, fc, shownAt = frozenActive, frozenEnded, frozenFailed, frozenSampledAt
 						}
-						header := liveHeader(s.language, filter, search, frozen, ac, ec, shownAt, screen.width)
+						header := liveHeader(s.language, filter, search, frozen, ac, ec, fc, shownAt, screen.width)
 						pageSize := liveTablePageSize(screen.width, screen.height, len(header))
-						if err := liveCommand(command, s, ctx, active, ended, closing, &filter, &search, &sortBy, &frozen, &frozenRows, &frozenActive, &frozenEnded, &frozenSampledAt, sampledAt, &page, &detail, pageSize); err != nil {
+						if err := liveCommand(command, s, ctx, active, ended, failed, closing, &filter, &search, &sortBy, &frozen, &frozenRows, &frozenActive, &frozenEnded, &frozenFailed, &frozenSampledAt, sampledAt, &page, &detail, pageSize); err != nil {
 							return err
 						}
 						dirty, urgent = true, true
@@ -216,15 +219,34 @@ type liveEnded struct {
 	connection proxy.Connection
 	when       time.Time
 }
+type liveFailure struct {
+	connection  proxy.Connection
+	reason      string
+	details     string
+	interrupted bool
+	when        time.Time
+}
 type liveRow struct {
-	connection proxy.Connection
-	ended      bool
-	when       time.Time
+	connection  proxy.Connection
+	ended       bool
+	failed      bool
+	reason      string
+	details     string
+	interrupted bool
+	when        time.Time
 }
 type liveSample struct {
 	connections map[string]proxy.Connection
+	failures    []liveFailureEvent
+	gaps        []string
 	sampledAt   time.Time
 	err         error
+}
+type liveFailureEvent struct {
+	id         string
+	reason     string
+	details    string
+	connection proxy.Connection
 }
 type liveLineWriter struct {
 	ctx        context.Context
@@ -248,8 +270,19 @@ func (w *liveLineWriter) Write(p []byte) (int, error) {
 		var envelope struct {
 			OK   bool `json:"ok"`
 			Data struct {
-				Connections []proxy.Connection `json:"connections"`
-				SampledAt   string             `json:"sampled_at"`
+				Connections   []proxy.Connection `json:"connections"`
+				SampledAt     string             `json:"sampled_at"`
+				FailureEvents []struct {
+					ID         string            `json:"id"`
+					Reason     string            `json:"reason"`
+					Details    string            `json:"details"`
+					Detail     string            `json:"detail"`
+					Connection *proxy.Connection `json:"connection"`
+				} `json:"failure_events"`
+				Gaps []struct {
+					Reason  string `json:"reason"`
+					Message string `json:"message"`
+				} `json:"gaps"`
 			} `json:"data"`
 			Error *CLIError `json:"error"`
 		}
@@ -267,6 +300,27 @@ func (w *liveLineWriter) Write(p []byte) (int, error) {
 		for _, connection := range envelope.Data.Connections {
 			sample.connections[connection.ID] = connection
 		}
+		for _, failure := range envelope.Data.FailureEvents {
+			if failure.ID == "" {
+				continue
+			}
+			if failure.Details == "" {
+				failure.Details = failure.Detail
+			}
+			value := proxy.Connection{ID: failure.ID}
+			if failure.Connection != nil {
+				value = *failure.Connection
+				value.ID = failure.ID
+			}
+			sample.failures = append(sample.failures, liveFailureEvent{id: failure.ID, reason: failure.Reason, details: failure.Details, connection: value})
+		}
+		for _, gap := range envelope.Data.Gaps {
+			reason := gap.Reason
+			if reason == "" {
+				reason = gap.Message
+			}
+			sample.gaps = append(sample.gaps, reason)
+		}
 		if w.beforeSend != nil {
 			close(w.beforeSend)
 			w.beforeSend = nil
@@ -281,26 +335,58 @@ func (w *liveLineWriter) Write(p []byte) (int, error) {
 }
 
 func liveRows(active map[string]proxy.Connection, ended map[string]liveEnded) []liveRow {
-	rows := make([]liveRow, 0, len(active)+len(ended))
+	return liveRowsWithFailures(active, ended, nil)
+}
+
+func liveRowsWithFailures(active map[string]proxy.Connection, ended map[string]liveEnded, failed map[string]liveFailure) []liveRow {
+	rows := make([]liveRow, 0, len(active)+len(ended)+len(failed))
 	for _, c := range active {
-		rows = append(rows, liveRow{connection: c})
+		rows = append(rows, liveRow{connection: c, interrupted: liveConnectionInterrupted(c)})
 	}
 	for _, e := range ended {
-		rows = append(rows, liveRow{connection: e.connection, ended: true, when: e.when})
+		rows = append(rows, liveRow{connection: e.connection, ended: true, interrupted: liveConnectionInterrupted(e.connection), when: e.when})
+	}
+	for _, f := range failed {
+		rows = append(rows, liveRow{connection: f.connection, failed: true, reason: f.reason, details: f.details, interrupted: f.interrupted, when: f.when})
 	}
 	return rows
 }
 
 func mergeLiveSample(active map[string]proxy.Connection, ended map[string]liveEnded, sample map[string]proxy.Connection, now time.Time) {
+	mergeLiveObservation(active, ended, nil, sample, nil, false, now)
+}
+
+func mergeLiveObservation(active map[string]proxy.Connection, ended map[string]liveEnded, failed map[string]liveFailure, sample map[string]proxy.Connection, failures []liveFailureEvent, gap bool, now time.Time) {
 	for id, old := range active {
-		if _, ok := sample[id]; !ok {
-			ended[id] = liveEnded{connection: old, when: now}
-			delete(active, id)
+		if !gap {
+			if _, ok := sample[id]; !ok {
+				ended[id] = liveEnded{connection: old, when: now}
+				delete(active, id)
+			}
 		}
 	}
 	for id, current := range sample {
 		delete(ended, id)
+		if failed != nil {
+			delete(failed, id)
+		}
 		active[id] = current
+	}
+	if gap {
+		for id, current := range active {
+			if current.Metadata == nil {
+				current.Metadata = map[string]any{}
+			}
+			current.Metadata["_nagi_observation_interrupted"] = true
+			active[id] = current
+		}
+		for id, current := range ended {
+			if current.connection.Metadata == nil {
+				current.connection.Metadata = map[string]any{}
+			}
+			current.connection.Metadata["_nagi_observation_interrupted"] = true
+			ended[id] = current
+		}
 	}
 	for id, old := range ended {
 		if now.Sub(old.when) >= 5*time.Minute {
@@ -334,9 +420,63 @@ func mergeLiveSample(active map[string]proxy.Connection, ended map[string]liveEn
 		delete(ended, oldest.id)
 		total -= oldest.size + 1
 	}
+	if failed != nil {
+		for _, event := range failures {
+			failed[event.id] = liveFailure{connection: event.connection, reason: event.reason, details: event.details, when: now}
+			delete(active, event.id)
+			delete(ended, event.id)
+		}
+		for id, entry := range failed {
+			if now.Sub(entry.when) >= 5*time.Minute {
+				delete(failed, id)
+			}
+		}
+		if gap {
+			for id, entry := range failed {
+				entry.interrupted = true
+				failed[id] = entry
+			}
+		}
+		pruneLiveFailures(failed)
+	}
 }
 
-func liveCommand(command string, s *Session, ctx context.Context, active map[string]proxy.Connection, ended map[string]liveEnded, closing map[string]bool, filter, search, sortBy *string, frozen *bool, frozenRows *[]liveRow, frozenActive, frozenEnded *int, frozenSampledAt *time.Time, sampledAt time.Time, page *int, detail **liveRow, pageSizes ...int) error {
+func liveConnectionInterrupted(c proxy.Connection) bool {
+	value, ok := c.Metadata["_nagi_observation_interrupted"].(bool)
+	return ok && value
+}
+
+func pruneLiveFailures(failed map[string]liveFailure) {
+	type sized struct {
+		id   string
+		when time.Time
+		size int
+	}
+	entries := make([]sized, 0, len(failed))
+	total := 0
+	for id, entry := range failed {
+		data, _ := json.Marshal(entry)
+		entries = append(entries, sized{id, entry.when, len(data)})
+		total += len(data)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].when.Equal(entries[j].when) {
+			return entries[i].id < entries[j].id
+		}
+		return entries[i].when.Before(entries[j].when)
+	})
+	for len(failed) > liveFailedLimit || total > liveFailedBytes {
+		if len(entries) == 0 {
+			return
+		}
+		oldest := entries[0]
+		entries = entries[1:]
+		delete(failed, oldest.id)
+		total -= oldest.size
+	}
+}
+
+func liveCommand(command string, s *Session, ctx context.Context, active map[string]proxy.Connection, ended map[string]liveEnded, failed map[string]liveFailure, closing map[string]bool, filter, search, sortBy *string, frozen *bool, frozenRows *[]liveRow, frozenActive, frozenEnded, frozenFailed *int, frozenSampledAt *time.Time, sampledAt time.Time, page *int, detail **liveRow, pageSizes ...int) error {
 	cmd := strings.TrimSpace(command)
 	switch {
 	case cmd == "q" || cmd == "0":
@@ -349,6 +489,8 @@ func liveCommand(command string, s *Session, ctx context.Context, active map[str
 			*filter = "active"
 		} else if *filter == "active" {
 			*filter = "ended"
+		} else if *filter == "ended" {
+			*filter = "failed"
 		} else {
 			*filter = "all"
 		}
@@ -361,14 +503,14 @@ func liveCommand(command string, s *Session, ctx context.Context, active map[str
 	case cmd == "p":
 		*frozen = !*frozen
 		if *frozen {
-			*frozenRows, *frozenActive, *frozenEnded = liveRows(active, ended), len(active), len(ended)
+			*frozenRows, *frozenActive, *frozenEnded, *frozenFailed = liveRowsWithFailures(active, ended, failed), len(active), len(ended), len(failed)
 			*frozenSampledAt = sampledAt
 		}
 	case strings.HasPrefix(cmd, "/"):
 		*search = strings.TrimPrefix(cmd, "/")
 		*page = 0
 	case cmd == "n":
-		rows := liveRows(active, ended)
+		rows := liveRowsWithFailures(active, ended, failed)
 		if *frozen {
 			rows = *frozenRows
 		}
@@ -383,7 +525,7 @@ func liveCommand(command string, s *Session, ctx context.Context, active map[str
 		if *detail != nil {
 			*detail = nil
 		} else {
-			rows := liveRows(active, ended)
+			rows := liveRowsWithFailures(active, ended, failed)
 			if *frozen {
 				rows = *frozenRows
 			}
@@ -391,7 +533,7 @@ func liveCommand(command string, s *Session, ctx context.Context, active map[str
 			*page = max(0, min(*page, pages-1)-1)
 		}
 	case strings.HasPrefix(cmd, "d "):
-		rows := liveRows(active, ended)
+		rows := liveRowsWithFailures(active, ended, failed)
 		if *frozen {
 			rows = *frozenRows
 		}
@@ -429,15 +571,28 @@ func liveDetail(out io.Writer, language i18n.Context, row liveRow) {
 	if row.ended {
 		status = menuText(language, "menu.traffic.live.detail_ended", "Ended; end time and final counters are unavailable.")
 	}
+	if row.failed {
+		status = menuText(language, "menu.traffic.live.detail_failed", "Failed connection attempt; this record cannot be closed.")
+	}
 	c := row.connection
-	fmt.Fprintf(out, "\n%s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n[x] %s\n", status,
+	fmt.Fprintf(out, "\n%s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n", status,
 		menuText(language, "menu.traffic.live.id", "ID"), liveSafe(c.ID),
 		menuText(language, "menu.traffic.live.target", "Target"), liveSafe(liveTarget(c)),
 		menuText(language, "menu.traffic.live.process", "Process"), liveSafe(fmt.Sprint(c.Metadata["process"])),
 		menuText(language, "menu.traffic.live.protocol", "Protocol"), liveSafe(fmt.Sprint(c.Metadata["network"])),
 		menuText(language, "menu.traffic.live.proxy_chain", "Proxy chain"), liveSafe(strings.Join(c.Chains, " → ")),
 		menuText(language, "menu.traffic.live.upload", "Upload"), humanBytes(c.Upload),
-		menuText(language, "menu.traffic.live.download", "Download"), humanBytes(c.Download), menuText(language, "menu.traffic.live.back", "back to table"))
+		menuText(language, "menu.traffic.live.download", "Download"), humanBytes(c.Download))
+	if row.failed {
+		fmt.Fprintf(out, "%s: %s\n", menuText(language, "menu.traffic.live.reason", "Reason"), liveSafe(row.reason))
+		if row.details != "" {
+			fmt.Fprintf(out, "%s: %s\n", menuText(language, "menu.traffic.live.details", "Details"), liveSafe(row.details))
+		}
+	}
+	if row.interrupted {
+		fmt.Fprintf(out, "%s\n", menuText(language, "menu.traffic.live.interrupted", "Observation interrupted; values may be stale."))
+	}
+	fmt.Fprintf(out, "[x] %s\n", menuText(language, "menu.traffic.live.back", "back to table"))
 }
 
 // liveScreen uses cursor addressing rather than newlines, so even a full frame
@@ -546,7 +701,7 @@ func liveWrapItems(text string, width int) []string {
 	return lines
 }
 
-func liveHeader(language i18n.Context, filter, query string, frozen bool, activeCount, endedCount int, sampled time.Time, width int) []string {
+func liveHeader(language i18n.Context, filter, query string, frozen bool, activeCount, endedCount, failedCount int, sampled time.Time, width int) []string {
 	width = max(1, width-1)
 	lines := []string{menuText(language, "menu.traffic.live.instructions", "Connections")}
 	for _, control := range []string{
@@ -563,14 +718,18 @@ func liveHeader(language i18n.Context, filter, query string, frozen bool, active
 	if filter == "ended" {
 		filterLabel = menuText(language, "menu.traffic.live.filter_ended", "Ended")
 	}
+	if filter == "failed" {
+		filterLabel = menuText(language, "menu.traffic.live.filter_failed", "Failed")
+	}
 	timeLabel := "—"
 	if !sampled.IsZero() {
 		timeLabel = sampled.Format("15:04")
 	}
-	summary := fmt.Sprintf("%s: %s  %s: %d  %s: %d  %s: %s",
+	summary := fmt.Sprintf("%s: %s  %s: %d  %s: %d  %s: %d  %s: %s",
 		menuText(language, "menu.traffic.live.filter", "Filter"), filterLabel,
 		menuText(language, "menu.traffic.live.active", "Active"), activeCount,
-		menuText(language, "menu.traffic.live.ended", "Ended"), endedCount,
+		menuText(language, "menu.traffic.live.ended", "Recently ended"), endedCount,
+		menuText(language, "menu.traffic.live.failed", "Failed"), failedCount,
 		menuText(language, "menu.traffic.live.sampled", "Sampled"), timeLabel)
 	lines = append(lines, liveWrapItems(summary, width)...)
 	if frozen {
@@ -590,8 +749,8 @@ func liveTablePageSize(width, height, headerLines int) int {
 	return max(1, (height-headerLines-columns-2)/record)
 }
 
-func liveRender(out io.Writer, language i18n.Context, rows []liveRow, filter, query, sortBy string, frozen bool, activeCount, endedCount int, sampled time.Time, input string, page int, detail *liveRow, width, height int) {
-	lines := liveHeader(language, filter, query, frozen, activeCount, endedCount, sampled, width)
+func liveRender(out io.Writer, language i18n.Context, rows []liveRow, filter, query, sortBy string, frozen bool, activeCount, endedCount, failedCount int, sampled time.Time, input string, page int, detail *liveRow, width, height int) {
+	lines := liveHeader(language, filter, query, frozen, activeCount, endedCount, failedCount, sampled, width)
 	if detail != nil {
 		var body strings.Builder
 		liveDetail(&body, language, *detail)
@@ -631,6 +790,9 @@ func liveRender(out io.Writer, language i18n.Context, rows []liveRow, filter, qu
 			state := menuText(language, "menu.traffic.live.active_state", "ACTIVE")
 			if row.ended {
 				state = menuText(language, "menu.traffic.live.ended_state", "ENDED")
+			}
+			if row.failed {
+				state = menuText(language, "menu.traffic.live.failed_state", "FAILED")
 			}
 			values := format(liveSafe(liveTarget(c)), liveSafe(fmt.Sprint(c.Metadata["network"])), liveSafe(strings.Join(c.Chains, " → ")), humanBytes(c.Upload), humanBytes(c.Download))
 			if compact {
@@ -686,10 +848,10 @@ func livePageCount(rows []liveRow, sizes ...int) int {
 func liveFilteredRows(rows []liveRow, filter, query, sortBy string) []liveRow {
 	filtered := make([]liveRow, 0, len(rows))
 	for _, r := range rows {
-		if filter == "active" && r.ended || filter == "ended" && !r.ended {
+		if filter == "active" && (r.ended || r.failed) || filter == "ended" && (r.ended == false || r.failed) || filter == "failed" && !r.failed {
 			continue
 		}
-		text := strings.ToLower(fmt.Sprint(r.connection.ID, " ", r.connection.Metadata, " ", r.connection.Chains))
+		text := strings.ToLower(fmt.Sprint(r.connection.ID, " ", r.connection.Metadata, " ", r.connection.Chains, " ", r.reason, " ", r.details))
 		if query != "" && !strings.Contains(text, strings.ToLower(query)) {
 			continue
 		}

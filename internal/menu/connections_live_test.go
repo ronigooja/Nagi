@@ -59,6 +59,42 @@ func TestLiveLineWriterDecodesWholeNDJSONSamples(t *testing.T) {
 	}
 }
 
+func TestLiveLineWriterDecodesFailuresAndGaps(t *testing.T) {
+	out := make(chan liveSample, 1)
+	writer := &liveLineWriter{ctx: context.Background(), out: out}
+	line := `{"ok":true,"data":{"connections":[],"failure_events":[{"id":"failure-1","reason":"connect_timeout","details":"upstream timed out","connection":{"id":"ignored","metadata":{"host":"example.test"}}}],"gaps":[{"reason":"event stream resumed"}]}}` + "\n"
+	if _, err := writer.Write([]byte(line)); err != nil {
+		t.Fatal(err)
+	}
+	sample := <-out
+	if len(sample.failures) != 1 || sample.failures[0].id != "failure-1" || sample.failures[0].reason != "connect_timeout" || sample.failures[0].details != "upstream timed out" {
+		t.Fatalf("failures = %#v", sample.failures)
+	}
+	if len(sample.gaps) != 1 || sample.gaps[0] != "event stream resumed" {
+		t.Fatalf("gaps = %#v", sample.gaps)
+	}
+}
+
+func TestLiveFailuresDeduplicateRetainAndGapInterrupt(t *testing.T) {
+	now := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+	active := map[string]proxy.Connection{"active": {ID: "active", Metadata: map[string]any{"host": "live.test"}}}
+	ended := map[string]liveEnded{}
+	failed := map[string]liveFailure{}
+	mergeLiveObservation(active, ended, failed, map[string]proxy.Connection{"active": active["active"]}, []liveFailureEvent{{id: "f", reason: "first", connection: proxy.Connection{ID: "f"}}}, false, now)
+	mergeLiveObservation(active, ended, failed, map[string]proxy.Connection{"active": active["active"]}, []liveFailureEvent{{id: "f", reason: "second", details: "new details", connection: proxy.Connection{ID: "f"}}}, false, now.Add(time.Minute))
+	if len(failed) != 1 || failed["f"].reason != "second" || failed["f"].details != "new details" {
+		t.Fatalf("deduplicated failure = %#v", failed)
+	}
+	mergeLiveObservation(active, ended, failed, map[string]proxy.Connection{"active": active["active"]}, nil, true, now.Add(2*time.Minute))
+	if !liveConnectionInterrupted(active["active"]) || !failed["f"].interrupted {
+		t.Fatalf("gap did not interrupt observations: active=%#v failed=%#v", active, failed)
+	}
+	mergeLiveObservation(active, ended, failed, map[string]proxy.Connection{"active": active["active"]}, nil, false, now.Add(6*time.Minute))
+	if len(failed) != 0 {
+		t.Fatal("failure survived five-minute retention")
+	}
+}
+
 func TestHumanBytesUsesReadableBinaryUnits(t *testing.T) {
 	for _, tc := range []struct {
 		n    int64
@@ -186,7 +222,7 @@ func TestLiveFramesFitTerminalIncludingUnicodeAndLongCommands(t *testing.T) {
 		for _, size := range [][2]int{{80, 24}, {120, 24}, {60, 16}, {40, 12}, {20, 8}} {
 			for _, detail := range []*liveRow{nil, &rows[0]} {
 				var frame strings.Builder
-				liveRender(&frame, i18n.New(language), rows, "all", "", "target", true, 100, 0, time.Now(), strings.Repeat("中文👩‍💻e\u0301", 20), 999, detail, size[0], size[1])
+				liveRender(&frame, i18n.New(language), rows, "all", "", "target", true, 100, 0, 0, time.Now(), strings.Repeat("中文👩‍💻e\u0301", 20), 999, detail, size[0], size[1])
 				lines := strings.Split(strings.TrimSuffix(frame.String(), "\n"), "\n")
 				if len(lines) != size[1] {
 					t.Fatalf("%s %v: %d lines", language, size, len(lines))
@@ -270,7 +306,7 @@ func TestLiveCloseUsesFullActiveIDOnce(t *testing.T) {
 	page := 0
 	var detail *liveRow
 	invoke := func() error {
-		return liveCommand("c "+id, s, context.Background(), active, ended, closing, &filter, &search, &sortBy, &frozen, &rows, &ac, &ec, &sampled, time.Now(), &page, &detail)
+		return liveCommand("c "+id, s, context.Background(), active, ended, map[string]liveFailure{}, closing, &filter, &search, &sortBy, &frozen, &rows, &ac, &ec, new(int), &sampled, sampled, &page, &detail)
 	}
 	if err := invoke(); err != nil {
 		t.Fatal(err)
@@ -296,7 +332,7 @@ func TestLiveFreezeDetailsStayOnCapturedSnapshotAndExitKeys(t *testing.T) {
 	page := 0
 	var detail *liveRow
 	invoke := func(command string) error {
-		return liveCommand(command, s, context.Background(), active, ended, closing, &filter, &search, &sortBy, &frozen, &rows, &ac, &ec, &sampled, sampled, &page, &detail)
+		return liveCommand(command, s, context.Background(), active, ended, map[string]liveFailure{}, closing, &filter, &search, &sortBy, &frozen, &rows, &ac, &ec, new(int), &sampled, sampled, &page, &detail)
 	}
 	if err := invoke("p"); err != nil {
 		t.Fatal(err)
