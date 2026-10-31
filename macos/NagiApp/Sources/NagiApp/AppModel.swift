@@ -228,6 +228,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     private var metadataReadAt: [Int: Date] = [:]
     private let now: () -> Date
     private let runCommand: ([String]) async throws -> JSONValue
+    private let preferences: UserDefaults
     private var trafficTask: Task<Void, Never>?
     private var trafficStream: TrafficStream?
     private var subscriptionWatch: SubscriptionWatch?
@@ -237,11 +238,13 @@ enum EngineState { case starting, running, stopped, unavailable }
     init(cli: NagiCLIClient = NagiCLIClient(), connections: ConnectionsModel? = nil, watchDelay: @escaping (Int, Bool) -> UInt64 = { attempt, duplicate in
         duplicate ? 15_000_000_000 : UInt64(1 << attempt) * 1_000_000_000
     }, now: @escaping () -> Date = Date.init,
-         runCommand: (([String]) async throws -> JSONValue)? = nil) {
+         runCommand: (([String]) async throws -> JSONValue)? = nil,
+         preferences: UserDefaults = .standard) {
         self.cli = cli
         self.connections = connections ?? ConnectionsModel(cli: cli)
         self.watchDelay = watchDelay
         self.now = now
+        self.preferences = preferences
         self.runCommand = runCommand ?? { arguments in try await cli.run(arguments) }
     }
     private var trafficGeneration = 0
@@ -296,6 +299,8 @@ enum EngineState { case starting, running, stopped, unavailable }
     private(set) var systemProxy: Bool?
     private(set) var tun: Bool?
     private(set) var tunAdapter: String?
+    private(set) var selectedBackend: String?
+    private(set) var privilegedHelperAvailable = false
     private(set) var serviceInstalled: Bool?
     private(set) var uploadBPS: Int64?
     private(set) var downloadBPS: Int64?
@@ -328,6 +333,17 @@ enum EngineState { case starting, running, stopped, unavailable }
         return String(repeating: " ", count: max(0, 10 - label.count)) + label
     }
     private func notify() { onChange?() }
+
+    /// The App only coordinates CLI commands; privileged behavior remains in
+    /// the CLI and its existing helper.
+    var shouldOfferPrivilegedTUNOnboarding: Bool {
+        selectedBackend == "user" && privilegedHelperAvailable &&
+            !preferences.bool(forKey: "tunHelperOnboardingPresented")
+    }
+
+    func rememberPrivilegedTUNOnboardingChoice() {
+        preferences.set(true, forKey: "tunHelperOnboardingPresented")
+    }
 
     func launch() {
         guard refreshTask == nil else { return }
@@ -567,6 +583,16 @@ enum EngineState { case starting, running, stopped, unavailable }
                     tun = nil; tunAdapter = nil; errorMessage = error.localizedDescription
                 }
                 do {
+                    let value = try await runCommand(["privileged-helper", "status"])
+                    guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
+                    selectedBackend = value["selected_backend"]?.string
+                    privilegedHelperAvailable = value["service"]?["installed"]?.bool == true && value["service"]?["active"]?.bool == true
+                } catch {
+                    guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
+                    selectedBackend = nil
+                    privilegedHelperAvailable = false
+                }
+                do {
                     let value = try await runCommand(["system-proxy", "status"])
                     guard generation == settingsGeneration && !Task.isCancelled && !sleeping && !quitting else { return }
                     systemProxy = value["enabled"]?.bool
@@ -596,6 +622,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         } else {
             metadataReadAt.removeValue(forKey: RefreshScope.providers.rawValue)
             systemProxy = nil; groups = []; providers = []; providersUnavailable = false; mode = nil; tun = nil; tunAdapter = nil
+            selectedBackend = nil; privilegedHelperAvailable = false
         }
     }
     func perform(_ arguments: [String]) {
@@ -651,6 +678,36 @@ enum EngineState { case starting, running, stopped, unavailable }
                     await requestRefresh([.groups, .providers], force: true)
                 }
                 errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Switches the stopped engine to the installed privileged backend and
+    /// then enables TUN. Swift invokes only existing CLI commands.
+    func enableTUNUsingPrivilegedHelper() {
+        guard !busy && !quitting else { return }
+        settingsGeneration += 1
+        busy = true
+        applyingSetting = true
+        notice = nil
+        Task {
+            defer { applyingSetting = false; busy = false }
+            await waitForConnectionsOperation()
+            do {
+                _ = try await runCommand(["stop"])
+                _ = try await runCommand(["privileged-helper", "enable"])
+                _ = try await runCommand(["start"])
+                let result = try await runCommand(["tun", "enable"])
+                settingsGeneration += 1
+                tun = result["enabled"]?.bool
+                tunAdapter = result["adapter_status"]?.string
+                selectedBackend = "privileged"
+                errorMessage = nil
+                await requestRefresh([.status, .settings], force: true)
+            } catch {
+                settingsGeneration += 1
+                errorMessage = error.localizedDescription
+                await requestRefresh([.status, .settings], force: true)
             }
         }
     }

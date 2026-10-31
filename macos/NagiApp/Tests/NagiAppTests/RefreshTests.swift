@@ -10,6 +10,9 @@ import XCTest
         var running = false
         var schedule: Int64 = 3600
         var failures: Set<String> = []
+        var helperInstalled = false
+        var helperActive = false
+        var backend = "user"
         var blocked: String?
         var continuation: CheckedContinuation<Void, Never>?
 
@@ -25,6 +28,12 @@ import XCTest
             let json: String
             switch command {
             case "status": json = "{\"running\":\(running),\"profile\":\"\(profile)\"}"
+            case "tun status": json = "{\"enabled\":false,\"adapter_status\":\"inactive\"}"
+            case "privileged-helper status": json = "{\"selected_backend\":\"\(backend)\",\"service\":{\"installed\":\(helperInstalled),\"active\":\(helperActive)}}"
+            case "stop": running = false; json = "{\"running\":false}"
+            case "privileged-helper enable": backend = "privileged"; json = "{\"selected_backend\":\"privileged\",\"changed\":true}"
+            case "start": running = true; json = "{\"running\":true}"
+            case "tun enable": json = "{\"enabled\":true,\"adapter_status\":\"up\"}"
             case "profile list": json = "{\"current\":\"\(profile)\",\"profiles\":\(String(data: try JSONEncoder().encode(profiles), encoding: .utf8)!)}"
             case "subscription list": json = "{\"subscriptions\":[{\"name\":\"feed\",\"schedule_seconds\":\(capturedSchedule)}]}"
             case "subscription schedule feed off": schedule = 0; json = "{}"
@@ -34,8 +43,8 @@ import XCTest
             }
             return try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))
         }
-        func model() -> AppModel {
-            AppModel(cli: NagiCLIClient(executable: URL(fileURLWithPath: "/nagi-refresh-test-no-cli")), now: { self.date }, runCommand: { try await self.run($0) })
+        func model(preferences: UserDefaults = UserDefaults(suiteName: UUID().uuidString)!) -> AppModel {
+            AppModel(cli: NagiCLIClient(executable: URL(fileURLWithPath: "/nagi-refresh-test-no-cli")), now: { self.date }, runCommand: { try await self.run($0) }, preferences: preferences)
         }
         func count(_ command: String) -> Int { calls.filter { $0.joined(separator: " ") == command }.count }
         func release() { continuation?.resume(); continuation = nil }
@@ -64,6 +73,41 @@ import XCTest
         await waitUntil { rewriteReads == 1 && !model.requestRewrite.isReading }
         // The deliberately missing fixture CLI proves that a status read was attempted.
         XCTAssertNotNil(model.requestRewrite.error)
+    }
+
+    func testTUNRefreshOffersInstalledHelperOnlyForOrdinaryBackend() async {
+        let commands = Commands()
+        commands.running = true
+        commands.helperInstalled = true
+        commands.helperActive = true
+        let preferences = UserDefaults(suiteName: UUID().uuidString)!
+        let model = commands.model(preferences: preferences)
+        defer { model.pauseForSleep() }
+
+        await model.refresh()
+
+        XCTAssertEqual(model.selectedBackend, "user")
+        XCTAssertTrue(model.privilegedHelperAvailable)
+        XCTAssertTrue(model.shouldOfferPrivilegedTUNOnboarding)
+        model.rememberPrivilegedTUNOnboardingChoice()
+        XCTAssertFalse(model.shouldOfferPrivilegedTUNOnboarding)
+    }
+
+    func testPrivilegedTUNChoiceUsesOnlyCLIOperationsInOrder() async {
+        let commands = Commands()
+        commands.running = true
+        commands.helperInstalled = true
+        commands.helperActive = true
+        let model = commands.model()
+
+        model.enableTUNUsingPrivilegedHelper()
+        await waitUntil { commands.count("stop") == 1 && !model.busy }
+
+        let operations = commands.calls.filter { ["stop", "privileged-helper enable", "start", "tun enable"].contains($0.joined(separator: " ")) }
+        XCTAssertEqual(operations, [
+            ["stop"], ["privileged-helper", "enable"], ["start"], ["tun", "enable"]
+        ])
+        XCTAssertEqual(model.selectedBackend, "privileged")
     }
 
     func testTrafficSamplesAndResetDoNotNotifyMenuChanges() async throws {

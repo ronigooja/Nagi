@@ -245,7 +245,7 @@ import AppKit
         menu.addItem(.separator())
         add(L10n.text("app.ui.system_proxy"), command: ["system-proxy", model.systemProxy == true ? "disable" : "enable"],
             checked: model.systemProxy == true, enabled: model.state == .running && model.systemProxy != nil && !model.busy)
-        add("TUN", command: ["tun", model.tun == true ? "disable" : "enable"],
+        add("TUN", action: #selector(toggleTUN),
             checked: model.tun == true, enabled: model.state == .running && model.tun != nil && !model.busy)
         let modeMenu = NSMenu()
         for value in ["rule", "global", "direct"] {
@@ -536,6 +536,33 @@ import AppKit
     @objc private func runCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? [String] else { return }
         model.perform(command)
+    }
+
+    @objc private func toggleTUN() {
+        guard model.tun != nil, !model.busy else { return }
+        guard model.tun == false, model.shouldOfferPrivilegedTUNOnboarding else {
+            model.perform(["tun", model.tun == true ? "disable" : "enable"])
+            return
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = L10n.text("app.tun.helper_onboarding_title")
+        alert.informativeText = L10n.text("app.tun.helper_onboarding_message")
+        alert.addButton(withTitle: L10n.text("app.tun.use_privileged_helper"))
+        alert.addButton(withTitle: L10n.text("app.tun.continue_without_helper"))
+        alert.addButton(withTitle: L10n.text("app.ui.cancel"))
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
+            model.rememberPrivilegedTUNOnboardingChoice()
+            model.enableTUNUsingPrivilegedHelper()
+        case .alertSecondButtonReturn:
+            model.rememberPrivilegedTUNOnboardingChoice()
+            model.perform(["tun", "enable"])
+        default:
+            break
+        }
     }
     @objc private func applyDefaultOverride() {
         if model.defaultOverrideApplied == true {
