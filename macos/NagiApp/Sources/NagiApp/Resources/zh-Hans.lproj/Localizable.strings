@@ -800,7 +800,7 @@
 "app.settings.cadence_seconds" = "每 %@ 秒";
 "app.tun.unknown" = "未知";
 "app.tun.helper_onboarding_title" = "使用特权助手启用 TUN？";
-"app.tun.helper_onboarding_message" = "Nagi 可以使用已安装的特权助手，这样 TUN 和 DNS 更改无需每次请求管理员授权。切换后端期间引擎会短暂停止并重新启动。选择“不使用助手继续”可仅在本次尝试中保留普通用户模式。";
+"app.tun.helper_onboarding_message" = "Nagi 可以使用特权助手，这样 TUN 和 DNS 更改无需每次请求管理员授权。macOS 可能只需请求一次 Touch ID 或管理员密码。切换后端期间引擎会短暂停止并重新启动。选择“不使用助手继续”可仅在本次尝试中保留普通用户模式。";
 "app.tun.use_privileged_helper" = "使用特权助手";
 "app.tun.continue_without_helper" = "不使用助手继续";
 "app.protocol.selector" = "手动选择";

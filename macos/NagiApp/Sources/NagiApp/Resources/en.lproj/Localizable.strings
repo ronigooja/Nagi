@@ -798,7 +798,7 @@
 "app.settings.cadence_seconds" = "every %@ seconds";
 "app.tun.unknown" = "unknown";
 "app.tun.helper_onboarding_title" = "Use the privileged helper for TUN?";
-"app.tun.helper_onboarding_message" = "Nagi can use the installed privileged helper so TUN and DNS changes do not ask for administrator authorization each time. The engine will briefly stop and restart to switch backends. Choose Continue without helper to keep ordinary user mode for this attempt.";
+"app.tun.helper_onboarding_message" = "Nagi can use a privileged helper so TUN and DNS changes do not ask for administrator authorization each time. macOS may ask for Touch ID or an administrator password once. The engine will briefly stop and restart to switch backends. Choose Continue without helper to keep ordinary user mode for this attempt.";
 "app.tun.use_privileged_helper" = "Use Privileged Helper";
 "app.tun.continue_without_helper" = "Continue Without Helper";
 "app.protocol.selector" = "Selector";

@@ -83,14 +83,34 @@ func installOrActivatePrivilegedTUNHelper(ctx context.Context, installed bool) e
 	if installed {
 		action = "activate"
 	}
-	cmd := exec.CommandContext(ctx, "sudo", "/usr/local/bin/nagi", "privileged-helper", action)
-	cmd.Stdin = os.Stdin
+	// Do not run sudo against the App's inherited stdin. The menu-bar App has
+	// no terminal, and sudo would either block or fail without showing a useful
+	// authorization UI. Authorization Services presents the native macOS
+	// administrator prompt instead; macOS may offer Touch ID and retains the
+	// password fallback. The command remains fixed and the helper validates its
+	// own installation boundary.
+	uid := os.Getuid()
+	gid := os.Getgid()
+	user := os.Getenv("USER")
+	if user == "" {
+		user = fmt.Sprintf("uid-%d", uid)
+	}
+	command := fmt.Sprintf("SUDO_UID=%d SUDO_GID=%d SUDO_USER=%s /usr/local/bin/nagi privileged-helper %s", uid, gid, shellQuote(user), shellQuote(action))
+	prompt := "Nagi needs administrator permission to enable privileged TUN."
+	script := `on run argv
+    do shell script ("/bin/bash -c " & quoted form of (item 1 of argv)) with administrator privileges with prompt (item 2 of argv)
+end run`
+	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", "-e", script, command, prompt)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if len(output) != 0 {
-			return fmt.Errorf("install privileged helper: %w: %s", err, strings.TrimSpace(string(output)))
+			return fmt.Errorf("authorize privileged helper: %w: %s", err, strings.TrimSpace(string(output)))
 		}
-		return fmt.Errorf("install privileged helper: %w", err)
+		return fmt.Errorf("authorize privileged helper: %w", err)
 	}
 	return nil
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }

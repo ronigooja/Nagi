@@ -337,8 +337,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     /// The App only coordinates CLI commands; privileged behavior remains in
     /// the CLI and its existing helper.
     var shouldOfferPrivilegedTUNOnboarding: Bool {
-        selectedBackend == "user" && privilegedHelperAvailable &&
-            !preferences.bool(forKey: "tunHelperOnboardingPresented")
+        selectedBackend == "user" && !preferences.bool(forKey: "tunHelperOnboardingPresented")
     }
 
     func rememberPrivilegedTUNOnboardingChoice() {
@@ -682,8 +681,9 @@ enum EngineState { case starting, running, stopped, unavailable }
         }
     }
 
-    /// Switches the stopped engine to the installed privileged backend and
-    /// then enables TUN. Swift invokes only existing CLI commands.
+    /// Requests the CLI-owned transition. The CLI installs or activates the
+    /// helper when needed, switches the backend safely, starts mihomo, and
+    /// enables TUN/DNS through the authenticated helper.
     func enableTUNUsingPrivilegedHelper() {
         guard !busy && !quitting else { return }
         settingsGeneration += 1
@@ -694,10 +694,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             defer { applyingSetting = false; busy = false }
             await waitForConnectionsOperation()
             do {
-                _ = try await runCommand(["stop"])
-                _ = try await runCommand(["privileged-helper", "enable"])
-                _ = try await runCommand(["start"])
-                let result = try await runCommand(["tun", "enable"])
+                let result = try await runCommand(["tun", "enable", "--privileged-helper"])
                 settingsGeneration += 1
                 tun = result["enabled"]?.bool
                 tunAdapter = result["adapter_status"]?.string

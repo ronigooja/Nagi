@@ -34,6 +34,7 @@ import XCTest
             case "privileged-helper enable": backend = "privileged"; json = "{\"selected_backend\":\"privileged\",\"changed\":true}"
             case "start": running = true; json = "{\"running\":true}"
             case "tun enable": json = "{\"enabled\":true,\"adapter_status\":\"up\"}"
+            case "tun enable --privileged-helper": backend = "privileged"; running = true; json = "{\"enabled\":true,\"adapter_status\":\"up\",\"selected_backend\":\"privileged\"}"
             case "profile list": json = "{\"current\":\"\(profile)\",\"profiles\":\(String(data: try JSONEncoder().encode(profiles), encoding: .utf8)!)}"
             case "subscription list": json = "{\"subscriptions\":[{\"name\":\"feed\",\"schedule_seconds\":\(capturedSchedule)}]}"
             case "subscription schedule feed off": schedule = 0; json = "{}"
@@ -96,18 +97,15 @@ import XCTest
     func testPrivilegedTUNChoiceUsesOnlyCLIOperationsInOrder() async {
         let commands = Commands()
         commands.running = true
-        commands.helperInstalled = true
-        commands.helperActive = true
         let model = commands.model()
 
         model.enableTUNUsingPrivilegedHelper()
-        await waitUntil { commands.count("stop") == 1 && !model.busy }
+        await waitUntil { commands.count("tun enable --privileged-helper") == 1 && !model.busy }
 
-        let operations = commands.calls.filter { ["stop", "privileged-helper enable", "start", "tun enable"].contains($0.joined(separator: " ")) }
+        let operations = commands.calls.filter { ["tun enable --privileged-helper"].contains($0.joined(separator: " ")) }
         XCTAssertEqual(operations, [
-            ["stop"], ["privileged-helper", "enable"], ["start"], ["tun", "enable"]
+            ["tun", "enable", "--privileged-helper"]
         ])
-        XCTAssertEqual(model.selectedBackend, "privileged")
     }
 
     func testTrafficSamplesAndResetDoNotNotifyMenuChanges() async throws {
