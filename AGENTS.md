@@ -2,10 +2,6 @@
 
 These guidelines define development responsibilities and documentation practices for agents working in the Nagi repository.
 
-## Highest Priority Rule
-
-- Before modifying any file, explain the modification scope to the user in Chinese and request permission. Modify files only within the scope authorized by the user; do not rewrite unrelated documentation or implementation.
-
 ## Architecture Boundaries and Feature Design
 
 These rules apply to every feature:
@@ -23,7 +19,6 @@ These rules apply to every feature:
 ## Sensitive Information
 
 - Use clearly marked placeholders or fictitious addresses in examples; never include real credentials or usable private subscription URLs.
-- Restrict sensitive files to owner-only access, avoid passing secrets through command arguments, and promptly remove sensitive temporary files that are no longer needed.
 
 ## Documentation Locations and Responsibilities
 
@@ -59,19 +54,15 @@ Use each location as follows:
 ## Agent Workflow
 
 - Before making changes, read this file, `README.md` if present, and the architecture, design, and reference documents directly related to the task.
-- When using independent worktrees, place them under `$HOME/subagents`.
-- Check `$HOME/environment` for required development tools before installing or downloading anything.
 - Classify content before choosing a documentation destination. Do not move documents merely because the implementation phase has changed.
 - When changing functionality, interfaces, configuration, or development workflows, check the relevant authoritative document and update it once behavior is settled.
 - When changing CLI behavior, follow [the CLI usability rules](docs/development/cli-usability.md) and update [the CLI reference](docs/reference/cli.md) for implemented behavior.
 - When adding or changing UI, follow [the UI design rule](docs/development/ui-design.md).
 - Do not describe a recommended architecture in `ARCHITECTURE.md`, an unimplemented design, or an alternative in a decision record as a current capability.
 - When behavior is unclear, use current code, tests, and reproducible command results as evidence. If it cannot be verified, mark its status explicitly instead of guessing.
-- After changes, check new or modified relative links, commands, paths, field names, and examples.
 
 ## Documentation Writing Rules
 
-- Write documentation prose in English by default. Preserve the original spelling of code identifiers, commands, and API fields.
 - State each document's topic and scope at the beginning, then organize content in the order readers need to complete the task or understand the system.
 - Clearly distinguish implemented behavior, accepted but unimplemented designs, and proposals under discussion. Guides and reference documents must not present planned capabilities as current functionality.
 - Design documents must explain responsibilities, interfaces, key flows, and the state after failures. Diagrams must agree with the surrounding text.
@@ -88,10 +79,4 @@ Use each location as follows:
 - When adding, moving, or deleting a document, update navigation and all affected links. When documents conflict, prefer the more specific document and the verified current implementation, then update stale references so conflicting claims do not remain.
 - Guides may include task-specific examples; complete parameter and configuration definitions belong in reference documentation. Design documents describe the currently accepted design; decision records preserve why it was chosen.
 - Verify that commands, paths, fields, examples, and Markdown relative links match the implementation or design. Changes involving commands, configuration, or interfaces must also verify parameters, exit codes, and example output.
-- Remove duplicate or obsolete explanations. Preserve historical rationale in decision records instead of current usage documentation.
 - If the repository has no automated documentation checks, perform a manual review before submission and record any checks that could not be run and why.
-
-## Communication
-
-- Keep documentation in English unless the document is explicitly intended to preserve another language.
-- During execution, communicate with the user in the language requested by the user. Progress reports and important information are communicated in Chinese unless the user requests otherwise.
