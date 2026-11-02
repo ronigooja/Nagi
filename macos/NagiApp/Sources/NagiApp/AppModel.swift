@@ -129,6 +129,10 @@ enum TrafficDisplay: String, CaseIterable {
 enum EngineState { case starting, running, stopped, unavailable }
 
 @MainActor final class AppModel {
+    // Background refresh is only a reconciliation safety net. Menu opening,
+    // wake, and completed operations request an immediate refresh, so a short
+    // cadence here is unnecessary while the menu-bar app is idle.
+    private static let backgroundRefreshInterval: UInt64 = 30_000_000_000
     // Keep profile action command names in one place.
     private enum ProfileCommands {
         static let useDefault = ["profile", "use", "default"]
@@ -354,7 +358,7 @@ enum EngineState { case starting, running, stopped, unavailable }
             busy = false
             while !Task.isCancelled {
                 await refresh()
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                try? await Task.sleep(nanoseconds: Self.backgroundRefreshInterval)
             }
         }
     }
