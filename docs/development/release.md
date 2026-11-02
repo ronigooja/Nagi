@@ -74,22 +74,23 @@ it does not skip tests or change production deadlines. See the
 
 ## Build caches
 
-The [build and release workflow](../../.github/workflows/release.yml) also runs
-on pushes to `main`. A main-branch run tests and builds all four archives and
-the macOS App, verifies their checksums and source version, and saves Go and
-Swift build caches. It does not create a tag or publish a GitHub Release.
-New main-branch push runs cancel superseded runs for that branch; tag releases
-are not cancelled by newer main pushes.
+The [build and release workflow](../../.github/workflows/release.yml) runs only
+for pushed `v*` tags and manual dispatch. Pushing to `main` does not start it, so
+ordinary pushes do not use a macOS runner.
 
-Manual dispatch without `release_tag` also performs a build without publishing;
-run it on `main` to refresh that branch's shared caches. Supplying an existing
-tag retains the tagged release publication path.
+Manual dispatch without `release_tag` tests and builds all four archives and the
+macOS App, verifies their checksums and source version, and saves Go and Swift
+build caches when run on `main`. It does not create a tag or publish a GitHub
+Release. Use it to verify a commit before tagging and to refresh the shared
+caches. Supplying an existing tag retains the tagged release publication path.
+Runs are never cancelled by newer runs.
 
 GitHub cache access is scoped to the workflow ref and the default branch.
 Separate release tags cannot restore each other's tag-scoped caches, so only
-successful `main` builds save the shared snapshots. Tag and manually dispatched
-release runs restore those snapshots without uploading another copy. The first
-main build after this configuration is introduced is expected to be cold.
+successful manual `main` builds save the shared snapshots. Tag and manually
+dispatched tag runs restore those snapshots without uploading another copy.
+Without a `main` run, caches are not refreshed and expire after 7 days without
+access, causing a cold tag build.
 
 Go cache keys (`nagi-go-v2-…`) include the runner OS/architecture, Go version,
 `go.sum`, and `engine.lock`, but not the source commit. A new Go snapshot is

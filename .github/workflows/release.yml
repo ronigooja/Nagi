@@ -8,14 +8,12 @@ on:
         required: false
         type: string
   push:
-    branches:
-      - main
     tags:
       - 'v*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -65,7 +63,8 @@ jobs:
           printf 'swift-version=%s\n' "$swift_version" >> "$GITHUB_OUTPUT"
 
       # Tags can restore default-branch caches, but cannot share each other's
-      # tag-scoped entries. Only successful main builds save these snapshots.
+      # tag-scoped entries. Only successful manual builds on main save these
+      # snapshots.
       - name: Restore Go build and module caches
         id: go-cache
         uses: actions/cache/restore@v4
