@@ -91,15 +91,25 @@ successful `main` builds save the shared snapshots. Tag and manually dispatched
 release runs restore those snapshots without uploading another copy. The first
 main build after this configuration is introduced is expected to be cold.
 
-Go cache keys include the runner OS/architecture, Go version, `go.sum`,
-`engine.lock`, and checked-out source commit. Restore prefixes allow reuse of
-earlier main snapshots, including compilation for all four targets and module
-downloads for the pinned engine. Swift keys include the runner OS/architecture,
-Xcode/Swift/SDK fingerprint, package manifests, and source commit; only snapshots
-with matching toolchain and manifests are eligible for fallback restoration.
-Snapshots are immutable; source commits produce new keys, allowing successful
-main builds to refresh cached compiler work. `actions/setup-go` automatic caching
-is disabled to avoid duplicate tag-scoped uploads.
+Go cache keys (`nagi-go-v2-…`) include the runner OS/architecture, Go version,
+`go.sum`, and `engine.lock`, but not the source commit. A new Go snapshot is
+therefore saved only when one of those inputs changes, which keeps the
+repository's cache storage bounded (each snapshot is over 1 GB; GitHub's default
+limit is 10 GB per repository). Go's build cache is content-addressed, so a
+snapshot from an earlier commit still avoids recompiling unchanged packages.
+Restore prefixes allow reuse of earlier snapshots, including compilation for all
+four targets and module downloads for the pinned engine, and fall back to the
+legacy `nagi-go-v1-…` entries until they expire. Swift keys include the runner
+OS/architecture, Xcode/Swift/SDK fingerprint, package manifests, and source
+commit; only snapshots with matching toolchain and manifests are eligible for
+fallback restoration. Snapshots are immutable, and Swift snapshots are small.
+`actions/setup-go` automatic caching is disabled to avoid duplicate tag-scoped
+uploads.
+
+GitHub deletes caches not accessed for 7 days and evicts the least recently
+accessed ones when a repository exceeds its limit. The workflows set no
+per-cache expiry, which `actions/cache` does not support. To free space
+manually, delete entries with `gh cache delete` or the Actions caches API.
 
 Caches accelerate compilation and dependency downloads. Every run still invokes
 the build tools and verifies the resulting versions and archives. Release

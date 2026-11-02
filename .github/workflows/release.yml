@@ -73,9 +73,9 @@ jobs:
           path: |
             ${{ steps.cache-paths.outputs.go-build }}
             ${{ steps.cache-paths.outputs.go-modules }}
-          key: nagi-go-v1-${{ runner.os }}-${{ runner.arch }}-1.26.4-${{ hashFiles('go.sum', 'engine.lock') }}-${{ steps.source.outputs.commit }}
+          key: nagi-go-v2-${{ runner.os }}-${{ runner.arch }}-1.26.4-${{ hashFiles('go.sum', 'engine.lock') }}
           restore-keys: |
-            nagi-go-v1-${{ runner.os }}-${{ runner.arch }}-1.26.4-${{ hashFiles('go.sum', 'engine.lock') }}-
+            nagi-go-v2-${{ runner.os }}-${{ runner.arch }}-1.26.4-
             nagi-go-v1-${{ runner.os }}-${{ runner.arch }}-1.26.4-
 
       - name: Restore Swift build cache
