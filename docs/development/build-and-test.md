@@ -121,10 +121,16 @@ The App full suite had 11 failures across 274 tests (one skipped); the isolated
 pre-LAN baseline `bcf42e39922d5017268b1959ad7ac22d3d86ef8f` reproduced the same
 failing tests and assertions across 261 tests (one skipped). These cover CLI
 timeout, window geometry, connection/refresh state, DERP localization, and rewrite
-tab discovery. The full workflow remains failed; the comparison is not a waiver
-or proof that those behaviors are correct. LAN accessibility checks pass in both
-appearances and initial/minimum window sizes. Manual desktop interaction and
-separate-device reachability remain unverified.
+tab discovery. The earlier workflow failed; the comparison was not a waiver or
+proof that those behaviors were correct.
+
+After corrections, the independent [Linux backend](https://github.com/ronigooja/Nagi/actions/runs/42348767661)
+and [macOS backend](https://github.com/ronigooja/Nagi/actions/runs/42348767573)
+workflows passed, including 20 repeated maintenance lifetime race checks. The
+[macOS App workflow](https://github.com/ronigooja/Nagi/actions/runs/42350416249)
+passed the full native suite, focused LAN/settings tests, and App packaging. LAN
+accessibility checks cover both appearances and initial/minimum window sizes.
+Manual desktop interaction and separate-device reachability remain unverified.
 
 ## Subscription application validation
 

@@ -205,8 +205,8 @@ other devices. A failed read shows Unknown rather than an unchecked control;
 failed writes reconcile actual state without retrying the mutation or hiding
 the error. Automatic reads preserve in-progress address drafts. Native compilation,
 LAN/settings tests, App packaging, and light/dark initial/minimum-size accessibility
-checks passed on a GitHub-hosted macOS runner. The full native suite retains
-baseline-reproduced failures; manual desktop interaction remains unverified.
+checks passed on a GitHub-hosted macOS runner, as did the full native suite.
+Manual desktop interaction remains unverified.
 See the [LAN verification evidence](../../docs/development/build-and-test.md#privileged-lan-verification).
 
 Under **Chrome WebRTC**, **Block Direct WebRTC UDP** reads and changes the current
