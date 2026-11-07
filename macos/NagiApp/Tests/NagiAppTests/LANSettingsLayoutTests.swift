@@ -21,6 +21,20 @@ import XCTest
         })
     }
 
+    func testTextMatchingAcceptsNativeValuesWithoutMatchingEditableFields() {
+        let text = NSAccessibilityElement()
+        text.setAccessibilityRole(.staticText)
+        text.setAccessibilityValue("Fictitious help text")
+        XCTAssertTrue(matchesText("Fictitious help text", in: text))
+        XCTAssertFalse(matchesText("Fictitious help", in: text), "Matching must require the complete text")
+        text.setAccessibilityRole(.textArea)
+        XCTAssertTrue(matchesText("Fictitious help text", in: text), "Selectable errors can expose AXTextArea")
+        text.setAccessibilityRole(.textField)
+        XCTAssertFalse(matchesText("Fictitious help text", in: text), "Input content must not impersonate a label")
+        text.setAccessibilityLabel("Fictitious address label")
+        XCTAssertTrue(matchesText("Fictitious address label", in: text))
+    }
+
     func testLANControlsAndFollowingSettingsAreScrollableInBothAppearancesAndWindowSizes() async throws {
         let restoreAccessibility = NativeAccessibilityFixture.enable()
         defer { restoreAccessibility() }
@@ -104,6 +118,21 @@ import XCTest
         return [element] + children.flatMap { elements(in: $0) }
     }
 
+    private func accessibleString(_ attribute: String, of element: NSObject) -> String? {
+        guard element.responds(to: NSSelectorFromString(attribute)) else { return nil }
+        return element.value(forKey: attribute) as? String
+    }
+
+    private func matchesText(_ text: String, in element: NSObject) -> Bool {
+        if accessibleString("accessibilityLabel", of: element) == text { return true }
+        // Native static text and selectable SwiftUI Text can expose their content
+        // as AXValue rather than AXLabel. Do not match editable field values.
+        let role = accessibleString("accessibilityRole", of: element)
+        guard role == NSAccessibility.Role.staticText.rawValue ||
+              role == NSAccessibility.Role.textArea.rawValue else { return false }
+        return accessibleString("accessibilityValue", of: element) == text
+    }
+
     private func reachableElement(_ key: String, in root: NSView, scroll: NSScrollView,
                                   window: NSWindow) async throws -> NSObject {
         let document = try XCTUnwrap(scroll.documentView)
@@ -111,6 +140,7 @@ import XCTest
         let step = max(1, clip.bounds.height / 2)
         let maximum = max(document.bounds.minY, document.bounds.maxY - clip.bounds.height)
         let count = Int(ceil((maximum - document.bounds.minY) / step))
+        var matchedFrames: [String] = []
         for index in 0...count {
             let y = min(maximum, document.bounds.minY + CGFloat(index) * step)
             clip.scroll(to: NSPoint(x: document.bounds.minX, y: y))
@@ -119,17 +149,20 @@ import XCTest
             try await Task.sleep(nanoseconds: 20_000_000)
             let viewport = window.convertToScreen(clip.convert(clip.bounds, to: nil))
                 .intersection(window.convertToScreen(root.convert(root.bounds, to: nil)))
-            for element in elements(in: root) where element.responds(to: NSSelectorFromString("accessibilityLabel")) {
-                guard element.value(forKey: "accessibilityLabel") as? String == L10n.text(key),
-                      element.responds(to: NSSelectorFromString("accessibilityFrame")),
+            for element in elements(in: root) where matchesText(L10n.text(key), in: element) {
+                guard element.responds(to: NSSelectorFromString("accessibilityFrame")),
                       let value = element.value(forKey: "accessibilityFrame") as? NSValue else { continue }
                 let frame = value.rectValue
                 if frame.width > 0 && frame.height > 0 && viewport.insetBy(dx: -1, dy: -1).contains(frame) {
                     return element
                 }
+                matchedFrames.append("scroll y=\(y): frame=\(frame), viewport=\(viewport)")
             }
         }
-        XCTFail("\(key) must be accessible and fully reachable by scrolling the actual Settings viewport")
+        let diagnostic = matchedFrames.isEmpty
+            ? "No matching AXLabel or static/selectable text AXValue was found."
+            : "Matching elements were not fully visible: \(matchedFrames.joined(separator: "; "))"
+        XCTFail("\(key) must be accessible and fully reachable by scrolling the actual Settings viewport. \(diagnostic)")
         throw NSError(domain: "LANSettingsLayoutTests", code: 1)
     }
 
