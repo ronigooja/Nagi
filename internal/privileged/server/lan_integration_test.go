@@ -42,9 +42,22 @@ func TestLANPrivilegedTUNIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	var h *RuntimeHandler
+	cleanup := func() error {
+		if h == nil {
+			return nil
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if h.status().Running {
+			_, err := h.Handle(cleanupCtx, 0, privileged.Request{Operation: privileged.Stop})
+			return err
+		}
+		_, err := h.dnsManager().Disable(cleanupCtx)
+		return err
+	}
 	t.Cleanup(func() {
 		if h != nil {
-			if err := h.Close(); err != nil {
+			if err := cleanup(); err != nil {
 				// Keep the DNS recovery journal if restoration fails.
 				t.Errorf("close runtime and restore DNS: %v; recovery files retained at %s", err, base)
 				return
@@ -251,7 +264,7 @@ rules:
 	if !status.Running || status.PID != started.PID {
 		t.Fatalf("LAN changes replaced the privileged engine: %+v", status)
 	}
-	if err := h.Close(); err != nil {
+	if err := cleanup(); err != nil {
 		t.Fatalf("stop runtime and restore DNS: %v", err)
 	}
 	assertDNS(false)
