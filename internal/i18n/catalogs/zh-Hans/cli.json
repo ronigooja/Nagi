@@ -1,4 +1,8 @@
 {
+  "cli.error.lan.invalid_preference": "保存的局域网访问设置无效",
+  "cli.error.lan.invalid_profile": "无法将保存的局域网访问设置合并到配置文件",
+  "cli.error.lan.unconfirmed": "无法确认局域网访问设置；保存的设置未更改",
+  "cli.error.lan.save_failed": "局域网访问状态已更改，但无法保存；重启后可能恢复：{arg0}",
   "cli.error.activation.mihomo_configuration_activation_is_unconfirmed": "mihomo 配置激活尚未确认",
   "cli.error.activation.mihomo_configuration_activation_is_unconfirmed.usage": "mihomo 配置激活尚未确认\n用法：nagi {syntax}{hint}\n运行 `nagi help {path}` 查看详情",
   "cli.error.activation.mihomo_configuration_put_may_still_apply": "mihomo 配置 PUT 仍可能生效",

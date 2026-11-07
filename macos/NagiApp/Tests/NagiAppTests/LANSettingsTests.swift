@@ -6,6 +6,23 @@ import XCTest
         .objectValue(["enabled": .boolValue(enabled), "bind_address": .stringValue(address)])
     }
 
+    func testPortUsesActualMixedListenerAndUnknownStates() async {
+        var port: JSONValue? = .numberValue(17890)
+        let model = LANSettingsModel(run: { _ in
+            var value: [String: JSONValue] = ["enabled": .boolValue(false), "bind_address": .stringValue("127.0.0.1")]
+            value["mixed_port"] = port
+            return .objectValue(value)
+        })
+        await model.refresh()
+        XCTAssertEqual(model.portText, "17890")
+        port = .numberValue(0)
+        await model.refresh()
+        XCTAssertEqual(model.portText, L10n.text("app.lan.port_disabled"))
+        port = nil
+        await model.refresh()
+        XCTAssertEqual(model.portText, L10n.text("app.lan.port_unknown"))
+    }
+
     func testCLIEnableAddressChangesAndDisableUseConfirmedRuntimeState() async {
         var calls: [[String]] = []
         let model = LANSettingsModel(run: { args in

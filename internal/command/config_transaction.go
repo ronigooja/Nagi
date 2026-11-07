@@ -280,6 +280,9 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 			oldEffective, oldErr = store.Effective(name)
 			if oldErr == nil {
 				oldEffective, oldErr = applySavedTUN(paths, oldEffective)
+				if oldErr == nil {
+					oldEffective, oldErr = applySavedLAN(paths, oldEffective)
+				}
 			}
 		}
 		// Runtime TUN patches do not advance the activation marker. Preserve the
@@ -300,6 +303,21 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 						tun[key] = value
 					}
 					oldEffective, oldErr = yaml.Marshal(doc)
+				}
+			}
+		}
+		if oldErr == nil {
+			// LAN PATCH does not advance activation_id. Preserve its observed
+			// values in rollback images even when a saved image predates it.
+			if enabled, ok := beforeCfg["allow-lan"].(bool); ok {
+				if address, ok := beforeCfg["bind-address"].(string); ok {
+					var doc map[string]any
+					if e := yaml.Unmarshal(oldEffective, &doc); e != nil || doc == nil {
+						oldErr = messageError("cli.error.config_transaction.prior_effective_configuration_is_invalid_yaml", "prior effective configuration is invalid YAML")
+					} else {
+						doc["allow-lan"], doc["bind-address"] = enabled, address
+						oldEffective, oldErr = yaml.Marshal(doc)
+					}
 				}
 			}
 		}
@@ -358,6 +376,9 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 				if name, e := store.Current(); e == nil {
 					if effective, e := store.Effective(name); e == nil {
 						effective, e = applySavedTUN(paths, effective)
+						if e == nil {
+							effective, e = applySavedLAN(paths, effective)
+						}
 						if e == nil {
 							actionErr = recordRunningImageBytes(paths.ConfigDir, client, effective)
 						} else {

@@ -1,4 +1,8 @@
 {
+  "cli.error.lan.invalid_preference": "invalid saved LAN preference",
+  "cli.error.lan.invalid_profile": "profile YAML cannot be merged with saved LAN preference",
+  "cli.error.lan.unconfirmed": "LAN setting was not confirmed; saved preference was not changed",
+  "cli.error.lan.save_failed": "LAN setting changed but could not be saved; it may reset on restart: {arg0}",
   "cli.error.activation.mihomo_configuration_activation_is_unconfirmed": "mihomo configuration activation is unconfirmed",
   "cli.error.activation.mihomo_configuration_activation_is_unconfirmed.usage": "mihomo configuration activation is unconfirmed\nUsage: nagi {syntax}{hint}\nRun `nagi help {path}` for details",
   "cli.error.activation.mihomo_configuration_put_may_still_apply": "mihomo configuration PUT may still apply",

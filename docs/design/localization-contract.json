@@ -1922,6 +1922,12 @@
       "path": "string",
       "syntax": "string"
     },
+    "cli.error.lan.invalid_preference": {},
+    "cli.error.lan.invalid_profile": {},
+    "cli.error.lan.save_failed": {
+      "arg0": "string"
+    },
+    "cli.error.lan.unconfirmed": {},
     "cli.error.lifecycle.invalid_engine_intent_at_s": {
       "arg0": "string"
     },

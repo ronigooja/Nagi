@@ -6,6 +6,7 @@ import Foundation
 struct LANSettingsState {
     let enabled: Bool
     let bindAddress: String
+    let mixedPort: Int?
 
     init(_ value: JSONValue) throws {
         guard let enabled = value["enabled"]?.bool,
@@ -13,6 +14,12 @@ struct LANSettingsState {
             throw CLIError.invalidJSON(L10n.text("app.lan.invalid_status"))
         }
         self.enabled = enabled; bindAddress = address
+        if case .numberValue(let number)? = value["mixed_port"], number.isFinite,
+           number >= 0, number <= 65535, number.rounded(.towardZero) == number {
+            mixedPort = Int(number)
+        } else {
+            mixedPort = nil
+        }
     }
 }
 
@@ -34,6 +41,10 @@ struct LANSettingsState {
     var busy: Bool { isReading || isSaving }
     var canToggle: Bool { !busy && !stale && state != nil }
     var canApplyAddress: Bool { canToggle && state?.enabled == true && validAddress && bindAddress != baseline }
+    var portText: String {
+        guard !stale, let port = state?.mixedPort else { return L10n.text("app.lan.port_unknown") }
+        return port == 0 ? L10n.text("app.lan.port_disabled") : String(port)
+    }
     var normalizedAddress: String { bindAddress.trimmingCharacters(in: .whitespacesAndNewlines) }
     var exposesAllInterfaces: Bool { ["", "*", "0.0.0.0", "::"].contains(normalizedAddress) }
     var validAddress: Bool {

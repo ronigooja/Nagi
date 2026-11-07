@@ -1496,9 +1496,19 @@ func executeInternal(ctx context.Context, args []string, version, commit string)
 			if e != nil {
 				return nil, e
 			}
+			if cfg["allow-lan"] != requested || cfg["bind-address"] != address {
+				return nil, messageError("cli.error.lan.unconfirmed", "LAN setting was not confirmed; saved preference was not changed")
+			}
+			if e := writeLANPreference(paths, lanPreference{Enabled: requested, Address: address}); e != nil {
+				return nil, messageError("cli.error.lan.save_failed", "LAN setting changed but could not be saved; it may reset on restart: %w", e)
+			}
 		}
 		enabled, _ := cfg["allow-lan"].(bool)
-		return map[string]any{"enabled": enabled, "bind_address": cfg["bind-address"]}, nil
+		var mixedPort any
+		if value, ok := cfg["mixed-port"].(float64); ok && value >= 0 && value <= 65535 && value == float64(int(value)) {
+			mixedPort = int(value)
+		}
+		return map[string]any{"enabled": enabled, "bind_address": cfg["bind-address"], "mixed_port": mixedPort}, nil
 	case "mode":
 		if len(args) == 1 {
 			result, err := proxies.Mode(ctx, nil)

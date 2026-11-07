@@ -845,6 +845,9 @@
 "app.settings.chrome_restart" = "Completely quit and reopen Chrome after making changes.";
 "app.settings.login_failed" = "Could not change the login setting: %1$@";
 "app.lan.title" = "LAN Access";
+"app.lan.port" = "Port: %@";
+"app.lan.port_unknown" = "Unknown";
+"app.lan.port_disabled" = "Disabled";
 "app.lan.allow" = "Allow LAN access";
 "app.lan.unknown" = "Allow LAN access: Unknown";
 "app.lan.bind_address" = "Bind address";

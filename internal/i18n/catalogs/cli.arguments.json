@@ -1,4 +1,8 @@
 {
+  "cli.error.lan.invalid_preference": {},
+  "cli.error.lan.invalid_profile": {},
+  "cli.error.lan.unconfirmed": {},
+  "cli.error.lan.save_failed": {"arg0": "string"},
   "cli.error.activation.mihomo_configuration_activation_is_unconfirmed": {},
   "cli.error.activation.mihomo_configuration_activation_is_unconfirmed.usage": {
     "hint": "string",

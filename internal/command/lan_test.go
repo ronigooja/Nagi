@@ -84,9 +84,15 @@ func TestLANCLIJSONContract(t *testing.T) {
 			OK   bool           `json:"ok"`
 			Data map[string]any `json:"data"`
 		}
-		want := map[string]any{"enabled": tc.enabled, "bind_address": tc.address}
+		want := map[string]any{"enabled": tc.enabled, "bind_address": tc.address, "mixed_port": nil}
 		if err := json.Unmarshal(out.Bytes(), &response); err != nil || !response.OK || !reflect.DeepEqual(response.Data, want) {
 			t.Fatalf("%v: unexpected JSON %s: %v", args, out.String(), err)
+		}
+		if tc.args[0] != "status" {
+			preference, err := savedLANPreference(paths)
+			if err != nil || preference == nil || preference.Enabled != tc.enabled || preference.Address != tc.address {
+				t.Fatalf("saved LAN preference: %+v %v", preference, err)
+			}
 		}
 	}
 	mu.Lock()

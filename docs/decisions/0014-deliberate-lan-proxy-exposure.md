@@ -20,13 +20,13 @@ The intended user action is to share ordinary proxy listeners deliberately, not 
 
 Choose option 3. Retain `--config-policy restricted` for validation and the running root engine. Permit deliberate LAN exposure only through top-level HTTP, SOCKS, and mixed proxy settings; retain the controller's private transport and the existing DNS and explicit `listeners` restrictions. Apply matching validation at startup, configuration reload, and runtime patch boundaries. The [CLI reference](../reference/cli.md#lan-exposure-boundary) is authoritative for allowed ports, binds, command syntax, and security warnings.
 
-LAN operations use the selected backend and existing controller mediation. They neither switch backends nor alter TUN intent. Keep enable/disable runtime-only, with existing reload/restart reset behavior; do not introduce a saved LAN preference as part of this change.
+LAN operations use the selected backend and existing controller mediation. They neither switch backends nor alter TUN intent. The original decision used runtime-only settings; the subsequent persistent LAN preference is defined in the [CLI reference](../reference/cli.md#lan-exposure-boundary).
 
 ## Consequences
 
 Users can intentionally share ordinary proxy listeners while retaining privileged TUN. This is a deliberate expansion of root proxy-listener exposure, not a general relaxation of root configuration policy. Wildcards are not LAN-only isolation, loopback cannot share with other devices, and enabling access supplies neither authentication nor firewall protection. Users remain responsible for reachable-interface selection and access controls.
 
-The matching engine and helper must ship together. Source integration does not establish binary-release availability. Existing clients retain their CLI/JSON interface and runtime-only LAN behavior.
+The matching engine and helper must ship together. Source integration does not establish binary-release availability. The later persistence change adds a cross-profile LAN preference and a `mixed_port` JSON field.
 
 ## Verification gates
 

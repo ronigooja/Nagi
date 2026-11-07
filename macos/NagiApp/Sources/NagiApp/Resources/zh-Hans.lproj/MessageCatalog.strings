@@ -841,6 +841,10 @@
 "cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel.usage" = "启动或重新加载 mihomo 前必须恢复中断的安装；运行当前版本的 installer.sh recover --prefix %1$@，再检查 service 和 privileged-helper 状态\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
 "cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w" = "无法检查安装恢复状态：%1$@";
 "cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w.usage" = "无法检查安装恢复状态：%1$@\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
+"cli.error.lan.invalid_preference" = "保存的局域网访问设置无效";
+"cli.error.lan.invalid_profile" = "无法将保存的局域网访问设置合并到配置文件";
+"cli.error.lan.save_failed" = "局域网访问状态已更改，但无法保存；重启后可能恢复：%1$@";
+"cli.error.lan.unconfirmed" = "无法确认局域网访问设置；保存的设置未更改";
 "cli.error.lifecycle.invalid_engine_intent_at_s" = "%1$@ 中的引擎意图无效";
 "cli.error.lifecycle.invalid_engine_intent_at_s.usage" = "%1$@ 中的引擎意图无效\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
 "cli.error.lifecycle.mihomo_is_running_but_login_monitor_could_not_resume_w" = "mihomo 正在运行，但无法恢复登录监视器：%1$@";
@@ -1616,12 +1620,12 @@
 "help.command.dns.tun.summary" = "配置 TUN 拦截";
 "help.command.doctor.detail" = "检查本地路径、mihomo 可执行文件、当前配置方案、进程标记和 Unix Socket API，不更改文件。报告完成时退出状态为零；请检查 healthy 和 checks 以发现问题。";
 "help.command.doctor.summary" = "检查本地安装";
-"help.command.lan.detail" = "更改运行时 allow-lan 和绑定地址。启用时默认绑定所有接口；提供明确的本地 IP 可限制监听范围。";
+"help.command.lan.detail" = "更改并保存局域网访问状态和绑定地址，跨配置及重启生效。启用时默认绑定所有接口；指定本地 IP 可限制监听范围。";
 "help.command.lan.disable.detail" = "将代理监听器限制到回环地址。";
 "help.command.lan.disable.summary" = "停用局域网访问";
 "help.command.lan.enable.detail" = "默认绑定所有接口；ADDRESS 必须为本地 IPv4 或 IPv6 地址。";
 "help.command.lan.enable.summary" = "启用局域网访问";
-"help.command.lan.status.detail" = "报告 allow-lan 和绑定地址。";
+"help.command.lan.status.detail" = "显示局域网访问状态、绑定地址和混合代理端口。";
 "help.command.lan.status.summary" = "显示局域网访问";
 "help.command.lan.summary" = "管理局域网访问";
 "help.command.logs.detail" = "显示最近的日志行，或持续跟踪新追加的日志直到中断。";

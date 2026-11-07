@@ -74,6 +74,7 @@ import SwiftUI
                                 }
                                 if lan.busy { ProgressView().controlSize(.small) }
                             }
+                            Text(verbatim: L10n.format("app.lan.port", lan.portText))
                             HStack {
                                 TextField(L10n.text("app.lan.bind_address"), text: $lan.bindAddress,
                                           onEditingChanged: { lan.setEditing($0) },
@@ -83,15 +84,11 @@ import SwiftUI
                                 Button(L10n.text("app.lan.apply")) { applyLANAddress() }
                                     .disabled(model.busy || browser.busy || !lan.canApplyAddress)
                             }
-                            Text(verbatim: L10n.text("app.lan.address_help"))
-                                .font(.callout).foregroundColor(.secondary)
                             if !lan.validAddress { errorText(L10n.text("app.lan.invalid_address")) }
                             if lan.exposesAllInterfaces {
                                 Text(verbatim: L10n.text("app.lan.exposure_warning"))
                                     .font(.callout).foregroundColor(.secondary)
                             }
-                            Text(verbatim: L10n.text("app.lan.runtime_only"))
-                                .font(.callout).foregroundColor(.secondary)
                             if let error = lan.error { errorText(error) }
                         }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
                     } label: { Text(verbatim: L10n.text("app.lan.title")) }
