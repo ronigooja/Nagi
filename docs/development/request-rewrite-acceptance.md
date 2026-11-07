@@ -98,6 +98,14 @@ No Nagi tag, release archive or GitHub Release is created by this implementation
 
 ## Capture verification
 
+The proxy-listener extension at engine commit `c18cb0cc245bd6cb453c039c26da30c01abf8ce9`
+passed Linux and macOS hosted [Linux](https://github.com/ronigooja/Nagi/actions/runs/42356245884)
+and [macOS](https://github.com/ronigooja/Nagi/actions/runs/42356228688) backend
+checks, including race-enabled engine tunnel tests and listener protocol fixtures.
+The fixtures use loopback clients; separate-device LAN reachability, remote CA
+trust, listener authentication rejection and end-to-end remote capture remain
+unverified. These results do not establish a released binary.
+
 This section records capture-specific evidence separately from the preceding v2
 rewrite ledger. The current [capture design](../design/request-capture.md) and
 [user guide](../guides/request-capture.md) distinguish implemented behavior from

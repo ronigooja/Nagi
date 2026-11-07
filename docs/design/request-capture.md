@@ -14,7 +14,7 @@ Starting capture authorizes viewing, searching, previewing and exporting the
 original content within that session. Capture-specific output includes complete
 URLs, credentials and bodies without redaction or an additional reveal action.
 Ordinary logs, errors and diagnostics never automatically include captured data.
-Mihomo owns TUN, process identity, classification, routing and upstream sockets.
+Mihomo owns ingress, process identity, classification, routing and upstream sockets.
 Nagi owns bounded content recording, sessions, archives, drafts and interaction.
 
 ## Engine extension
@@ -27,6 +27,9 @@ Different populated scope categories are ANDed, entries within a category ORed.
 Process paths match exactly; app paths match a directory boundary below an
 outermost macOS `.app` bundle, including helpers. Unknown identity does not match
 a process/app restriction. Domain patterns retain the existing rewrite syntax.
+Eligible proxy-listener traffic also uses this scope while TUN is running.
+Remote proxy clients have unknown local process identity and cannot match a
+process/app restriction; no remote process identity is inferred.
 
 `PUT /request-rewrite/capture` takes
 `{version:2,generation,previous_revision,capture}` and returns status. Revision

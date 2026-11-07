@@ -17,7 +17,7 @@ Users need to discover requests and derive transformations from original data.
 ## Decision
 
 Use the third option. Capture is explicitly authorized raw-content inspection,
-defaults to all eligible TUN application traffic, and has optional App/domain
+defaults to all eligible traffic admitted by the engine, and has optional App/domain
 scope. Viewing, searching and export need no reveal toggle or repeated consent.
 Original identity and forwarding remain engine-owned. Recording is bounded,
 memory-only by default and independent of immutable rewrite generations.

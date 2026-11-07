@@ -12,7 +12,7 @@ Command syntax is in the [CLI reference](../reference/cli.md#tun-request-rewrite
 ## Traffic and ownership
 
 ```text
-application -> mihomo TUN -> identified HTTP/TLS for intercept_domains
+application -> mihomo TUN or proxy listener -> identified HTTP/TLS for intercept_domains
                                   |
                         authenticated handoff
                                   v
@@ -38,11 +38,13 @@ interception or QUIC blocking. HTTPS interception occurs by domain before method
 path or other HTTP predicates can be inspected; those predicates do not limit
 TLS decryption itself.
 
-Only actual TUN application TCP traffic enters this branch. Ordinary proxy
-listeners, internal DNS, provider downloads, health checks, node connections and
-reinjected traffic retain mihomo's normal paths. Rule, Global and Direct modes
+Eligible TUN and HTTP, HTTPS CONNECT, SOCKS4 and SOCKS5 proxy-listener TCP traffic
+enters this branch; mixed listeners use the same protocols. Activation still
+requires a running TUN. Internal DNS, provider downloads, health checks, node
+connections and reinjected traffic retain mihomo's normal paths. Rule, Global and Direct modes
 all retain the branch and choose outbound routing after reinjection. Mihomo
-blocks recognized QUIC only for interception domains to encourage TCP fallback.
+blocks recognized TUN QUIC only for interception domains to encourage TCP fallback;
+proxy-listener UDP is not intercepted.
 Unknown UDP, ECH-hidden names, missing fake-IP mappings, certificate pinning and
 client certificates limit coverage. There is no additional HTTP/3 implementation.
 
@@ -281,10 +283,12 @@ Ephemeral channel certificates, two independent random 256-bit secrets, engine
 epoch, generation and one-use context tokens authenticate transport and original
 identity. Wire errors are fixed codes, never supplied values.
 
-`GET /request-rewrite/capabilities` must advertise `versions:[2]`, `tun_only`,
+`GET /request-rewrite/capabilities` must advertise `versions:[2]`, either
+`tun_only:true` or `tun_required:true` with `proxy_listener_capture:1`,
 `original_context`, `reinjection`, `quic_domain_block`, at least 1024 contexts,
 64 streams per context, 60-second idle and 3600-second absolute context bounds.
-Missing capabilities or another protocol version reject activation.
+Missing capabilities or another protocol version reject activation. Older
+TUN-only engines do not intercept listener traffic.
 
 `PUT /request-rewrite/session` accepts exactly `version`, `generation`,
 `previous_generation` (null initially), bound `owner_uid`, `handoff_addr`, public

@@ -16,6 +16,12 @@ and establish certificate trust using the
 [rewrite CA commands](../reference/cli.md#tun-request-rewrite). Applications with
 their own certificate store need explicit trust there too. Capture start checks
 these prerequisites and never enables TUN, generates a CA or installs trust.
+With the matching pinned engine, capture also applies to eligible requests through
+HTTP, SOCKS and mixed proxy listeners while TUN is running. Configure the remote
+device to use a listener exposed as described in the [traffic access guide](traffic-access.md).
+For HTTPS, install and trust the public CA on that device and in any separate app
+certificate store; never distribute the CA private key. Process/app restrictions
+do not match remote clients whose local process identity is unknown.
 
 Starting capture authorizes reading the original URLs, query strings,
 Authorization and Cookie headers, trailers and bodies in that session. These
