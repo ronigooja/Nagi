@@ -209,7 +209,13 @@ func newProfileStoreWithContext(ctx context.Context, paths nagiruntime.Paths, bi
 		}
 		return undo, nil
 	}
-	store.EffectiveOverlay = func(data []byte) ([]byte, error) { return applySavedTUN(paths, data) }
+	store.EffectiveOverlay = func(data []byte) ([]byte, error) {
+		data, err := applySavedTUN(paths, data)
+		if err != nil {
+			return nil, err
+		}
+		return applySavedLAN(paths, data)
+	}
 	return store
 }
 

@@ -280,6 +280,9 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 			oldEffective, oldErr = store.Effective(name)
 			if oldErr == nil {
 				oldEffective, oldErr = applySavedTUN(paths, oldEffective)
+				if oldErr == nil {
+					oldEffective, oldErr = applySavedLAN(paths, oldEffective)
+				}
 			}
 		}
 		// Runtime TUN patches do not advance the activation marker. Preserve the
@@ -358,6 +361,9 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 				if name, e := store.Current(); e == nil {
 					if effective, e := store.Effective(name); e == nil {
 						effective, e = applySavedTUN(paths, effective)
+						if e == nil {
+							effective, e = applySavedLAN(paths, effective)
+						}
 						if e == nil {
 							actionErr = recordRunningImageBytes(paths.ConfigDir, client, effective)
 						} else {

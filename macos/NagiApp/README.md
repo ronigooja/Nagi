@@ -199,8 +199,7 @@ all interfaces; IPv4 and IPv6 literals restrict the listener to that address.
 While enabled, choose **Apply** or press Return to apply an address change;
 editing, leaving the field, and refreshing never submit an address change.
 While disabled, the field prepares the next enable operation. Disabling restores
-loopback binding. These changes are runtime-only and reset to profile settings
-after reload or restart. An all-interface warning calls out proxy exposure to
+loopback binding. These settings persist across profile reloads and engine restarts. The actual mixed proxy port is shown beside the controls. An all-interface warning calls out proxy exposure to
 other devices. A failed read shows Unknown rather than an unchecked control;
 failed writes reconcile actual state without retrying the mutation or hiding
 the error. Automatic reads preserve in-progress address drafts. Native compilation,

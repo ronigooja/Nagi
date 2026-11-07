@@ -841,6 +841,10 @@
 "cli.error.installation_recovery.an_interrupted_installation_must_be_recovered_before_starting_or_rel.usage" = "an interrupted installation must be recovered before starting or reloading mihomo; run the current release's installer.sh recover --prefix %1$@, then check service and privileged-helper state\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
 "cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w" = "cannot inspect installation recovery state: %1$@";
 "cli.error.installation_recovery.cannot_inspect_installation_recovery_state_w.usage" = "cannot inspect installation recovery state: %1$@\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
+"cli.error.lan.invalid_preference" = "invalid saved LAN preference";
+"cli.error.lan.invalid_profile" = "profile YAML cannot be merged with saved LAN preference";
+"cli.error.lan.save_failed" = "LAN setting changed but could not be saved; it may reset on restart: %1$@";
+"cli.error.lan.unconfirmed" = "LAN setting was not confirmed; saved preference was not changed";
 "cli.error.lifecycle.invalid_engine_intent_at_s" = "invalid engine intent at %1$@";
 "cli.error.lifecycle.invalid_engine_intent_at_s.usage" = "invalid engine intent at %1$@\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
 "cli.error.lifecycle.mihomo_is_running_but_login_monitor_could_not_resume_w" = "mihomo is running but login monitor could not resume: %1$@";
@@ -1616,12 +1620,12 @@
 "help.command.dns.tun.summary" = "Configure TUN interception";
 "help.command.doctor.detail" = "Checks local paths, mihomo executable, selected profile, process marker, and Unix Socket API without changing files. Exit status is zero for a completed report; inspect healthy and checks for problems.";
 "help.command.doctor.summary" = "Inspect the local installation";
-"help.command.lan.detail" = "Changes runtime allow-lan and bind address. Enabling defaults to all interfaces; supply an explicit local IP to restrict listening.";
+"help.command.lan.detail" = "Changes and saves allow-lan and bind address across profiles and restarts. Enabling defaults to all interfaces; supply a local IP to restrict listening.";
 "help.command.lan.disable.detail" = "Restricts proxy listeners to loopback.";
 "help.command.lan.disable.summary" = "Disable LAN access";
 "help.command.lan.enable.detail" = "Binds to all interfaces by default; ADDRESS must be a local IPv4 or IPv6 address.";
 "help.command.lan.enable.summary" = "Enable LAN access";
-"help.command.lan.status.detail" = "Reports allow-lan and bind address.";
+"help.command.lan.status.detail" = "Reports allow-lan, bind address, and mixed proxy port.";
 "help.command.lan.status.summary" = "Show LAN access";
 "help.command.lan.summary" = "Manage LAN access";
 "help.command.logs.detail" = "Shows recent lines or follows newly appended log lines until interrupted.";

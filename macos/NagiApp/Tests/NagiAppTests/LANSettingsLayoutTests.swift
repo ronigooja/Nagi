@@ -10,7 +10,7 @@ import XCTest
         })
         let lan = LANSettingsModel(run: { args in
             XCTAssertEqual(args, ["lan", "status"], "Layout fixtures must not change runtime settings")
-            return .objectValue(["enabled": .boolValue(enabled), "bind_address": .stringValue(enabled ? "*" : "127.0.0.1")])
+            return .objectValue(["enabled": .boolValue(enabled), "bind_address": .stringValue(enabled ? "*" : "127.0.0.1"), "mixed_port": .numberValue(17890)])
         })
         return SettingsModel(browser: browser, lan: lan, readDisplay: { .both }, writeDisplay: { _ in
             XCTFail("Layout fixtures must not write preferences")
@@ -59,11 +59,12 @@ import XCTest
                 let document = try XCTUnwrap(scroll.documentView)
                 XCTAssertGreaterThan(document.bounds.height, scroll.contentView.bounds.height)
                 for key in ["app.lan.allow", "app.lan.bind_address", "app.lan.apply",
-                            "app.lan.address_help", "app.lan.exposure_warning", "app.lan.runtime_only",
+                            "app.lan.exposure_warning",
                             "app.ui.open_menu_bar_app_at_login", "app.ui.run_engine_at_login"] {
                     _ = try await reachableElement(key, in: root, scroll: scroll, window: window)
                     XCTAssertEqual(window.frame.size, size, "Scrolling must not grow the Settings window")
                 }
+                _ = try await reachableText(L10n.format("app.lan.port", "17890"), in: root, scroll: scroll, window: window)
                 // Capture the actual LAN section, rather than an off-screen SwiftUI subtree.
                 _ = try await reachableElement("app.lan.bind_address", in: root, scroll: scroll, window: window)
                 try NativeAccessibilityFixture.snapshot(root, name: "lan-settings-\(name)-\(appearance.rawValue)")
@@ -91,7 +92,6 @@ import XCTest
             model.lan.bindAddress = "not-an-ip.invalid"
             try await settle(root)
             _ = try await reachableElement("app.lan.invalid_address", in: root, scroll: scroll, window: window)
-            _ = try await reachableElement("app.lan.runtime_only", in: root, scroll: scroll, window: window)
             _ = try await reachableElement("app.lan.bind_address", in: root, scroll: scroll, window: window)
             let field = try XCTUnwrap(descendants(root, of: NSTextField.self).first {
                 $0.isEditable && $0.accessibilityLabel() == L10n.text("app.lan.bind_address")
@@ -135,6 +135,11 @@ import XCTest
 
     private func reachableElement(_ key: String, in root: NSView, scroll: NSScrollView,
                                   window: NSWindow) async throws -> NSObject {
+        try await reachableText(L10n.text(key), in: root, scroll: scroll, window: window)
+    }
+
+    private func reachableText(_ text: String, in root: NSView, scroll: NSScrollView,
+                               window: NSWindow) async throws -> NSObject {
         let document = try XCTUnwrap(scroll.documentView)
         let clip = scroll.contentView
         let step = max(1, clip.bounds.height / 2)
@@ -149,7 +154,7 @@ import XCTest
             try await Task.sleep(nanoseconds: 20_000_000)
             let viewport = window.convertToScreen(clip.convert(clip.bounds, to: nil))
                 .intersection(window.convertToScreen(root.convert(root.bounds, to: nil)))
-            for element in elements(in: root) where matchesText(L10n.text(key), in: element) {
+            for element in elements(in: root) where matchesText(text, in: element) {
                 guard element.responds(to: NSSelectorFromString("accessibilityFrame")),
                       let value = element.value(forKey: "accessibilityFrame") as? NSValue else { continue }
                 let frame = value.rectValue
@@ -162,7 +167,7 @@ import XCTest
         let diagnostic = matchedFrames.isEmpty
             ? "No matching AXLabel or static/selectable text AXValue was found."
             : "Matching elements were not fully visible: \(matchedFrames.joined(separator: "; "))"
-        XCTFail("\(key) must be accessible and fully reachable by scrolling the actual Settings viewport. \(diagnostic)")
+        XCTFail("\(text) must be accessible and fully reachable by scrolling the actual Settings viewport. \(diagnostic)")
         throw NSError(domain: "LANSettingsLayoutTests", code: 1)
     }
 

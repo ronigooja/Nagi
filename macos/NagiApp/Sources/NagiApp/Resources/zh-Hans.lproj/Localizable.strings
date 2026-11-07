@@ -847,6 +847,9 @@
 "app.settings.chrome_restart" = "更改后，请完全退出并重新打开 Chrome。";
 "app.settings.login_failed" = "无法更改登录设置：%1$@";
 "app.lan.title" = "局域网访问";
+"app.lan.port" = "端口：%@";
+"app.lan.port_unknown" = "未知";
+"app.lan.port_disabled" = "未启用";
 "app.lan.allow" = "允许局域网访问";
 "app.lan.unknown" = "允许局域网访问：未知";
 "app.lan.bind_address" = "监听地址";
