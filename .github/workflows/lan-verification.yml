@@ -60,13 +60,19 @@ jobs:
         run: |
           go test -race ./internal/privileged/configpolicy ./internal/privileged/server ./internal/command -run 'Test(LAN|ValidateLAN)' > "$RUNNER_TEMP/lan-race.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/lan-race.log"; exit 1; }
       - name: Verify root TUN and LAN together
+        id: runtime
+        continue-on-error: true
         run: sudo env GITHUB_ACTIONS=true python3 scripts/test-privileged-lan.py "$RUNNER_TEMP/mihomo"
       - name: Verify restricted reload with TUN and LAN
+        id: reload
+        continue-on-error: true
         working-directory: .build/mihomo
         run: |
           go test -c -o "$RUNNER_TEMP/lan-validation.test" ./integration/validation > "$RUNNER_TEMP/validation-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/validation-build.log"; exit 1; }
           sudo env GITHUB_ACTIONS=true MIHOMO_VALIDATION_BIN="$RUNNER_TEMP/mihomo" MIHOMO_TEST_TUN_LAN=1 "$RUNNER_TEMP/lan-validation.test" -test.run '^TestRestrictedTUNLAN$' -test.v -test.timeout 5m
       - name: Verify macOS App
+        id: app
+        continue-on-error: true
         if: runner.os == 'macOS'
         run: |
           swift test --package-path macos/NagiApp > "$RUNNER_TEMP/app-tests.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/app-tests.log"; exit 1; }
@@ -75,6 +81,6 @@ jobs:
         run: |
           go test -c -o "$RUNNER_TEMP/helper-lan.test" ./internal/privileged/server > "$RUNNER_TEMP/helper-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/helper-build.log"; exit 1; }
           sudo env GITHUB_ACTIONS=true NAGI_LAN_ENGINE="$RUNNER_TEMP/mihomo" "$RUNNER_TEMP/helper-lan.test" -test.run '^TestLANPrivilegedTUNIntegration$' -test.v -test.timeout 5m
-      - name: Require Nagi checks to pass
-        if: always() && steps.nagi.outcome == 'failure'
+      - name: Require all checks to pass
+        if: always() && (steps.nagi.outcome == 'failure' || steps.runtime.outcome == 'failure' || steps.reload.outcome == 'failure' || steps.app.outcome == 'failure')
         run: exit 1
