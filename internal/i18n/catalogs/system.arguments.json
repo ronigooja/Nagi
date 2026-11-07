@@ -1,4 +1,7 @@
 {
+  "system.installation.background.shutdown.unconfirmed": {
+    "arg0": "string"
+  },
   "system.installation.cannot.start.background.update": {
     "arg0": "string"
   },

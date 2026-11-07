@@ -36,6 +36,17 @@ installation. They reread the installation record after acquiring the lock.
 The lock serializes CLI maintenance for that user; direct shell installation
 and other users are outside this lock.
 
+When background preparation fails or is canceled before handoff, it kills the
+updater process group, waits for the owner shell, and drains an inherited
+lifetime pipe for at most five seconds to confirm lock-holding descendants have
+exited. Authorization, polling, cleanup, and App-opening children do not inherit
+the maintenance lock. The native authorization adapter also closes the lifetime
+descriptor; its privileged worker retains the separate alive/owner/lifetime
+controls described below. A drain failure explicitly reports shutdown and lock
+release as unconfirmed; it does not manufacture success by unlocking a shared
+descriptor. Successful handoff closes the lifetime descriptor in the owner while
+retaining the lock for the updater.
+
 A private temporary directory holds `SHA256SUMS`, the platform archive, and
 extracted artifacts. GitHub Releases is tried first. Network errors, non-200
 responses, and response-read failures trigger one attempt through

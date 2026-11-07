@@ -147,9 +147,21 @@ func TestDetachedHandoffKeepsLockAndReopensAfterFailure(t *testing.T) {
 	capture := filepath.Join(root, "capture")
 	os.WriteFile(m.Executable, []byte("#!/bin/sh\ntest -d \"$NAGI_UPDATE_ARTIFACT\" || exit 2\ntest -e /dev/fd/3 || exit 3\nprintf '%s\\n%s' \"$NAGI_UPDATE_ARTIFACT\" \"$NAGI_UPDATE_ENGINE_RUNNING\" > "+shellQuote(capture)+"\nexit 9\n"), 0755)
 	t.Setenv("PATH", tools+":"+os.Getenv("PATH"))
+	completed, completionWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer completed.Close()
+	defer completionWriter.Close()
+	if err := completed.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	m.StartBackground = func(cmd *exec.Cmd) error {
 		cmd.Args[2] = strings.ReplaceAll(cmd.Args[2], "/usr/bin/open", shellQuote(opener))
-		return cmd.Start()
+		cmd.ExtraFiles = append(cmd.ExtraFiles, completionWriter)
+		err := cmd.Start()
+		completionWriter.Close()
+		return err
 	}
 	lockPath := filepath.Join(root, "maintenance.lock")
 	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
@@ -179,17 +191,13 @@ func TestDetachedHandoffKeepsLockAndReopensAfterFailure(t *testing.T) {
 		t.Fatal("installer started before App quit")
 	}
 	os.Remove(marker)
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		_, openErr := os.Stat(opened)
-		_, artifactErr := os.Stat(artifact)
-		if openErr == nil && os.IsNotExist(artifactErr) {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("detached updater did not reopen App and clean artifacts")
-		}
-		time.Sleep(20 * time.Millisecond)
+	// Artifact removal happens inside the EXIT trap, before the shell closes
+	// its lock. Join the entire fixture process tree before asserting release.
+	if _, err := io.Copy(io.Discard, completed); err != nil {
+		t.Fatalf("detached updater did not exit: %v", err)
+	}
+	if _, err := os.Stat(artifact); !os.IsNotExist(err) {
+		t.Fatalf("detached updater did not clean artifacts: %v", err)
 	}
 	data, _ := os.ReadFile(capture)
 	if string(data) != artifact+"\ntrue" {
@@ -209,6 +217,32 @@ func TestDetachedHandoffKeepsLockAndReopensAfterFailure(t *testing.T) {
 	syscall.Flock(int(probe.Fd()), syscall.LOCK_UN)
 }
 
+func TestBackgroundLifetimeDrain(t *testing.T) {
+	for _, closed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("writer-closed-%t", closed), func(t *testing.T) {
+			reader, writer, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reader.Close()
+			defer writer.Close()
+			deadline := time.Now().Add(-time.Second)
+			if closed {
+				writer.Close()
+				deadline = time.Now().Add(5 * time.Second)
+			}
+			err = drainBackgroundLifetime(reader, deadline)
+			if closed {
+				if err != nil {
+					t.Fatalf("closed lifetime did not drain: %v", err)
+				}
+			} else if !errors.Is(err, os.ErrDeadlineExceeded) || !strings.Contains(err.Error(), "shutdown unconfirmed") || !strings.Contains(err.Error(), "lock release unconfirmed") {
+				t.Fatalf("retained lifetime did not report unconfirmed shutdown: %v", err)
+			}
+		})
+	}
+}
+
 func TestCancelledAuthorizationKillsDescendantsAndAllowsRetry(t *testing.T) {
 	m, prefix := fixture(t)
 	artifact := filepath.Join(filepath.Dir(prefix), "nagi-release-prepared", "artifact")
@@ -219,18 +253,62 @@ func TestCancelledAuthorizationKillsDescendantsAndAllowsRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lock.Close()
-	syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-	// Mock a blocking authorization service, with descendants in the updater's
-	// process group, without displaying a dialog or changing system files.
-	m.StartBackground = func(cmd *exec.Cmd) error {
-		cmd.Args[2] = strings.ReplaceAll(cmd.Args[2], "sudo -v < /dev/null 3>&-", "sleep 60")
-		return cmd.Start()
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	started, startedWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer started.Close()
+	defer startedWriter.Close()
+	blocked, unblock, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocked.Close()
+	defer unblock.Close()
+	if err := started.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	// Mock a blocking authorization service, with descendants in the updater's
+	// process group, without displaying a dialog or changing system files. The
+	// deliberately inherited lock exercises draining even a misbehaving child.
+	m.StartBackground = func(cmd *exec.Cmd) error {
+		child := "/bin/bash -c " + shellQuote("printf r >&5; IFS= read -r line <&6")
+		cmd.Args[2] = strings.ReplaceAll(cmd.Args[2], "sudo -v < /dev/null 3>&-", "/bin/bash -c "+shellQuote(child+"; :"))
+		cmd.ExtraFiles = append(cmd.ExtraFiles, startedWriter, blocked)
+		err := cmd.Start()
+		startedWriter.Close()
+		blocked.Close()
+		return err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	result, err := m.launchBackgroundUpdate(ctx, record{Prefix: "/usr/local", App: "/Applications/Nagi.app"}, artifact, false, lock)
-	if err == nil || result != nil || !strings.Contains(err.Error(), "cancelled") {
-		t.Fatalf("%v %v", result, err)
+	finished := make(chan error, 1)
+	go func() {
+		result, err := m.launchBackgroundUpdate(ctx, record{Prefix: "/usr/local", App: "/Applications/Nagi.app"}, artifact, false, lock)
+		if result != nil {
+			finished <- fmt.Errorf("unexpected result: %v", result)
+			return
+		}
+		finished <- err
+	}()
+	var ready [1]byte
+	if _, err := io.ReadFull(started, ready[:]); err != nil {
+		t.Fatalf("authorization descendant did not start: %v", err)
+	}
+	if ready[0] != 'r' {
+		t.Fatalf("unexpected authorization readiness: %q", ready[:])
+	}
+	cancel()
+	select {
+	case err := <-finished:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("unexpected cancellation: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("authorization process tree did not stop")
 	}
 	// Parent cleanup closes the final descriptor; no authorization descendant may
 	// retain it and prevent an immediate retry.

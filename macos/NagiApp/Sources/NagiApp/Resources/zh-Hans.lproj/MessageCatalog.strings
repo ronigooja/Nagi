@@ -8537,6 +8537,7 @@
 "system.installation.app.is.already.installed.use.nagi.update" = "App 已安装；请使用 nagi update";
 "system.installation.app.is.not.installed.use.nagi.app.install" = "App 未安装；请使用 nagi app install";
 "system.installation.app.management.is.supported.only.on.macos" = "App 管理仅支持 macOS";
+"system.installation.background.shutdown.unconfirmed" = "无法确认后台子进程已退出；无法确认维护锁已释放：%1$@";
 "system.installation.background.update.requires.an.installed.macos.app" = "后台更新需要已安装的 macOS App";
 "system.installation.cannot.authorize.update.nagi.remains.running.retry.update.and.approve" = "无法授权更新；Nagi 仍在运行；请重试“更新”并批准 macOS 授权对话框：%1$@";
 "system.installation.cannot.inspect.installation.recovery.state" = "无法检查安装恢复状态：%1$@";

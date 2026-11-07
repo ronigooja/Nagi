@@ -1,4 +1,5 @@
 {
+  "system.installation.background.shutdown.unconfirmed": "background descendant shutdown unconfirmed; maintenance lock release unconfirmed: {arg0}",
   "system.installation.cannot.start.background.update": "cannot start background update: {arg0}",
   "system.installation.update.preparation.cancelled.nagi.remains.running": "update preparation cancelled; Nagi remains running: {arg0}",
   "system.installation.cannot.authorize.update.nagi.remains.running.retry.update.and.approve": "cannot authorize update; Nagi remains running; retry Update and approve the macOS authorization dialog: {arg0}",

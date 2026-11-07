@@ -65,6 +65,9 @@ jobs:
       - name: Verify LAN race safety
         run: |
           go test -race ./internal/privileged/configpolicy ./internal/privileged/server ./internal/command -run 'Test(LAN|ValidateLAN)' > "$RUNNER_TEMP/lan-race.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/lan-race.log"; exit 1; }
+      - name: Verify maintenance process lifetime repeatedly
+        run: |
+          go test -race ./internal/installation -run 'Test(CancelledAuthorizationKillsDescendantsAndAllowsRetry|DetachedHandoffKeepsLockAndReopensAfterFailure)$' -count=20 > "$RUNNER_TEMP/maintenance-lifetime.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/maintenance-lifetime.log"; exit 1; }
       - name: Verify root TUN and LAN together
         id: runtime
         continue-on-error: true

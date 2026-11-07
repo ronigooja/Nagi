@@ -5,6 +5,9 @@ package installation
 const nativeUpdateSudo = `#!/bin/bash
 set -euo pipefail
 exec 3>&-
+# Authorization Services may outlive or escape the updater process group. It
+# owns neither the maintenance lock nor the preparation lifetime barrier.
+exec 4>&-
 bridge=$(cd "$(dirname "$0")" && pwd)
 if [[ "$#" == 2 && "$1" == -n && "$2" == true ]]; then
     [[ -s "$bridge/ready" && ! -e "$bridge/ended" ]]

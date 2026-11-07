@@ -32131,6 +32131,9 @@
   "system.installation.app.is.already.installed.use.nagi.update": {},
   "system.installation.app.is.not.installed.use.nagi.app.install": {},
   "system.installation.app.management.is.supported.only.on.macos": {},
+  "system.installation.background.shutdown.unconfirmed": {
+    "arg0": "string"
+  },
   "system.installation.background.update.requires.an.installed.macos.app": {},
   "system.installation.cannot.authorize.update.nagi.remains.running.retry.update.and.approve": {
     "arg0": "string"

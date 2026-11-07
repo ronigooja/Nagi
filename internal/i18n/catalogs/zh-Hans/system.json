@@ -1,4 +1,5 @@
 {
+  "system.installation.background.shutdown.unconfirmed": "无法确认后台子进程已退出；无法确认维护锁已释放：{arg0}",
   "system.installation.cannot.start.background.update": "无法启动后台更新：{arg0}",
   "system.installation.update.preparation.cancelled.nagi.remains.running": "更新准备已取消；Nagi 仍在运行：{arg0}",
   "system.installation.cannot.authorize.update.nagi.remains.running.retry.update.and.approve": "无法授权更新；Nagi 仍在运行；请重试“更新”并批准 macOS 授权对话框：{arg0}",

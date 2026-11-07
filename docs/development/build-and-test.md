@@ -80,7 +80,8 @@ optional pre-LAN macOS baseline comparison. No job depends on another; networkin
 fixtures within each backend job remain sequential to isolate route/DNS changes.
 It uses GitHub-hosted Linux/macOS runners for Go tests, focused race checks, engine
 policy/listener tests and builds, native App tests/package, and isolated root
-networking fixtures. It uploads no artifacts. Run it after changing the LAN
+networking fixtures. Failed native jobs retain only their test/build logs for
+three days; successful jobs upload no artifacts. Run it after changing the LAN
 boundary or pinned engine; an optional exact `engine_ref` tests a candidate before
 advancing the pin.
 
