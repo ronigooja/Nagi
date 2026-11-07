@@ -93,6 +93,9 @@ import SwiftUI
             if changesSelection { XCTAssertGreaterThan(observedTabs.count, observationsBeforeSelection) }
             XCTAssertEqual(window.frame, frameBeforeSelection)
             if tab == .preview {
+                // Previous tabs finish at minimum size, where both pane
+                // minimums can leave no space to move the divider.
+                window.setFrame(NSRect(origin: initial.origin, size: initial.size), display: true)
                 let previewFrame = window.frame
                 for _ in 0..<5 {
                     host.layoutSubtreeIfNeeded()
