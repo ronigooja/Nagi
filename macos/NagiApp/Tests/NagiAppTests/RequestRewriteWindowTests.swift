@@ -44,6 +44,8 @@ import SwiftUI
         let controller = RequestRewriteWindowController(model: model)
         let window = try XCTUnwrap(controller.window)
         defer { window.close() }
+        let restoreAccessibility = NativeAccessibilityFixture.enable()
+        defer { restoreAccessibility() }
         let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
         XCTAssertTrue(screen.contains(window.frame))
         controller.present()
@@ -61,14 +63,46 @@ import SwiftUI
         XCTAssertEqual(window.frame, initial)
         let host = try XCTUnwrap(window.contentView as? NSHostingView<RequestRewriteView>)
         XCTAssertTrue(host.sizingOptions.isEmpty)
-        func findTabs(_ view: NSView) -> NSTabView? {
-            if let tabs = view as? NSTabView { return tabs }
-            return view.subviews.lazy.compactMap { findTabs($0) }.first
+        // SwiftUI can render tabs as virtual AX radio buttons rather than
+        // NSTabView descendants. Exercise the user-facing controls, not that
+        // private implementation detail, and prove each press changes selection.
+        let tabLabels = ["app.ui.rules", "app.ui.scripts", "app.ui.status",
+                         "app.ui.local_preview", "app.ui.certificate_trust"].map { L10n.text($0) }
+        func tabs() -> [NSObject] {
+            NativeAccessibilityFixture.elements(in: host).filter { element in
+                guard element.responds(to: NSSelectorFromString("accessibilityRole")),
+                      element.responds(to: NSSelectorFromString("accessibilityLabel")),
+                      let label = element.value(forKey: "accessibilityLabel") as? String,
+                      tabLabels.contains(label) else { return false }
+                let role = element.value(forKey: "accessibilityRole") as? String
+                return role == NSAccessibility.Role.radioButton.rawValue || role == NSAccessibility.Role.button.rawValue
+            }
         }
-        let tabs = try XCTUnwrap(findTabs(host))
-        XCTAssertEqual(tabs.numberOfTabViewItems, 5)
-        for index in 0..<tabs.numberOfTabViewItems {
-            tabs.selectTabViewItem(at: index)
+        func selected(_ element: NSObject) -> Bool {
+            for attribute in ["accessibilitySelected", "accessibilityValue"] {
+                if element.responds(to: NSSelectorFromString(attribute)),
+                   (element.value(forKey: attribute) as? NSNumber)?.boolValue == true { return true }
+            }
+            return false
+        }
+        for _ in 0..<100 {
+            host.layoutSubtreeIfNeeded()
+            if tabs().count == tabLabels.count { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(tabs().count, 5)
+        XCTAssertEqual(tabs().filter(selected).compactMap { $0.value(forKey: "accessibilityLabel") as? String }, [tabLabels[0]])
+        for (index, label) in tabLabels.enumerated() {
+            let tab = try XCTUnwrap(tabs().first { $0.value(forKey: "accessibilityLabel") as? String == label }, label)
+            let press = NSSelectorFromString("accessibilityPerformPress")
+            XCTAssertTrue(tab.responds(to: press), label)
+            tab.perform(press)
+            for _ in 0..<100 {
+                host.layoutSubtreeIfNeeded()
+                if tabs().contains(where: { $0.value(forKey: "accessibilityLabel") as? String == label && selected($0) }) { break }
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+            XCTAssertEqual(tabs().filter(selected).compactMap { $0.value(forKey: "accessibilityLabel") as? String }, [label])
             if index == 3 {
                 let previewFrame = window.frame
                 for _ in 0..<5 {
@@ -112,11 +146,15 @@ import SwiftUI
             host.layoutSubtreeIfNeeded()
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        XCTAssertEqual(window.frame.size, window.minSize)
+        XCTAssertGreaterThanOrEqual(window.frame.width, window.minSize.width)
+        XCTAssertGreaterThanOrEqual(window.frame.height, window.minSize.height)
+        XCTAssertLessThanOrEqual(window.frame.width, ceil(window.minSize.width))
+        XCTAssertLessThanOrEqual(window.frame.height, ceil(window.minSize.height))
+        let resized = window.frame.size
         window.close()
         await model.waitForCancelledRead()
         controller.present()
-        XCTAssertEqual(window.frame.size, window.minSize)
+        XCTAssertEqual(window.frame.size, resized)
     }
 
     func testWindowIsIndependentReusableAndCloseNeverStopsService() async throws {

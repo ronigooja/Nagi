@@ -272,7 +272,9 @@ final class ConnectionsTests: XCTestCase {
         await waitUntil { model.state == .stale }
         XCTAssertEqual(model.connections.map(\.id), ["a"])
         XCTAssertFalse(model.canClose)
-        XCTAssertTrue(model.errorMessage?.contains(L10n.text("app.protocol.stale")) == true)
+        XCTAssertEqual(model.errorMessage, L10n.format(
+            "app.ui.connection_list_unavailable_displayed_data_is_stale",
+            CLIError.command("mihomo_api_error", "API unavailable").localizedDescription))
         await waitUntil { requests.readCount == 3 }
         requests.failRead(3, CLIError.command("response_too_large", "large"))
         await waitUntil { model.automaticRefreshPaused }

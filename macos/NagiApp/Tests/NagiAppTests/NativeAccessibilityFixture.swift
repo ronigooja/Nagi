@@ -13,13 +13,17 @@ import XCTest
 
     // SwiftUI virtual nodes implement these Objective-C selectors without
     // declaring NSAccessibilityProtocol conformance. Native controls use them too.
-    static func buttons(in element: NSObject) -> [NSObject] {
-        let role = element.responds(to: NSSelectorFromString("accessibilityRole"))
-            ? element.value(forKey: "accessibilityRole") as? String : nil
-        let own = role == NSAccessibility.Role.button.rawValue ? [element] : []
+    static func elements(in element: NSObject) -> [NSObject] {
         let children = element.responds(to: NSSelectorFromString("accessibilityChildren"))
             ? element.value(forKey: "accessibilityChildren") as? [NSObject] ?? [] : []
-        return own + children.flatMap { buttons(in: $0) }
+        return [element] + children.flatMap { elements(in: $0) }
+    }
+
+    static func buttons(in element: NSObject) -> [NSObject] {
+        elements(in: element).filter {
+            $0.responds(to: NSSelectorFromString("accessibilityRole")) &&
+                $0.value(forKey: "accessibilityRole") as? String == NSAccessibility.Role.button.rawValue
+        }
     }
 
     static func snapshot(_ view: NSView, name: String) throws {

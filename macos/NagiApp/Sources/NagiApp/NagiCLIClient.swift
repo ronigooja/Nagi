@@ -13,6 +13,11 @@ struct NagiCLIClient {
         self.appUpdateTimeout = appUpdateTimeout
     }
 
+    /// Only App updates wait for release downloads and native authorization.
+    func commandTimeout(for arguments: [String]) -> TimeInterval {
+        arguments == ["update", "--app"] ? appUpdateTimeout : timeout
+    }
+
     func run(_ arguments: [String]) async throws -> JSONValue {
         try await run(arguments, stdoutLimit: 1_048_576, as: JSONValue.self)
     }
@@ -164,9 +169,7 @@ struct NagiCLIClient {
         try holder.start(process)
         stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
         writersClosed = true
-        // Only App updates wait for release downloads and native authorization.
-        let commandTimeout = arguments == ["update", "--app"] ? appUpdateTimeout : timeout
-        holder.waitForExit(timeout: commandTimeout)
+        holder.waitForExit(timeout: commandTimeout(for: arguments))
         // Drain bytes already written before decoding. Do not wait for EOF:
         // a detached descendant may still hold an inherited pipe writer.
         outReader.finish(); errReader.finish()

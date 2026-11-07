@@ -40,10 +40,14 @@ final class LocalizationCoverageTests: XCTestCase {
     func testChineseResourcesTranslateAllNagiProseWithExplicitProtocolExceptions() throws {
         let exceptions: [String: Set<String>] = [
             "Localizable": ["app.ui.http", "app.ui.nagi_2", "app.browser.chrome"], // HTTP/product plus placeholders only.
-            "MessageCatalog": ["cli.error.validation.external", "cli.output.writerewrite.ca"] // External cause only; CA acronym.
+            "MessageCatalog": ["cli.error.validation.external", "cli.output.writerewrite.ca", "cli.display.derp"] // External cause only; CA acronym; DERP protocol name.
         ]
         for table in ["Localizable", "MessageCatalog"] {
             let english = try strings(table, "en"), chinese = try strings(table, "zh-Hans")
+            if table == "MessageCatalog" {
+                XCTAssertEqual(english["cli.display.derp"], "DERP")
+                XCTAssertEqual(chinese["cli.display.derp"], "DERP")
+            }
             for (key, value) in english where value == chinese[key] {
                 XCTAssertTrue(exceptions[table]?.contains(key) == true, key + ": untranslated Nagi prose")
             }

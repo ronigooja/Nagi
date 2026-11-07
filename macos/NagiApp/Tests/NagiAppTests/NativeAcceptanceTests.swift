@@ -95,7 +95,14 @@ import XCTest
                     try await Task.sleep(nanoseconds: 20_000_000)
                 }
                 XCTAssertEqual(window.minSize, expectedMinimum)
-                XCTAssertEqual(window.frame.size, expectedMinimum)
+                // A fractional minimum is a lower bound, not a realizable frame:
+                // AppKit rounds the frame up without changing the stored minimum.
+                XCTAssertGreaterThanOrEqual(window.frame.width, expectedMinimum.width)
+                XCTAssertGreaterThanOrEqual(window.frame.height, expectedMinimum.height)
+                XCTAssertLessThanOrEqual(window.frame.width, ceil(expectedMinimum.width))
+                XCTAssertLessThanOrEqual(window.frame.height, ceil(expectedMinimum.height))
+                let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
+                XCTAssertTrue(screen.contains(window.frame))
                 XCTAssertTrue(window.title.hasPrefix(kind == "capture"
                     ? (chinese ? "Nagi 请求捕获" : "Nagi Capture")
                     : (chinese ? "Nagi 请求改写" : "Nagi Request Rewrite")))

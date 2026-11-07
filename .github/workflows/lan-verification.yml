@@ -110,6 +110,17 @@ jobs:
       - name: Require App checks to pass
         if: always() && (steps.tests.outcome == 'failure' || steps.lan.outcome == 'failure' || steps.package.outcome == 'failure')
         run: exit 1
+      - name: Retain failed native diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-native-tests
+          path: |
+            ${{ runner.temp }}/app-tests.log
+            ${{ runner.temp }}/lan-app-tests.log
+            ${{ runner.temp }}/app-build.log
+          if-no-files-found: ignore
+          retention-days: 3
 
   baseline:
     name: Pre-LAN macOS baseline

@@ -314,8 +314,54 @@ import XCTest
     func testRetryStartDrainsQueuedStartupRefresh() async {
         let commands = Commands(), model: AppModel
         model = commands.model()
+        defer { model.pauseForSleep() }
+        commands.blocked = "start"
         model.retryStart()
-        await waitUntil { commands.count("status") == 1 && commands.count("subscription list") == 1 }
+        await waitUntil { commands.continuation != nil }
+        XCTAssertTrue(model.busy)
+        XCTAssertEqual(model.state, .starting)
+        await model.refresh()
+        XCTAssertEqual(commands.count("status"), 0, "reads must queue while startup is blocked")
+        XCTAssertEqual(commands.count("subscription list"), 0)
+
+        let reconciled = expectation(description: "queued startup refresh completed")
+        model.onChange = {
+            guard !model.busy, model.subscriptions.count == 1, model.selectedBackend == "user" else { return }
+            model.onChange = nil
+            reconciled.fulfill()
+        }
+        commands.release()
+        await fulfillment(of: [reconciled], timeout: 1)
+        XCTAssertEqual(commands.count("start"), 1)
+        XCTAssertEqual(commands.count("status"), 1)
+        XCTAssertEqual(commands.count("subscription list"), 1)
+        XCTAssertFalse(model.busy)
+        XCTAssertEqual(model.state, .running)
+    }
+
+    func testRetryStartUsesReconciledStatusWhenEngineStopsAfterStart() async {
+        let commands = Commands(), model = commands.model()
+        defer { model.pauseForSleep() }
+        commands.blocked = "status"
+        model.retryStart()
+        await waitUntil { commands.continuation != nil }
+        XCTAssertEqual(commands.count("start"), 1)
+        XCTAssertTrue(commands.running)
+        XCTAssertEqual(model.state, .starting, "start success alone must not imply a running status")
+        XCTAssertEqual(commands.count("subscription list"), 0)
+
+        let reconciled = expectation(description: "stopped engine status reconciled")
+        model.onChange = {
+            guard model.state == .stopped, model.subscriptions.count == 1 else { return }
+            model.onChange = nil
+            reconciled.fulfill()
+        }
+        commands.running = false
+        commands.release()
+        await fulfillment(of: [reconciled], timeout: 1)
+        XCTAssertEqual(commands.count("start"), 1, "reconciliation must not retry startup")
+        XCTAssertEqual(commands.count("status"), 1)
+        XCTAssertEqual(commands.count("subscription list"), 1)
         XCTAssertFalse(model.busy)
         XCTAssertEqual(model.state, .stopped)
     }

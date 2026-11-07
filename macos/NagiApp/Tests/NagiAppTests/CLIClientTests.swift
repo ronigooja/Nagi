@@ -73,12 +73,27 @@ final class CLIClientTests: XCTestCase {
     }
 
     func testOnlyAppUpdateUsesLongerPreparationTimeout() async throws {
-        let script = try fixture(#"""
-        exec /usr/bin/python3 -c 'import json,time; time.sleep(0.3); print(json.dumps({"ok":True,"data":{"scheduled":True}}))'
-        """#)
-        let client = NagiCLIClient(executable: script, timeout: 0.05, appUpdateTimeout: 2)
+        let script = try fixture(#"printf '{"ok":true,"data":{"scheduled":true}}'"#)
+        let client = NagiCLIClient(executable: script, timeout: 17, appUpdateTimeout: 91)
+        let defaults = NagiCLIClient()
+        // Assert policy directly: interpreter startup and scheduling must not
+        // decide whether a successful command fits between two short deadlines.
+        XCTAssertEqual(defaults.commandTimeout(for: ["update", "--app"]), 900)
+        XCTAssertEqual(client.commandTimeout(for: ["update", "--app"]), 91)
+        for arguments in [["status"], ["update"], ["app", "update-error"],
+                          ["update", "--app", "extra"], ["--app", "update"], []] {
+            XCTAssertEqual(defaults.commandTimeout(for: arguments), 45, "\(arguments)")
+            XCTAssertEqual(client.commandTimeout(for: arguments), 17, "\(arguments)")
+        }
         let result = try await client.run(["update", "--app"])
         XCTAssertEqual(result["scheduled"]?.bool, true)
+    }
+
+    func testOrdinaryAndAppUpdatePreparationDeadlinesTerminateBlockedChildren() async throws {
+        // No interpreter initialization or finite sleep can race a success
+        // deadline: this child remains blocked until the client terminates it.
+        let script = try fixture("exec /bin/sleep 30")
+        let client = NagiCLIClient(executable: script, timeout: 0.05, appUpdateTimeout: 900)
         for arguments in [["status"], ["update"], ["app", "update-error"]] {
             do { _ = try await client.run(arguments); XCTFail("Expected ordinary command timeout") }
             catch CLIError.timeout { }

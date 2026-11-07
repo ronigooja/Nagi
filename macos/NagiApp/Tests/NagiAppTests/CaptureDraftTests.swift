@@ -61,7 +61,13 @@ final class CaptureDraftIntentTests: XCTestCase {
         defer { window.close() }
         let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
         let initial = window.frame
-        XCTAssertEqual(initial, CaptureDraftWindowController.layout.initialFrame(in: screen))
+        let requested = CaptureDraftWindowController.layout.initialFrame(in: screen)
+        // AppKit rounds fractional frame requests to native coordinates.
+        XCTAssertEqual(initial.minX, requested.minX, accuracy: 1)
+        XCTAssertEqual(initial.minY, requested.minY, accuracy: 1)
+        XCTAssertEqual(initial.width, requested.width, accuracy: 1)
+        XCTAssertEqual(initial.height, requested.height, accuracy: 1)
+        XCTAssertTrue(screen.contains(initial))
         XCTAssertEqual(window.minSize, CaptureDraftWindowController.layout.minimumFrameSize(in: screen))
         controller.present()
         let restoreAccessibility = NativeAccessibilityFixture.enable()
