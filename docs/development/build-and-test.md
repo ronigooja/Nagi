@@ -72,6 +72,27 @@ The tag-triggered [release workflow](../../.github/workflows/release.yml) runs r
 
 The current lock points at a commit available on the configured fork's `main` branch and includes the `--check-json`, restricted configuration policy, activation ID, age decryption, `dns.resolve-proxy-destinations`, destination rule testing, restricted Tailscale state/lifecycle, request-rewrite v2 and capture protocol 1 interfaces used by Nagi. Follow the [engine maintenance workflow](engine-maintenance.md) to integrate changes into the fork's `main`, publish and verify the source, and update the lock. A successful build with `MIHOMO_DIR` alone does not establish remote availability.
 
+## Privileged LAN verification
+
+The manually dispatched [LAN workflow](../../.github/workflows/lan-verification.yml)
+uses GitHub-hosted Linux/macOS runners for Go tests, focused race checks, engine
+policy/listener tests and builds, native App tests/package, and isolated root
+networking fixtures. It uploads no artifacts. Run it after changing the LAN
+boundary or pinned engine; an optional exact `engine_ref` tests a candidate before
+advancing the pin.
+
+[Run 42343645476](https://github.com/ronigooja/Nagi/actions/runs/42343645476)
+passed Linux verification and macOS engine/helper-runtime checks against engine
+`5327dd123480ddef47fa082cac23f9e1623ecf24`. These cover wildcard/specific IPv4
+proxy forwarding with an up TUN, disable preserving TUN, forced profile reload,
+private controller, and macOS managed DNS retention/restoration. The helper
+fixture calls `RuntimeHandler` directly as root; it does not test daemon socket
+authentication or a real login user's profile ownership. Fixtures deny UDP
+forwarding and non-loopback destinations, and operate only on disposable runners.
+They do not prove traffic entering TUN, another device's reachability, or firewall
+configuration. Native App assertions failed in that run and remain under diagnosis;
+manual desktop interaction remains unverified.
+
 ## Subscription application validation
 
 The October 2026 validation-wait change passed `go test -p=1 ./...`, race checks for `internal/profile`, `internal/menu`, `internal/command`, and `internal/i18n`, the installer integration script, and `make build cli`. Regression checks cover effective-candidate validation with retained local nodes, earlier context deadlines and cancellation, unchanged source/selection after failure, temporary-file cleanup, and immediate English/Chinese stage messages with deferred completion feedback. Native descriptor resources were regenerated with the existing catalog tool.

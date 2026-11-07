@@ -110,7 +110,7 @@ Nagi uses [mihomo](https://github.com/MetaCubeX/mihomo) for proxy protocols, DNS
 - [Capture design](docs/design/request-capture.md): engine capture policy, recorder protocol, session recovery and draft transactions.
 - [Architecture decision](docs/decisions/0001-pin-mihomo-commit.md): mihomo source pinning.
 - [Restricted root configuration decision](docs/decisions/0003-restricted-root-configuration.md): privileged helper and mihomo validation boundary.
-- [Deliberate LAN exposure decision](docs/decisions/0014-deliberate-lan-proxy-exposure.md): accepted simultaneous privileged-TUN/proxy-sharing boundary; coordinated engine/helper integration and verification pending.
+- [Deliberate LAN exposure decision](docs/decisions/0014-deliberate-lan-proxy-exposure.md): simultaneous privileged TUN and proxy sharing with a private controller and narrow listener policy.
 - [Per-profile rules decision](docs/decisions/0008-per-profile-rules.md): isolated rule ownership and subscription validation.
 - [General subscription chains decision](docs/decisions/0013-general-subscription-chains.md): versioned sensitive hop definitions, shared dependencies, and native engine composition.
 - [Privileged Tailscale state decision](docs/decisions/0006-privileged-tailscale-state.md): persistent identity isolation and adapter handoff.

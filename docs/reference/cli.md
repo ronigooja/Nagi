@@ -745,7 +745,7 @@ On macOS, JSON payloads for `system-proxy status|enable|disable` include `enable
 
 ### LAN exposure boundary
 
-**Integration status:** simultaneous privileged TUN and LAN access is the accepted implementation target in [decision 0014](../decisions/0014-deliberate-lan-proxy-exposure.md), not a verified capability of the engine currently pinned in this checkout. Integration must update mihomo and the helper together and advance `engine.lock`; CI and runtime acceptance are pending. The following privileged-policy contract applies to that coordinated implementation.
+Simultaneous privileged TUN and LAN access is implemented by the matching engine in `engine.lock` and the helper. Linux/macOS engine and helper-runtime acceptance passed; native App test completion and manual desktop interaction remain separate verification gates. [Decision 0014](../decisions/0014-deliberate-lan-proxy-exposure.md) records the exposure boundary. Installation requires the matching CLI, restarted helper, and engine together; existing installed binaries do not gain this support from a source change.
 
 Privileged mode permits deliberate exposure of only the top-level HTTP (`port`), SOCKS (`socks-port`), and mixed (`mixed-port`) proxy listeners. Each port must be `0` (disabled) or `1024`–`65535`; privileged execution does not authorize low listener ports. `allow-lan` remains a boolean. Configuration accepts literal IPv4 or IPv6 bind addresses, `*`, and legacy `localhost`; arbitrary hostnames are not supported. CLI `lan enable ADDRESS` accepts literal IP addresses only: omit ADDRESS for `*`, rather than passing a wildcard or `localhost` explicitly.
 

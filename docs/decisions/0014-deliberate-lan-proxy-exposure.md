@@ -2,11 +2,11 @@
 
 Status: accepted
 
-Scope: the accepted coordinated mihomo/helper implementation target for simultaneous privileged TUN and top-level proxy sharing. Engine pin integration, CI, and runtime acceptance are pending; this decision is not evidence that the currently pinned engine supports the target.
+Scope: the implemented coordinated mihomo/helper boundary for simultaneous privileged TUN and top-level proxy sharing. Linux/macOS engine and helper-runtime acceptance passed; native App and manual desktop verification are recorded separately in the development documentation.
 
 ## Context
 
-The root helper provides TUN permissions without giving the user direct access to a root controller. Existing restricted configuration validation prevents non-loopback proxy exposure, so runtime LAN commands alone cannot provide simultaneous privileged TUN and LAN sharing. Requiring a user-backend switch would sacrifice the helper's TUN/DNS permissions and conflate proxy sharing with process privilege selection.
+The root helper provides TUN permissions without giving the user direct access to a root controller. The previous restricted configuration validation prevented non-loopback proxy exposure, so runtime LAN commands alone could not provide simultaneous privileged TUN and LAN sharing. Requiring a user-backend switch would sacrifice the helper's TUN/DNS permissions and conflate proxy sharing with process privilege selection.
 
 The intended user action is to share ordinary proxy listeners deliberately, not to expose management APIs, DNS, or arbitrary inbound protocols. Mihomo owns listener semantics and native restricted-policy enforcement; Nagi owns authenticated helper operations and configuration/lifecycle coordination.
 
@@ -24,9 +24,9 @@ LAN operations use the selected backend and existing controller mediation. They 
 
 ## Consequences
 
-Users can intentionally share ordinary proxy listeners while retaining privileged TUN once the coordinated implementation is integrated and verified. This is a deliberate expansion of root proxy-listener exposure, not a general relaxation of root configuration policy. Wildcards are not LAN-only isolation, loopback cannot share with other devices, and enabling access supplies neither authentication nor firewall protection. Users remain responsible for reachable-interface selection and access controls.
+Users can intentionally share ordinary proxy listeners while retaining privileged TUN. This is a deliberate expansion of root proxy-listener exposure, not a general relaxation of root configuration policy. Wildcards are not LAN-only isolation, loopback cannot share with other devices, and enabling access supplies neither authentication nor firewall protection. Users remain responsible for reachable-interface selection and access controls.
 
-The engine and helper must ship together with an updated engine pin. Until that integration and its evidence exist, guides and references must identify simultaneous privileged TUN/LAN as pending rather than a released or verified capability. Existing clients retain their CLI/JSON interface and runtime-only LAN behavior.
+The matching engine and helper must ship together. Source integration does not establish binary-release availability. Existing clients retain their CLI/JSON interface and runtime-only LAN behavior.
 
 ## Verification gates
 
