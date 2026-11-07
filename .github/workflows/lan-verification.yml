@@ -42,6 +42,8 @@ jobs:
           path: .build/mihomo
           ssh-key: ${{ secrets.NAGI_MIHOMO_DEPLOY_KEY }}
       - name: Verify Nagi
+        id: nagi
+        continue-on-error: true
         run: |
           export TMPDIR=/tmp
           if [[ "$RUNNER_OS" == macOS ]]; then export TMPDIR=/private/tmp; fi
@@ -60,7 +62,7 @@ jobs:
         working-directory: .build/mihomo
         run: |
           go test -c -o "$RUNNER_TEMP/lan-validation.test" ./integration/validation > "$RUNNER_TEMP/validation-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/validation-build.log"; exit 1; }
-          sudo env GITHUB_ACTIONS=true MIHOMO_VALIDATION_BIN="$RUNNER_TEMP/mihomo" MIHOMO_TEST_TUN_LAN=1 "$RUNNER_TEMP/lan-validation.test" -test.run '^TestRestrictedTUNLAN$' -test.v
+          sudo env GITHUB_ACTIONS=true MIHOMO_VALIDATION_BIN="$RUNNER_TEMP/mihomo" MIHOMO_TEST_TUN_LAN=1 "$RUNNER_TEMP/lan-validation.test" -test.run '^TestRestrictedTUNLAN$' -test.v -test.timeout 5m
       - name: Verify macOS App
         if: runner.os == 'macOS'
         run: |
@@ -69,4 +71,7 @@ jobs:
       - name: Verify real helper TUN, LAN and managed DNS
         run: |
           go test -c -o "$RUNNER_TEMP/helper-lan.test" ./internal/privileged/server > "$RUNNER_TEMP/helper-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/helper-build.log"; exit 1; }
-          sudo env GITHUB_ACTIONS=true NAGI_LAN_ENGINE="$RUNNER_TEMP/mihomo" "$RUNNER_TEMP/helper-lan.test" -test.run '^TestLANPrivilegedTUNIntegration$' -test.v
+          sudo env GITHUB_ACTIONS=true NAGI_LAN_ENGINE="$RUNNER_TEMP/mihomo" "$RUNNER_TEMP/helper-lan.test" -test.run '^TestLANPrivilegedTUNIntegration$' -test.v -test.timeout 5m
+      - name: Require Nagi checks to pass
+        if: always() && steps.nagi.outcome == 'failure'
+        run: exit 1

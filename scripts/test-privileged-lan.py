@@ -40,7 +40,7 @@ def main():
         conn = UnixHTTP(controller, timeout=5)
         try:
             body = None if payload is None else json.dumps(payload)
-            conn.request(method, "/configs", body, {"Content-Type": "application/json"})
+            conn.request(method, "/configs", body, {"Content-Type": "application/json", "Host": "engine"})
             response = conn.getresponse()
             data = response.read()
             assert response.status < 300, (response.status, data)
