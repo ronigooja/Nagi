@@ -53,6 +53,10 @@ jobs:
         run: |
           go test -tags with_gvisor ./component/configpolicy ./hub/route ./listener > "$RUNNER_TEMP/engine-tests.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/engine-tests.log"; exit 1; }
           go build -tags with_gvisor -o "$RUNNER_TEMP/mihomo" . > "$RUNNER_TEMP/engine-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/engine-build.log"; exit 1; }
+      - name: Verify rewrite and capture engine
+        working-directory: .build/mihomo
+        run: |
+          go test -race -tags with_gvisor ./tunnel > "$RUNNER_TEMP/engine-rewrite.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/engine-rewrite.log"; exit 1; }
       - name: Verify LAN race safety
         run: |
           go test -race ./internal/privileged/configpolicy ./internal/privileged/server ./internal/command -run 'Test(LAN|ValidateLAN)' > "$RUNNER_TEMP/lan-race.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/lan-race.log"; exit 1; }

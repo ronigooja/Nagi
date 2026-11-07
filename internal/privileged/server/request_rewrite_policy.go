@@ -265,7 +265,7 @@ func filterRewriteResponse(req privileged.Request, response privileged.Response)
 	}
 	switch {
 	case req.Method == "GET" && u.Path == "/request-rewrite/capabilities":
-		keys = []string{"versions", "tun_only", "original_context", "reinjection", "quic_domain_block", "max_contexts", "max_streams_per_context", "context_idle_seconds", "context_max_seconds", "capture_protocol"}
+		keys = []string{"versions", "tun_only", "tun_required", "proxy_listener_capture", "original_context", "reinjection", "quic_domain_block", "max_contexts", "max_streams_per_context", "context_idle_seconds", "context_max_seconds", "capture_protocol"}
 	case req.Method == "PUT" && u.Path == "/request-rewrite/session":
 		keys = []string{"version", "generation", "engine_epoch", "reinjection_addr", "engine_transport_cert", "state"}
 	case req.Method == "POST":

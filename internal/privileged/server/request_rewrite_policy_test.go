@@ -142,6 +142,11 @@ func TestRewriteResponseProjection(t *testing.T) {
 	if e != nil || strings.Contains(string(response.Body), "SECRET") || !strings.Contains(string(response.Body), "rewrite_invalid") {
 		t.Fatal("error exposed input")
 	}
+	req.Path = "/request-rewrite/capabilities"
+	response, e = filterRewriteResponse(req, privileged.Response{OK: true, Status: 200, Body: []byte(`{"tun_only":false,"tun_required":true,"proxy_listener_capture":1,"secret":"PRIVATE"}`)})
+	if e != nil || !strings.Contains(string(response.Body), `"tun_required":true`) || !strings.Contains(string(response.Body), `"proxy_listener_capture":1`) || strings.Contains(string(response.Body), "PRIVATE") {
+		t.Fatal("listener capabilities were not safely projected")
+	}
 }
 
 func TestRewriteOwnerBootstrapHelpDiscovery(t *testing.T) {

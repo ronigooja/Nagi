@@ -24,16 +24,18 @@ type RewritePrepare struct {
 }
 
 type RewriteCapabilities struct {
-	CaptureProtocol int   `json:"capture_protocol"`
-	Versions        []int `json:"versions"`
-	TUNOnly         bool  `json:"tun_only"`
-	OriginalContext bool  `json:"original_context"`
-	Reinjection     bool  `json:"reinjection"`
-	QUIC            bool  `json:"quic_domain_block"`
-	MaxContexts     int   `json:"max_contexts"`
-	MaxStreams      int   `json:"max_streams_per_context"`
-	ContextIdle     int   `json:"context_idle_seconds"`
-	ContextMax      int   `json:"context_max_seconds"`
+	CaptureProtocol      int   `json:"capture_protocol"`
+	ProxyListenerCapture int   `json:"proxy_listener_capture"`
+	Versions             []int `json:"versions"`
+	TUNOnly              bool  `json:"tun_only"`
+	TUNRequired          bool  `json:"tun_required"`
+	OriginalContext      bool  `json:"original_context"`
+	Reinjection          bool  `json:"reinjection"`
+	QUIC                 bool  `json:"quic_domain_block"`
+	MaxContexts          int   `json:"max_contexts"`
+	MaxStreams           int   `json:"max_streams_per_context"`
+	ContextIdle          int   `json:"context_idle_seconds"`
+	ContextMax           int   `json:"context_max_seconds"`
 }
 
 func (c RewriteCapabilities) Supported() bool {
@@ -41,7 +43,8 @@ func (c RewriteCapabilities) Supported() bool {
 	for _, v := range c.Versions {
 		version = version || v == RewriteProtocolVersion
 	}
-	return version && c.TUNOnly && c.OriginalContext && c.Reinjection && c.QUIC && c.MaxContexts >= 1024 && c.MaxStreams >= 64 && c.ContextIdle >= 60 && c.ContextMax >= 3600
+	ingressSupported := c.TUNOnly || (c.TUNRequired && c.ProxyListenerCapture == 1)
+	return version && ingressSupported && c.OriginalContext && c.Reinjection && c.QUIC && c.MaxContexts >= 1024 && c.MaxStreams >= 64 && c.ContextIdle >= 60 && c.ContextMax >= 3600
 }
 
 type RewriteCapture struct {
