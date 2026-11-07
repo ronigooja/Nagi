@@ -74,7 +74,7 @@ The current lock points at a commit available on the configured fork's `main` br
 
 ## Privileged LAN verification
 
-Four separate `workflow_dispatch` workflows run independently on GitHub-hosted
+Three separate `workflow_dispatch` workflows run independently on GitHub-hosted
 runners, without job or cross-workflow dependencies:
 
 - [Linux backend](../../.github/workflows/lan-linux.yml): full Go tests, CLI
@@ -86,19 +86,14 @@ runners, without job or cross-workflow dependencies:
 - [macOS App](../../.github/workflows/lan-app.yml): full native suite, independent
   focused LAN/settings tests, and App packaging. A failed check fails the workflow
   even when subsequent checks pass.
-- [Pre-LAN macOS baseline](../../.github/workflows/lan-baseline.yml): optional
-  diagnostic comparison at exact commit
-  `bcf42e39922d5017268b1959ad7ac22d3d86ef8f`, with no inputs or effect on other
-  workflow results.
 
 After changing the LAN boundary or pinned engine, dispatch the two backends and
-App separately; dispatch the baseline only when a native comparison is needed:
+App separately:
 
 ```sh
 gh workflow run lan-linux.yml
 gh workflow run lan-macos.yml
 gh workflow run lan-app.yml
-gh workflow run lan-baseline.yml
 ```
 
 Both backend workflows accept an optional exact 40-character `engine_ref`
