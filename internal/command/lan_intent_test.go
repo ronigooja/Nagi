@@ -3,8 +3,9 @@ package command
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestSavedLANPreferenceOverlaysProfiles(t *testing.T) {
@@ -20,7 +21,8 @@ func TestSavedLANPreferenceOverlaysProfiles(t *testing.T) {
 		}
 		for _, source := range [][]byte{profile, []byte("mixed-port: 17900\nallow-lan: true\nbind-address: '*'\n")} {
 			data, err := applySavedLAN(paths, source)
-			if err != nil || !strings.Contains(string(data), "bind-address: "+preference.Address) && preference.Address != "*" || !strings.Contains(string(data), "allow-lan: "+map[bool]string{true: "true", false: "false"}[preference.Enabled]) {
+			var decoded map[string]any
+			if err != nil || yaml.Unmarshal(data, &decoded) != nil || decoded["allow-lan"] != preference.Enabled || decoded["bind-address"] != preference.Address {
 				t.Fatalf("overlay %+v: %s %v", preference, data, err)
 			}
 		}
@@ -36,7 +38,7 @@ func TestSavedLANPreferenceRejectsInvalidData(t *testing.T) {
 	if err := os.MkdirAll(paths.StateDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	for _, raw := range []string{`{}`, `{"enabled":true,"address":"bad"}`, `{"enabled":false,"address":"*"}`, `null`} {
+	for _, raw := range []string{`{}`, `{"address":"127.0.0.1"}`, `{"enabled":null,"address":"127.0.0.1"}`, `{"enabled":true,"address":"bad"}`, `{"enabled":false,"address":"*"}`, `{"enabled":true,"address":"*","extra":1}`, `null`} {
 		if err := os.WriteFile(filepath.Join(paths.StateDir, "lan-intent"), []byte(raw), 0600); err != nil {
 			t.Fatal(err)
 		}

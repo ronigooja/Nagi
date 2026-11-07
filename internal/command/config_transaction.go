@@ -307,6 +307,21 @@ func applyTransaction(ctx context.Context, paths nagiruntime.Paths, args []strin
 			}
 		}
 		if oldErr == nil {
+			// LAN PATCH does not advance activation_id. Preserve its observed
+			// values in rollback images even when a saved image predates it.
+			if enabled, ok := beforeCfg["allow-lan"].(bool); ok {
+				if address, ok := beforeCfg["bind-address"].(string); ok {
+					var doc map[string]any
+					if e := yaml.Unmarshal(oldEffective, &doc); e != nil || doc == nil {
+						oldErr = messageError("cli.error.config_transaction.prior_effective_configuration_is_invalid_yaml", "prior effective configuration is invalid YAML")
+					} else {
+						doc["allow-lan"], doc["bind-address"] = enabled, address
+						oldEffective, oldErr = yaml.Marshal(doc)
+					}
+				}
+			}
+		}
+		if oldErr == nil {
 			binary := os.Getenv("NAGI_MIHOMO_BIN")
 			if binary == "" {
 				exe, e := os.Executable()

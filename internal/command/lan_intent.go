@@ -1,8 +1,10 @@
 package command
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -24,8 +26,21 @@ func savedLANPreference(paths nagiruntime.Paths) (*lanPreference, error) {
 	if err != nil {
 		return nil, err
 	}
-	var preference lanPreference
-	if err := json.Unmarshal(data, &preference); err != nil || (preference.Address != "*" && net.ParseIP(preference.Address) == nil) || (!preference.Enabled && preference.Address != "127.0.0.1") {
+	var record struct {
+		Enabled *bool   `json:"enabled"`
+		Address *string `json:"address"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&record); err != nil || record.Enabled == nil || record.Address == nil {
+		return nil, messageError("cli.error.lan.invalid_preference", "invalid saved LAN preference")
+	}
+	var extra any
+	if decoder.Decode(&extra) != io.EOF {
+		return nil, messageError("cli.error.lan.invalid_preference", "invalid saved LAN preference")
+	}
+	preference := lanPreference{Enabled: *record.Enabled, Address: *record.Address}
+	if (preference.Address != "*" && net.ParseIP(preference.Address) == nil) || (!preference.Enabled && preference.Address != "127.0.0.1") {
 		return nil, messageError("cli.error.lan.invalid_preference", "invalid saved LAN preference")
 	}
 	return &preference, nil
