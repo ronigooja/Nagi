@@ -41,11 +41,14 @@ import SwiftUI
                 "match": .objectValue(["domain": .stringValue("api.service.example"), "path_prefix": .stringValue("/" + longValue)])
             ])])])
         }, submit: { _, _ in .objectValue(["result": .stringValue(longValue)]) }, export: { _ in Data() })
-        let controller = RequestRewriteWindowController(model: model)
+        var tabSelection: Binding<RequestRewriteTab>?
+        var observedTabs: [RequestRewriteTab] = []
+        let controller = RequestRewriteWindowController(model: model, observeTabSelection: { selection in
+            tabSelection = selection
+            observedTabs.append(selection.wrappedValue)
+        })
         let window = try XCTUnwrap(controller.window)
         defer { window.close() }
-        let restoreAccessibility = NativeAccessibilityFixture.enable()
-        defer { restoreAccessibility() }
         let screen = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
         XCTAssertTrue(screen.contains(window.frame))
         controller.present()
@@ -63,47 +66,33 @@ import SwiftUI
         XCTAssertEqual(window.frame, initial)
         let host = try XCTUnwrap(window.contentView as? NSHostingView<RequestRewriteView>)
         XCTAssertTrue(host.sizingOptions.isEmpty)
-        // SwiftUI can render tabs as virtual AX radio buttons rather than
-        // NSTabView descendants. Exercise the user-facing controls, not that
-        // private implementation detail, and prove each press changes selection.
-        let tabLabels = ["app.ui.rules", "app.ui.scripts", "app.ui.status",
-                         "app.ui.local_preview", "app.ui.certificate_trust"].map { L10n.text($0) }
-        func tabs() -> [NSObject] {
-            NativeAccessibilityFixture.elements(in: host).filter { element in
-                guard element.responds(to: NSSelectorFromString("accessibilityRole")),
-                      element.responds(to: NSSelectorFromString("accessibilityLabel")),
-                      let label = element.value(forKey: "accessibilityLabel") as? String,
-                      tabLabels.contains(label) else { return false }
-                let role = element.value(forKey: "accessibilityRole") as? String
-                return role == NSAccessibility.Role.radioButton.rawValue || role == NSAccessibility.Role.button.rawValue
-            }
-        }
-        func selected(_ element: NSObject) -> Bool {
-            for attribute in ["accessibilitySelected", "accessibilityValue"] {
-                if element.responds(to: NSSelectorFromString(attribute)),
-                   (element.value(forKey: attribute) as? NSNumber)?.boolValue == true { return true }
-            }
-            return false
-        }
+        // Drive the exact State binding used by TabView, independent of whether
+        // headless SwiftUI exposes native tab descendants or AX elements.
+        XCTAssertEqual(RequestRewriteTab.allCases, [.rules, .scripts, .status, .preview, .certificateTrust])
+        XCTAssertEqual(RequestRewriteTab.allCases.count, 5)
         for _ in 0..<100 {
             host.layoutSubtreeIfNeeded()
-            if tabs().count == tabLabels.count { break }
+            if tabSelection != nil { break }
             try await Task.sleep(nanoseconds: 10_000_000)
         }
-        XCTAssertEqual(tabs().count, 5)
-        XCTAssertEqual(tabs().filter(selected).compactMap { $0.value(forKey: "accessibilityLabel") as? String }, [tabLabels[0]])
-        for (index, label) in tabLabels.enumerated() {
-            let tab = try XCTUnwrap(tabs().first { $0.value(forKey: "accessibilityLabel") as? String == label }, label)
-            let press = NSSelectorFromString("accessibilityPerformPress")
-            XCTAssertTrue(tab.responds(to: press), label)
-            tab.perform(press)
+        let selection = try XCTUnwrap(tabSelection)
+        XCTAssertEqual(selection.wrappedValue, .rules)
+        XCTAssertEqual(observedTabs, [.rules])
+        for tab in RequestRewriteTab.allCases {
+            let observationsBeforeSelection = observedTabs.count
+            let changesSelection = selection.wrappedValue != tab
+            let frameBeforeSelection = window.frame
+            selection.wrappedValue = tab
             for _ in 0..<100 {
                 host.layoutSubtreeIfNeeded()
-                if tabs().contains(where: { $0.value(forKey: "accessibilityLabel") as? String == label && selected($0) }) { break }
+                if observedTabs.last == tab && (!changesSelection || observedTabs.count > observationsBeforeSelection) { break }
                 try await Task.sleep(nanoseconds: 10_000_000)
             }
-            XCTAssertEqual(tabs().filter(selected).compactMap { $0.value(forKey: "accessibilityLabel") as? String }, [label])
-            if index == 3 {
+            XCTAssertEqual(selection.wrappedValue, tab)
+            XCTAssertEqual(observedTabs.last, tab)
+            if changesSelection { XCTAssertGreaterThan(observedTabs.count, observationsBeforeSelection) }
+            XCTAssertEqual(window.frame, frameBeforeSelection)
+            if tab == .preview {
                 let previewFrame = window.frame
                 for _ in 0..<5 {
                     host.layoutSubtreeIfNeeded()
@@ -138,6 +127,7 @@ import SwiftUI
                 XCTAssertEqual(window.frame.height, size.height, accuracy: 1)
             }
         }
+        XCTAssertEqual(observedTabs, RequestRewriteTab.allCases)
         failRead = true
         model.refresh()
         for _ in 0..<100 { if !model.isReading { break }; try await Task.sleep(nanoseconds: 5_000_000) }

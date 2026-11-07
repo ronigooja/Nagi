@@ -74,16 +74,40 @@ The current lock points at a commit available on the configured fork's `main` br
 
 ## Privileged LAN verification
 
-The manually dispatched [LAN workflow](../../.github/workflows/lan-verification.yml)
-uses independent parallel jobs for Linux backend, macOS backend, macOS App, and
-optional pre-LAN macOS baseline comparison. No job depends on another; networking
-fixtures within each backend job remain sequential to isolate route/DNS changes.
-It uses GitHub-hosted Linux/macOS runners for Go tests, focused race checks, engine
-policy/listener tests and builds, native App tests/package, and isolated root
-networking fixtures. Failed native jobs retain only their test/build logs for
-three days; successful jobs upload no artifacts. Run it after changing the LAN
-boundary or pinned engine; an optional exact `engine_ref` tests a candidate before
-advancing the pin.
+Four separate `workflow_dispatch` workflows run independently on GitHub-hosted
+runners, without job or cross-workflow dependencies:
+
+- [Linux backend](../../.github/workflows/lan-linux.yml): full Go tests, CLI
+  build, engine policy/listener tests and build, focused LAN race checks,
+  20 repeated maintenance lifetime race checks, and root networking fixtures.
+- [macOS backend](../../.github/workflows/lan-macos.yml): the same backend checks
+  on macOS. Networking fixtures within each backend remain sequential to isolate
+  route/DNS changes.
+- [macOS App](../../.github/workflows/lan-app.yml): full native suite, independent
+  focused LAN/settings tests, and App packaging. A failed check fails the workflow
+  even when subsequent checks pass.
+- [Pre-LAN macOS baseline](../../.github/workflows/lan-baseline.yml): optional
+  diagnostic comparison at exact commit
+  `bcf42e39922d5017268b1959ad7ac22d3d86ef8f`, with no inputs or effect on other
+  workflow results.
+
+After changing the LAN boundary or pinned engine, dispatch the two backends and
+App separately; dispatch the baseline only when a native comparison is needed:
+
+```sh
+gh workflow run lan-linux.yml
+gh workflow run lan-macos.yml
+gh workflow run lan-app.yml
+gh workflow run lan-baseline.yml
+```
+
+Both backend workflows accept an optional exact 40-character `engine_ref`
+(`gh workflow run lan-linux.yml -f engine_ref=COMMIT`, likewise for macOS) to test
+a candidate before advancing the pin; omitting it uses `engine.lock`. For a failed
+run, use `gh run view RUN_ID --log-failed` for failure excerpts and root fixture
+output. Only the App workflow retains failed full/focused test and packaging logs
+as the `failed-native-tests` artifact for three days; retrieve it with
+`gh run download RUN_ID -n failed-native-tests`. Successful runs upload no artifacts.
 
 [Run 42343645476](https://github.com/ronigooja/Nagi/actions/runs/42343645476)
 passed Linux verification and macOS engine/helper-runtime checks against engine

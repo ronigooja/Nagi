@@ -2,6 +2,20 @@ import AppKit
 import Combine
 import SwiftUI
 
+enum RequestRewriteTab: CaseIterable, Hashable {
+    case rules, scripts, status, preview, certificateTrust
+
+    var title: String {
+        switch self {
+        case .rules: return L10n.text("app.ui.rules")
+        case .scripts: return L10n.text("app.ui.scripts")
+        case .status: return L10n.text("app.ui.status")
+        case .preview: return L10n.text("app.ui.local_preview")
+        case .certificateTrust: return L10n.text("app.ui.certificate_trust")
+        }
+    }
+}
+
 @MainActor final class RewritePresentation: ObservableObject {
     let model: RequestRewriteModel
     @Published var revision = 0
@@ -16,7 +30,7 @@ import SwiftUI
     let model: RequestRewriteModel
     private var observers: [NSObjectProtocol] = []
     private var titleObservation: AnyCancellable?
-    init(model: RequestRewriteModel) {
+    init(model: RequestRewriteModel, observeTabSelection: ((Binding<RequestRewriteTab>) -> Void)? = nil) {
         self.model = model
         let window = ConnectionsWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -28,7 +42,7 @@ import SwiftUI
         titleObservation = presentation.$revision.sink { [weak window, weak model] _ in
             window?.title = model?.status?.profile.map { L10n.format("app.ui.nagi_request_rewrite_2", String(describing: $0)) } ?? L10n.text("app.ui.nagi_request_rewrite")
         }
-        let content = NSHostingView(rootView: RequestRewriteView(presentation: presentation))
+        let content = NSHostingView(rootView: RequestRewriteView(presentation: presentation, observeTabSelection: observeTabSelection))
         // AppKit owns the frame; tab contents must not publish window size constraints.
         content.sizingOptions = []
         window.contentView = content
@@ -83,6 +97,7 @@ private struct RewriteEditorSession: Identifiable {
 
 @MainActor struct RequestRewriteView: View {
     @ObservedObject var presentation: RewritePresentation
+    var observeTabSelection: ((Binding<RequestRewriteTab>) -> Void)? = nil
     @State private var selectedScript: String?
     @State private var selectedRule: String?
     @State private var scriptSession: RewriteScriptSession?
@@ -90,7 +105,7 @@ private struct RewriteEditorSession: Identifiable {
     @State private var localError: String?
     @State private var editTask: Task<Void, Never>?
     @State private var loadingEditor = false
-    @State private var page = 0
+    @State private var page = RequestRewriteTab.rules
     @State private var showingHelp = false
     private var model: RequestRewriteModel { presentation.model }
     var body: some View {
@@ -98,6 +113,10 @@ private struct RewriteEditorSession: Identifiable {
             content.frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
         }
         .nativeFormControls()
+        // Expose the live State binding, not a second selection model. This also
+        // lets headless layout checks observe SwiftUI processing each change.
+        .onAppear { observeTabSelection?($page) }
+        .onChange(of: page) { _ in observeTabSelection?($page) }
         .onChange(of: model.status?.profile) { _ in selectedScript = nil; selectedRule = nil }
         .sheet(item: $ruleSession) { session in
             RewriteRuleEditor(presentation: presentation, draft: session.draft, originalID: session.originalID, profile: session.profile)
@@ -129,11 +148,9 @@ private struct RewriteEditorSession: Identifiable {
                     }
             }
             TabView(selection: $page) {
-                rulesPage.tabItem { Text(verbatim: L10n.text("app.ui.rules")) }.tag(0)
-                scriptsPage.tabItem { Text(verbatim: L10n.text("app.ui.scripts")) }.tag(1)
-                statusPage.tabItem { Text(verbatim: L10n.text("app.ui.status")) }.tag(2)
-                RewritePreviewView(presentation: presentation).tabItem { Text(verbatim: L10n.text("app.ui.local_preview")) }.tag(3)
-                caPage.tabItem { Text(verbatim: L10n.text("app.ui.certificate_trust")) }.tag(4)
+                ForEach(RequestRewriteTab.allCases, id: \.self) { tab in
+                    tabPage(tab).tabItem { Text(verbatim: tab.title) }.tag(tab)
+                }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
             if localError != nil || model.error != nil || model.notice != nil {
                 ScrollView {
@@ -152,6 +169,15 @@ private struct RewriteEditorSession: Identifiable {
     }
     static func time(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd HH:mm"; return formatter.string(from: date)
+    }
+    @ViewBuilder private func tabPage(_ tab: RequestRewriteTab) -> some View {
+        switch tab {
+        case .rules: rulesPage
+        case .scripts: scriptsPage
+        case .status: statusPage
+        case .preview: RewritePreviewView(presentation: presentation)
+        case .certificateTrust: caPage
+        }
     }
     private var statusPage: some View {
         VStack(alignment: .leading, spacing: 14) {
