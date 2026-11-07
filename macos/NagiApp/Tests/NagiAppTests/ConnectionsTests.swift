@@ -219,7 +219,7 @@ final class ConnectionsTests: XCTestCase {
     private func settle(_ model: ConnectionsModel, requests: ConnectionRequests, records: [Connection]) async {
         await waitUntil { requests.readCount >= 1 }
         requests.finishRead(requests.readCount, records)
-        await waitUntil { model.state == .fresh && !model.isRefreshing }
+        await waitUntil { model.state == .fresh && model.connections.map(\.id) == records.map(\.id) }
     }
 
     func testSlowRequestsDoNotOverlapAndCancelledOldResponseCannotReplaceNewState() async throws {

@@ -107,7 +107,8 @@ import SwiftUI
                 let input = split.arrangedSubviews[0]
                 let result = split.arrangedSubviews[1]
                 XCTAssertGreaterThan(input.frame.height, result.frame.height)
-                let dividerPosition = split.bounds.height * 0.45
+                let dividerPosition = max(split.minPossiblePositionOfDivider(at: 0),
+                                          min(split.maxPossiblePositionOfDivider(at: 0), split.bounds.height * 0.45))
                 split.setPosition(dividerPosition, ofDividerAt: 0)
                 for _ in 0..<5 {
                     host.layoutSubtreeIfNeeded()
