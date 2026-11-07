@@ -75,7 +75,10 @@ The current lock points at a commit available on the configured fork's `main` br
 ## Privileged LAN verification
 
 The manually dispatched [LAN workflow](../../.github/workflows/lan-verification.yml)
-uses GitHub-hosted Linux/macOS runners for Go tests, focused race checks, engine
+uses independent parallel jobs for Linux backend, macOS backend, macOS App, and
+optional pre-LAN macOS baseline comparison. No job depends on another; networking
+fixtures within each backend job remain sequential to isolate route/DNS changes.
+It uses GitHub-hosted Linux/macOS runners for Go tests, focused race checks, engine
 policy/listener tests and builds, native App tests/package, and isolated root
 networking fixtures. It uploads no artifacts. Run it after changing the LAN
 boundary or pinned engine; an optional exact `engine_ref` tests a candidate before

@@ -17,7 +17,8 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  backend:
+    name: Backend (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -75,36 +76,50 @@ jobs:
         run: |
           go test -c -o "$RUNNER_TEMP/lan-validation.test" ./integration/validation > "$RUNNER_TEMP/validation-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/validation-build.log"; exit 1; }
           sudo env GITHUB_ACTIONS=true MIHOMO_VALIDATION_BIN="$RUNNER_TEMP/mihomo" MIHOMO_TEST_TUN_LAN=1 "$RUNNER_TEMP/lan-validation.test" -test.run '^TestRestrictedTUNLAN$' -test.v -test.timeout 5m
+      - name: Verify real helper TUN, LAN and managed DNS
+        run: |
+          go test -c -o "$RUNNER_TEMP/helper-lan.test" ./internal/privileged/server > "$RUNNER_TEMP/helper-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/helper-build.log"; exit 1; }
+          sudo env GITHUB_ACTIONS=true NAGI_LAN_ENGINE="$RUNNER_TEMP/mihomo" "$RUNNER_TEMP/helper-lan.test" -test.run '^TestLANPrivilegedTUNIntegration$' -test.v -test.timeout 5m
+      - name: Require backend checks to pass
+        if: always() && (steps.nagi.outcome == 'failure' || steps.runtime.outcome == 'failure' || steps.reload.outcome == 'failure')
+        run: exit 1
+
+  app:
+    name: macOS App
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
       - name: Verify macOS App
-        id: app
+        id: tests
         continue-on-error: true
-        if: runner.os == 'macOS'
         run: |
           swift test --package-path macos/NagiApp > "$RUNNER_TEMP/app-tests.log" 2>&1 || { grep -n -E -A 3 -B 2 'error:|failed|XCTAssert|threw error' "$RUNNER_TEMP/app-tests.log" | head -n 180; exit 1; }
       - name: Verify LAN settings tests independently
-        id: lanapp
+        id: lan
         continue-on-error: true
-        if: always() && runner.os == 'macOS'
+        if: always()
         run: |
           swift test --package-path macos/NagiApp --filter 'LANSettings|SettingsTests' > "$RUNNER_TEMP/lan-app-tests.log" 2>&1 || { grep -n -E -A 3 -B 2 'error:|failed|XCTAssert|threw error' "$RUNNER_TEMP/lan-app-tests.log" | head -n 180; exit 1; }
       - name: Package macOS App
         id: package
         continue-on-error: true
-        if: always() && runner.os == 'macOS'
+        if: always()
         run: |
           make build app > "$RUNNER_TEMP/app-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/app-build.log"; exit 1; }
-      - name: Verify real helper TUN, LAN and managed DNS
-        run: |
-          go test -c -o "$RUNNER_TEMP/helper-lan.test" ./internal/privileged/server > "$RUNNER_TEMP/helper-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/helper-build.log"; exit 1; }
-          sudo env GITHUB_ACTIONS=true NAGI_LAN_ENGINE="$RUNNER_TEMP/mihomo" "$RUNNER_TEMP/helper-lan.test" -test.run '^TestLANPrivilegedTUNIntegration$' -test.v -test.timeout 5m
-      - name: Compare pre-LAN native baseline
-        if: always() && runner.os == 'macOS' && inputs.compare_baseline
-        run: |
-          git fetch --depth=1 origin bcf42e39922d5017268b1959ad7ac22d3d86ef8f
-          baseline="$RUNNER_TEMP/nagi-lan-baseline"
-          mkdir -p "$baseline"
-          git archive FETCH_HEAD | tar -x -C "$baseline"
-          swift test --package-path "$baseline/macos/NagiApp" > "$RUNNER_TEMP/baseline-app-tests.log" 2>&1 || { grep -n -E -A 2 -B 1 'error:|failed|XCTAssert|threw error' "$RUNNER_TEMP/baseline-app-tests.log" | head -n 180; exit 1; }
-      - name: Require all checks to pass
-        if: always() && (steps.nagi.outcome == 'failure' || steps.runtime.outcome == 'failure' || steps.reload.outcome == 'failure' || steps.app.outcome == 'failure' || steps.lanapp.outcome == 'failure' || steps.package.outcome == 'failure')
+      - name: Require App checks to pass
+        if: always() && (steps.tests.outcome == 'failure' || steps.lan.outcome == 'failure' || steps.package.outcome == 'failure')
         run: exit 1
+
+  baseline:
+    name: Pre-LAN macOS baseline
+    if: inputs.compare_baseline
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bcf42e39922d5017268b1959ad7ac22d3d86ef8f
+      - name: Compare pre-LAN native baseline
+        run: |
+          swift test --package-path macos/NagiApp > "$RUNNER_TEMP/baseline-app-tests.log" 2>&1 || { grep -n -E -A 2 -B 1 'error:|failed|XCTAssert|threw error' "$RUNNER_TEMP/baseline-app-tests.log" | head -n 180; exit 1; }
