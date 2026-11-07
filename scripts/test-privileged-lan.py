@@ -81,7 +81,7 @@ def main():
             f"port: {ports[0]}\nsocks-port: {ports[1]}\nmixed-port: {ports[2]}\n"
             "mode: rule\nlog-level: warning\nallow-lan: true\nbind-address: '*'\n"
             f"lan-allowed-ips: ['{lan_ip}/32']\n"
-            "rules: ['IP-CIDR,127.0.0.0/8,DIRECT,no-resolve', 'MATCH,REJECT']\n"
+            "rules: ['NETWORK,udp,REJECT', 'IP-CIDR,127.0.0.0/8,DIRECT,no-resolve', 'MATCH,REJECT']\n"
             "dns:\n  enable: false\ntun:\n  enable: true\n  stack: gvisor\n"
             "  auto-route: false\n  auto-detect-interface: true\n"
         )
