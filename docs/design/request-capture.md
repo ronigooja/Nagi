@@ -30,6 +30,9 @@ a process/app restriction. Domain patterns retain the existing rewrite syntax.
 Eligible proxy-listener traffic also uses this scope while TUN is running.
 Remote proxy clients have unknown local process identity and cannot match a
 process/app restriction; no remote process identity is inferred.
+For ordinary HTTP proxy requests, capture sees the normalized forwarded request
+after proxy parsing, not the original proxy-facing headers or request target.
+CONNECT and SOCKS hand off the application stream instead.
 
 `PUT /request-rewrite/capture` takes
 `{version:2,generation,previous_revision,capture}` and returns status. Revision

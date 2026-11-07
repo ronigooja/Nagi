@@ -104,7 +104,7 @@ func localizedRequestRewritePage(language i18n.Context) *Page {
 		m := localizedmenuObject(language, r.Data)
 		profile := localizedrewriteText(language, m, "profile")
 		known := !localizedrewriteFailed(language, r) && profile != "unknown"
-		view := PageView{Context: localizedrewriteSummary(language, r) + menuText(language, "menu.request_rewrite.request_rewrite_page.default_off_tun_must_actually_be_running_generat", "\nDefault off. TUN must actually be running; generate CA and establish trust separately. Ordinary proxy listeners are outside this feature.")}
+		view := PageView{Context: localizedrewriteSummary(language, r) + menuText(language, "menu.request_rewrite.request_rewrite_page.default_off_tun_must_actually_be_running_generat", "\nDefault off. TUN must be running; matching proxy-listener traffic can also be intercepted. Remote HTTPS clients must trust the CA separately.")}
 		if known {
 			if localizedrewriteText(language, m, "enabled_intent") == "true" {
 				view.Actions = append(view.Actions, localizedrewriteRuntimeItem(language, profile, false))
@@ -136,7 +136,7 @@ func localizedrewriteRuntimeItem(language i18n.Context, profile string, enable b
 	effect := menuText(language, "menu.request_rewrite.rewrite_runtime_item.stops_rewriting_retains_rules_ca_and_os_trust", "Stops rewriting; retains rules, CA and OS trust.")
 	if enable {
 		action = "enable"
-		effect = menuText(language, "menu.request_rewrite.rewrite_runtime_item.intercepts_matching_tun_http_https_only_requires", "Intercepts matching TUN HTTP/HTTPS only; requires compatible engine and trusted CA.")
+		effect = menuText(language, "menu.request_rewrite.rewrite_runtime_item.intercepts_matching_tun_http_https_only_requires", "Intercepts matching TUN and proxy-listener HTTP/HTTPS; requires running TUN, a compatible engine and trusted CA. Remote clients need separate CA trust.")
 	}
 	return Item{ID: "request_rewrite.rewriteRuntimeItem.item1", Label: map[string]string{"enable": menuText(language, "menu.rewrite.enable", "Enable request rewrite"), "disable": menuText(language, "menu.rewrite.disable", "Disable request rewrite")}[action], Impact: effect, Action: func(ctx context.Context, s *Session) error {
 		r := s.Fetch(ctx, "request-rewrite", "status")

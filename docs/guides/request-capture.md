@@ -22,6 +22,8 @@ device to use a listener exposed as described in the [traffic access guide](traf
 For HTTPS, install and trust the public CA on that device and in any separate app
 certificate store; never distribute the CA private key. Process/app restrictions
 do not match remote clients whose local process identity is unknown.
+Ordinary HTTP proxy requests are captured after proxy parsing and normalization;
+proxy-facing headers removed during parsing cannot be recovered from the record.
 
 Starting capture authorizes reading the original URLs, query strings,
 Authorization and Cookie headers, trailers and bodies in that session. These
