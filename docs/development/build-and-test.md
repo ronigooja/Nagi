@@ -93,8 +93,18 @@ fixture calls `RuntimeHandler` directly as root; it does not test daemon socket
 authentication or a real login user's profile ownership. Fixtures deny UDP
 forwarding and non-loopback destinations, and operate only on disposable runners.
 They do not prove traffic entering TUN, another device's reachability, or firewall
-configuration. Native App assertions failed in that run and remain under diagnosis;
-manual desktop interaction remains unverified.
+configuration.
+
+[Parallel run 42346397532](https://github.com/ronigooja/Nagi/actions/runs/42346397532)
+passed both backend jobs, focused LAN/settings native tests, and App packaging.
+The App full suite had 11 failures across 274 tests (one skipped); the isolated
+pre-LAN baseline `bcf42e39922d5017268b1959ad7ac22d3d86ef8f` reproduced the same
+failing tests and assertions across 261 tests (one skipped). These cover CLI
+timeout, window geometry, connection/refresh state, DERP localization, and rewrite
+tab discovery. The full workflow remains failed; the comparison is not a waiver
+or proof that those behaviors are correct. LAN accessibility checks pass in both
+appearances and initial/minimum window sizes. Manual desktop interaction and
+separate-device reachability remain unverified.
 
 ## Subscription application validation
 

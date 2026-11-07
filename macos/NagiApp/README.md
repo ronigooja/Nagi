@@ -203,9 +203,11 @@ loopback binding. These changes are runtime-only and reset to profile settings
 after reload or restart. An all-interface warning calls out proxy exposure to
 other devices. A failed read shows Unknown rather than an unchecked control;
 failed writes reconcile actual state without retrying the mutation or hiding
-the error. Automatic reads preserve in-progress address drafts. Native build,
-automated tests, and light/dark/minimum-size interactive acceptance for these
-controls require a GitHub-hosted macOS runner and remain unverified.
+the error. Automatic reads preserve in-progress address drafts. Native compilation,
+LAN/settings tests, App packaging, and light/dark initial/minimum-size accessibility
+checks passed on a GitHub-hosted macOS runner. The full native suite retains
+baseline-reproduced failures; manual desktop interaction remains unverified.
+See the [LAN verification evidence](../../docs/development/build-and-test.md#privileged-lan-verification).
 
 Under **Chrome WebRTC**, **Block Direct WebRTC UDP** reads and changes the current
 Google Chrome policy through the CLI. Turning it off also handles a restriction
