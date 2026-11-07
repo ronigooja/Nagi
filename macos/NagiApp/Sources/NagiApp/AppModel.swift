@@ -149,7 +149,7 @@ enum EngineState { case starting, running, stopped, unavailable }
     private let cli: NagiCLIClient
     let connections: ConnectionsModel
     lazy var settings: SettingsModel = {
-        SettingsModel(browser: browserSettings,
+        SettingsModel(browser: browserSettings, lan: lanSettings,
             readDisplay: { [weak self] in self?.display ?? .both },
             writeDisplay: { [weak self] in self?.setSettingsDisplay($0) },
             readAppLogin: { [weak self] in self?.appLoginEnabled ?? false },
@@ -170,6 +170,12 @@ enum EngineState { case starting, running, stopped, unavailable }
         BrowserSettingsModel(run: { [weak self] arguments in
             guard let self else { throw CancellationError() }
             return try await self.executeBrowserSettings(arguments)
+        })
+    }()
+    lazy var lanSettings: LANSettingsModel = {
+        LANSettingsModel(run: { [weak self] arguments in
+            guard let self else { throw CancellationError() }
+            return try await self.executeSettingsCommand(arguments)
         })
     }()
     lazy var requestRewrite: RequestRewriteModel = {
@@ -965,11 +971,12 @@ enum EngineState { case starting, running, stopped, unavailable }
         try await executeSettingsCommand(arguments)
     }
     private func executeSettingsCommand(_ arguments: [String]) async throws -> JSONValue {
-        guard !busy && !quitting else { throw CLIError.command("busy", L10n.text("app.ui.another_operation_is_in_progress")) }
+        let reconcilingLAN = arguments == ["lan", "status"] && lanSettings.isSaving
+        guard !busy && (!quitting || reconcilingLAN) else { throw CLIError.command("busy", L10n.text("app.ui.another_operation_is_in_progress")) }
         busy = true
         let mutation = arguments.last != "status"
-        if mutation { applyingSetting = true }
-        defer { if mutation { applyingSetting = false }; busy = false }
+        if mutation { applyingSetting = true; settingsGeneration += 1 }
+        defer { if mutation { settingsGeneration += 1; applyingSetting = false }; busy = false }
         await waitForConnectionsOperation()
         return try await runCommand(arguments)
     }
@@ -1031,7 +1038,7 @@ enum EngineState { case starting, running, stopped, unavailable }
         cancelRefresh()
         quitErrorMessage = nil
         Task {
-            while busy || connections.operationInProgress || requestRewrite.operationInProgress || capture.operationInProgress { try? await Task.sleep(nanoseconds: 100_000_000) }
+            while busy || lanSettings.busy || connections.operationInProgress || requestRewrite.operationInProgress || capture.operationInProgress { try? await Task.sleep(nanoseconds: 100_000_000) }
             await connections.waitForCancelledRead()
             await requestRewrite.waitForCancelledRead()
             await capture.stopOwnedSession(useGate: false)

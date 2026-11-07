@@ -5,6 +5,7 @@ import Foundation
 /// serializes CLI mutations with the rest of the App.
 @MainActor final class SettingsModel: ObservableObject {
     let browser: BrowserSettingsModel
+    let lan: LANSettingsModel
     @Published private(set) var display: TrafficDisplay = .both
     @Published private(set) var appLogin = false
     @Published private(set) var engineLogin: Bool?
@@ -17,21 +18,22 @@ import Foundation
     private let readEngineLogin: () async throws -> Bool
     private let writeEngineLogin: (Bool) async throws -> Void
 
-    init(browser: BrowserSettingsModel, readDisplay: @escaping () -> TrafficDisplay,
+    init(browser: BrowserSettingsModel, lan: LANSettingsModel, readDisplay: @escaping () -> TrafficDisplay,
          writeDisplay: @escaping (TrafficDisplay) -> Void, readAppLogin: @escaping () -> Bool,
          writeAppLogin: @escaping (Bool) async throws -> Void,
          readEngineLogin: @escaping () async throws -> Bool,
          writeEngineLogin: @escaping (Bool) async throws -> Void) {
-        self.browser = browser; self.readDisplay = readDisplay; self.writeDisplay = writeDisplay
+        self.browser = browser; self.lan = lan; self.readDisplay = readDisplay; self.writeDisplay = writeDisplay
         self.readAppLogin = readAppLogin; self.writeAppLogin = writeAppLogin
         self.readEngineLogin = readEngineLogin; self.writeEngineLogin = writeEngineLogin
     }
 
     func refresh() async {
-        guard !busy && !browser.busy else { return }
+        guard !busy && !browser.busy && !lan.busy else { return }
         busy = true; defer { busy = false }
         display = readDisplay(); appLogin = readAppLogin()
         await browser.refresh()
+        await lan.refresh()
         do { engineLogin = try await readEngineLogin(); loginError = nil }
         catch {
             engineLogin = nil
@@ -40,12 +42,12 @@ import Foundation
     }
 
     func setDisplay(_ value: TrafficDisplay) {
-        guard !busy && !browser.busy else { return }
+        guard !busy && !browser.busy && !lan.busy else { return }
         writeDisplay(value); display = readDisplay()
     }
 
     func setAppLogin(_ enabled: Bool) async {
-        guard !busy && !browser.busy, enabled != appLogin else { return }
+        guard !busy && !browser.busy && !lan.busy, enabled != appLogin else { return }
         busy = true; loginError = nil
         defer { appLogin = readAppLogin(); busy = false }
         do { try await writeAppLogin(enabled) }
@@ -53,7 +55,7 @@ import Foundation
     }
 
     func setEngineLogin(_ enabled: Bool) async {
-        guard !busy && !browser.busy, engineLogin != nil, enabled != engineLogin else { return }
+        guard !busy && !browser.busy && !lan.busy, engineLogin != nil, enabled != engineLogin else { return }
         busy = true; loginError = nil
         defer { busy = false }
         do {

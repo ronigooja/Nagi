@@ -846,3 +846,15 @@
 "app.settings.chrome_toggle" = "禁止 WebRTC 直连 UDP";
 "app.settings.chrome_restart" = "更改后，请完全退出并重新打开 Chrome。";
 "app.settings.login_failed" = "无法更改登录设置：%1$@";
+"app.lan.title" = "局域网访问";
+"app.lan.allow" = "允许局域网访问";
+"app.lan.unknown" = "允许局域网访问：未知";
+"app.lan.bind_address" = "监听地址";
+"app.lan.apply" = "应用";
+"app.lan.address_help" = "留空或使用 * 表示所有接口，也可输入 IPv4 或 IPv6 地址。启用时，点击“应用”或按回车即可应用地址。";
+"app.lan.exposure_warning" = "所有接口：其他设备可能访问你的代理。请仅在可信网络中使用。";
+"app.lan.runtime_only" = "仅对当前运行生效。重新加载或重启引擎后恢复配置中的设置。关闭后仅监听回环地址。";
+"app.lan.invalid_address" = "请输入 IPv4 或 IPv6 地址、*，或留空。";
+"app.lan.invalid_status" = "无法获取局域网访问状态。";
+"app.lan.load_failed" = "无法读取局域网访问设置：%@";
+"app.lan.save_failed" = "无法更改局域网访问设置：%@";

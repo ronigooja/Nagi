@@ -330,13 +330,13 @@ func validateConfigPatch(data []byte) error {
 				return i18n.Errorf("system.privileged.invalid.mode", "invalid mode")
 			}
 		case "allow-lan":
-			var enabled bool
-			if strictJSON(value, &enabled) != nil {
+			var enabled *bool
+			if strictJSON(value, &enabled) != nil || enabled == nil {
 				return i18n.Errorf("system.privileged.invalid.allow.lan", "invalid allow-lan")
 			}
 		case "bind-address":
 			var address string
-			if strictJSON(value, &address) != nil || address != "*" && net.ParseIP(address) == nil {
+			if strictJSON(value, &address) != nil || address != "*" && address != "localhost" && net.ParseIP(address) == nil {
 				return i18n.Errorf("system.privileged.invalid.bind.address", "invalid bind-address")
 			}
 		case "tun":

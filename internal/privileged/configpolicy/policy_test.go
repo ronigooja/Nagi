@@ -2,6 +2,7 @@ package configpolicy
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,7 @@ func TestRejectPrivilegedEscapeSurfaces(t *testing.T) {
 	cases := map[string]string{
 		"controller":      "external-controller: 0.0.0.0:9090",
 		"unix controller": "external-controller-unix: /tmp/controller.sock",
+		"TLS controller":  "external-controller-tls: 0.0.0.0:9090",
 		"UI path":         "external-ui: /etc",
 		"node plugin":     "proxies:\n  - name: x\n    type: ss\n    plugin: /tmp/program",
 		"script":          "script: {type: script, code: evil}",
@@ -34,17 +36,62 @@ func TestRejectPrivilegedEscapeSurfaces(t *testing.T) {
 		"geo path":        "geox-url:\n  geoip: file:///etc/shadow",
 		"tun device":      "tun:\n  enable: true\n  device: /dev/evil",
 		"automatic geo":   "geo-auto-update: true",
-		"nonlocal bind":   "bind-address: '*'",
-		"allow LAN":       "allow-lan: true",
 		"privileged port": "mixed-port: 80",
+		"DNS script":      "dns: {exec: /bin/sh}",
+		"listener file":   "listeners: [{type: mixed, listen: 127.0.0.1, port: 17890, certificate: /etc/secret}]",
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
-			err := Validate([]byte("mode: direct\n" + body + "\n"))
+			err := Validate([]byte("mode: direct\nallow-lan: true\nbind-address: '*'\n" + body + "\n"))
 			if !errors.Is(err, ErrUnsupported) {
 				t.Fatalf("unsafe configuration accepted: %v", err)
 			}
 		})
+	}
+}
+
+func TestValidateLANWithTUN(t *testing.T) {
+	// Validate is shared by startup snapshots and reload snapshots.
+	for _, enabled := range []bool{false, true} {
+		for _, address := range []string{"127.0.0.1", "::1", "localhost", "*", "0.0.0.0", "192.0.2.10", "::", "2001:db8::10"} {
+			t.Run(fmt.Sprintf("%t/%s", enabled, address), func(t *testing.T) {
+				data := fmt.Sprintf("mode: rule\ntun: {enable: true, auto-route: true}\nallow-lan: %t\nbind-address: %q\nmixed-port: 17890\n", enabled, address)
+				if err := Validate([]byte(data)); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	}
+}
+
+func TestValidateLANRejectsInvalidValues(t *testing.T) {
+	for _, field := range []string{
+		"allow-lan: null", "allow-lan: 1", `allow-lan: "true"`, "allow-lan: []", "allow-lan: {}",
+		"bind-address: null", "bind-address: true", "bind-address: 123", "bind-address: []",
+		`bind-address: ""`, `bind-address: "proxy.example.test"`, `bind-address: "localhost.example.test"`,
+		`bind-address: "fe80::1%en0"`, `bind-address: "[::1]"`, `bind-address: "127.0.0.1:7890"`,
+		`bind-address: "192.0.2.1/24"`, `bind-address: " * "`,
+	} {
+		t.Run(field, func(t *testing.T) {
+			if err := Validate([]byte("tun: {enable: true}\n" + field + "\n")); !errors.Is(err, ErrUnsupported) {
+				t.Fatalf("invalid LAN configuration accepted: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateLANPreservesProxyPortPolicy(t *testing.T) {
+	for _, field := range []string{"port", "socks-port", "mixed-port"} {
+		for _, port := range []int{-1, 0, 1, 80, 1023, 1024, 17890, 65535, 65536} {
+			t.Run(fmt.Sprintf("%s/%d", field, port), func(t *testing.T) {
+				data := fmt.Sprintf("allow-lan: true\nbind-address: '*'\n%s: %d\n", field, port)
+				err := Validate([]byte(data))
+				wantOK := port == 0 || port >= 1024 && port <= 65535
+				if (err == nil) != wantOK {
+					t.Fatalf("port policy: valid=%t err=%v", wantOK, err)
+				}
+			})
+		}
 	}
 }
 

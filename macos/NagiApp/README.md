@@ -180,15 +180,31 @@ Proxy node measurement tooltips show the measurement time in the system's local 
 
 ## Settings window
 
-Choose **Settings…** to open a native window with **Display**, **Chrome WebRTC**,
+Choose **Settings…** to open a native window with **Display**, **LAN Access**, **Chrome WebRTC**,
 and **Login** sections in one vertical page. Opening it again brings the existing
-window forward and preserves its size. Settings apply when their controls change;
-there are no Save or Refresh buttons.
+window forward and preserves its size. Switches and display choices apply when
+their controls change; the LAN bind address has an explicit Apply action.
+There are no page-wide Save or Refresh buttons.
 
 **Display** contains the existing **Traffic rates** and **Icon only** choices.
 **Login** contains **Open menu bar app at login** and **Run engine at login**.
 These controls retain their existing display preference, macOS login-item, and
 CLI service behavior.
+
+**LAN Access** reads and changes the running engine through `lan status`,
+`lan enable [ADDRESS]`, and `lan disable`, including the selected privileged
+backend. **Allow LAN access** uses the bind-address field: blank or `*` means
+all interfaces; IPv4 and IPv6 literals restrict the listener to that address.
+While enabled, choose **Apply** or press Return to apply an address change;
+editing, leaving the field, and refreshing never submit an address change.
+While disabled, the field prepares the next enable operation. Disabling restores
+loopback binding. These changes are runtime-only and reset to profile settings
+after reload or restart. An all-interface warning calls out proxy exposure to
+other devices. A failed read shows Unknown rather than an unchecked control;
+failed writes reconcile actual state without retrying the mutation or hiding
+the error. Automatic reads preserve in-progress address drafts. Native build,
+automated tests, and light/dark/minimum-size interactive acceptance for these
+controls require a GitHub-hosted macOS runner and remain unverified.
 
 Under **Chrome WebRTC**, **Block Direct WebRTC UDP** reads and changes the current
 Google Chrome policy through the CLI. Turning it off also handles a restriction

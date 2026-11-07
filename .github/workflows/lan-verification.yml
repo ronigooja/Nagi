@@ -1,0 +1,68 @@
+name: Verify privileged LAN access
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine_ref:
+        description: Engine commit to verify (empty uses engine.lock)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      GOFLAGS: -p=1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache: false
+      - name: Select engine
+        id: engine
+        env:
+          ENGINE_REF: ${{ inputs.engine_ref }}
+        run: |
+          ref="${ENGINE_REF:-$(sed -n 's/^commit: //p' engine.lock)}"
+          [[ "$ref" =~ ^[0-9a-f]{40}$ ]]
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: ronigooja/mihomo
+          ref: ${{ steps.engine.outputs.ref }}
+          path: .build/mihomo
+          ssh-key: ${{ secrets.NAGI_MIHOMO_DEPLOY_KEY }}
+      - name: Verify Nagi
+        run: |
+          export TMPDIR=/tmp
+          if [[ "$RUNNER_OS" == macOS ]]; then export TMPDIR=/private/tmp; fi
+          export HOME="$RUNNER_TEMP/nagi-test-home"
+          mkdir -p "$HOME"
+          go test ./... > "$RUNNER_TEMP/nagi-tests.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/nagi-tests.log"; exit 1; }
+          make build cli > "$RUNNER_TEMP/nagi-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/nagi-build.log"; exit 1; }
+      - name: Verify engine policies and listeners
+        working-directory: .build/mihomo
+        run: |
+          go test -tags with_gvisor ./component/configpolicy ./hub/route ./listener > "$RUNNER_TEMP/engine-tests.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/engine-tests.log"; exit 1; }
+          go build -tags with_gvisor -o "$RUNNER_TEMP/mihomo" . > "$RUNNER_TEMP/engine-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/engine-build.log"; exit 1; }
+      - name: Verify root TUN and LAN together
+        run: sudo env GITHUB_ACTIONS=true python3 scripts/test-privileged-lan.py "$RUNNER_TEMP/mihomo"
+      - name: Verify restricted reload with TUN and LAN
+        working-directory: .build/mihomo
+        run: |
+          go test -c -o "$RUNNER_TEMP/lan-validation.test" ./integration/validation > "$RUNNER_TEMP/validation-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/validation-build.log"; exit 1; }
+          sudo env GITHUB_ACTIONS=true MIHOMO_VALIDATION_BIN="$RUNNER_TEMP/mihomo" MIHOMO_TEST_TUN_LAN=1 "$RUNNER_TEMP/lan-validation.test" -test.run '^TestRestrictedTUNLAN$' -test.v
+      - name: Verify macOS App
+        if: runner.os == 'macOS'
+        run: |
+          swift test --package-path macos/NagiApp > "$RUNNER_TEMP/app-tests.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/app-tests.log"; exit 1; }
+          make build app > "$RUNNER_TEMP/app-build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/app-build.log"; exit 1; }

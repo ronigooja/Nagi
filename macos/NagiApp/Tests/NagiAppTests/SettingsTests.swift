@@ -8,11 +8,16 @@ import AppKit
             try JSONDecoder().decode(JSONValue.self, from: Data(#"{"available":true,"current_value":null,"restricted":false,"managed":false,"forced":false,"can_enable":true,"can_disable":false,"can_restore":false}"#.utf8))
         })
     }
+    private func lan() -> LANSettingsModel {
+        LANSettingsModel(run: { _ in
+            .objectValue(["enabled": .boolValue(false), "bind_address": .stringValue("127.0.0.1")])
+        })
+    }
 
     func testDisplayAndLoginChangesSaveImmediately() async throws {
         var display = TrafficDisplay.icon, appLogin = false, engineLogin = false
         var writes: [String] = []
-        let model = SettingsModel(browser: browser(), readDisplay: { display }, writeDisplay: { display = $0; writes.append("display") },
+        let model = SettingsModel(browser: browser(), lan: lan(), readDisplay: { display }, writeDisplay: { display = $0; writes.append("display") },
             readAppLogin: { appLogin }, writeAppLogin: { appLogin = $0; writes.append("app") },
             readEngineLogin: { engineLogin }, writeEngineLogin: { engineLogin = $0; writes.append("engine") })
         await model.refresh()
@@ -25,7 +30,7 @@ import AppKit
 
     func testLoginFailuresReadActualValuesAndKeepSpecificError() async throws {
         var actualEngine = false
-        let model = SettingsModel(browser: browser(), readDisplay: { .both }, writeDisplay: { _ in },
+        let model = SettingsModel(browser: browser(), lan: lan(), readDisplay: { .both }, writeDisplay: { _ in },
             readAppLogin: { false }, writeAppLogin: { _ in throw CLIError.command("denied", "Login permission denied") },
             readEngineLogin: { actualEngine }, writeEngineLogin: { _ in
                 actualEngine = true
@@ -41,7 +46,7 @@ import AppKit
 
     func testMissingEngineStatusDisablesEngineChangeUntilAutomaticReload() async throws {
         var fail = true, writes = 0
-        let model = SettingsModel(browser: browser(), readDisplay: { .both }, writeDisplay: { _ in },
+        let model = SettingsModel(browser: browser(), lan: lan(), readDisplay: { .both }, writeDisplay: { _ in },
             readAppLogin: { false }, writeAppLogin: { _ in }, readEngineLogin: {
                 if fail { throw CLIError.command("read", "Engine login status unavailable") }
                 return false
@@ -60,6 +65,7 @@ import AppKit
             if args == ["service", "install"] { installed = true }
             if args == ["service", "uninstall"] { installed = false }
             if args.first == "service" { return .objectValue(["installed": .boolValue(installed)]) }
+            if args.first == "lan" { return .objectValue(["enabled": .boolValue(false), "bind_address": .stringValue("127.0.0.1")]) }
             return try JSONDecoder().decode(JSONValue.self, from: Data(#"{"available":true,"current_value":null,"restricted":false,"managed":false,"forced":false,"can_enable":true,"can_disable":false,"can_restore":false}"#.utf8))
         })
         await app.settings.refresh()
@@ -68,14 +74,14 @@ import AppKit
         XCTAssertEqual(app.serviceInstalled, true)
         await app.settings.setEngineLogin(false)
         XCTAssertEqual(app.settings.engineLogin, false)
-        XCTAssertEqual(calls, [["browser", "chrome-webrtc", "status"], ["service", "status"],
+        XCTAssertEqual(calls, [["browser", "chrome-webrtc", "status"], ["lan", "status"], ["service", "status"],
                                ["service", "install"], ["service", "status"],
                                ["service", "uninstall"], ["service", "status"]])
     }
 
     func testNativeWindowReusesFrameAndHasNoActionButtonRow() async throws {
         _ = NSApplication.shared
-        let model = SettingsModel(browser: browser(), readDisplay: { .both }, writeDisplay: { _ in },
+        let model = SettingsModel(browser: browser(), lan: lan(), readDisplay: { .both }, writeDisplay: { _ in },
             readAppLogin: { false }, writeAppLogin: { _ in }, readEngineLogin: { false }, writeEngineLogin: { _ in })
         let controller = SettingsWindowController(model: model)
         let window = try XCTUnwrap(controller.window)

@@ -14,7 +14,7 @@ import SwiftUI
         super.init(window: window)
         window.title = L10n.text("app.settings.title")
         window.isReleasedWhenClosed = false; window.delegate = self
-        let content = NSHostingView(rootView: SettingsView(model: model, browser: model.browser))
+        let content = NSHostingView(rootView: SettingsView(model: model, browser: model.browser, lan: model.lan))
         content.sizingOptions = []
         window.contentView = content
         Self.layout.apply(to: window)
@@ -29,7 +29,7 @@ import SwiftUI
     }
 
     private func refresh() {
-        guard readTask == nil, !model.busy, !model.browser.busy else { return }
+        guard readTask == nil, !model.busy, !model.browser.busy, !model.lan.busy else { return }
         readTask = Task { [weak self] in
             guard let self else { return }
             await self.model.refresh()
@@ -38,13 +38,14 @@ import SwiftUI
     }
 
     func windowDidBecomeKey(_ notification: Notification) { refresh() }
-    func windowShouldClose(_ sender: NSWindow) -> Bool { !model.busy && !model.browser.isSaving }
+    func windowShouldClose(_ sender: NSWindow) -> Bool { !model.busy && !model.browser.isSaving && !model.lan.isSaving }
 }
 
 @MainActor private struct SettingsView: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject var browser: BrowserSettingsModel
-    private var busy: Bool { model.busy || browser.busy }
+    @ObservedObject var lan: LANSettingsModel
+    private var busy: Bool { model.busy || browser.busy || lan.busy }
 
     var body: some View {
         GeometryReader { geometry in
@@ -61,10 +62,46 @@ import SwiftUI
                     GroupBox {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
+                                if lan.stale {
+                                    Text(verbatim: L10n.text("app.lan.unknown"))
+                                        .foregroundColor(.secondary)
+                                } else {
+                                    Toggle(L10n.text("app.lan.allow"), isOn: Binding(
+                                        get: { lan.state?.enabled == true },
+                                        set: { value in Task { await lan.setEnabled(value) } }))
+                                        .disabled(model.busy || browser.busy || !lan.canToggle ||
+                                                  (lan.state?.enabled == false && !lan.validAddress))
+                                }
+                                if lan.busy { ProgressView().controlSize(.small) }
+                            }
+                            HStack {
+                                TextField(L10n.text("app.lan.bind_address"), text: $lan.bindAddress,
+                                          onEditingChanged: { lan.setEditing($0) },
+                                          onCommit: { applyLANAddress() })
+                                    .disabled(model.busy || browser.busy || !lan.canToggle)
+                                    .accessibilityLabel(L10n.text("app.lan.bind_address"))
+                                Button(L10n.text("app.lan.apply")) { applyLANAddress() }
+                                    .disabled(model.busy || browser.busy || !lan.canApplyAddress)
+                            }
+                            Text(verbatim: L10n.text("app.lan.address_help"))
+                                .font(.callout).foregroundColor(.secondary)
+                            if !lan.validAddress { errorText(L10n.text("app.lan.invalid_address")) }
+                            if lan.exposesAllInterfaces {
+                                Text(verbatim: L10n.text("app.lan.exposure_warning"))
+                                    .font(.callout).foregroundColor(.secondary)
+                            }
+                            Text(verbatim: L10n.text("app.lan.runtime_only"))
+                                .font(.callout).foregroundColor(.secondary)
+                            if let error = lan.error { errorText(error) }
+                        }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                    } label: { Text(verbatim: L10n.text("app.lan.title")) }
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
                                 Toggle(L10n.text("app.settings.chrome_toggle"), isOn: Binding(
                                     get: { browser.state?.restricted == true },
                                     set: { value in Task { await browser.setRestricted(value) } }))
-                                    .disabled(model.busy || !browser.canToggle)
+                                    .disabled(model.busy || lan.busy || !browser.canToggle)
                                 if browser.busy { ProgressView().controlSize(.small) }
                             }
                             Text(verbatim: L10n.text("app.settings.chrome_restart"))
@@ -90,6 +127,11 @@ import SwiftUI
                 }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
             }.frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
         }.nativeFormControls()
+    }
+
+    private func applyLANAddress() {
+        guard !model.busy && !browser.busy && lan.canApplyAddress else { return }
+        Task { await lan.applyAddress() }
     }
 
     private func errorText(_ value: String) -> some View {

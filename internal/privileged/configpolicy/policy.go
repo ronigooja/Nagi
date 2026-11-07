@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -72,11 +73,11 @@ func Validate(data []byte) error {
 				return fieldError(key, err)
 			}
 		case "allow-lan":
-			if err := falseValue(value); err != nil {
+			if err := boolean(value); err != nil {
 				return fieldError(key, err)
 			}
 		case "bind-address":
-			if err := literal(value, "127.0.0.1", "localhost", "::1"); err != nil {
+			if err := bindAddress(value); err != nil {
 				return fieldError(key, err)
 			}
 		case "proxies":
@@ -98,6 +99,18 @@ func Validate(data []byte) error {
 		default:
 			return policyErrorf("system.privileged.key.is.outside.the.privileged.allowlist", "%w: key %q is outside the privileged allowlist", ErrUnsupported, key)
 		}
+	}
+	return nil
+}
+
+// bindAddress permits only proxy listener targets, not arbitrary hostnames or
+// scoped IPv6 addresses. Controller and other listener policies are separate.
+func bindAddress(node *yaml.Node) error {
+	if node.Kind != yaml.ScalarNode || node.Tag != "!!str" {
+		return i18n.Errorf("system.privileged.expected.a.literal.string", "expected a literal string")
+	}
+	if node.Value != "*" && node.Value != "localhost" && net.ParseIP(node.Value) == nil {
+		return i18n.Errorf("system.privileged.unsupported.value", "unsupported value")
 	}
 	return nil
 }

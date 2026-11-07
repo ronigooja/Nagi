@@ -844,3 +844,15 @@
 "app.settings.chrome_toggle" = "Block Direct WebRTC UDP";
 "app.settings.chrome_restart" = "Completely quit and reopen Chrome after making changes.";
 "app.settings.login_failed" = "Could not change the login setting: %1$@";
+"app.lan.title" = "LAN Access";
+"app.lan.allow" = "Allow LAN access";
+"app.lan.unknown" = "Allow LAN access: Unknown";
+"app.lan.bind_address" = "Bind address";
+"app.lan.apply" = "Apply";
+"app.lan.address_help" = "Leave blank or use * for all interfaces, or enter an IPv4 or IPv6 address. While enabled, choose Apply or press Return to apply the address.";
+"app.lan.exposure_warning" = "All interfaces: other devices may access your proxy. Use only on trusted networks.";
+"app.lan.runtime_only" = "Runtime only. Reloading or restarting the engine restores profile settings. Turning off limits the listener to loopback.";
+"app.lan.invalid_address" = "Enter an IPv4 or IPv6 address, *, or leave blank.";
+"app.lan.invalid_status" = "LAN access status is unavailable.";
+"app.lan.load_failed" = "Could not read LAN access: %@";
+"app.lan.save_failed" = "Could not change LAN access: %@";
