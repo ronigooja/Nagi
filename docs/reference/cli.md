@@ -751,9 +751,11 @@ Privileged mode permits deliberate exposure of only the top-level HTTP (`port`),
 
 Both user and privileged backends use the same LAN commands; LAN operations never switch the selected backend or disable TUN. Runtime enable patches `allow-lan: true` with the requested bind, and disable patches `allow-lan: false` with `127.0.0.1`. These commands require a running engine, leave profiles unchanged, and do not save a cross-profile LAN preference. Reloading a profile or restarting mihomo replaces runtime LAN changes with that configuration's values. `lan status` reports configured state, not verified reachability.
 
-Restricted policy remains enabled for the root engine. Its TCP controller remains private, DNS listener restrictions remain unchanged, and explicit `listeners` entries do not gain broader exposure permission. The helper's authenticated controller allowlist and mihomo's validation must enforce the same narrow boundary on startup, reload, and runtime patches.
+Restricted policy remains enabled for the root engine. Its controller uses a root-private Unix socket; TCP controllers remain prohibited. DNS listener restrictions remain unchanged, and explicit `listeners` entries do not gain broader exposure permission. The helper's authenticated controller allowlist and mihomo's validation enforce the narrow boundary on startup, reload, and runtime patches.
 
 LAN enable does not configure authentication, an OS firewall, or other devices' proxy settings. Wildcard binds expose all available interfaces, potentially including VPN or public-facing interfaces; the name “LAN access” is not an interface or subnet guarantee. Prefer a specific local interface IP and review firewall and existing authentication/access rules before sharing. Loopback addresses such as `127.0.0.1` and `::1` cannot share a listener with other devices. A bind to an unavailable local address may fail; configuration acceptance alone does not prove a reachable proxy path.
+
+SOCKS and mixed listeners also open UDP on the selected bind. In the pinned engine's SOCKS UDP path, TCP authentication and `lan-allowed-ips` are not source-access gates; use OS firewall rules for UDP source restrictions rather than assuming TCP controls cover both transports.
 
 ## Browser WebRTC settings
 

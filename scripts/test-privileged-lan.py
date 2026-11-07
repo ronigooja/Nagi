@@ -91,7 +91,11 @@ def main():
             [binary, "-d", str(home), "-f", str(config), "--config-policy", "restricted",
              "-ext-ctl-unix", controller], stdout=log, stderr=log,
         )
-        initial = await_value(lambda: api(), "controller")
+        def activated():
+            value = api()
+            return value if value.get("activation_id") else None
+
+        initial = await_value(activated, "completed activation")
         assert initial["tun"]["enable"] is True
         device = initial["tun"].get("device")
         assert device, "engine must report its TUN device"

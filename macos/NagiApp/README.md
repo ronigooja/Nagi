@@ -192,8 +192,9 @@ These controls retain their existing display preference, macOS login-item, and
 CLI service behavior.
 
 **LAN Access** reads and changes the running engine through `lan status`,
-`lan enable [ADDRESS]`, and `lan disable`, including the selected privileged
-backend. **Allow LAN access** uses the bind-address field: blank or `*` means
+`lan enable [ADDRESS]`, and `lan disable`. Privileged backend support requires
+the coordinated engine pin described in the [LAN exposure contract](../../docs/reference/cli.md#lan-exposure-boundary).
+**Allow LAN access** uses the bind-address field: blank or `*` means
 all interfaces; IPv4 and IPv6 literals restrict the listener to that address.
 While enabled, choose **Apply** or press Return to apply an address change;
 editing, leaving the field, and refreshing never submit an address change.
