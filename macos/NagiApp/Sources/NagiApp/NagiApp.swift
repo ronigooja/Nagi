@@ -42,6 +42,24 @@ import AppKit
     }
 }
 
+/// Remembers the last status item output so unchanged values skip AppKit work.
+struct StatusRenderCache {
+    private var image: (rates: String?, opacity: CGFloat)?
+    private var label: String?
+
+    mutating func imageChanged(rates: String?, opacity: CGFloat) -> Bool {
+        if let image, image.rates == rates, image.opacity == opacity { return false }
+        image = (rates, opacity)
+        return true
+    }
+
+    mutating func labelChanged(_ value: String) -> Bool {
+        if label == value { return false }
+        label = value
+        return true
+    }
+}
+
 @MainActor final class MenuAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model: AppModel
     var confirmProfileDeletion: (NSAlert) -> NSApplication.ModalResponse = { $0.runModal() }
@@ -64,6 +82,7 @@ import AppKit
     private var menuTracking = false
     private var loadingTimer: Timer?
     private var loadingFrame = 0
+    private var renderCache = StatusRenderCache()
     private var updateCleanupComplete = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -127,11 +146,14 @@ import AppKit
             ? (loadingFrame == 0 ? 1 : 0.5)
             : (model.state == .running ? 1 : 0.5)
         let stacked = model.display == .both
-        button.title = ""
-        button.imagePosition = .imageOnly
-        let image = StatusItemImage.make(rates: stacked ? model.statusTitle : nil, opacity: opacity)
-        button.image = image
-        statusItem.length = stacked ? (image?.size.width ?? NSStatusItem.variableLength) : NSStatusItem.variableLength
+        let rates = stacked ? model.statusTitle : nil
+        if renderCache.imageChanged(rates: rates, opacity: opacity) {
+            button.title = ""
+            button.imagePosition = .imageOnly
+            let image = StatusItemImage.make(rates: rates, opacity: opacity)
+            button.image = image
+            statusItem.length = stacked ? (image?.size.width ?? NSStatusItem.variableLength) : NSStatusItem.variableLength
+        }
         let state: String
         switch model.state {
         case .starting: state = "starting"
@@ -139,7 +161,8 @@ import AppKit
         case .stopped: state = "stopped"
         case .unavailable: state = L10n.text("app.ui.status_unavailable_3")
         }
-        button.setAccessibilityLabel(model.applyingSetting ? L10n.text("app.ui.nagi_applying_setting") : L10n.format("app.ui.nagi", String(describing: L10n.protocolLabel(state)), String(describing: model.accessibilityTraffic)))
+        let label = model.applyingSetting ? L10n.text("app.ui.nagi_applying_setting") : L10n.format("app.ui.nagi", String(describing: L10n.protocolLabel(state)), String(describing: model.accessibilityTraffic))
+        if renderCache.labelChanged(label) { button.setAccessibilityLabel(label) }
     }
 
     func menuShouldOpen(_ menu: NSMenu) -> Bool { !model.busy }
