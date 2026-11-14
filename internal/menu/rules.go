@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/ronigooja/Nagi/internal/rules"
 )
@@ -129,7 +130,7 @@ func ruleEditForm(ctx context.Context, s *Session, profile string, entry rules.E
 }
 
 func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile string) error {
-	values := map[string]string{"no_resolve": "false", "src": "false"}
+	values := map[string]string{"no_resolve": "true", "src": "false"}
 	if existing != nil {
 		values = map[string]string{"name": existing.Name, "type": existing.Type, "payload": existing.Payload, "target": existing.Target, "no_resolve": strconv.FormatBool(existing.NoResolve), "src": strconv.FormatBool(existing.Src)}
 	}
@@ -146,7 +147,7 @@ func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile st
 			return nil
 		}},
 		{Key: "target", Label: menuText(s.language, "menu.rules.rule_add.target_direct_reject_or_proxy_group", "Target (DIRECT, REJECT, or proxy group)"), Required: true},
-		{Key: "no_resolve", Label: menuText(s.language, "menu.rules.rule_add.no_resolve_ip_rules_only", "Skip DNS resolution, no-resolve (IP-CIDR, IP-CIDR6, GEOIP only)"), Choices: []string{"false", "true"}, ChoiceLabels: []string{menuState(s.language, "false"), menuState(s.language, "true")}},
+		{Key: "no_resolve", Label: menuText(s.language, "menu.rules.rule_add.no_resolve_ip_rules_only", "Skip DNS resolution, no-resolve (IP-CIDR, IP-CIDR6, GEOIP only)"), Choices: []string{"true", "false"}, ChoiceLabels: []string{menuState(s.language, "true"), menuState(s.language, "false")}},
 		{Key: "src", Label: menuText(s.language, "menu.rules.rule_add.src_ip_rules_only", "Match source address, src (IP-CIDR, IP-CIDR6, GEOIP only)"), Choices: []string{"false", "true"}, ChoiceLabels: []string{menuState(s.language, "false"), menuState(s.language, "true")}},
 	}
 	if existing != nil {
@@ -170,11 +171,13 @@ func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile st
 			verb = "edit"
 		}
 		args := []string{"rules", verb, v["name"], v["type"], payload, v["target"]}
-		if v["no_resolve"] == "true" {
-			args = append(args, "--no-resolve")
-		}
-		if v["src"] == "true" {
-			args = append(args, "--src")
+		if ipOptionType(v["type"]) {
+			if v["no_resolve"] == "true" {
+				args = append(args, "--no-resolve")
+			}
+			if v["src"] == "true" {
+				args = append(args, "--src")
+			}
 		}
 		if existing != nil {
 			return runManagedRule(ctx, s, profile, v["name"], args...)
@@ -182,6 +185,13 @@ func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile st
 		return s.Run(ctx, args...)
 	})
 	return err
+}
+
+// ipOptionType reports whether no-resolve and src can apply; other types
+// ignore both fields so the default no-resolve choice never blocks them.
+func ipOptionType(typ string) bool {
+	typ = strings.ToUpper(typ)
+	return typ == "IP-CIDR" || typ == "IP-CIDR6" || typ == "GEOIP"
 }
 
 func localizedruleChange(language i18n.Context, verb string) func(context.Context, *Session) error {
