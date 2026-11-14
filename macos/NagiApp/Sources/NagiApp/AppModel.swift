@@ -315,8 +315,19 @@ enum EngineState { case starting, running, stopped, unavailable }
     private(set) var uploadBPS: Int64?
     private(set) var downloadBPS: Int64?
     var display: TrafficDisplay = TrafficDisplay(rawValue: UserDefaults.standard.string(forKey: "trafficDisplay") ?? "both") ?? .both {
-        didSet { UserDefaults.standard.set(display.rawValue, forKey: "trafficDisplay"); notify() }
+        didSet {
+            UserDefaults.standard.set(display.rawValue, forKey: "trafficDisplay")
+            if display == .icon {
+                stopTraffic()
+                if errorOrigin == .traffic { errorMessage = nil }
+            } else if canStreamTraffic, trafficTask == nil {
+                startTraffic()
+            }
+            notify()
+        }
     }
+    /// Only the rate display consumes samples, so icon-only mode keeps no stream.
+    private var canStreamTraffic: Bool { display == .both && state == .running && !sleeping && !quitting }
     var appLoginEnabled: Bool { SMAppService.mainApp.status == .enabled }
     var statusTitle: String {
         guard display != .icon else { return "" }
@@ -457,7 +468,7 @@ enum EngineState { case starting, running, stopped, unavailable }
                 }
                 profile = currentProfile
                 if errorOrigin == .status { errorMessage = nil }
-                if state == .running { if trafficTask == nil { startTraffic() } }
+                if state == .running { if trafficTask == nil && display == .both { startTraffic() } }
                 else { stopTraffic() }
             } catch {
                 guard valid() else { return false }

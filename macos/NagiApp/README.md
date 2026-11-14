@@ -186,7 +186,7 @@ window forward and preserves its size. Switches and display choices apply when
 their controls change; the LAN bind address has an explicit Apply action.
 There are no page-wide Save or Refresh buttons.
 
-**Display** contains the existing **Traffic rates** and **Icon only** choices.
+**Display** contains the existing **Traffic rates** and **Icon only** choices. **Icon only** does not start the traffic stream, so the status item's accessibility label reports traffic as unavailable.
 **Login** contains **Open menu bar app at login** and **Run engine at login**.
 These controls retain their existing display preference, macOS login-item, and
 CLI service behavior.

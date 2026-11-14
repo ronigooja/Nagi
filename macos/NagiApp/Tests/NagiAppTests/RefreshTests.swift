@@ -129,6 +129,7 @@ import XCTest
         let commands = Commands()
         commands.running = true
         let model = AppModel(cli: NagiCLIClient(executable: executable), runCommand: { try await commands.run($0) })
+        model.display = .both
         defer { model.pauseForSleep() }
         var menuChanges = 0, trafficChanges = 0
         model.onChange = { menuChanges += 1 }
@@ -149,6 +150,90 @@ import XCTest
         let display = model.display
         model.display = display
         XCTAssertGreaterThan(menuChanges, beforeSample)
+    }
+
+    private func trafficFixture() throws -> (directory: URL, executable: URL) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("nagi-traffic-display-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let executable = directory.appendingPathComponent("nagi")
+        try """
+        #!/usr/bin/python3
+        import json, pathlib, signal, sys, time
+        root = pathlib.Path(__file__).parent
+        # The App also launches subscription and connection watchers with this executable.
+        if 'traffic' not in sys.argv:
+            while True: time.sleep(0.05)
+        with open(root / 'launches', 'a') as f: f.write('x\\n')
+        def stop(*_):
+            (root / 'terminated').touch()
+            sys.exit(0)
+        signal.signal(signal.SIGTERM, stop)
+        print(json.dumps({'ok':True,'data':{'upload_bps':1,'download_bps':2}}), flush=True)
+        while True: time.sleep(0.05)
+        """.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        return (directory, executable)
+    }
+
+    func testIconOnlyDisplayNeverStartsTheTrafficStream() async throws {
+        let (directory, executable) = try trafficFixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let commands = Commands()
+        commands.running = true
+        let model = AppModel(cli: NagiCLIClient(executable: executable), runCommand: { try await commands.run($0) })
+        model.display = .icon
+        defer { model.pauseForSleep() }
+        await model.refresh()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("launches").path))
+        XCTAssertNil(model.uploadBPS)
+        XCTAssertNil(model.downloadBPS)
+    }
+
+    func testSwitchingFromIconOnlyToRatesStartsTheStreamImmediately() async throws {
+        let (directory, executable) = try trafficFixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let commands = Commands()
+        commands.running = true
+        let model = AppModel(cli: NagiCLIClient(executable: executable), runCommand: { try await commands.run($0) })
+        model.display = .icon
+        defer { model.pauseForSleep() }
+        await model.refresh()
+        model.display = .both
+        await waitUntil { model.uploadBPS == 1 }
+        XCTAssertEqual(model.downloadBPS, 2)
+    }
+
+    func testSwitchingToIconOnlyStopsTheStreamAndClearsRates() async throws {
+        let (directory, executable) = try trafficFixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let commands = Commands()
+        commands.running = true
+        let model = AppModel(cli: NagiCLIClient(executable: executable), runCommand: { try await commands.run($0) })
+        model.display = .both
+        defer { model.pauseForSleep() }
+        await model.refresh()
+        await waitUntil { model.uploadBPS == 1 }
+        model.display = .icon
+        XCTAssertNil(model.uploadBPS)
+        XCTAssertNil(model.downloadBPS)
+        await waitUntil { FileManager.default.fileExists(atPath: directory.appendingPathComponent("terminated").path) }
+        let launches = try String(contentsOf: directory.appendingPathComponent("launches"), encoding: .utf8)
+        XCTAssertEqual(launches.split(separator: "\n").count, 1)
+    }
+
+    func testRepeatedRefreshInIconOnlyModeStillLeavesTheStreamStopped() async throws {
+        let (directory, executable) = try trafficFixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let commands = Commands()
+        commands.running = true
+        let model = AppModel(cli: NagiCLIClient(executable: executable), runCommand: { try await commands.run($0) })
+        model.display = .icon
+        defer { model.pauseForSleep() }
+        for _ in 0..<3 { await model.refresh() }
+        model.resumeAfterWake()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("launches").path))
     }
 
     func testProfileDeletionRefreshesListsAndProtectsCurrentAndDefault() async {
