@@ -2,11 +2,10 @@
 
 **Status: source migration implemented; native interactive acceptance incomplete.** This is the accepted localization design
 and migration audit for English (`en`) and Simplified Chinese (`zh-Hans`). It is
-not a claim that every interface is translated. The source inventory below was
-captured from baseline `661a69c`; implementation and acceptance remain separate.
+not a claim that every interface is translated; implementation and acceptance remain separate.
 
 This document owns language selection, presentation boundaries, the additive
-message metadata contract, terminology, and migration accounting. The
+message metadata contract, terminology, and migration audit. The
 [CLI reference](../reference/cli.md) remains authoritative for command syntax,
 JSON fields and exit codes; the [terminal menu design](terminal-menu.md) and
 [UI rules](../development/ui-design.md) retain their interaction requirements.
@@ -241,51 +240,9 @@ meaning; a label can explain their unit in either language.
 | Back / Cancel / Submit / Retry / Exit / Quit | 返回 / 取消 / 提交 / 重试 / 退出菜单 / 退出 | Context determines menu exit versus App quit. |
 | Warning / Failed / Untested / No entries | 警告 / 失败 / 未测试 / 暂无条目 | Preserve unknown and failed distinctions. |
 
-## Inventory and baseline coverage
+## Coverage requirements
 
-[`localization-inventory.tsv`](localization-inventory.tsv) is a conservative
-source audit checklist with file, baseline line, symbol anchor, interface area,
-classification candidate, review status and literal fragment. It contains
-4,964 display candidates from production Go and Swift files at the baseline.
-Counts are estimates of occurrences, not unique semantic IDs or verified
-user-visible messages. Concatenated strings and Swift interpolation can produce
-multiple fragments; some apparent prose is protocol or an example. Multiline
-literals, generated labels, dynamic backend diagnostics and imported content
-require the boundary review above. The checklist must never be used by itself to claim complete localization.
-All 4,964 baseline rows now have source-audited classifications and evidence:
-3,388 translated occurrences, 1,226 protocol occurrences, 265 out-of-scope
-occurrences, 69 raw occurrences and 16 external-diagnostic markers. The 793 menu
-rows retain their owner's individual audit, including three internal sentinels.
-An additional 797 rows audit semantic producers and presentation/transport
-boundaries absent from the literal baseline; 779 identify explicit resource IDs
-and 18 describe source/consumer boundaries. The complete 5,761-row checklist has
-4,180 translated, 1,226 protocol, 265 out-of-scope, 74 raw and 16 external-diagnostic
-records. These are source records, not unique messages or exercised paths.
-Expanded anchors refer to source candidate `3281b76`; baseline anchors remain
-historical and use symbol/resource notes to identify current code. No pending
-source-review status remains. This accounting does not establish desktop
-interaction or visual acceptance.
-
-| Area | Candidate occurrences | Primary work |
-| --- | ---: | --- |
-| CLI command/help | 1,661 | Help summaries/descriptions/hints, parser/usage and operation errors. |
-| Human CLI output | 235 | Labels, empty states, operation completion and fallback presentation. |
-| Terminal menu | 793 | Navigation, prompts, forms, impacts, feedback, details and typed state labels. |
-| Native App | 896 | AppKit and SwiftUI controls, windows, validation, menus, alerts, accessibility and transport errors. |
-| Backend packages surfaced by CLI | 1,379 | Nagi-owned validation/operation diagnostics; review external/raw boundaries before migrating. |
-
-The 1,379 backend candidates are required review work, not an exclusion. They
-include `internal/profile`, `subscription`, `service`, `traffic`, `diagnostic`,
-`installation`, `requestrewrite`, `capture`, `rewritedraft`, runtime and control
-wrappers. Their external causes remain verbatim only after the existing
-sanitization. Protocol fields inside their returned objects remain stable.
-
-Key baseline hotspots are `help.go` (827 candidates), `request_rewrite_help.go`
-(137), `output.go` (196), `NagiApp.swift` (157), `CaptureDraftWindow.swift` (140),
-`RequestRewriteEditors.swift` (135), `command.go` (126), `profile.go` in menu
-(93), `request_rewrite_rules.go` (86) and `request_capture.go` in menu (80).
-
-The migration owner must replace each relevant candidate with an explicit ID,
+The migration owner must replace each user-visible string with an explicit ID,
 classify each deliberate preservation by boundary, and inspect the containing
 symbol for computed labels that literal scanning misses. Adding a lookup around
 a concatenated English sentence does not satisfy this requirement. Full coverage
