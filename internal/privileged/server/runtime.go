@@ -43,6 +43,7 @@ type RuntimeHandler struct {
 	generation        uint64
 	orphaned          bool
 	dnsError          error
+	dnsFastUntil      time.Time
 }
 
 func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged.Request) (privileged.Response, error) {
@@ -133,6 +134,7 @@ func (h *RuntimeHandler) Handle(ctx context.Context, peerUID int, req privileged
 		if err == nil && response.OK && req.Method == "PATCH" && req.Path == "/configs" {
 			_, err = h.syncDNS(ctx)
 			h.dnsError = err
+			h.boostDNSWatch()
 		}
 		return response, err
 	case privileged.Logs:
@@ -317,6 +319,7 @@ func (h *RuntimeHandler) start(ctx context.Context, req privileged.Request) (pri
 			h.mu.Unlock()
 		}
 	}()
+	h.boostDNSWatch()
 	go h.watchDNS(cmd.Process.Pid)
 	deadline := time.NewTimer(10 * time.Second)
 	defer deadline.Stop()
@@ -470,6 +473,8 @@ func (h *RuntimeHandler) reload(ctx context.Context, req privileged.Request) (re
 	h.resources = append(h.resources, h.snapshot)
 	h.resources = append(h.resources, resources...)
 	h.snapshot = snapshot
+	// A timed-out reload can still finish later, so boost even on error.
+	h.boostDNSWatch()
 	if err == nil && response.OK {
 		h.bindProviderEvidence(profileFromSource(body.Path), body.Path, snapshot, data)
 		_, err = h.syncDNS(ctx)

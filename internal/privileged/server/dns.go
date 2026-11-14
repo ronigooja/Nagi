@@ -116,15 +116,33 @@ func (h *RuntimeHandler) unavailableDNS(ctx context.Context, cause error) (traff
 	return state, cause
 }
 
+const (
+	dnsWatchFast  = time.Second
+	dnsWatchSlow  = 10 * time.Second
+	dnsWatchBoost = 30 * time.Second
+)
+
+// Every reconciliation runs one networksetup process per network service.
+// Poll quickly only while a start or reload may still be settling.
+func dnsWatchDelay(now, fastUntil time.Time) time.Duration {
+	if now.Before(fastUntil) {
+		return dnsWatchFast
+	}
+	return dnsWatchSlow
+}
+
+// boostDNSWatch must be called with h.mu held.
+func (h *RuntimeHandler) boostDNSWatch() { h.dnsFastUntil = time.Now().Add(dnsWatchBoost) }
+
 // Reconcile actual engine configuration so a delayed reload also updates DNS.
 // This does not consume the lifecycle completion channel.
 func (h *RuntimeHandler) watchDNS(pid int) {
 	if runtime.GOOS != "darwin" {
 		return
 	}
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for range ticker.C {
+	timer := time.NewTimer(dnsWatchFast)
+	defer timer.Stop()
+	for range timer.C {
 		h.mu.Lock()
 		if h.child == nil || h.child.Process.Pid != pid {
 			h.mu.Unlock()
@@ -134,6 +152,8 @@ func (h *RuntimeHandler) watchDNS(pid int) {
 		_, err := h.syncDNS(ctx)
 		cancel()
 		h.dnsError = err
+		delay := dnsWatchDelay(time.Now(), h.dnsFastUntil)
 		h.mu.Unlock()
+		timer.Reset(delay)
 	}
 }
