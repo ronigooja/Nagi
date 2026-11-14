@@ -262,7 +262,7 @@ func TestOperationFormsValidateInPlace(t *testing.T) {
 		{"LAN", enableLAN, "bad-address\n192.0.2.10\n", []string{"lan", "enable", "192.0.2.10"}},
 		{"logs", recentLogs, "0\nnot-a-number\n25\n", []string{"logs", "25"}},
 		{"DNS", dnsSet("direct"), "http://dns.example/query\nhttps://dns.example/query\n", []string{"dns", "set", "direct", "https://dns.example/query"}},
-		{"rules", ruleAdd, "invalid name\nwork\n10\n\nDIRECT\n", []string{"rules", "add", "work", "MATCH", "-", "DIRECT"}},
+		{"rules", ruleAdd, "invalid name\nwork\n10\n\nDIRECT\n1\n1\n", []string{"rules", "add", "work", "MATCH", "-", "DIRECT"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			runner := &fakeRunner{}
@@ -296,4 +296,17 @@ func TestTrafficUnknownStatusPreservesActionsAndURLContext(t *testing.T) {
 		}
 	}
 	t.Fatalf("recovery action was not dispatched: %v", runner.calls)
+}
+
+func TestRuleAddFormPassesIPOptions(t *testing.T) {
+	runner := &fakeRunner{}
+	var out bytes.Buffer
+	input := "us-ip\n5\n192.0.2.1/32\nProxy\n2\n2\n"
+	if err := ruleAdd(context.Background(), NewSession(runner, strings.NewReader(input), &out)); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"rules", "add", "us-ip", "IP-CIDR", "192.0.2.1/32", "Proxy", "--no-resolve", "--src"}}
+	if !reflect.DeepEqual(runner.calls, want) {
+		t.Fatalf("calls=%v output=%s", runner.calls, out.String())
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 
 	"github.com/ronigooja/Nagi/internal/rules"
 )
@@ -128,9 +129,9 @@ func ruleEditForm(ctx context.Context, s *Session, profile string, entry rules.E
 }
 
 func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile string) error {
-	values := map[string]string{}
+	values := map[string]string{"no_resolve": "false", "src": "false"}
 	if existing != nil {
-		values = map[string]string{"name": existing.Name, "type": existing.Type, "payload": existing.Payload, "target": existing.Target}
+		values = map[string]string{"name": existing.Name, "type": existing.Type, "payload": existing.Payload, "target": existing.Target, "no_resolve": strconv.FormatBool(existing.NoResolve), "src": strconv.FormatBool(existing.Src)}
 	}
 	fields := []Field{
 		{Key: "name", Label: menuText(s.language, "menu.rules.rule_add.rule_name", "Rule name"), Required: true, Validate: func(v string) error {
@@ -145,6 +146,8 @@ func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile st
 			return nil
 		}},
 		{Key: "target", Label: menuText(s.language, "menu.rules.rule_add.target_direct_reject_or_proxy_group", "Target (DIRECT, REJECT, or proxy group)"), Required: true},
+		{Key: "no_resolve", Label: menuText(s.language, "menu.rules.rule_add.no_resolve_ip_rules_only", "Skip DNS resolution, no-resolve (IP-CIDR, IP-CIDR6, GEOIP only)"), Choices: []string{"false", "true"}, ChoiceLabels: []string{menuState(s.language, "false"), menuState(s.language, "true")}},
+		{Key: "src", Label: menuText(s.language, "menu.rules.rule_add.src_ip_rules_only", "Match source address, src (IP-CIDR, IP-CIDR6, GEOIP only)"), Choices: []string{"false", "true"}, ChoiceLabels: []string{menuState(s.language, "false"), menuState(s.language, "true")}},
 	}
 	if existing != nil {
 		fields = fields[1:]
@@ -166,10 +169,17 @@ func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile st
 		if existing != nil {
 			verb = "edit"
 		}
-		if existing != nil {
-			return runManagedRule(ctx, s, profile, v["name"], "rules", verb, v["name"], v["type"], payload, v["target"])
+		args := []string{"rules", verb, v["name"], v["type"], payload, v["target"]}
+		if v["no_resolve"] == "true" {
+			args = append(args, "--no-resolve")
 		}
-		return s.Run(ctx, "rules", verb, v["name"], v["type"], payload, v["target"])
+		if v["src"] == "true" {
+			args = append(args, "--src")
+		}
+		if existing != nil {
+			return runManagedRule(ctx, s, profile, v["name"], args...)
+		}
+		return s.Run(ctx, args...)
 	})
 	return err
 }

@@ -395,6 +395,8 @@
   "backend.rules.ip_can_only_accompany_a_domain_target": {},
   "backend.rules.ip_must_be_an_ipv4_or_ipv6_address_without_a_zone": {},
   "backend.rules.match_has_no_payload": {},
+  "backend.rules.options_ip_only": {},
+  "backend.rules.options_single_only": {},
   "backend.rules.network_must_be_tcp_or_udp": {},
   "backend.rules.parse_rule_import_w": {
     "arg0": "string"

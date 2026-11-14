@@ -415,6 +415,8 @@
 "backend.rules.list_mapping_required" = "输入必须为包含 %1$@ 的 YAML 映射或字符串列表";
 "backend.rules.match_has_no_payload" = "MATCH 没有 payload";
 "backend.rules.network_must_be_tcp_or_udp" = "--network 必须为 tcp 或 udp";
+"backend.rules.options_ip_only" = "no-resolve 和 src 仅适用于 IP-CIDR、IP-CIDR6 和 GEOIP 规则";
+"backend.rules.options_single_only" = "no-resolve 和 src 仅适用于单条规则";
 "backend.rules.parse_rule_import_w" = "解析规则导入：%1$@";
 "backend.rules.parse_rules_file_w" = "解析规则文件：%1$@";
 "backend.rules.payload_must_be_nonempty_and_contain_no_comma_or_newline" = "payload 不能为空，且不能包含逗号或换行符";
@@ -1015,6 +1017,10 @@
 "cli.error.rules.import_validation_rejected" = "导入 %1$@ 到配置 %2$@ 失败：%3$@；导入规则未保存，运行配置未变更";
 "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or" = "NAME 必须使用 1..128 个 ASCII 字母、数字、_ 或 -";
 "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.usage" = "NAME 必须使用 1..128 个 ASCII 字母、数字、_ 或 -\n用法：nagi %3$@%1$@\n运行 `nagi help %2$@` 查看详情";
+"cli.error.rules.option_repeated" = "选项 %1$@ 重复出现";
+"cli.error.rules.option_repeated.usage" = "选项 %1$@ 重复出现\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
+"cli.error.rules.option_unknown" = "应为 --no-resolve 或 --src，实际为 %1$@";
+"cli.error.rules.option_unknown.usage" = "应为 --no-resolve 或 --src，实际为 %1$@\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
 "cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back" = "重新加载活动规则失败：%1$@；保存的规则已回滚";
 "cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back.usage" = "重新加载活动规则失败：%1$@；保存的规则已回滚\n用法：nagi %4$@%2$@\n运行 `nagi help %3$@` 查看详情";
 "cli.error.rules.rule_test_failed_ensure_mihomo_is_running_with_the_matching_engine_w" = "规则测试失败；请确保运行的是匹配的 mihomo 引擎：%1$@";
@@ -2140,7 +2146,7 @@
 "help.command.rewrite.validate.detail" = "验证提供的 v2 文档或已持久保存的配置方案文档。不执行 DNS、转发、持久保存或激活。读取私有文件或标准输入，最大 1 MiB。 也可使用 nagi request-rewrite；两者使用相同实现和 JSON 契约。";
 "help.command.rewrite.validate.hint" = "运行 `nagi rewrite status` 查看就绪状态和恢复指引。";
 "help.command.rewrite.validate.summary" = "在不联网和不激活的情况下验证";
-"help.command.rules.add.detail" = "支持 DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD、DOMAIN-REGEX、IP-CIDR、IP-CIDR6、GEOIP、GEOSITE、PROCESS-NAME 和 MATCH（其载荷使用 -）。TARGET 为 DIRECT、REJECT 或组名。保存到当前配置方案。";
+"help.command.rules.add.detail" = "支持 DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD、DOMAIN-REGEX、IP-CIDR、IP-CIDR6、GEOIP、GEOSITE、PROCESS-NAME 和 MATCH（其载荷使用 -）。TARGET 为 DIRECT、REJECT 或组名。--no-resolve 让该规则不进行 DNS 解析，--src 按来源地址匹配；两者仅适用于 IP-CIDR、IP-CIDR6 和 GEOIP。保存到当前配置方案。";
 "help.command.rules.add.summary" = "添加自定义规则";
 "help.command.rules.conflicts.detail" = "显示当前配置方案的有效规则顺序、重复匹配条件及被 MATCH 遮蔽的规则。";
 "help.command.rules.conflicts.summary" = "报告规则顺序和冲突";
@@ -2153,7 +2159,7 @@
 "help.command.rules.disable.detail" = "在当前配置方案中停用指定自定义规则、导入的逐条规则列表或规则集。";
 "help.command.rules.disable.hint" = "运行 `nagi rules custom` 查找名称。";
 "help.command.rules.disable.summary" = "停用自定义规则";
-"help.command.rules.edit.detail" = "替换单条规则的类型、匹配内容和目标；MATCH 的匹配内容使用 -。保留名称、顺序和启用状态。校验后在运行中重载；失败时恢复已保存规则。";
+"help.command.rules.edit.detail" = "替换单条规则的类型、匹配内容、目标和 IP 选项；MATCH 的匹配内容使用 -。未指定的选项会被清除。保留名称、顺序和启用状态。校验后在运行中重载；失败时恢复已保存规则。";
 "help.command.rules.edit.summary" = "编辑自定义规则";
 "help.command.rules.enable.detail" = "在当前配置方案中启用指定自定义规则、导入的逐条规则列表或规则集。";
 "help.command.rules.enable.hint" = "运行 `nagi rules custom` 查找名称。";

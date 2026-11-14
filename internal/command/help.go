@@ -150,8 +150,8 @@ var commandSpecs = []commandSpec{
 	{"rules custom", "rules custom", "List custom rules", "Shows persistent user-owned rules, imported per-rule lists, and rule sets for the selected profile.", "nagi rules custom", "", 0, 0},
 	{"rules conflicts", "rules conflicts", "Report rule order and conflicts", "Shows the selected profile's effective rule order, duplicate matchers, and rules shadowed by MATCH.", "nagi rules conflicts", "", 0, 0},
 	{"rules connection", "rules connection ID", "Show a connection's matched rule", "Reads the rule and payload recorded by mihomo for an active connection.", "nagi rules connection CONNECTION_ID", "Run `nagi connections list` to find an ID.", 1, 1},
-	{"rules add", "rules add NAME TYPE PAYLOAD TARGET", "Add a custom rule", "Supports DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, DOMAIN-REGEX, IP-CIDR, IP-CIDR6, GEOIP, GEOSITE, PROCESS-NAME, and MATCH (use - for its payload). TARGET is DIRECT, REJECT, or a group name. Saves to the selected profile.", "nagi rules add work DOMAIN-SUFFIX example.com DIRECT", "", 4, 4},
-	{"rules edit", "rules edit NAME TYPE PAYLOAD TARGET", "Edit a custom rule", "Replace a single rule's type, payload and target; use - as MATCH payload. Preserves its name, position and enabled state. Validates and reloads if running; restores saved rules on failure.", "nagi rules edit work DOMAIN-SUFFIX example.com DIRECT", "", 4, 4},
+	{"rules add", "rules add NAME TYPE PAYLOAD TARGET [--no-resolve] [--src]", "Add a custom rule", "Supports DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, DOMAIN-REGEX, IP-CIDR, IP-CIDR6, GEOIP, GEOSITE, PROCESS-NAME, and MATCH (use - for its payload). TARGET is DIRECT, REJECT, or a group name. --no-resolve skips DNS resolution for this rule and --src matches the source address; both apply only to IP-CIDR, IP-CIDR6, and GEOIP. Saves to the selected profile.", "nagi rules add us-ip IP-CIDR 192.0.2.1/32 Proxy --no-resolve", "", 4, 6},
+	{"rules edit", "rules edit NAME TYPE PAYLOAD TARGET [--no-resolve] [--src]", "Edit a custom rule", "Replace a single rule's type, payload, target and IP options; use - as MATCH payload. Omitted options are cleared. Preserves its name, position and enabled state. Validates and reloads if running; restores saved rules on failure.", "nagi rules edit work DOMAIN-SUFFIX example.com DIRECT", "", 4, 6},
 	{"rules update", "rules update NAME [SOURCE]", "Update imported rules or a set", "Refresh from the saved source, or replace it with a local file or absolute HTTP(S) URL without userinfo (maximum 8 MiB). Preserves name, order, kind and enabled state. Existing sets accept YAML payload lists; bundles accept native rules. Validates and reloads if running; restores saved rules on failure. Older imports require SOURCE once.", "nagi rules update work", "", 1, 2},
 	{"rules remove", "rules remove NAME", "Remove a custom rule", "Removes a named custom rule, imported per-rule list, or rule set from the selected profile.", "nagi rules remove work", "Run `nagi rules custom` to find names.", 1, 1},
 	{"rules enable", "rules enable NAME", "Enable a custom rule", "Enables a named custom rule, imported per-rule list, or rule set in the selected profile.", "nagi rules enable work", "Run `nagi rules custom` to find names.", 1, 1},
@@ -531,14 +531,20 @@ func validateInvocation(args []string) error {
 			return syntaxError(messageError("cli.error.validation.name_type_and_target_are_required", "NAME, TYPE, and TARGET are required"), spec)
 		}
 	}
-	if spec.path == "rules edit" {
-		payload := args[4]
-		typ := strings.ToUpper(args[3])
-		if typ == "MATCH" && payload == "-" {
-			payload = ""
-		}
-		if err := rules.Validate(rules.Entry{Name: args[2], Kind: "rule", Type: typ, Payload: payload, Target: args[5]}); err != nil {
+	if spec.path == "rules add" || spec.path == "rules edit" {
+		noResolve, src, err := ruleOptionFlags(args[6:])
+		if err != nil {
 			return syntaxError(err, spec)
+		}
+		if spec.path == "rules edit" {
+			payload := args[4]
+			typ := strings.ToUpper(args[3])
+			if typ == "MATCH" && payload == "-" {
+				payload = ""
+			}
+			if err := rules.Validate(rules.Entry{Name: args[2], Kind: "rule", Type: typ, Payload: payload, Target: args[5], NoResolve: noResolve, Src: src}); err != nil {
+				return syntaxError(err, spec)
+			}
 		}
 	}
 	if spec.path == "rules test" {

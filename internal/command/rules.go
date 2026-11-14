@@ -168,7 +168,12 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		if typ == "MATCH" && payload == "-" {
 			payload = ""
 		}
-		entry := rules.Entry{Name: args[2], Enabled: true, Kind: "rule", Type: typ, Payload: payload, Target: args[5]}
+		var noResolve, src bool
+		noResolve, src, err = ruleOptionFlags(args[6:])
+		if err != nil {
+			return nil, usage(err.Error())
+		}
+		entry := rules.Entry{Name: args[2], Enabled: true, Kind: "rule", Type: typ, Payload: payload, Target: args[5], NoResolve: noResolve, Src: src}
 		if args[1] == "edit" {
 			err = store.Edit(ctx, entry)
 		} else {
@@ -213,6 +218,27 @@ func rulesCommand(ctx context.Context, args []string, configDir, binary string, 
 		return nil, fail("rule_error", err)
 	}
 	return map[string]any{"profile": name, "name": args[2], "action": args[1], "saved": true}, nil
+}
+
+// ruleOptionFlags parses the optional trailing flags of rules add/edit.
+func ruleOptionFlags(flags []string) (noResolve, src bool, err error) {
+	for _, flag := range flags {
+		switch flag {
+		case "--no-resolve":
+			if noResolve {
+				return false, false, messageError("cli.error.rules.option_repeated", "option %s given more than once", flag)
+			}
+			noResolve = true
+		case "--src":
+			if src {
+				return false, false, messageError("cli.error.rules.option_repeated", "option %s given more than once", flag)
+			}
+			src = true
+		default:
+			return false, false, messageError("cli.error.rules.option_unknown", "expected --no-resolve or --src, got %s", flag)
+		}
+	}
+	return noResolve, src, nil
 }
 
 // validateRuleImportArguments checks syntax before resolving runtime paths.

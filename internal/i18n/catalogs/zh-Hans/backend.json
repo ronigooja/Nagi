@@ -296,6 +296,8 @@
   "backend.rules.ip_can_only_accompany_a_domain_target": "--ip 只能用于域名目标",
   "backend.rules.ip_must_be_an_ipv4_or_ipv6_address_without_a_zone": "--ip 必须为不含区域标识的 IPv4 或 IPv6 地址",
   "backend.rules.match_has_no_payload": "MATCH 没有 payload",
+  "backend.rules.options_ip_only": "no-resolve 和 src 仅适用于 IP-CIDR、IP-CIDR6 和 GEOIP 规则",
+  "backend.rules.options_single_only": "no-resolve 和 src 仅适用于单条规则",
   "backend.rules.network_must_be_tcp_or_udp": "--network 必须为 tcp 或 udp",
   "backend.rules.parse_rule_import_w": "解析规则导入：{arg0}",
   "backend.rules.parse_rules_file_w": "解析规则文件：{arg0}",

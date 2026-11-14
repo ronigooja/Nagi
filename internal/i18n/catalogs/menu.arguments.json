@@ -1001,6 +1001,8 @@
   "menu.rules.rule_add.a_payload_is_required_for_this_rule_type": {},
   "menu.rules.rule_add.rule_name": {},
   "menu.rules.rule_add.rule_payload_blank_for_match": {},
+  "menu.rules.rule_add.no_resolve_ip_rules_only": {},
+  "menu.rules.rule_add.src_ip_rules_only": {},
   "menu.rules.rule_add.rule_type": {},
   "menu.rules.rule_add.target_direct_reject_or_proxy_group": {},
   "menu.rules.rule_change.custom_rule_or_set": {},

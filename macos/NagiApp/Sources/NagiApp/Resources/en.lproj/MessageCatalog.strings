@@ -415,6 +415,8 @@
 "backend.rules.list_mapping_required" = "input must be a YAML %1$@ mapping or string list";
 "backend.rules.match_has_no_payload" = "MATCH has no payload";
 "backend.rules.network_must_be_tcp_or_udp" = "--network must be tcp or udp";
+"backend.rules.options_ip_only" = "no-resolve and src apply only to IP-CIDR, IP-CIDR6, and GEOIP rules";
+"backend.rules.options_single_only" = "no-resolve and src apply only to single rules";
 "backend.rules.parse_rule_import_w" = "parse rule import: %1$@";
 "backend.rules.parse_rules_file_w" = "parse rules file: %1$@";
 "backend.rules.payload_must_be_nonempty_and_contain_no_comma_or_newline" = "payload must be nonempty and contain no comma or newline";
@@ -1015,6 +1017,10 @@
 "cli.error.rules.import_validation_rejected" = "import %1$@ into profile %2$@ failed: %3$@; imported rules were not saved; runtime configuration was not changed";
 "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or" = "NAME must use 1..128 ASCII letters, digits, _ or -";
 "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.usage" = "NAME must use 1..128 ASCII letters, digits, _ or -\nUsage: nagi %3$@%1$@\nRun `nagi help %2$@` for details";
+"cli.error.rules.option_repeated" = "option %1$@ given more than once";
+"cli.error.rules.option_repeated.usage" = "option %1$@ given more than once\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
+"cli.error.rules.option_unknown" = "expected --no-resolve or --src, got %1$@";
+"cli.error.rules.option_unknown.usage" = "expected --no-resolve or --src, got %1$@\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
 "cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back" = "reload active rules: %1$@; saved rules were rolled back";
 "cli.error.rules.reload_active_rules_w_saved_rules_were_rolled_back.usage" = "reload active rules: %1$@; saved rules were rolled back\nUsage: nagi %4$@%2$@\nRun `nagi help %3$@` for details";
 "cli.error.rules.rule_test_failed_ensure_mihomo_is_running_with_the_matching_engine_w" = "rule test failed; ensure mihomo is running with the matching engine: %1$@";
@@ -2140,7 +2146,7 @@
 "help.command.rewrite.validate.detail" = "Validate a supplied v2 document or the persisted profile document. No DNS, forwarding, persistence or activation. Read private files or stdin, maximum 1 MiB. Also available as nagi request-rewrite; both use the same implementation and JSON contract.";
 "help.command.rewrite.validate.hint" = "Run `nagi rewrite status` for readiness and recovery.";
 "help.command.rewrite.validate.summary" = "Validate without network or activation";
-"help.command.rules.add.detail" = "Supports DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, DOMAIN-REGEX, IP-CIDR, IP-CIDR6, GEOIP, GEOSITE, PROCESS-NAME, and MATCH (use - for its payload). TARGET is DIRECT, REJECT, or a group name. Saves to the selected profile.";
+"help.command.rules.add.detail" = "Supports DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, DOMAIN-REGEX, IP-CIDR, IP-CIDR6, GEOIP, GEOSITE, PROCESS-NAME, and MATCH (use - for its payload). TARGET is DIRECT, REJECT, or a group name. --no-resolve skips DNS resolution for this rule and --src matches the source address; both apply only to IP-CIDR, IP-CIDR6, and GEOIP. Saves to the selected profile.";
 "help.command.rules.add.summary" = "Add a custom rule";
 "help.command.rules.conflicts.detail" = "Shows the selected profile's effective rule order, duplicate matchers, and rules shadowed by MATCH.";
 "help.command.rules.conflicts.summary" = "Report rule order and conflicts";
@@ -2153,7 +2159,7 @@
 "help.command.rules.disable.detail" = "Disables a named custom rule, imported per-rule list, or rule set in the selected profile.";
 "help.command.rules.disable.hint" = "Run `nagi rules custom` to find names.";
 "help.command.rules.disable.summary" = "Disable a custom rule";
-"help.command.rules.edit.detail" = "Replace a single rule's type, payload and target; use - as MATCH payload. Preserves its name, position and enabled state. Validates and reloads if running; restores saved rules on failure.";
+"help.command.rules.edit.detail" = "Replace a single rule's type, payload, target and IP options; use - as MATCH payload. Omitted options are cleared. Preserves its name, position and enabled state. Validates and reloads if running; restores saved rules on failure.";
 "help.command.rules.edit.summary" = "Edit a custom rule";
 "help.command.rules.enable.detail" = "Enables a named custom rule, imported per-rule list, or rule set in the selected profile.";
 "help.command.rules.enable.hint" = "Run `nagi rules custom` to find names.";

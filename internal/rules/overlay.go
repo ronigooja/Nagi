@@ -25,7 +25,14 @@ func Line(e Entry) string {
 	if e.Type == "MATCH" {
 		return "MATCH," + e.Target
 	}
-	return e.Type + "," + e.Payload + "," + e.Target
+	line := e.Type + "," + e.Payload + "," + e.Target
+	if e.Src {
+		line += ",src"
+	}
+	if e.NoResolve {
+		line += ",no-resolve"
+	}
+	return line
 }
 func Apply(base []byte, dir, profile string) ([]byte, error) {
 	doc, err := New(dir, profile, nil).List()

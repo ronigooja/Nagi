@@ -391,3 +391,60 @@ func TestGlobalRulesIgnoredAndInvalidProfileRejected(t *testing.T) {
 		t.Fatal("legacy rules modified")
 	}
 }
+
+func TestIPRuleOptionsValidateAndRender(t *testing.T) {
+	ip := Entry{Name: "us-ip", Enabled: true, Kind: "rule", Type: "IP-CIDR", Payload: "192.0.2.1/32", Target: "Proxy", NoResolve: true, Src: true}
+	if err := Validate(ip); err != nil {
+		t.Fatal(err)
+	}
+	if got := Line(ip); got != "IP-CIDR,192.0.2.1/32,Proxy,src,no-resolve" {
+		t.Fatal(got)
+	}
+	ip.Src = false
+	if got := Line(ip); got != "IP-CIDR,192.0.2.1/32,Proxy,no-resolve" {
+		t.Fatal(got)
+	}
+	ip.NoResolve = false
+	if got := Line(ip); got != "IP-CIDR,192.0.2.1/32,Proxy" {
+		t.Fatal(got)
+	}
+	for _, typ := range []string{"DOMAIN", "DOMAIN-SUFFIX", "GEOSITE", "PROCESS-NAME", "MATCH"} {
+		e := Entry{Name: "bad", Kind: "rule", Type: typ, Payload: "x", Target: "DIRECT", NoResolve: true}
+		if typ == "MATCH" {
+			e.Payload = ""
+		}
+		if err := Validate(e); err == nil {
+			t.Fatalf("%s accepted no-resolve", typ)
+		}
+	}
+	if err := Validate(Entry{Name: "geo", Kind: "rule", Type: "GEOIP", Payload: "US", Target: "DIRECT", Src: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(Entry{Name: "bundle", Kind: "rules", Items: []string{"DOMAIN,a.example,DIRECT"}, NoResolve: true}); err == nil {
+		t.Fatal("bundle accepted no-resolve")
+	}
+}
+
+func TestIPRuleOptionsPersistAndEdit(t *testing.T) {
+	dir := t.TempDir()
+	s := New(dir, "work", nil)
+	ctx := context.Background()
+	if err := s.Add(ctx, Entry{Name: "us-ip", Enabled: true, Kind: "rule", Type: "IP-CIDR", Payload: "192.0.2.1/32", Target: "Proxy", NoResolve: true}); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := s.List()
+	if err != nil || len(doc.Entries) != 1 || !doc.Entries[0].NoResolve || doc.Entries[0].Src {
+		t.Fatalf("%+v %v", doc, err)
+	}
+	effective, err := Apply([]byte("rules:\n  - MATCH,DIRECT\n"), dir, "work")
+	if err != nil || !strings.Contains(string(effective), "IP-CIDR,192.0.2.1/32,Proxy,no-resolve") {
+		t.Fatalf("%s %v", effective, err)
+	}
+	if err := s.Edit(ctx, Entry{Name: "us-ip", Type: "IP-CIDR", Payload: "192.0.2.1/32", Target: "Proxy"}); err != nil {
+		t.Fatal(err)
+	}
+	doc, err = s.List()
+	if err != nil || doc.Entries[0].NoResolve {
+		t.Fatalf("edit did not clear option: %+v %v", doc, err)
+	}
+}

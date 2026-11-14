@@ -28,6 +28,8 @@ type Entry struct {
 	Type          string   `yaml:"type,omitempty" json:"type,omitempty"`
 	Payload       string   `yaml:"payload,omitempty" json:"payload,omitempty"`
 	Target        string   `yaml:"target" json:"target"`
+	NoResolve     bool     `yaml:"no-resolve,omitempty" json:"no_resolve,omitempty"`
+	Src           bool     `yaml:"src,omitempty" json:"src,omitempty"`
 	Behavior      string   `yaml:"behavior,omitempty" json:"behavior,omitempty"`
 	Items         []string `yaml:"items,omitempty" json:"items,omitempty"`
 	Source        string   `yaml:"source,omitempty" json:"source,omitempty"`
@@ -162,9 +164,15 @@ func write(path string, data []byte) error {
 	}
 	return os.Rename(f.Name(), path)
 }
+func acceptsIPOptions(typ string) bool {
+	return typ == "IP-CIDR" || typ == "IP-CIDR6" || typ == "GEOIP"
+}
 func Validate(e Entry) error {
 	if !validName(e.Name) {
 		return i18n.Errorf("backend.rules.rule_name_must_use_1_128_ascii_letters_digits_or", "rule name must use 1-128 ASCII letters, digits, _ or -")
+	}
+	if (e.NoResolve || e.Src) && e.Kind != "rule" {
+		return i18n.Errorf("backend.rules.options_single_only", "no-resolve and src apply only to single rules")
 	}
 	if e.Kind == "rules" {
 		if e.Target != "" {
@@ -185,6 +193,9 @@ func Validate(e Entry) error {
 		}
 		if e.Type == "MATCH" && e.Payload != "" {
 			return i18n.Errorf("backend.rules.match_has_no_payload", "MATCH has no payload")
+		}
+		if (e.NoResolve || e.Src) && !acceptsIPOptions(e.Type) {
+			return i18n.Errorf("backend.rules.options_ip_only", "no-resolve and src apply only to IP-CIDR, IP-CIDR6, and GEOIP rules")
 		}
 		return nil
 	}

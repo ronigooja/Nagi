@@ -1248,6 +1248,24 @@
     "syntax": "string"
   },
   "cli.error.rules.unsupported_rules_command": {},
+  "cli.error.rules.option_repeated": {
+    "arg0": "string"
+  },
+  "cli.error.rules.option_repeated.usage": {
+    "arg0": "string",
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.rules.option_unknown": {
+    "arg0": "string"
+  },
+  "cli.error.rules.option_unknown.usage": {
+    "arg0": "string",
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
   "cli.error.rules.unsupported_rules_command.usage": {
     "hint": "string",
     "path": "string",

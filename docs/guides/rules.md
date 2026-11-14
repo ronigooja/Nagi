@@ -6,6 +6,7 @@ Use the CLI to inspect mihomo's active order and keep local rules separate from 
 nagi rules list
 nagi rules providers
 nagi rules add local-direct DOMAIN-SUFFIX intranet.example DIRECT
+nagi rules add us-ip IP-CIDR 192.0.2.1/32 "Proxy Group" --no-resolve
 nagi rules import personal ./personal-rules.yaml
 nagi rules conflicts
 nagi rules test 154.19.187.117
@@ -13,6 +14,8 @@ nagi rules connection CONNECTION_ID
 ```
 
 Stored rules belong to the selected profile. Select the intended profile with `nagi profile use NAME` before adding, importing, listing with `rules custom`, or managing them. Custom rules are evaluated before that profile's source and subscription rules. Switching profiles activates the new profile's own rules; an imported rule targeting a subscription group does not affect `default`. Disable a named rule or import temporarily with `nagi rules disable NAME`; re-enable it with `nagi rules enable NAME`. Remove the entire named rule, full-rule import, or set with `nagi rules remove NAME`.
+
+IP rules accept `--no-resolve` and `--src`; see the [single-rule IP options](../reference/cli.md#single-rule-ip-options). In `nagi menu`, the same choices appear at the end of the Add custom rule and Edit rule forms and default to off.
 
 To import full mihomo rules with different targets, save a file such as `personal-rules.yaml`:
 

@@ -654,6 +654,8 @@
   },
   "backend.rules.match_has_no_payload": {},
   "backend.rules.network_must_be_tcp_or_udp": {},
+  "backend.rules.options_ip_only": {},
+  "backend.rules.options_single_only": {},
   "backend.rules.parse_rule_import_w": {
     "arg0": "string"
   },
@@ -2371,6 +2373,24 @@
   },
   "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or": {},
   "cli.error.rules.name_must_use_1_128_ascii_letters_digits_or.usage": {
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.rules.option_repeated": {
+    "arg0": "string"
+  },
+  "cli.error.rules.option_repeated.usage": {
+    "arg0": "string",
+    "hint": "string",
+    "path": "string",
+    "syntax": "string"
+  },
+  "cli.error.rules.option_unknown": {
+    "arg0": "string"
+  },
+  "cli.error.rules.option_unknown.usage": {
+    "arg0": "string",
     "hint": "string",
     "path": "string",
     "syntax": "string"

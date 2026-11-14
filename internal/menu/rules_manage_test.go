@@ -117,7 +117,7 @@ func TestManagedUpdateRetainsSourceAfterFailure(t *testing.T) {
 func TestManagedEditPrefillsAndKeepsDisabledState(t *testing.T) {
 	r := managedRunner(rules.Entry{Name: "single", Kind: "rule", Type: "DOMAIN", Payload: "old.example", Target: "DIRECT"})
 	var out bytes.Buffer
-	s := NewSession(r, strings.NewReader("\n\nREJECT\n"), &out)
+	s := NewSession(r, strings.NewReader("\n\nREJECT\n1\n1\n"), &out)
 	v, err := localizedRuleDetailPage(i18n.New(i18n.English), "work", "single").Load(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
