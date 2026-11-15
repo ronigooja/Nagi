@@ -2090,16 +2090,17 @@ func subscriptionCommand(ctx context.Context, args []string, store *subscription
 		if err := validateRuleTargets(profiles.Dir, args[2], merged); err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		if err := profiles.ApplySubscription(context.WithValue(ctx, skipSelectionRestoreKey{}, true), args[2], merged); err != nil {
+		restored := 0
+		if err := profiles.ApplySubscription(context.WithValue(ctx, selectionRestoreCountKey{}, &restored), args[2], merged); err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		if err := (proxy.SelectionStore{Path: filepath.Join(profiles.Dir, "proxy-selections.json")}).Clear(args[2]); err != nil {
-			return nil, fail("subscription_error", messageError("cli.error.command.subscription_applied_but_saved_proxy_choices_could_not_be_cleared_w", "subscription applied but saved proxy choices could not be cleared: %w", err))
+		if err := pruneChoicesWithService(ctx, profiles.Dir, args[2], merged, proxies); err != nil {
+			return nil, fail("subscription_error", err)
 		}
 		if err := store.RecordApplySuccess(args[2], args[2], subscription.Hash(data), merged); err != nil {
 			return nil, fail("subscription_error", err)
 		}
-		return map[string]any{"name": args[2], "profile": args[2], "applied": true, "preview": preview, "selections_restored": 0}, nil
+		return map[string]any{"name": args[2], "profile": args[2], "applied": true, "preview": preview, "selections_restored": restored}, nil
 	default:
 		return nil, usage("subscription list|add <name> <url>|key <name> <file|clear>|schedule <name> <seconds|off>|update <name>|preview <name>|apply <name>|remove <name>")
 	}

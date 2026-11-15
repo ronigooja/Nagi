@@ -2205,7 +2205,7 @@
 "help.command.stop.summary" = "停止 mihomo";
 "help.command.subscription.add.detail" = "下载或激活前先保存 HTTP 或 HTTPS URL 及可选设置。调度默认 3600 秒；接受 1..31536000 或 off。测试 URL 必须为 HTTP(S)，且不含用户信息或片段。名称使用字母、数字、_ 或 -，最多 128 个字符。";
 "help.command.subscription.add.summary" = "保存订阅 URL";
-"help.command.subscription.apply.detail" = "使用缓存配置替换指定配置方案，保留本地设置和节点及组变更，清除已保存的组选择，验证并选中该方案。Nagi 管理本地监听器和控制器访问。";
+"help.command.subscription.apply.detail" = "使用缓存配置替换指定配置方案，保留本地设置和节点及组变更，保留有效的已保存组选择，验证并选中该方案。Nagi 管理本地监听器和控制器访问。";
 "help.command.subscription.apply.hint" = "运行 `nagi subscription preview NAME` 查看节点变更。";
 "help.command.subscription.apply.summary" = "应用已缓存的订阅";
 "help.command.subscription.detail" = "将 URL 和私有 age 身份与下载缓存、激活的配置方案分开保存。";

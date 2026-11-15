@@ -195,21 +195,27 @@ func mapsOf(v any) []map[string]any {
 	return out
 }
 func pruneSavedChoices(ctx context.Context, p nagiruntime.Paths, name string, candidate []byte) error {
-	path := filepath.Join(p.ConfigDir, "proxy-selections.json")
+	return pruneChoicesWithService(ctx, p.ConfigDir, name, candidate, proxy.NewService(mutationClient(p)))
+}
+
+func pruneChoicesWithService(ctx context.Context, dir, name string, candidate []byte, service *proxy.Service) error {
+	path := filepath.Join(dir, "proxy-selections.json")
 	store := proxy.SelectionStore{Path: path}
-	groups, err := effectiveGroups(p.ConfigDir, name, candidate)
+	groups, err := effectiveGroups(dir, name, candidate)
 	if err != nil {
 		return err
 	}
-	if live, err := proxy.NewService(mutationClient(p)).Groups(ctx); err == nil {
-		// A successful mihomo response is authoritative, including provider nodes.
-		groups = map[string]map[string]bool{}
-		for _, g := range live {
-			options := map[string]bool{}
-			for _, node := range g.All {
-				options[node] = true
+	if service != nil {
+		if live, err := service.Groups(ctx); err == nil {
+			// A successful mihomo response is authoritative, including provider nodes.
+			groups = map[string]map[string]bool{}
+			for _, g := range live {
+				options := map[string]bool{}
+				for _, node := range g.All {
+					options[node] = true
+				}
+				groups[g.Name] = options
 			}
-			groups[g.Name] = options
 		}
 	}
 	return store.Prune(name, groups)
@@ -271,6 +277,10 @@ func effectiveGroups(dir, name string, candidate []byte) (map[string]map[string]
 			}
 		}
 		groups[n] = options
+	}
+	if _, ok := groups["GLOBAL"]; !ok {
+		// Mihomo creates GLOBAL at runtime; its members cannot be confirmed offline.
+		groups["GLOBAL"] = map[string]bool{"*": true}
 	}
 	return groups, nil
 }

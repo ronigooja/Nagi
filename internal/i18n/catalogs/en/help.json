@@ -626,7 +626,7 @@
   "help.command.stop.summary": "Stop mihomo",
   "help.command.subscription.add.detail": "Saves an HTTP or HTTPS URL and optional settings before downloading or activating. Schedule defaults to 3600 seconds; accepts 1..31536000 or off. Test URL must be HTTP(S) without user information or fragment. Names use letters, digits, _ or -, up to 128 characters.",
   "help.command.subscription.add.summary": "Save a subscription URL",
-  "help.command.subscription.apply.detail": "Replaces the named profile with cached configuration, retains local settings and node/group changes, clears saved group choices, validates, and selects it. Nagi owns local listeners and controller access.",
+  "help.command.subscription.apply.detail": "Replaces the named profile with cached configuration, retains local settings and node/group changes, preserves valid saved group choices, validates, and selects it. Nagi owns local listeners and controller access.",
   "help.command.subscription.apply.hint": "Run `nagi subscription preview NAME` to inspect node changes.",
   "help.command.subscription.apply.summary": "Apply a cached subscription",
   "help.command.subscription.detail": "Stores URLs and private age identities separately from cached downloads and active profiles.",

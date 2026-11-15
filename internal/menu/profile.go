@@ -280,7 +280,7 @@ func diffProfile(ctx context.Context, s *Session, name string) error {
 
 func localizedsubscriptionListPage(language i18n.Context) *Page {
 	return &Page{ID: "profile.subscriptionListPage.page1", Title: menuText(language, "menu.profile.subscription_list_page.subscriptions", "Subscriptions"), Load: func(ctx context.Context, s *Session) (PageView, error) {
-		view := PageView{Empty: menuText(language, "menu.profile.subscription_list_page.no_subscriptions_configured_choose_add_and_apply", "No subscriptions configured. Choose Add and Apply subscription."), Actions: []Item{{ID: "profile.subscriptionListPage.item2", Label: menuText(language, "menu.profile.subscription_list_page.add_and_apply_subscription", "Add and Apply subscription"), Impact: menuText(language, "menu.profile.subscription_list_page.updates_subscription_retains_local_settings_and", "Updates subscription; retains local settings and nodes; clears saved node selections"), Navigate: addSubscription}}}
+		view := PageView{Empty: menuText(language, "menu.profile.subscription_list_page.no_subscriptions_configured_choose_add_and_apply", "No subscriptions configured. Choose Add and Apply subscription."), Actions: []Item{{ID: "profile.subscriptionListPage.item2", Label: menuText(language, "menu.profile.subscription_list_page.add_and_apply_subscription", "Add and Apply subscription"), Impact: menuText(language, "menu.profile.subscription_list_page.updates_subscription_retains_local_settings_and", "Updates subscription; retains local settings and nodes; retains valid saved selections"), Navigate: addSubscription}}}
 		var data struct {
 			Subscriptions []menuSubscription `json:"subscriptions"`
 		}
@@ -347,7 +347,7 @@ func subscriptionKey(ctx context.Context, s *Session, name string) error {
 	return err
 }
 
-const subscriptionApplyImpact = "Updates subscription; retains local settings and nodes; clears saved node selections"
+const subscriptionApplyImpact = "Updates subscription; retains local settings and nodes; retains valid saved selections"
 
 // Each successful stage is kept if a later stage fails. Creation forms submit
 // only add; download/apply failures return to the saved subscription's details.
@@ -379,7 +379,7 @@ func updateAndApplySubscription(ctx context.Context, s *Session, name string, ad
 func localizedsubscriptionDetailPage(language i18n.Context, name string) *Page {
 	return &Page{ID: "profile.subscriptionDetailPage.page1", Title: menuText(language, "menu.profile.subscription_detail_page.subscription", "Subscription: ") + name, Load: func(ctx context.Context, s *Session) (PageView, error) {
 		view := PageView{Actions: []Item{
-			{ID: "profile.subscriptionDetailPage.item2", Label: menuText(language, "menu.profile.subscription_detail_page.update_and_apply", "Update and Apply"), Impact: menuText(language, "menu.profile.subscription_detail_page.updates_subscription_retains_local_settings_and", "Updates subscription; retains local settings and nodes; clears saved node selections"), Action: func(ctx context.Context, s *Session) error {
+			{ID: "profile.subscriptionDetailPage.item2", Label: menuText(language, "menu.profile.subscription_detail_page.update_and_apply", "Update and Apply"), Impact: menuText(language, "menu.profile.subscription_detail_page.updates_subscription_retains_local_settings_and", "Updates subscription; retains local settings and nodes; retains valid saved selections"), Action: func(ctx context.Context, s *Session) error {
 				updateAndApplySubscription(ctx, s, name, false)
 				return nil
 			}},

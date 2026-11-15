@@ -183,8 +183,12 @@ func newProfileStoreWithContext(ctx context.Context, paths nagiruntime.Paths, bi
 			return err
 		}
 		if ctx.Value(skipSelectionRestoreKey{}) != true {
-			if _, err := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, current, proxy.NewService(client)); err != nil {
+			result, err := (proxy.SelectionStore{Path: filepath.Join(paths.ConfigDir, "proxy-selections.json")}).Restore(ctx, current, proxy.NewService(client))
+			if err != nil {
 				return messageError("cli.error.profile.mihomo_reloaded_but_saved_proxy_selections_were_not_fully_restored_w", "mihomo reloaded, but saved proxy selections were not fully restored: %w", err)
+			}
+			if count, ok := ctx.Value(selectionRestoreCountKey{}).(*int); ok {
+				*count = len(result.Restored)
 			}
 		}
 		return nil
@@ -220,6 +224,7 @@ func newProfileStoreWithContext(ctx context.Context, paths nagiruntime.Paths, bi
 }
 
 type skipSelectionRestoreKey struct{}
+type selectionRestoreCountKey struct{}
 
 func orderedProxyService(client proxy.Client, configDir string) *proxy.Service {
 	service := proxy.NewService(client)

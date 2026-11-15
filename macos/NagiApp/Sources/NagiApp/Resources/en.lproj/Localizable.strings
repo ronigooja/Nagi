@@ -192,7 +192,7 @@
 "app.ui.domains" = "Domains";
 "app.ui.done" = "Done";
 "app.ui.downloaded_cumulative" = "Downloaded (cumulative)";
-"app.ui.downloads_and_applies_the_subscription_without_starting" = "Downloads and applies the subscription without starting the engine. Keeps local settings and nodes; clears saved selections.";
+"app.ui.downloads_and_applies_the_subscription_without_starting" = "Downloads and applies the subscription without starting the engine. Keeps local settings and nodes; retains valid saved selections.";
 "app.ui.draft_retained_including_its_original_version_no" = " Draft retained, including its original version. No automatic retry.";
 "app.ui.draft_retained_no_automatic_retry" = " Draft retained; no automatic retry.";
 "app.ui.dropped" = "%1$@ dropped";

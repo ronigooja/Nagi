@@ -192,7 +192,7 @@
 "app.ui.domains" = "域名";
 "app.ui.done" = "完成";
 "app.ui.downloaded_cumulative" = "累计下载";
-"app.ui.downloads_and_applies_the_subscription_without_starting" = "下载并应用订阅，不启动引擎。保留本地设置和节点；清除已保存选择。";
+"app.ui.downloads_and_applies_the_subscription_without_starting" = "下载并应用订阅，不启动引擎。保留本地设置和节点；保留有效的已保存选择。";
 "app.ui.draft_retained_including_its_original_version_no" = " 已保留草稿及其原始版本。不会自动重试。";
 "app.ui.draft_retained_no_automatic_retry" = " 已保留草稿；不会自动重试。";
 "app.ui.dropped" = "丢弃 %1$@ 条";

@@ -43,9 +43,9 @@ func (c *subscriptionSelectionClient) Put(_ context.Context, path string, body a
 	return nil
 }
 
-func TestSubscriptionApplyDoesNotRestoreOldChoices(t *testing.T) {
+func TestSubscriptionApplyPreservesValidChoices(t *testing.T) {
 	ctx := context.Background()
-	source := []byte("proxies:\n  - name: A\n    type: direct\nproxy-groups:\n  - name: Manual\n    type: select\n    proxies: [A, DIRECT]\n")
+	source := []byte("proxies:\n  - name: A\n    type: direct\n  - name: B\n    type: direct\nproxy-groups:\n  - name: Manual\n    type: select\n    proxies: [A, B, DIRECT]\n")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(source) }))
 	defer server.Close()
 	dir := t.TempDir()
@@ -64,8 +64,15 @@ func TestSubscriptionApplyDoesNotRestoreOldChoices(t *testing.T) {
 	if err := selections.Save("work", "Manual", "B"); err != nil {
 		t.Fatal(err)
 	}
+	if err := selections.Save("work", "Gone", "old"); err != nil {
+		t.Fatal(err)
+	}
 	client := &subscriptionSelectionClient{}
-	profiles := profile.NewStore(dir, validator, func(context.Context) error { client.reloaded = true; return nil })
+	profiles := profile.NewStore(dir, validator, func(ctx context.Context) error {
+		client.reloaded = true
+		_, err := selections.Restore(ctx, "work", proxy.NewService(client))
+		return err
+	})
 	result, err := subscriptionCommand(ctx, []string{"subscription", "apply", "work"}, cache, profiles, proxy.NewService(client))
 	if err != nil {
 		t.Fatal(err)
@@ -73,15 +80,39 @@ func TestSubscriptionApplyDoesNotRestoreOldChoices(t *testing.T) {
 	if result.(map[string]any)["selections_restored"] != 0 {
 		t.Fatalf("result: %+v", result)
 	}
-	if len(client.gets) != 0 {
-		t.Fatalf("unexpected queries: %v", client.gets)
-	}
-	if len(client.puts) != 0 {
-		t.Fatalf("unexpected selections: %v", client.puts)
+	if client.puts["/proxies/Manual"] != "B" {
+		t.Fatalf("selection not restored during apply: %v", client.puts)
 	}
 	stored, err := selections.Restore(ctx, "work", proxy.NewService(client))
-	if err != nil || len(stored.Restored) != 0 || len(stored.Unavailable) != 0 {
-		t.Fatalf("old choices remain: %+v, %v", stored, err)
+	if err != nil || len(stored.Restored) != 1 || len(stored.Unavailable) != 0 || client.puts["/proxies/Manual"] != "B" {
+		t.Fatalf("choices: %+v, %v, puts: %v", stored, err, client.puts)
+	}
+}
+
+func TestSubscriptionApplyPreservesImplicitGlobalOffline(t *testing.T) {
+	ctx := context.Background()
+	source := []byte("proxies:\n  - name: A\n    type: direct\nproxy-groups:\n  - name: Proxy\n    type: select\n    proxies: [A]\n")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(source) }))
+	defer server.Close()
+	dir := t.TempDir()
+	cache := subscription.NewStore(dir, filepath.Join(dir, "cache"), nil)
+	if err := cache.Add("work", server.URL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cache.Refresh(ctx, "work"); err != nil {
+		t.Fatal(err)
+	}
+	choices := proxy.SelectionStore{Path: filepath.Join(dir, "proxy-selections.json")}
+	if err := choices.Save("work", "GLOBAL", "A"); err != nil {
+		t.Fatal(err)
+	}
+	profiles := profile.NewStore(dir, func([]byte) error { return nil }, nil)
+	if _, err := subscriptionCommand(ctx, []string{"subscription", "apply", "work"}, cache, profiles, nil); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(choices.Path)
+	if err != nil || !strings.Contains(string(data), `"GLOBAL"`) {
+		t.Fatalf("GLOBAL choice lost: %s, %v", data, err)
 	}
 }
 
