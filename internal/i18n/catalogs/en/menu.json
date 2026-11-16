@@ -884,7 +884,7 @@
   "menu.rules.rule_add.a_payload_is_required_for_this_rule_type": "a payload is required for this rule type",
   "menu.rules.rule_add.rule_name": "Rule name",
   "menu.rules.rule_add.rule_payload_blank_for_match": "Rule payload (blank for MATCH)",
-  "menu.rules.rule_add.no_resolve_ip_rules_only": "Skip DNS resolution, no-resolve (IP-CIDR, IP-CIDR6, GEOIP only)",
+  "menu.rules.rule_add.no_resolve_ip_rules_only": "Resolve domains (IP-CIDR, IP-CIDR6, GEOIP only)",
   "menu.rules.rule_add.src_ip_rules_only": "Match source address, src (IP-CIDR, IP-CIDR6, GEOIP only)",
   "menu.rules.rule_add.rule_type": "Rule type",
   "menu.rules.rule_add.target_direct_reject_or_proxy_group": "Target (DIRECT, REJECT, or proxy group)",

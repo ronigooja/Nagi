@@ -47,6 +47,10 @@ func (s *Session) Select(label string, choices []string) (string, error) {
 	return s.selectChoices(label, choices, nil)
 }
 func (s *Session) selectChoices(label string, choices, labels []string) (string, error) {
+	return s.selectChoicesWithCurrent(label, choices, labels, "")
+}
+
+func (s *Session) selectChoicesWithCurrent(label string, choices, labels []string, current string) (string, error) {
 	if len(choices) == 0 {
 		return "", fmt.Errorf("%s", menuText(s.language, "menu.input.select.no_choices_available", "no choices available"))
 	}
@@ -70,6 +74,9 @@ func (s *Session) selectChoices(label string, choices, labels []string) (string,
 			return "", err
 		}
 		if value == "" {
+			if current != "" {
+				return current, nil
+			}
 			continue
 		}
 		if value == "0" {
@@ -118,7 +125,7 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 			var value string
 			var err error
 			if len(field.Choices) > 0 {
-				value, err = s.selectChoices(label, field.Choices, field.ChoiceLabels)
+				value, err = s.selectChoicesWithCurrent(label, field.Choices, field.ChoiceLabels, values[field.Key])
 			} else {
 				value, err = s.Prompt(label)
 			}

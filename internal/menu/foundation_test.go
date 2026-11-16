@@ -86,6 +86,28 @@ func TestFormEOFAfterFailureDoesNotRetry(t *testing.T) {
 	}
 }
 
+func TestFormChoiceBlankKeepsCurrent(t *testing.T) {
+	fields := []Field{
+		{Key: "no-resolve", Label: "No resolve", Choices: []string{"true", "false"}},
+		{Key: "src", Label: "Source", Choices: []string{"false", "true"}},
+		{Key: "new", Label: "New", Choices: []string{"true", "false"}},
+	}
+	values := map[string]string{"no-resolve": "false", "src": "true"}
+	s := NewSession(&fakeRunner{}, strings.NewReader("\n\n\n2\n"), &bytes.Buffer{})
+	called := false
+	_, err := s.Form(context.Background(), fields, values, func(v map[string]string) Result {
+		called = true
+		want := map[string]string{"no-resolve": "false", "src": "true", "new": "false"}
+		if !reflect.DeepEqual(v, want) {
+			t.Errorf("values=%v want=%v", v, want)
+		}
+		return Result{}
+	})
+	if err != nil || !called {
+		t.Fatalf("err=%v called=%v", err, called)
+	}
+}
+
 func TestActionNavigationAndNoConfirmation(t *testing.T) {
 	var out bytes.Buffer
 	calls := 0

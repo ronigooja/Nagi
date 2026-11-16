@@ -884,7 +884,7 @@
   "menu.rules.rule_add.a_payload_is_required_for_this_rule_type": "此规则类型需要匹配内容",
   "menu.rules.rule_add.rule_name": "规则名称",
   "menu.rules.rule_add.rule_payload_blank_for_match": "规则匹配内容（MATCH 可留空）",
-  "menu.rules.rule_add.no_resolve_ip_rules_only": "不解析域名 no-resolve（仅 IP-CIDR、IP-CIDR6、GEOIP）",
+  "menu.rules.rule_add.no_resolve_ip_rules_only": "解析域名（仅 IP-CIDR、IP-CIDR6、GEOIP）",
   "menu.rules.rule_add.src_ip_rules_only": "按来源地址匹配 src（仅 IP-CIDR、IP-CIDR6、GEOIP）",
   "menu.rules.rule_add.rule_type": "规则类型",
   "menu.rules.rule_add.target_direct_reject_or_proxy_group": "目标（DIRECT、REJECT 或代理组）",

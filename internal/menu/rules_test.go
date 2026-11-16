@@ -11,6 +11,31 @@ import (
 	"github.com/ronigooja/Nagi/internal/rules"
 )
 
+func TestRuleEditResolvePreservesAndChangesSetting(t *testing.T) {
+	for _, tc := range []struct {
+		noResolve bool
+		choice    string
+		wantFlag  bool
+	}{
+		{false, "", false}, {true, "", true},
+		{false, "2", true}, {true, "1", false},
+	} {
+		entry := rules.Entry{Name: "example", Type: "IP-CIDR", Payload: "192.0.2.1/32", Target: "DIRECT", NoResolve: tc.noResolve}
+		runner := &fakeRunner{results: map[string]Result{"rules custom": {Data: managedRules{Profile: "test", Entries: []rules.Entry{entry}}}}}
+		input := "\n\n\n" + tc.choice + "\n\n"
+		if err := ruleEditForm(context.Background(), NewSession(runner, strings.NewReader(input), &bytes.Buffer{}), "test", entry); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"rules", "edit", "example", "IP-CIDR", "192.0.2.1/32", "DIRECT"}
+		if tc.wantFlag {
+			want = append(want, "--no-resolve")
+		}
+		if !reflect.DeepEqual(runner.calls, [][]string{{"rules", "custom"}, want}) {
+			t.Fatalf("noResolve=%v choice=%q calls=%v", tc.noResolve, tc.choice, runner.calls)
+		}
+	}
+}
+
 func TestRuleTestMenuJourney(t *testing.T) {
 	result := Result{Data: rules.TestResult{Target: "154.19.187.117", Port: 443, Network: "tcp", Mode: "rule", Matched: true, Rule: "RuleSet", RulePayload: "nagi-personal", Providers: []string{"nagi-personal"}, Outbound: "DIRECT", Warnings: []string{"Synthetic destination test"}}}
 	runner := &fakeRunner{results: map[string]Result{"rules test 154.19.187.117": result}}

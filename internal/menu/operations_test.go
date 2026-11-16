@@ -301,7 +301,7 @@ func TestTrafficUnknownStatusPreservesActionsAndURLContext(t *testing.T) {
 func TestRuleAddFormPassesIPOptions(t *testing.T) {
 	runner := &fakeRunner{}
 	var out bytes.Buffer
-	input := "us-ip\n5\n192.0.2.1/32\nProxy\n1\n2\n"
+	input := "us-ip\n5\n192.0.2.1/32\nProxy\n2\n2\n"
 	if err := ruleAdd(context.Background(), NewSession(runner, strings.NewReader(input), &out)); err != nil {
 		t.Fatal(err)
 	}
@@ -311,13 +311,13 @@ func TestRuleAddFormPassesIPOptions(t *testing.T) {
 	}
 }
 
-func TestRuleAddFormDefaultsNoResolveForIPRulesOnly(t *testing.T) {
+func TestRuleAddFormDefaultsResolveForIPRulesOnly(t *testing.T) {
 	for _, tt := range []struct {
 		input string
 		want  []string
 	}{
-		{"us-ip\n5\n192.0.2.1/32\nProxy\n1\n1\n", []string{"rules", "add", "us-ip", "IP-CIDR", "192.0.2.1/32", "Proxy", "--no-resolve"}},
-		{"us-ip\n5\n192.0.2.1/32\nProxy\n2\n1\n", []string{"rules", "add", "us-ip", "IP-CIDR", "192.0.2.1/32", "Proxy"}},
+		{"us-ip\n5\n192.0.2.1/32\nProxy\n\n\n", []string{"rules", "add", "us-ip", "IP-CIDR", "192.0.2.1/32", "Proxy"}},
+		{"us-ip\n5\n192.0.2.1/32\nProxy\n2\n1\n", []string{"rules", "add", "us-ip", "IP-CIDR", "192.0.2.1/32", "Proxy", "--no-resolve"}},
 		{"site\n1\nexample.com\nProxy\n1\n2\n", []string{"rules", "add", "site", "DOMAIN", "example.com", "Proxy"}},
 	} {
 		runner := &fakeRunner{}
