@@ -110,8 +110,8 @@
 "app.ui.clear" = "Clear";
 "app.ui.clear_result" = "Clear Result";
 "app.ui.clear_the_fixed_choice_through_mihomo" = "Clear the fixed choice through mihomo";
-"app.ui.cli_output_exceeded_1_mib" = "CLI output exceeded 1 MiB.";
-"app.ui.cli_stderr_exceeded_1_mib" = "CLI stderr exceeded 1 MiB.";
+"app.ui.cli_output_exceeded_2_mib" = "CLI output exceeded 2 MiB.";
+"app.ui.cli_stderr_exceeded_2_mib" = "CLI stderr exceeded 2 MiB.";
 "app.ui.client_server" = "Client → Server";
 "app.ui.close" = "Close";
 "app.ui.close_all_connections" = "Close All Connections…";

@@ -110,8 +110,8 @@
 "app.ui.clear" = "清除";
 "app.ui.clear_result" = "清除结果";
 "app.ui.clear_the_fixed_choice_through_mihomo" = "通过 mihomo 清除固定选择";
-"app.ui.cli_output_exceeded_1_mib" = "CLI 输出超过 1 MiB。";
-"app.ui.cli_stderr_exceeded_1_mib" = "CLI 标准错误输出超过 1 MiB。";
+"app.ui.cli_output_exceeded_2_mib" = "CLI 输出超过 2 MiB。";
+"app.ui.cli_stderr_exceeded_2_mib" = "CLI 标准错误输出超过 2 MiB。";
 "app.ui.client_server" = "客户端 → 服务端";
 "app.ui.close" = "关闭";
 "app.ui.close_all_connections" = "关闭所有连接…";

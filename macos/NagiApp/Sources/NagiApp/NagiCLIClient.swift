@@ -4,6 +4,8 @@ import Darwin
 /// All engine and configuration operations pass through the installed CLI.
 struct NagiCLIClient {
     static let installedExecutable = URL(fileURLWithPath: "/usr/local/bin/nagi")
+    static let baseOutputLimit = 2 * 1_048_576
+    static let largeOutputLimit = 8 * 1_048_576
     let executable: URL
     private let timeout: TimeInterval
     private let appUpdateTimeout: TimeInterval
@@ -18,8 +20,14 @@ struct NagiCLIClient {
         arguments == ["update", "--app"] ? appUpdateTimeout : timeout
     }
 
+    /// Subscription results can carry node and configuration change details for
+    /// feeds near the 8 MiB download limit, so they share the connection limit.
+    func stdoutLimit(for arguments: [String]) -> Int {
+        arguments.first == "subscription" ? Self.largeOutputLimit : Self.baseOutputLimit
+    }
+
     func run(_ arguments: [String]) async throws -> JSONValue {
-        try await run(arguments, stdoutLimit: 1_048_576, as: JSONValue.self)
+        try await run(arguments, stdoutLimit: stdoutLimit(for: arguments), as: JSONValue.self)
     }
 
     /// Connections are decoded directly on the worker queue, without building a
@@ -177,11 +185,11 @@ struct NagiCLIClient {
         if holder.cancelled { throw CancellationError() }
         let (out, outOverflow) = outReader.snapshot()
         let (err, errOverflow) = errReader.snapshot()
-        if stdoutLimit > 1_048_576 {
+        if stdoutLimit > Self.baseOutputLimit {
             if outOverflow { throw CLIError.outputTooLarge(stdoutLimit) }
-            if errOverflow { throw CLIError.invalidJSON(L10n.text("app.ui.cli_stderr_exceeded_1_mib")) }
+            if errOverflow { throw CLIError.invalidJSON(L10n.text("app.ui.cli_stderr_exceeded_2_mib")) }
         } else if outOverflow || errOverflow {
-            throw CLIError.invalidJSON(L10n.text("app.ui.cli_output_exceeded_1_mib"))
+            throw CLIError.invalidJSON(L10n.text("app.ui.cli_output_exceeded_2_mib"))
         }
         let responseData = out.isEmpty ? err : out
         guard let response = try? JSONDecoder().decode(CLIEnvelope<Value>.self, from: responseData) else {
@@ -349,7 +357,7 @@ private final class CommandOutputReader: @unchecked Sendable {
     private var finished = false
     private let limit: Int
 
-    init(_ handle: FileHandle, limit: Int = 1_048_576) throws {
+    init(_ handle: FileHandle, limit: Int = NagiCLIClient.baseOutputLimit) throws {
         self.handle = handle
         self.limit = limit
         let descriptor = handle.fileDescriptor
@@ -570,7 +578,7 @@ final class ConnectionsStream: @unchecked Sendable {
     private static func readStderr(_ handle: FileHandle) -> (Data, Bool) {
         var data = Data(), overflow = false
         while let chunk = try? handle.read(upToCount: 4096), !chunk.isEmpty {
-            if data.count + chunk.count <= 1_048_576 { data.append(chunk) } else { overflow = true }
+            if data.count + chunk.count <= NagiCLIClient.baseOutputLimit { data.append(chunk) } else { overflow = true }
         }
         return (data, overflow)
     }
@@ -594,7 +602,7 @@ final class ConnectionsStream: @unchecked Sendable {
                     if wasStopped { continuation.resume(throwing: CancellationError()); return }
 
                     let (_, stderr, overflow) = output.snapshot()
-                    if overflow { continuation.resume(throwing: CLIError.invalidJSON(L10n.text("app.ui.cli_stderr_exceeded_1_mib"))); return }
+                    if overflow { continuation.resume(throwing: CLIError.invalidJSON(L10n.text("app.ui.cli_stderr_exceeded_2_mib"))); return }
                     if let envelope = try? JSONDecoder().decode(CLIEnvelope<JSONValue>.self, from: stderr),
                        let error = envelope.error {
                         continuation.resume(throwing: envelope.commandError(fallbackCode: error.code, fallbackMessage: error.message))

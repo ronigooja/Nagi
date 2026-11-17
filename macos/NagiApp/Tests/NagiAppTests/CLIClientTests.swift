@@ -66,10 +66,21 @@ final class CLIClientTests: XCTestCase {
 
     func testOversizedStdoutAndStderrAreDrainedWithoutDeadlock() async throws {
         for redirect in ["", " >&2"] {
-            let script = try fixture("/usr/bin/head -c 1100000 /dev/zero\(redirect)")
+            let script = try fixture("/usr/bin/head -c 2200000 /dev/zero\(redirect)")
             do { _ = try await NagiCLIClient(executable: script, timeout: 3).run([]); XCTFail("Expected output limit error") }
-            catch CLIError.invalidJSON(let message) { XCTAssertEqual(message, "CLI output exceeded 1 MiB.") }
+            catch CLIError.invalidJSON(let message) { XCTAssertEqual(message, "CLI output exceeded 2 MiB.") }
         }
+    }
+
+    func testSubscriptionCommandsAcceptLargerStdoutThanOtherCommands() async throws {
+        let script = try fixture(#"/usr/bin/python3 -c 'import json; print(json.dumps({"ok":True,"data":{"padding":"x"*3000000}}))'"#)
+        let client = NagiCLIClient(executable: script, timeout: 10)
+        XCTAssertEqual(client.stdoutLimit(for: ["subscription", "update", "Fixture"]), 8_388_608)
+        XCTAssertEqual(client.stdoutLimit(for: ["status"]), 2_097_152)
+        let result = try await client.run(["subscription", "update", "Fixture"])
+        XCTAssertEqual(result["padding"]?.string?.count, 3_000_000)
+        do { _ = try await client.run(["status"]); XCTFail("Expected output limit error") }
+        catch CLIError.invalidJSON(let message) { XCTAssertEqual(message, L10n.text("app.ui.cli_output_exceeded_2_mib")) }
     }
 
     func testOnlyAppUpdateUsesLongerPreparationTimeout() async throws {

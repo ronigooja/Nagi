@@ -129,19 +129,19 @@ final class ConnectionsTests: XCTestCase {
     func testOnlyConnectionStdoutHasEightMiBLimitAndLargeTypedListsLoad() async throws {
         let cli = try fixture("""
         import json,sys
-        value = {"ok":True,"data":{"connections":[{"id":"large","metadata":{"processPath":"x"*1500000},"upload":9223372036854775807}]}}
+        value = {"ok":True,"data":{"connections":[{"id":"large","metadata":{"processPath":"x"*2500000},"upload":9223372036854775807}]}}
         print(json.dumps(value))
         """)
         defer { try? FileManager.default.removeItem(at: cli) }
         let client = NagiCLIClient(executable: cli)
         let records = try await client.connections()
         XCTAssertEqual(records.count, 1)
-        XCTAssertEqual(records[0].processPath.count, 1_500_000)
+        XCTAssertEqual(records[0].processPath.count, 2_500_000)
         XCTAssertEqual(records[0].upload, Int64.max)
         do {
             _ = try await client.run(["status"])
             XCTFail("ordinary command output limit was raised")
-        } catch CLIError.invalidJSON(let message) { XCTAssertEqual(message, L10n.text("app.ui.cli_output_exceeded_1_mib")) }
+        } catch CLIError.invalidJSON(let message) { XCTAssertEqual(message, L10n.text("app.ui.cli_output_exceeded_2_mib")) }
     }
 
     func testConnectionOutputBoundaryAndStderrLimit() async throws {
@@ -164,13 +164,13 @@ final class ConnectionsTests: XCTestCase {
         let cli = try fixture("""
         import sys
         sys.stdout.write('{"ok":true,"data":{"connections":[]}}')
-        sys.stderr.write('x'*1048577)
+        sys.stderr.write('x'*2097153)
         """)
         defer { try? FileManager.default.removeItem(at: cli) }
         do {
             _ = try await NagiCLIClient(executable: cli).connections()
             XCTFail("connection stderr limit was raised")
-        } catch CLIError.invalidJSON(let message) { XCTAssertTrue(message.contains(L10n.text("app.ui.cli_stderr_exceeded_1_mib"))) }
+        } catch CLIError.invalidJSON(let message) { XCTAssertTrue(message.contains(L10n.text("app.ui.cli_stderr_exceeded_2_mib"))) }
     }
 }
 
