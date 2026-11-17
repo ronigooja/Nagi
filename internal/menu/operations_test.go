@@ -318,7 +318,9 @@ func TestRuleAddFormDefaultsResolveForIPRulesOnly(t *testing.T) {
 	}{
 		{"us-ip\n5\n192.0.2.1/32\nProxy\n\n\n", []string{"rules", "add", "us-ip", "IP-CIDR", "192.0.2.1/32", "Proxy"}},
 		{"us-ip\n5\n192.0.2.1/32\nProxy\n2\n1\n", []string{"rules", "add", "us-ip", "IP-CIDR", "192.0.2.1/32", "Proxy", "--no-resolve"}},
-		{"site\n1\nexample.com\nProxy\n1\n2\n", []string{"rules", "add", "site", "DOMAIN", "example.com", "Proxy"}},
+		{"site\n1\nexample.com\nProxy\n", []string{"rules", "add", "site", "DOMAIN", "example.com", "Proxy"}},
+		{"site\n2\nvultr.com\nProxy\n", []string{"rules", "add", "site", "DOMAIN-SUFFIX", "vultr.com", "Proxy"}},
+		{"any\n10\n\nProxy\n", []string{"rules", "add", "any", "MATCH", "-", "Proxy"}},
 	} {
 		runner := &fakeRunner{}
 		var out bytes.Buffer
@@ -327,6 +329,10 @@ func TestRuleAddFormDefaultsResolveForIPRulesOnly(t *testing.T) {
 		}
 		if !reflect.DeepEqual(runner.calls, [][]string{tt.want}) {
 			t.Fatalf("calls=%v want=%v", runner.calls, tt.want)
+		}
+		asksIPOptions := strings.Contains(out.String(), "Resolve domains") || strings.Contains(out.String(), "Match source address")
+		if wantAsk := tt.want[3] == "IP-CIDR"; asksIPOptions != wantAsk {
+			t.Fatalf("type=%s asked IP options=%v out=%s", tt.want[3], asksIPOptions, out.String())
 		}
 	}
 }

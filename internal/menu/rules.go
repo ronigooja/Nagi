@@ -147,11 +147,8 @@ func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile st
 			return nil
 		}},
 		{Key: "target", Label: menuText(s.language, "menu.rules.rule_add.target_direct_reject_or_proxy_group", "Target (DIRECT, REJECT, or proxy group)"), Required: true},
-		{Key: "resolve", Label: menuText(s.language, "menu.rules.rule_add.no_resolve_ip_rules_only", "Resolve domains (IP-CIDR, IP-CIDR6, GEOIP only)"), Choices: []string{"true", "false"}, ChoiceLabels: []string{menuState(s.language, "true"), menuState(s.language, "false")}},
-		{Key: "src", Label: menuText(s.language, "menu.rules.rule_add.src_ip_rules_only", "Match source address, src (IP-CIDR, IP-CIDR6, GEOIP only)"), Choices: []string{"false", "true"}, ChoiceLabels: []string{menuState(s.language, "false"), menuState(s.language, "true")}},
-	}
-	if existing == nil {
-		fields[4].Label += " [" + menuState(s.language, "true") + "]"
+		{Key: "resolve", Label: menuText(s.language, "menu.rules.rule_add.resolve_domains", "Resolve domains"), Choices: []string{"true", "false"}, ChoiceLabels: []string{menuState(s.language, "true"), menuState(s.language, "false")}, Show: ipOptionValues},
+		{Key: "src", Label: menuText(s.language, "menu.rules.rule_add.match_source_address", "Match source address (src)"), Choices: []string{"false", "true"}, ChoiceLabels: []string{menuState(s.language, "false"), menuState(s.language, "true")}, Show: ipOptionValues},
 	}
 	if existing != nil {
 		fields = fields[1:]
@@ -188,6 +185,12 @@ func ruleForm(ctx context.Context, s *Session, existing *rules.Entry, profile st
 		return s.Run(ctx, args...)
 	})
 	return err
+}
+
+// ipOptionValues is the form visibility rule: only IP-based types are asked
+// about resolving and source matching.
+func ipOptionValues(values map[string]string) bool {
+	return ipOptionType(values["type"])
 }
 
 // ipOptionType reports whether no-resolve and src can apply; other types

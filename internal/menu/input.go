@@ -107,6 +107,18 @@ type Field struct {
 	Validate     func(string) error
 	Choices      []string
 	ChoiceLabels []string
+	// Show hides the field when it returns false for the current values.
+	Show func(map[string]string) bool
+}
+
+func visibleFields(fields []Field, values map[string]string) []Field {
+	visible := make([]Field, 0, len(fields))
+	for _, field := range fields {
+		if field.Show == nil || field.Show(values) {
+			visible = append(visible, field)
+		}
+	}
+	return visible
 }
 
 // Form preserves entered fields after validation or command failure. A failed
@@ -118,15 +130,25 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 	edit := func(field Field) error {
 		for {
 			label := field.Label
-			if values[field.Key] != "" {
-				label += menuText(s.language, "menu.input.form.blank_keeps_current_value", " [blank keeps current value]")
-
-			}
 			var value string
 			var err error
 			if len(field.Choices) > 0 {
-				value, err = s.selectChoicesWithCurrent(label, field.Choices, field.ChoiceLabels, values[field.Key])
+				// Mark the retained choice in the list; blank input still selects it.
+				labels := make([]string, len(field.Choices))
+				for i, choice := range field.Choices {
+					labels[i] = choice
+					if i < len(field.ChoiceLabels) {
+						labels[i] = field.ChoiceLabels[i]
+					}
+					if choice == values[field.Key] {
+						labels[i] += menuText(s.language, "menu.input.form.current_choice", " (current)")
+					}
+				}
+				value, err = s.selectChoicesWithCurrent(label, field.Choices, labels, values[field.Key])
 			} else {
+				if values[field.Key] != "" {
+					label += menuText(s.language, "menu.input.form.blank_keeps_current_value", " [blank keeps current value]")
+				}
 				value, err = s.Prompt(label)
 			}
 			if err != nil {
@@ -150,20 +172,29 @@ func (s *Session) Form(ctx context.Context, fields []Field, values map[string]st
 			return nil
 		}
 	}
+	// Visibility is re-evaluated before each field so an earlier answer, such
+	// as the rule type, decides which later fields are asked.
 	for _, field := range fields {
+		if field.Show != nil && !field.Show(values) {
+			continue
+		}
 		if err := edit(field); err != nil {
 			return Result{}, err
 		}
 	}
 	result := submit(values)
 	for result.Code != 0 || result.Error != nil {
-		s.writeFeedback(feedbackWarning, menuText(s.language, "menu.input.form.submission_failed_values_are_retained_choose_a_f", "Submission failed. Values are retained. Choose a field to edit or submit again."))
-		for i, field := range fields {
-			s.writeChoice(i+1, field.Label)
+		shown := visibleFields(fields, values)
+		showFields := func() {
+			for i, field := range shown {
+				s.writeChoice(i+1, field.Label)
+			}
+			s.writeChoice(len(shown)+1, menuText(s.language, "menu.input.form.submit_again", "Submit again"))
+			s.writeChoice(0, menuText(s.language, "menu.input.form.cancel", "Cancel"))
+			s.flushResult()
 		}
-		s.writeChoice(len(fields)+1, menuText(s.language, "menu.input.form.submit_again", "Submit again"))
-		s.writeChoice(0, menuText(s.language, "menu.input.form.cancel", "Cancel"))
-		s.flushResult()
+		s.writeFeedback(feedbackWarning, menuText(s.language, "menu.input.form.submission_failed_values_are_retained_choose_a_f", "Submission failed. Values are retained. Choose a field to edit or submit again."))
+		showFields()
 		for {
 			value, err := s.readChoice()
 			if err != nil {

@@ -15,7 +15,7 @@ nagi rules connection CONNECTION_ID
 
 Stored rules belong to the selected profile. Select the intended profile with `nagi profile use NAME` before adding, importing, listing with `rules custom`, or managing them. Custom rules are evaluated before that profile's source and subscription rules. Switching profiles activates the new profile's own rules; an imported rule targeting a subscription group does not affect `default`. Disable a named rule or import temporarily with `nagi rules disable NAME`; re-enable it with `nagi rules enable NAME`. Remove the entire named rule, full-rule import, or set with `nagi rules remove NAME`.
 
-IP rules accept `--no-resolve` and `--src`; see the [single-rule IP options](../reference/cli.md#single-rule-ip-options). In `nagi menu`, the same choices appear at the end of the Add custom rule and Edit rule forms and apply only to IP rules. no-resolve is listed as yes first; src is listed as no first.
+IP rules accept `--no-resolve` and `--src`; see the [single-rule IP options](../reference/cli.md#single-rule-ip-options). In `nagi menu`, the same choices appear at the end of the Add custom rule and Edit rule forms only after you choose `IP-CIDR`, `IP-CIDR6`, or `GEOIP`; other rule types do not ask for them. Resolve domains is listed as yes first; Match source address is listed as no first.
 
 To import full mihomo rules with different targets, save a file such as `personal-rules.yaml`:
 
